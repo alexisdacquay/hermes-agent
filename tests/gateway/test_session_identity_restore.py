@@ -7,12 +7,10 @@ Real ``GatewayRunner`` resolvers and a real ``SessionStore`` over a temp ``HERME
 patched predicates.
 """
 
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
-
 from gateway.config import GatewayConfig, Platform, PlatformConfig
 from gateway.pairing import PairingStore
 from gateway.platforms.base import BasePlatformAdapter

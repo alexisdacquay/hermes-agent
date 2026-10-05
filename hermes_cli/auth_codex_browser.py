@@ -20,13 +20,24 @@ import hmac
 import logging
 import secrets
 import webbrowser
-from typing import Any, Dict, Optional
+from typing import Any
 from urllib.parse import urlencode
 
-from hermes_cli.auth_constants import AuthError, CODEX_OAUTH_CLIENT_ID, CODEX_OAUTH_TOKEN_URL, _codex_err
+from hermes_cli.auth_constants import (
+    CODEX_OAUTH_CLIENT_ID,
+    CODEX_OAUTH_TOKEN_URL,
+    AuthError,
+    _codex_err,
+)
 from hermes_cli.auth_device_flow import (
-    _bind_loopback_callback_server, _can_open_graphical_browser, _make_loopback_callback_handler,
-    _pkce_code_challenge, _pkce_code_verifier, _print_loopback_ssh_hint, _serve_loopback_callback)
+    _bind_loopback_callback_server,
+    _can_open_graphical_browser,
+    _make_loopback_callback_handler,
+    _pkce_code_challenge,
+    _pkce_code_verifier,
+    _print_loopback_ssh_hint,
+    _serve_loopback_callback,
+)
 
 logger = logging.getLogger("hermes_cli.auth")
 
@@ -59,9 +70,11 @@ def _codex_login_flow(args: Any) -> str:
     return flow
 
 
-def codex_oauth_login(args: Any) -> Dict[str, Any]:
+def codex_oauth_login(args: Any) -> dict[str, Any]:
     """Run the Codex OAuth flow selected by *args*/config; port-busy browser attempts fall back."""
-    from hermes_cli import auth as auth_mod  # late: ``hermes_cli.auth.<name>`` patches must intercept
+    from hermes_cli import (
+        auth as auth_mod,  # late: ``hermes_cli.auth.<name>`` patches must intercept
+    )
     if _codex_login_flow(args) == "browser":
         try:
             return _codex_browser_login(
@@ -85,7 +98,7 @@ def _codex_browser_authorize_url(*, redirect_uri: str, state: str, code_challeng
         "code_challenge_method": "S256", "id_token_add_organizations": "true", "state": state})
 
 
-def _codex_browser_exchange_code(code: str, *, redirect_uri: str, code_verifier: str) -> Dict[str, Any]:
+def _codex_browser_exchange_code(code: str, *, redirect_uri: str, code_verifier: str) -> dict[str, Any]:
     """Swap the authorization code for tokens at the token endpoint the device flow also uses."""
     from hermes_cli.auth_codex import _codex_login_post, _codex_login_rate_limited_error
     token_resp = _codex_login_post(
@@ -108,7 +121,7 @@ def _codex_browser_exchange_code(code: str, *, redirect_uri: str, code_verifier:
 
 
 def _codex_browser_login(
-    *, open_browser: bool = True, timeout_seconds: Optional[float] = None) -> Dict[str, Any]:
+    *, open_browser: bool = True, timeout_seconds: float | None = None) -> dict[str, Any]:
     """Authorization-code + PKCE login on the loopback listener; returns the device-flow creds shape.
 
     Raises ``AuthError(code=CODEX_BROWSER_PORT_BUSY_CODE)`` when :1455 cannot be bound so the caller

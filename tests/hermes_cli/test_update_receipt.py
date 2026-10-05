@@ -14,9 +14,8 @@ import os
 import sys
 from types import SimpleNamespace
 
-import pytest
-
 import hermes_cli.update_receipt as ur
+import pytest
 from hermes_cli import update_cmd, update_cmd_maint
 
 

@@ -15,14 +15,14 @@ import logging
 import os
 import time
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from hermes_constants import get_hermes_home
 
 logger = logging.getLogger(__name__)
 
 
-def _traces_enabled_and_dir() -> Optional[Path]:
+def _traces_enabled_and_dir() -> Path | None:
     """Trace directory if ``moa.save_traces`` is on, else None. Reads config per
     call (once per cache-MISS turn); ``moa.trace_dir`` overrides the default."""
     try:
@@ -38,7 +38,7 @@ def _traces_enabled_and_dir() -> Optional[Path]:
     return get_hermes_home() / "moa-traces"
 
 
-def _sanitize_session_id(session_id: Optional[str]) -> str:
+def _sanitize_session_id(session_id: str | None) -> str:
     if not session_id:
         return "unknown-session"
     return "".join(c if (c.isalnum() or c in "-_.") else "_" for c in str(session_id))
@@ -73,9 +73,9 @@ def slot_metrics(acct: Any, label: str, output: Any = None) -> dict[str, Any]:
 
 
 def save_moa_turn(
-    *, session_id: Optional[str], preset_name: str, reference_outputs: list[tuple[str, str, Any]],
-    aggregator_label: str, aggregator_model: Optional[str], aggregator_provider: Optional[str],
-    aggregator_temperature: Any, aggregator_input_messages: Any, aggregator_output: Optional[str],
+    *, session_id: str | None, preset_name: str, reference_outputs: list[tuple[str, str, Any]],
+    aggregator_label: str, aggregator_model: str | None, aggregator_provider: str | None,
+    aggregator_temperature: Any, aggregator_input_messages: Any, aggregator_output: str | None,
     aggregator_streamed: bool,
 ) -> None:
     """Append one full MoA turn record to the session's trace JSONL, if enabled.

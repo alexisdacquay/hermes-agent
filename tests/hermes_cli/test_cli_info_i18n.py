@@ -4,13 +4,15 @@ module-level label tables became call-time lookups, and error copy follows the a
 from __future__ import annotations
 
 import pytest
-
 from agent import i18n
 from agent.i18n import t
-from hermes_cli.commands import COMMAND_REGISTRY, CommandDef
 from hermes_cli import cli_info_mixin
-from hermes_cli.cli_chat_error_copy import agent_init_failure_message, chat_error_response
+from hermes_cli.cli_chat_error_copy import (
+    agent_init_failure_message,
+    chat_error_response,
+)
 from hermes_cli.cli_unknown_command import unknown_command_lines
+from hermes_cli.commands import COMMAND_REGISTRY, CommandDef
 
 
 @pytest.fixture(autouse=True)

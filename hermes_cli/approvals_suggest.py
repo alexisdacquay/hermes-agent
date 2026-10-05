@@ -14,10 +14,9 @@ import json
 import re
 import sqlite3
 import time
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterable, Iterator, Optional
-
 
 # ---------------------------------------------------------------------------
 # Safety exclusions
@@ -144,11 +143,14 @@ def _blocked_tool_call_ids(con: sqlite3.Connection, since_ts: float) -> set:
     }
 
 
-def scan_approval_history(db_path: Optional[Path] = None, days: int = 90) -> list[tuple[str, str]]:
+def scan_approval_history(db_path: Path | None = None, days: int = 90) -> list[tuple[str, str]]:
     """``(command, dangerous_class_description)`` records for dangerous-classified terminal commands
     that actually executed (i.e. carried an implied user approval).
     """
-    from tools.approval_detection import detect_dangerous_command, detect_hardline_command
+    from tools.approval_detection import (
+        detect_dangerous_command,
+        detect_hardline_command,
+    )
     path = Path(db_path) if db_path else default_db_path()
     if not path.exists():
         return []
@@ -180,7 +182,10 @@ def scan_approval_history(db_path: Optional[Path] = None, days: int = 90) -> lis
 
 def normalize_command(command: str) -> str:
     """Fold user/hermes home prefixes and collapse whitespace."""
-    from tools.approval_detection import _rewrite_resolved_hermes_home, _rewrite_resolved_user_home
+    from tools.approval_detection import (
+        _rewrite_resolved_hermes_home,
+        _rewrite_resolved_user_home,
+    )
     return " ".join(_rewrite_resolved_user_home(_rewrite_resolved_hermes_home(command)).split())
 
 
@@ -194,7 +199,7 @@ def _unsafe_root_binary(token: str) -> bool:
     return tok in _UNSAFE_ROOT_BINARIES or tok.startswith(_UNSAFE_ROOT_PREFIXES)
 
 
-def derive_glob(normalized: str) -> Optional[str]:
+def derive_glob(normalized: str) -> str | None:
     """Derive a narrow command glob (``git push *``) from a simple command.
 
     Returns None for compound commands (shell operators — the runtime allowlist matcher refuses
@@ -213,7 +218,7 @@ def derive_glob(normalized: str) -> Optional[str]:
 
 
 def build_proposals(
-    records: Iterable[tuple[str, str]], existing: Optional[set] = None, min_count: int = 2,
+    records: Iterable[tuple[str, str]], existing: set | None = None, min_count: int = 2,
     limit: int = 20,
 ) -> list[Proposal]:
     """Aggregate scan records into a ranked, safety-filtered proposal list.

@@ -39,16 +39,16 @@ import subprocess
 import sys
 import threading
 import time
+from collections.abc import Callable, Iterable
 from pathlib import Path
-from typing import Any, Callable, Iterable
-
-import pytest
-import hermes_yaml as yaml
-
-from tests.e2e.core.upgrade._helpers import WORKTREE, isolated_env
+from typing import Any
 
 import hermes_cli.config as C
+import hermes_yaml as yaml
+import pytest
 from hermes_cli.config_defaults import DEFAULT_CONFIG
+
+from tests.e2e.core.upgrade._helpers import WORKTREE, isolated_env
 
 LATEST = int(DEFAULT_CONFIG["_config_version"])
 
@@ -99,7 +99,7 @@ def _set(tree: dict, path: tuple, value: Any) -> None:
 
 
 def _top_level_keys(text: str) -> list[str]:
-    return [m.group(1) for m in re.finditer(r"^([^\s#\-][^:\n]*):", text, re.M)]
+    return [m.group(1) for m in re.finditer(r"^([^\s#\-][^:\n]*):", text, re.MULTILINE)]
 
 
 def _assert_no_duplicate_top_level(text: str, ctx: str) -> None:
@@ -257,7 +257,7 @@ def _value_for(default: Any, rng: random.Random, *, long: bool, env: dict[str, s
 
 def _before_version(text: str, block: str) -> str:
     """Insert ``block`` (newline-terminated) right before the root ``_config_version:`` line."""
-    out, n = re.subn(r"^_config_version:", block + "_config_version:", text, count=1, flags=re.M)
+    out, n = re.subn(r"^_config_version:", block + "_config_version:", text, count=1, flags=re.MULTILINE)
     assert n == 1, text
     return out
 
@@ -873,7 +873,7 @@ def _p3_case(seed: int) -> Case:
 
 
 def _p3_run(op_name: str, ctx: dict, cfg: Path, text: str, version: int | None) -> tuple[str, str]:
-    body = text if version is None else re.sub(r"^_config_version: \d+$", f"_config_version: {version}", text, flags=re.M)
+    body = text if version is None else re.sub(r"^_config_version: \d+$", f"_config_version: {version}", text, flags=re.MULTILINE)
     _write_file(cfg, body)
     _reset_config_caches(keep_lkg=False)
     outcome = "ok"
@@ -963,9 +963,8 @@ def test_p3_unreadable_or_partial_file_is_never_rewritten(op_name, fault, web_ap
     if fault == "unreadable":
         cfg.chmod(0)
     try:
-        with _quiet():
-            with contextlib.suppress(Exception, SystemExit):
-                _P3_OPS[op_name][0](ctx)
+        with _quiet(), contextlib.suppress(Exception, SystemExit):
+            _P3_OPS[op_name][0](ctx)
     finally:
         cfg.chmod(0o600)
     assert _read(cfg) == text, f"[{op_name}/{fault}] an unreadable/partial config.yaml was rewritten:\n{_udiff(text, _read(cfg))}"
@@ -1165,7 +1164,7 @@ def test_p5_migration_is_idempotent_and_keeps_user_values(version, home, monkeyp
     assert _read(home / ".env") == env_once, f"[{ctx}] a second migrate changed .env"
     # Re-applying every step N→latest to its own output is a no-op (step idempotence).
     if version is not None:
-        rewound = re.sub(r"^_config_version: \d+$", f"_config_version: {version}", once, flags=re.M)
+        rewound = re.sub(r"^_config_version: \d+$", f"_config_version: {version}", once, flags=re.MULTILINE)
         _write_file(cfg, rewound)
         _reset_config_caches()
         with _quiet():

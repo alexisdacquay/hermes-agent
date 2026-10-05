@@ -4,7 +4,7 @@ Delegates format conversion to agent/bedrock_adapter.py. Bedrock uses its own
 boto3 client, so client construction and calls stay on AIAgent.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from agent.transports.base import ProviderTransport
 from agent.transports.types import NormalizedResponse, ToolCall, Usage
@@ -23,20 +23,20 @@ class BedrockTransport(ProviderTransport):
     def api_mode(self) -> str:
         return "bedrock_converse"
 
-    def convert_messages(self, messages: List[Dict[str, Any]], **kwargs) -> Any:
+    def convert_messages(self, messages: list[dict[str, Any]], **kwargs) -> Any:
         """Convert OpenAI messages to Bedrock Converse format."""
         from agent.bedrock_adapter import convert_messages_to_converse
         return convert_messages_to_converse(messages)
 
-    def convert_tools(self, tools: List[Dict[str, Any]]) -> Any:
+    def convert_tools(self, tools: list[dict[str, Any]]) -> Any:
         """Convert OpenAI tool schemas to Bedrock Converse toolConfig."""
         from agent.bedrock_adapter import convert_tools_to_converse
         return convert_tools_to_converse(tools)
 
     def build_kwargs(
-        self, model: str, messages: List[Dict[str, Any]],
-        tools: Optional[List[Dict[str, Any]]] = None, **params,
-    ) -> Dict[str, Any]:
+        self, model: str, messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None, **params,
+    ) -> dict[str, Any]:
         """Build Converse kwargs, leaving the optional output limit to the provider."""
         from agent.bedrock_adapter import build_converse_kwargs
 
@@ -78,6 +78,6 @@ class BedrockTransport(ProviderTransport):
         return bool(getattr(response, "choices", None)) if response is not None else False
 
 
-from agent.transports import register_transport  # noqa: E402
+from agent.transports import register_transport
 
 register_transport("bedrock_converse", BedrockTransport)

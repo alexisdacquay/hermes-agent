@@ -7,14 +7,13 @@ import os
 import time
 from types import SimpleNamespace
 
-import pytest
-
 import hermes_cli.observability.relay_shared_metrics as relay
 import hermes_cli.observability.shared_metrics_install as install
 import hermes_cli.observability.shared_metrics_startup as startup
-import tui_gateway.server as server
+import pytest
 from hermes_cli.observability import shared_metrics_contract as contract
 from hermes_platform.host import facts
+from tui_gateway import server
 
 
 @pytest.fixture

@@ -43,7 +43,6 @@ import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -123,14 +122,15 @@ def launched_by_other_tenant(owner_home: Path | str, our_home: Path | str) -> bo
     """
     if not str(owner_home or ""):
         return False
-    from gateway.status import _same_hermes_home
     from hermes_constants import get_default_hermes_root
+
+    from gateway.status import _same_hermes_home
 
     return not _same_hermes_home(get_default_hermes_root(home=owner_home),
                                  get_default_hermes_root(home=our_home))
 
 
-def _identify(home: Path) -> Optional[dict]:
+def _identify(home: Path) -> dict | None:
     try:
         from gateway.control_socket import identify_gateway
 
@@ -172,7 +172,7 @@ def _identity_matches(identity, record, home: Path) -> bool:
 #: doctor, the lifecycle guards); a gateway PROCESS asks it for the life of the process, so the
 #: memo is time-bounded rather than permanent. Writes invalidate it eagerly.
 HOST_GATEWAY_CACHE_TTL_S = 2.0
-_cached_probe: Optional[tuple[float, Optional[HostGateway]]] = None
+_cached_probe: tuple[float, HostGateway | None] | None = None
 
 
 def invalidate_host_gateway_cache() -> None:
@@ -181,7 +181,7 @@ def invalidate_host_gateway_cache() -> None:
     _cached_probe = None
 
 
-def _probe_host_gateway(wait_for_channel: float) -> Optional[HostGateway]:
+def _probe_host_gateway(wait_for_channel: float) -> HostGateway | None:
     from gateway import host_rendezvous as hr
 
     record = hr.read_record(hr.ROLE_GATEWAY)
@@ -204,7 +204,7 @@ def _probe_host_gateway(wait_for_channel: float) -> Optional[HostGateway]:
     return HostGateway(record.pid, home, (), served_known=False)
 
 
-def host_gateway(*, wait_for_channel: float = 0.0) -> Optional[HostGateway]:
+def host_gateway(*, wait_for_channel: float = 0.0) -> HostGateway | None:
     """The one live host gateway, or ``None``.
 
     The served set comes from the owner's control socket and nowhere else; a record with no live
@@ -219,14 +219,14 @@ def host_gateway(*, wait_for_channel: float = 0.0) -> Optional[HostGateway]:
     return result
 
 
-def host_gateway_serving(profile: str, *, wait_for_channel: float = 0.0) -> Optional[HostGateway]:
+def host_gateway_serving(profile: str, *, wait_for_channel: float = 0.0) -> HostGateway | None:
     """The host gateway when it is live AND serves ``profile`` — true for ``default`` too."""
     gateway = host_gateway(wait_for_channel=wait_for_channel)
     return gateway if gateway is not None and gateway.serves(profile) else None
 
 
 def request_serve_profile(profile: str, *, timeout: float = 8.0,
-                          owner: Optional[HostGateway] = None) -> Optional[HostGateway]:
+                          owner: HostGateway | None = None) -> HostGateway | None:
     """Ask the live host gateway to reconcile ``profiles/`` now; return it once it serves
     ``profile``. ``None`` when nobody answered or a multiplexer's roster still excludes the profile.
     An owner that answers ``multiplex: False`` comes back flagged ``standalone``: it cannot take the
@@ -255,7 +255,7 @@ def request_serve_profile(profile: str, *, timeout: float = 8.0,
 class HostAttachDecision:
     outcome: str
     message: str
-    owner: Optional[HostGateway] = None
+    owner: HostGateway | None = None
     #: True when the verdict is a RUNTIME observation ("someone else serves me right now", "the
     #: owner has not answered yet") rather than a config-derived permanent refusal. A supervisor
     #: must RETRY a transient verdict; parking the unit on one strands the profile forever.
@@ -301,14 +301,15 @@ def standalone_rescan_message(profile: str) -> str:
         "to the host gateway before starting this profile's gateway.")
 
 
-def _coexisting_gateways(owner: Optional[HostGateway]):
+def _coexisting_gateways(owner: HostGateway | None):
     """A standalone lock owner can hide a multiplexer launched beside it.
 
     Use the existing per-home liveness and control channels, not the single host
     record, to ask every running profile gateway what it actually serves.
     """
-    from gateway.status import live_gateway_pid_for_home
     from hermes_cli.profiles import profiles_to_serve
+
+    from gateway.status import live_gateway_pid_for_home
 
     seen = {os.getpid()}
     if owner is not None:
@@ -327,7 +328,7 @@ def _coexisting_gateways(owner: Optional[HostGateway]):
         yield peer
 
 
-def standalone_attach_decision(our_home: Path, owner: Optional[HostGateway]) -> Optional[HostAttachDecision]:
+def standalone_attach_decision(our_home: Path, owner: HostGateway | None) -> HostAttachDecision | None:
     """An opt-out permits coexistence only after every live gateway confirms we are unserved.
 
     Shared by the initial attach check and the lock-losing race check.

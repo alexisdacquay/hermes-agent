@@ -5,7 +5,6 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 import pytest
-
 from hermes_state import SessionDB
 
 SESSION_ID = "switch-session"

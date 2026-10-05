@@ -4,7 +4,6 @@ import threading
 import time
 
 import pytest
-
 import tools.image_generation_tool as image_tool
 from tools.interrupt import set_interrupt
 

@@ -15,7 +15,6 @@ from __future__ import annotations
 import logging
 import os
 import threading
-from typing import List, Optional, Tuple
 
 # Dedicated logger name so the documented grep recipe survives any
 # ``logging.getLogger(__name__)`` rename of internal modules.
@@ -50,7 +49,7 @@ def _emit(server_id: str, level: int, message: str) -> None:
     event_log.log(level, "lsp[%s] %s", server_id, message)
 
 
-def _emit_once(bucket: set, key: Tuple, server_id: str, level: int, first: str, repeat: str) -> None:
+def _emit_once(bucket: set, key: tuple, server_id: str, level: int, first: str, repeat: str) -> None:
     """Log *first* at *level* the first time *key* is seen, *repeat* at DEBUG thereafter."""
     with _announce_lock:
         is_first = key not in bucket
@@ -115,7 +114,7 @@ def log_spawn_failed(server_id: str, workspace_root: str, exc: BaseException) ->
     _emit(server_id, logging.WARNING, f"spawn/initialize failed for {workspace_root}: {type(exc).__name__}: {exc}")
 
 
-def log_skipped_broken(server_id: str, workspace_root: str, file_path: str, retry_in: Optional[float] = None) -> None:
+def log_skipped_broken(server_id: str, workspace_root: str, file_path: str, retry_in: float | None = None) -> None:
     """A request was skipped because ``(server_id, root)`` is marked broken.  INFO once per root, then DEBUG:
     at default log levels a skipped file and a clean file otherwise look identical (``log_clean`` is DEBUG).
     ``retry_in`` (seconds, from ``lsp.broken_retry_seconds``) names when the pair gets another try."""
@@ -144,7 +143,7 @@ def log_untrusted_skipped(server_id: str, workspace_root: str, file_path: str) -
                f"skipped: untrusted workspace {workspace_root}")
 
 
-def log_reaped(keys: List[Tuple[str, str]], idle_timeout: float) -> None:
+def log_reaped(keys: list[tuple[str, str]], idle_timeout: float) -> None:
     """Idle clients were reaped.  INFO, one line per sweep.
 
     Also forgets the ``log_active`` announcement for those keys so a respawn
@@ -156,7 +155,7 @@ def log_reaped(keys: List[Tuple[str, str]], idle_timeout: float) -> None:
     _emit("reaper", logging.INFO, f"reaped {len(keys)} idle client(s) after {idle_timeout:.0f}s: {summary}")
 
 
-def log_released(keys: List[Tuple[str, str]], reason: str) -> None:
+def log_released(keys: list[tuple[str, str]], reason: str) -> None:
     """Clients were shut down because their workspace went away (worktree released or root deleted).
     INFO, one line per event; forgets the ``log_active`` announcement like :func:`log_reaped`."""
     with _announce_lock:
@@ -173,8 +172,19 @@ def reset_announce_caches() -> None:
 
 
 __all__ = [
-    "event_log", "log_clean", "log_disabled", "log_active", "log_diagnostics", "log_no_project_root",
-    "log_server_unavailable", "log_timeout", "log_server_error", "log_spawn_failed", "log_skipped_broken", "log_root_excluded",
-    "log_untrusted_skipped", "log_reaped",
+    "event_log",
+    "log_active",
+    "log_clean",
+    "log_diagnostics",
+    "log_disabled",
+    "log_no_project_root",
+    "log_reaped",
+    "log_root_excluded",
+    "log_server_error",
+    "log_server_unavailable",
+    "log_skipped_broken",
+    "log_spawn_failed",
+    "log_timeout",
+    "log_untrusted_skipped",
     "reset_announce_caches",
 ]

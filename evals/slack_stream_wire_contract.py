@@ -54,9 +54,9 @@ async def run(repo: str, out: str):
     for m in list(sys.modules):
         if m.startswith(("gateway", "plugins", "tools", "hermes", "agent")):
             del sys.modules[m]
-    from slack_sdk.web.async_client import AsyncWebClient
     from gateway.config import PlatformConfig
-    from plugins.platforms.slack.adapter import SlackAdapter, SLACK_AVAILABLE
+    from plugins.platforms.slack.adapter import SLACK_AVAILABLE, SlackAdapter
+    from slack_sdk.web.async_client import AsyncWebClient
 
     assert SLACK_AVAILABLE, "slack_sdk must be importable for a real-client wire probe"
 

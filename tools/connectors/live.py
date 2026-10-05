@@ -8,9 +8,9 @@ session's profile scope) resolves it through ``hermes_home_key``."""
 from __future__ import annotations
 
 import threading
-from typing import Dict, Optional, Tuple
 
 from hermes_constants import get_process_hermes_home, hermes_home_key
+
 from tools.connectors.operation import ConnectionOperation
 
 
@@ -20,21 +20,21 @@ class OperationAlreadyOpen(RuntimeError):
         self.existing = existing
 
 
-_open: Dict[Tuple[str, str], ConnectionOperation] = {}
+_open: dict[tuple[str, str], ConnectionOperation] = {}
 _lock = threading.Lock()
 
 
-def _profile_key(profile_home: Optional[str]) -> str:
+def _profile_key(profile_home: str | None) -> str:
     """A session record names its profile home only for a non-default profile; the tool thread sees
     the same home through its turn override, and the default profile through the process home."""
     return hermes_home_key(profile_home or get_process_hermes_home())
 
 
-def _key(session_key: str, profile_home: Optional[str]) -> Tuple[str, str]:
+def _key(session_key: str, profile_home: str | None) -> tuple[str, str]:
     return _profile_key(profile_home), session_key
 
 
-def open(operation: ConnectionOperation) -> None:  # noqa: A001 - the verb is the API
+def open(operation: ConnectionOperation) -> None:
     operation.profile_key = hermes_home_key()
     key = (operation.profile_key, operation.session_key)
     with _lock:
@@ -44,26 +44,26 @@ def open(operation: ConnectionOperation) -> None:  # noqa: A001 - the verb is th
         _open[key] = operation
 
 
-def current(session_key: str, *, profile_home: Optional[str] = None) -> Optional[ConnectionOperation]:
+def current(session_key: str, *, profile_home: str | None = None) -> ConnectionOperation | None:
     with _lock:
         operation = _open.get(_key(session_key, profile_home))
     return operation if operation is not None and not operation.settled else None
 
 
-def get(session_key: str, op_id: str, *, profile_home: Optional[str] = None) -> Optional[ConnectionOperation]:
+def get(session_key: str, op_id: str, *, profile_home: str | None = None) -> ConnectionOperation | None:
     with _lock:
         operation = _open.get(_key(session_key, profile_home))
     return operation if operation is not None and operation.op_id == op_id else None
 
 
-def get_by_op_id(op_id: str, *, profile_home: Optional[str] = None) -> Optional[ConnectionOperation]:
+def get_by_op_id(op_id: str, *, profile_home: str | None = None) -> ConnectionOperation | None:
     profile_key = _profile_key(profile_home)
     with _lock:
         return next((operation for (key, _), operation in _open.items()
                      if key == profile_key and operation.op_id == op_id and not operation.settled), None)
 
 
-def find_target(name: str, *, profile_home: Optional[str] = None) -> Optional[ConnectionOperation]:
+def find_target(name: str, *, profile_home: str | None = None) -> ConnectionOperation | None:
     profile_key = _profile_key(profile_home)
     with _lock:
         return next((operation for (key, _), operation in _open.items()

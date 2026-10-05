@@ -13,8 +13,8 @@ same contract.
 
 import types
 
-import pytest
 import hermes_cli.web_server_profiles as _web_server_profiles
+import pytest
 
 
 @pytest.fixture
@@ -114,7 +114,6 @@ class TestApprovalsSaveBroadcast:
         )
 
     def test_other_profile_save_does_not_broadcast(self, client, broadcast_calls, monkeypatch, tmp_path):
-        from hermes_cli import web_server
 
         profile_dir = tmp_path / "profiles" / "other"
         profile_dir.mkdir(parents=True)

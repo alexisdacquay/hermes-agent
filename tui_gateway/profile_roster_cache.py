@@ -27,8 +27,9 @@ cache declared there would be written to one copy and read from another.
 from __future__ import annotations
 
 import copy
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any
 
 # Each keyed by resolved profile path. One entry per profile the roster has painted; a removed
 # profile leaves one stale entry, so a memo is dropped whole once it grows past any plausible fleet.
@@ -39,7 +40,7 @@ _MAX_ENTRIES = 512
 _STORE_FILES = ("state.db", "state.db-wal")
 
 
-def _file_parts(path: Path, *, with_inode: bool = False) -> Optional[tuple]:
+def _file_parts(path: Path, *, with_inode: bool = False) -> tuple | None:
     try:
         stat = path.stat()
     except OSError:
@@ -47,7 +48,7 @@ def _file_parts(path: Path, *, with_inode: bool = False) -> Optional[tuple]:
     return (path.name, stat.st_mtime_ns, stat.st_size) + ((stat.st_ino,) if with_inode else ())
 
 
-def _cached(cache: dict, key: str, signature: Optional[tuple], compute: Callable[[], dict],
+def _cached(cache: dict, key: str, signature: tuple | None, compute: Callable[[], dict],
             copier: Callable[[dict], dict]) -> dict[str, Any]:
     """``compute()``'s fields, reused while *signature* holds. No signature means no cache."""
     if signature is None:
@@ -62,7 +63,7 @@ def _cached(cache: dict, key: str, signature: Optional[tuple], compute: Callable
     return fields
 
 
-def store_signature(profile_path: "str | Path") -> Optional[tuple]:
+def store_signature(profile_path: str | Path) -> tuple | None:
     """``(name, mtime_ns, size)`` per session-store file, or None when the profile has no store.
 
     The pair the change watcher already trusts for ``sessions.changed``.
@@ -74,17 +75,17 @@ def store_signature(profile_path: "str | Path") -> Optional[tuple]:
     return tuple(p for p in parts if not (p[0].endswith("-wal") and p[2] == 0)) or None
 
 
-def profile_yaml_signature(profile_dir: "str | Path") -> Optional[tuple]:
+def profile_yaml_signature(profile_dir: str | Path) -> tuple | None:
     """``(name, mtime_ns, size, inode)`` of the profile's ``profile.yaml``, or None when absent."""
     return _file_parts(Path(profile_dir) / "profile.yaml", with_inode=True)
 
 
-def cached_session_fields(profile_path: "str | Path", compute: Callable[[], dict]) -> dict[str, Any]:
+def cached_session_fields(profile_path: str | Path, compute: Callable[[], dict]) -> dict[str, Any]:
     """``compute()``'s fields, reused while the profile's session store has not moved."""
     return _cached(_SESSION_CACHE, str(profile_path), store_signature(profile_path), compute, dict)
 
 
-def cached_ui_meta_fields(profile_dir: "str | Path", compute: Callable[[], dict]) -> dict[str, Any]:
+def cached_ui_meta_fields(profile_dir: str | Path, compute: Callable[[], dict]) -> dict[str, Any]:
     """``compute()``'s fields, reused while the profile's ``profile.yaml`` has not changed.
 
     Copied deeply: ``ui_meta`` is a nested mapping the caller hands to a client.
@@ -93,7 +94,7 @@ def cached_ui_meta_fields(profile_dir: "str | Path", compute: Callable[[], dict]
                    compute, copy.deepcopy)
 
 
-def invalidate(profile_path: "str | Path | None" = None) -> None:
+def invalidate(profile_path: str | Path | None = None) -> None:
     """Drop one profile's memos, or all of them. For tests and for a caller that knows better."""
     for cache in (_SESSION_CACHE, _UI_META_CACHE):
         if profile_path is None:

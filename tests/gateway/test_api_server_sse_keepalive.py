@@ -9,7 +9,6 @@ import types
 import pytest
 from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
-
 from gateway.config import PlatformConfig
 from gateway.platforms import api_server
 from gateway.platforms import api_server_openai_routes as routes

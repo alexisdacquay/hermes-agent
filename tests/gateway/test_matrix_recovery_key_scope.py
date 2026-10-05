@@ -15,9 +15,11 @@ bootstrapped recovery key would either not be written at all, or be written
 to the default profile's configured path.
 """
 import pytest
-
 from agent import secret_scope as ss
-from plugins.platforms.matrix.adapter import _recovery_key_output_path, _scoped_recovery_key
+from plugins.platforms.matrix.adapter import (
+    _recovery_key_output_path,
+    _scoped_recovery_key,
+)
 
 
 @pytest.fixture(autouse=True)

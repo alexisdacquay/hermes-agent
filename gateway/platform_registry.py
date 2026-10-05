@@ -11,18 +11,19 @@ import contextvars
 import logging
 import sys
 import threading
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable, Optional
+from typing import Any
 
 from hermes_constants import hermes_home_key
 
 logger = logging.getLogger(__name__)
 
-_LoadKey = tuple[Optional[str], str]
+_LoadKey = tuple[str | None, str]
 _Loader = Callable[[], None]
 
 
-def _plugin_scope_from_callable(callback: Callable) -> Optional[str]:
+def _plugin_scope_from_callable(callback: Callable) -> str | None:
     """Infer a plugin profile from code registered outside PluginContext."""
     try:
         from tools.registry import registry as tool_registry
@@ -31,7 +32,7 @@ def _plugin_scope_from_callable(callback: Callable) -> Optional[str]:
         return None
 
 
-def _caller_plugin_scope() -> Optional[str]:
+def _caller_plugin_scope() -> str | None:
     try:
         module_name = sys._getframe(2).f_globals.get("__name__", "") or ""
     except Exception:
@@ -53,7 +54,7 @@ class PlatformEntry:
     # Optional: given a PlatformConfig, is it properly configured?
     # If None, the registry skips config validation and lets the adapter
     # fail at connect() time with a descriptive error.
-    validate_config: Optional[Callable[[Any], bool]] = None
+    validate_config: Callable[[Any], bool] | None = None
 
     # ACTIVE dependency installer: make the platform's dependencies available,
     # installing them (pm.sync_venv) if needed.  Returns True once deps are
@@ -70,13 +71,13 @@ class PlatformEntry:
     # returned None before ``connect()`` could lazy-install, so the deps
     # never installed at all (Teams deadlock).  Splitting the two roles makes
     # both call sites correct by construction.
-    ensure_deps_fn: Optional[Callable[[], bool]] = None
+    ensure_deps_fn: Callable[[], bool] | None = None
     # Connected/configured for this PlatformConfig (``get_connected_platforms``, setup UI);
     # None falls back to ``validate_config`` or ``check_fn``.
-    is_connected: Optional[Callable[[Any], bool]] = None
+    is_connected: Callable[[Any], bool] | None = None
     required_env: list = field(default_factory=list)  # ``hermes setup`` display
     install_hint: str = ""  # shown when check_fn is False
-    setup_fn: Optional[Callable[[], None]] = None  # None = _setup_standard_platform / env display
+    setup_fn: Callable[[], None] | None = None  # None = _setup_standard_platform / env display
     source: str = "plugin"  # "builtin" or "plugin"
     plugin_name: str = ""  # owning manifest so ``hermes gateway setup`` can auto-enable it
     allowed_users_env: str = ""  # comma-separated allowed user IDs (_is_user_authorized)
@@ -88,26 +89,26 @@ class PlatformEntry:
     platform_hint: str = ""  # injected into the system prompt; empty = none
     # ``() -> Optional[dict]`` of ``extra`` fields to seed when auto-enabled from env; runs in
     # ``_apply_env_overrides`` BEFORE adapter construction so ``gateway status`` sees it.
-    env_enablement_fn: Optional[Callable[[], Optional[dict]]] = None
+    env_enablement_fn: Callable[[], dict | None] | None = None
     # YAML->env bridge ``(yaml_cfg, platform_cfg) -> Optional[dict]`` merged into ``extra``; runs
     # after the shared-key loop, before ``_apply_env_overrides``. Build it with
     # ``gateway.platforms._shared.apply_yaml_bridge`` — it writes env only when unset (env > YAML)
     # and never under a multiplexed secondary's scope; a hand-rolled ``os.environ[...] =`` is
     # first-profile-wins. Contract: docs/developer-guide/adding-platform-adapters.md.
-    apply_yaml_config_fn: Optional[Callable[[dict, dict], Optional[dict]]] = None
+    apply_yaml_config_fn: Callable[[dict, dict], dict | None] | None = None
     cron_deliver_env_var: str = ""  # home-channel env var read for cron ``deliver=<name>``
     # ``(target_ref) -> Optional[(chat_id, thread_id)]`` run before channel-directory
     # fallback so plugins can declare native target syntax; None = continue resolution.
-    parse_target_ref_fn: Optional[Callable[[str], Optional[tuple[str, Optional[str]]]]] = None
+    parse_target_ref_fn: Callable[[str], tuple[str, str | None] | None] | None = None
     # Post-resolution validation: True accept, False reject, non-empty str = reject + diagnostic.
-    validate_target_ref_fn: Optional[Callable[[str], bool | str]] = None
+    validate_target_ref_fn: Callable[[str], bool | str] | None = None
     # Whole-request delivery ``(args, normalized_chat_id, platform_name, pconfig)``, sync or
     # async; prefer standalone_sender_fn when the standard send contract suffices.
-    send_message_handler: Optional[Callable[[dict, str, str, Any], Any]] = None
+    send_message_handler: Callable[[dict, str, str, Any], Any] | None = None
     # Out-of-process sender for cron without a co-resident gateway:
     # ``async (pconfig, chat_id, message, *, thread_id=None, media_files=None, force_document=False)
     # -> {"success": True, "message_id": ...} | {"error": str}``.
-    standalone_sender_fn: Optional[Callable[..., Awaitable[dict]]] = None
+    standalone_sender_fn: Callable[..., Awaitable[dict]] | None = None
     # Every inbound event is produced by the service the adapter authenticated to with its own
     # credential (an event bus, not a person), so user allowlists and pairing do not apply. Never
     # set it for a chat platform: any sender would reach the agent. Consumer: Home Assistant.
@@ -162,7 +163,7 @@ class PlatformRegistry:
         return hermes_home_key()
 
     def _scope_maps(
-        self, scope: Optional[str], *, create: bool = False
+        self, scope: str | None, *, create: bool = False
     ) -> tuple[dict[str, PlatformEntry], dict[str, _Loader]]:
         if scope is None:
             return self._entries, self._deferred
@@ -171,8 +172,8 @@ class PlatformRegistry:
         return self._scoped_entries.get(scope, {}), self._scoped_deferred.get(scope, {})
 
     def _registration_state(
-        self, scope: Optional[str], name: str, *, create: bool = False
-    ) -> tuple[Optional[PlatformEntry], Optional[_Loader]]:
+        self, scope: str | None, name: str, *, create: bool = False
+    ) -> tuple[PlatformEntry | None, _Loader | None]:
         """(entry, loader) for *name*; the loader falls back to in-flight, then consumed."""
         entries, deferred = self._scope_maps(scope, create=create)
         entry = entries.get(name)
@@ -181,14 +182,14 @@ class PlatformRegistry:
             loader = self._inflight_loaders.get((scope, name)) or self._consumed_loaders.get((scope, name))
         return entry, loader
 
-    def _prune_scope(self, scope: Optional[str]) -> None:
+    def _prune_scope(self, scope: str | None) -> None:
         for maps in (self._scoped_entries, self._scoped_deferred) if scope is not None else ():
             if not maps.get(scope):
                 maps.pop(scope, None)
 
     # -- deferred loading ----------------------------------------------------
 
-    def register_deferred(self, name: str, loader: _Loader, *, scope: Optional[str] = None) -> None:
+    def register_deferred(self, name: str, loader: _Loader, *, scope: str | None = None) -> None:
         """Register a lazy loader (imports the plugin module, which must call :meth:`register`);
         runs at most once, on first lookup; a concrete registration drops it."""
         with self._lock:
@@ -198,16 +199,16 @@ class PlatformRegistry:
                 deferred[name] = loader
 
     def snapshot_registration(
-        self, name: str, *, scope: Optional[str] = None
-    ) -> tuple[Optional[PlatformEntry], Optional[_Loader]]:
+        self, name: str, *, scope: str | None = None
+    ) -> tuple[PlatformEntry | None, _Loader | None]:
         """Concrete and deferred state for *name* without resolving it, so the plugin ledger can
         restore a deferred loader displaced by a concrete registration without importing it."""
         with self._lock:
             return self._registration_state(scope, name)
 
     def restore_registration(
-        self, name: str, current: tuple[Optional[PlatformEntry], Optional[_Loader]],
-        previous: tuple[Optional[PlatformEntry], Optional[_Loader]], *, scope: Optional[str] = None,
+        self, name: str, current: tuple[PlatformEntry | None, _Loader | None],
+        previous: tuple[PlatformEntry | None, _Loader | None], *, scope: str | None = None,
     ) -> bool:
         """Restore a registration if its full state is still *current* (CAS): a later
         registration is never removed, and deferred loaders are part of the state."""
@@ -227,9 +228,9 @@ class PlatformRegistry:
             self._prune_scope(scope)
             return True
 
-    def _resolve(self, name: str, scope: Optional[str] = None) -> None:
+    def _resolve(self, name: str, scope: str | None = None) -> None:
         """Run the deferred loader for *name* if one is pending."""
-        loader: Optional[_Loader] = None
+        loader: _Loader | None = None
         is_loader = False
         with self._lock:
             active_scope = scope or self.current_scope_key()
@@ -284,7 +285,7 @@ class PlatformRegistry:
         if was_cancelled:
             self._resolve(name, active_scope)
 
-    def is_deferred_load_cancelled(self, name: str, *, scope: Optional[str] = None) -> bool:
+    def is_deferred_load_cancelled(self, name: str, *, scope: str | None = None) -> bool:
         """Whether ownership teardown cancelled an in-flight loader."""
         with self._lock:
             return (scope, name) in self._cancelled_inflight
@@ -307,7 +308,7 @@ class PlatformRegistry:
         for name in (*sorted(scoped_names), *sorted(global_names)):
             self._resolve(name, active_scope)
 
-    def register(self, entry: PlatformEntry, *, scope: Optional[str] = None) -> None:
+    def register(self, entry: PlatformEntry, *, scope: str | None = None) -> None:
         """Register a platform adapter entry (last writer wins on name clash)."""
         with self._lock:
             if scope is None and entry.source == "plugin":
@@ -326,7 +327,7 @@ class PlatformRegistry:
             entries[entry.name] = entry
             logger.debug("Registered platform adapter: %s (%s)", entry.name, entry.source)
 
-    def unregister(self, name: str, *, scope: Optional[str] = None) -> bool:
+    def unregister(self, name: str, *, scope: str | None = None) -> bool:
         """Remove a platform entry. Returns True if it existed."""
         with self._lock:
             inferred_scope = scope if scope is not None else _caller_plugin_scope()
@@ -348,7 +349,7 @@ class PlatformRegistry:
             or (scope, name) in self._inflight or (None, name) in self._inflight
         )
 
-    def get(self, name: str) -> Optional[PlatformEntry]:
+    def get(self, name: str) -> PlatformEntry | None:
         """Look up a platform entry by name."""
         scope = self.current_scope_key()
         with self._lock:
@@ -393,7 +394,7 @@ class PlatformRegistry:
             entries, _deferred = self._scope_maps(scope)
             return name in entries or name in self._entries or self._load_pending(scope, name)
 
-    def create_adapter(self, name: str, config: Any) -> Optional[Any]:
+    def create_adapter(self, name: str, config: Any) -> Any | None:
         """Create an adapter instance for *name*; None when no entry exists, deps are missing
         and cannot be installed, ``validate_config`` fails, or the factory raises."""
         entry = self.get(name)

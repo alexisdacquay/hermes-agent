@@ -82,7 +82,11 @@ def _poll_runtime_files() -> None:
     """Broadcast ``display.status`` when a home's screen started/stopped outside this process — a
     file move (start/stop by the CLI or gateway) or the launcher dying without touching its files
     (Xvnc crash: env and launcher.pid stay put, only the pid stops being live)."""
-    from hermes_constants import hermes_home_key, reset_hermes_home_override, set_hermes_home_override
+    from hermes_constants import (
+        hermes_home_key,
+        reset_hermes_home_override,
+        set_hermes_home_override,
+    )
     from tools.bot_desktop import runtime as _bd_runtime
     for home in _watched_lease_homes():
         key = hermes_home_key(home)
@@ -168,7 +172,7 @@ def _ensure_lease_watcher() -> None:
                 _poll_lease_files()
                 _poll_idle_screens()
                 _poll_runtime_files()
-            except Exception:  # noqa: BLE001 - a torn read must not kill the watcher
+            except Exception:
                 logger.debug("lease watcher poll failed", exc_info=True)
             time.sleep(_LEASE_POLL_S)
     threading.Thread(target=_loop, name="hermes-lease-watcher", daemon=True).start()

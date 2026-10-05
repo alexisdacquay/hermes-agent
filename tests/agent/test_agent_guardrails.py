@@ -10,7 +10,6 @@ Covers three static methods on AIAgent (inspired by PR #1321 — @alireza78a):
 import types
 
 import pytest
-
 from run_agent import AIAgent
 
 # Pin the concurrency limit instead of reading the runtime config.

@@ -12,13 +12,12 @@ interrupting. The gateway runner must:
 """
 from __future__ import annotations
 
-from datetime import datetime
 import time
+from datetime import datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from gateway.config import GatewayConfig, Platform, PlatformConfig
 from gateway.platforms.event import MessageEvent
 from gateway.session import SessionEntry, SessionSource, build_session_key

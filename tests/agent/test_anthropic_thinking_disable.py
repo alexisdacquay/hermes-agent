@@ -20,7 +20,6 @@ Sibling contract on the chat_completions wire: hermes-agent#90412.
 from __future__ import annotations
 
 import pytest
-
 from agent.anthropic_adapter import build_anthropic_kwargs
 
 MESSAGES = [{"role": "user", "content": "hello"}]

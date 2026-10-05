@@ -1,11 +1,33 @@
 """Tests for the central command registry and autocomplete."""
 
+from hermes_cli.commands import (
+    COMMAND_REGISTRY,
+    COMMANDS_BY_CATEGORY,
+    GATEWAY_KNOWN_COMMANDS,
+    CommandDef,
+    command_desktop_meta,
+    gateway_help_lines,
+    infer_argument_mode,
+    resolve_command,
+)
+from hermes_cli.commands_completion import (
+    SlashCommandAutoSuggest,
+    SlashCommandCompleter,
+)
+from hermes_cli.commands_platforms import (
+    _CMD_NAME_LIMIT,
+    _SLACK_RESERVED_COMMANDS,
+    _SLACK_VIA_HERMES_ONLY,
+    _clamp_command_names,
+    _sanitize_telegram_name,
+    slack_app_manifest,
+    slack_native_slashes,
+    slack_subcommand_map,
+    telegram_bot_commands,
+    telegram_menu_commands,
+)
 from prompt_toolkit.completion import CompleteEvent
 from prompt_toolkit.document import Document
-
-from hermes_cli.commands import COMMAND_REGISTRY, COMMANDS_BY_CATEGORY, CommandDef, GATEWAY_KNOWN_COMMANDS, command_desktop_meta, gateway_help_lines, infer_argument_mode, resolve_command
-from hermes_cli.commands_completion import SlashCommandAutoSuggest, SlashCommandCompleter
-from hermes_cli.commands_platforms import _CMD_NAME_LIMIT, _SLACK_RESERVED_COMMANDS, _SLACK_VIA_HERMES_ONLY, _clamp_command_names, _sanitize_telegram_name, slack_app_manifest, slack_native_slashes, slack_subcommand_map, telegram_bot_commands, telegram_menu_commands
 
 
 def _completions(completer: SlashCommandCompleter, text: str):
@@ -370,7 +392,7 @@ class TestSubcommandCompletion:
             "hermes_cli.tools_config._get_platform_tools",
             lambda *_a, **_k: set(),
         )
-        monkeypatch.setattr("hermes_cli.config.load_config", lambda: {})
+        monkeypatch.setattr("hermes_cli.config.load_config", dict)
         monkeypatch.setattr(
             "hermes_cli.tools_config._get_plugin_toolset_keys",
             lambda: set(),
@@ -541,6 +563,7 @@ class TestGatewaySkillCollector:
 
     def test_long_skill_name_clamped_but_cmd_key_retained(self, tmp_path):
         from unittest.mock import patch
+
         from hermes_cli.commands_platforms import _collect_gateway_skill_entries
 
         long_name = "this-is-a-very-long-skill-name-that-exceeds-limit"
@@ -569,6 +592,7 @@ class TestGatewaySkillCollector:
 
     def test_cap_trims_skills_only(self, tmp_path):
         from unittest.mock import patch
+
         from hermes_cli.commands_platforms import _collect_gateway_skill_entries
 
         skills_dir = tmp_path / "skills"
@@ -666,8 +690,8 @@ class TestTelegramMenuCommands:
 
     def test_special_chars_in_skill_names_sanitized(self, tmp_path, monkeypatch):
         """Skills with +, /, or other special chars produce valid Telegram names."""
-        from unittest.mock import patch
         import re
+        from unittest.mock import patch
 
         monkeypatch.setenv("HERMES_HOME", str(tmp_path))
 
@@ -909,6 +933,7 @@ class TestTelegramMenuCommands:
     def test_scalar_configured_priority_is_accepted_as_one_command(self):
         """The config CLI's scalar value form must work for a single priority."""
         from unittest.mock import patch
+
         from hermes_cli.commands_platforms import _telegram_command_menu_config
 
         raw_config = {

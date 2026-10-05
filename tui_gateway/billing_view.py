@@ -9,8 +9,6 @@ so tests may still monkeypatch e.g. ``server._usage_payload``.
 
 from __future__ import annotations
 
-from typing import Optional
-
 from .method_ctx import bind_module
 
 
@@ -22,7 +20,11 @@ def _wire_str(value):
 def _serialize_billing_error(exc) -> dict:
     """Map a BillingError into the result.error envelope the TUI branches on."""
     from hermes_cli.nous_billing import (
-        BillingRemoteSpendingRevoked, BillingScopeRequired, BillingSessionRevoked, BillingTransient)
+        BillingRemoteSpendingRevoked,
+        BillingScopeRequired,
+        BillingSessionRevoked,
+        BillingTransient,
+    )
     typed = {BillingRemoteSpendingRevoked: "remote_spending_revoked",
              BillingSessionRevoked: "session_revoked", BillingScopeRequired: "insufficient_scope"}
     kind = next((k for cls, k in typed.items() if isinstance(exc, cls)), None)
@@ -120,7 +122,7 @@ def _usage_payload(state) -> dict:
         return {"available": False}
 
 
-def _serialize_usage_bar(bar) -> Optional[dict]:
+def _serialize_usage_bar(bar) -> dict | None:
     """Serialize a UsageBar (dollar magnitudes → display strings + fractions)."""
     if bar is None:
         return None

@@ -17,7 +17,6 @@ named ``hermes_tool_search`` is never silently dispatched as the bridge.
 from types import SimpleNamespace
 
 import pytest
-
 from agent.transports import get_transport
 from agent.transports.chat_completions import (
     _XAI_TOOL_SEARCH_ALIAS,

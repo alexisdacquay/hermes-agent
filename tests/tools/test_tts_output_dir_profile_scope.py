@@ -12,9 +12,10 @@ these pins keep the synthesis paths from re-freezing the launch profile.
 import importlib
 from pathlib import Path
 
+
 def _reload_tts_tool(import_home: Path, monkeypatch):
     monkeypatch.setenv("HERMES_HOME", str(import_home))
-    import tools.tts_tool as tts_tool
+    from tools import tts_tool
 
     return importlib.reload(tts_tool)
 

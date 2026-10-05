@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
 import subprocess
 import sys
+from pathlib import Path
 from types import ModuleType
 
 import pytest
-
 from pm.environments import install_state_dir, install_state_permission_message
 
 

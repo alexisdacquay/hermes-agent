@@ -2,7 +2,6 @@
 from types import SimpleNamespace
 
 import pytest
-
 from agent import chat_completion_helpers as cch
 
 

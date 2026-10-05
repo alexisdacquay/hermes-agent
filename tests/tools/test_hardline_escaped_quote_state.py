@@ -12,7 +12,6 @@ parity. Two consumers paid for it in opposite directions:
 Direction from #85922 (@Soju06): read quote state from the raw command (only quoted newlines masked).
 """
 import pytest
-
 from tools.approval_detection import detect_dangerous_command, detect_hardline_command
 
 

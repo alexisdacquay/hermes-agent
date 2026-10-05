@@ -4,14 +4,19 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any
 
-from hermes_state_common import (
-    AUTO_VACUUM_MIN_FREELIST_RATIO, _id_chunks, _non_continuation_child_sql, _placeholders, _sql_session_last_active,
-    escape_like as _escape_like
-)
 from hermes_startup_watchdog import report_startup_progress
+from hermes_state_common import (
+    AUTO_VACUUM_MIN_FREELIST_RATIO,
+    _id_chunks,
+    _non_continuation_child_sql,
+    _placeholders,
+    _sql_session_last_active,
+)
+from hermes_state_common import escape_like as _escape_like
 
 # caplog tests pin the "hermes_state" logger name.
 logger = logging.getLogger("hermes_state")
@@ -25,7 +30,7 @@ def _like(value: str) -> str:
     return f"%{_escape_like(value.lower())}%"
 
 
-def _cwd_prefix_filter(value: str) -> Tuple[List[str], list]:
+def _cwd_prefix_filter(value: str) -> tuple[list[str], list]:
     from hermes_state_sessions import _cwd_prefix_clause
     clause, params = _cwd_prefix_clause(value)
     return [clause], list(params)
@@ -35,7 +40,7 @@ def _one(clause: str, conv=None):
     return lambda v: ([clause], [conv(v) if conv else v])
 
 
-def _seconds_since(now: float, raw) -> Optional[float]:
+def _seconds_since(now: float, raw) -> float | None:
     """Age of a state_meta timestamp; None when unset or corrupt (= no prior run)."""
     try:
         return now - float(raw) if raw else None
@@ -110,7 +115,7 @@ def _not_pinned_sql(alias: str = "s") -> str:
 class SessionMaintenanceMixin:
     """Retention pruning, stale-session archiving and VACUUM policy for SessionDB."""
 
-    def prune_empty_ghost_sessions(self, sessions_dir: "Optional[Path]" = None) -> int:
+    def prune_empty_ghost_sessions(self, sessions_dir: Path | None = None) -> int:
         """Remove empty TUI ghost sessions (no messages, no title, >24hr old)."""
         cutoff = time.time() - 86400
         def _do(conn):
@@ -153,11 +158,11 @@ class SessionMaintenanceMixin:
         return False
 
     def sweep_orphaned_sessions(
-        self, *, max_idle_seconds: float, sources: Tuple[str, ...] = ("tui", "desktop", "subagent"),
-        exclude_ids: Tuple[str, ...] = (), exclude_pinned: bool = False,
-        heartbeat_staleness_seconds: Optional[float] = None,
-        heartbeat_ownership_grace_seconds: Optional[float] = None, respect_gateway_heartbeats: bool = True,
-    ) -> List[str]:
+        self, *, max_idle_seconds: float, sources: tuple[str, ...] = ("tui", "desktop", "subagent"),
+        exclude_ids: tuple[str, ...] = (), exclude_pinned: bool = False,
+        heartbeat_staleness_seconds: float | None = None,
+        heartbeat_ownership_grace_seconds: float | None = None, respect_gateway_heartbeats: bool = True,
+    ) -> list[str]:
         """Close session rows orphaned by a dead gateway process (its in-process disconnect grace timer died
         with it, leaving ``ended_at IS NULL`` forever).  Rows of ``sources`` whose ``started_at`` AND
         canonical last activity are both older than ``max_idle_seconds`` get
@@ -188,7 +193,7 @@ class SessionMaintenanceMixin:
         cutoff = (now := time.time()) - max_idle_seconds
         pin_scope = f" AND {_not_pinned_sql('sessions')}" if exclude_pinned else ""
         orphan_predicate = f"started_at < ? AND {_sql_session_last_active('sessions')} < ?"
-        heartbeat_params: Tuple[float, ...] = ()
+        heartbeat_params: tuple[float, ...] = ()
         if respect_gateway_heartbeats:
             orphan_predicate += (" AND NOT EXISTS (SELECT 1 FROM gateway_heartbeats h WHERE"
                                  " h.last_heartbeat >= ? AND h.started_at <= sessions.started_at + ?)")
@@ -212,8 +217,8 @@ class SessionMaintenanceMixin:
         return self._execute_write(_do) or []
 
     @staticmethod
-    def _prune_filter_where(*, archived: Optional[bool] = None, include_pinned: bool = False,
-                            lineage_tips_only: bool = False, **filters) -> Tuple[str, list]:
+    def _prune_filter_where(*, archived: bool | None = None, include_pinned: bool = False,
+                            lineage_tips_only: bool = False, **filters) -> tuple[str, list]:
         """Shared WHERE clause for bulk prune/archive selection (alias ``s``): ``_PRUNE_FILTERS``
         AND together, only ended sessions are ever candidates, ``archived`` is tri-state
         (None = both), ``*_like`` are case-insensitive substrings, the rest exact.
@@ -241,7 +246,7 @@ class SessionMaintenanceMixin:
             clauses.append(_not_pinned_sql())
         return " AND ".join(clauses), params
 
-    def _prune_where(self, older_than_days, source, filters, *, whole_lineages: bool = False) -> Tuple[str, list]:
+    def _prune_where(self, older_than_days, source, filters, *, whole_lineages: bool = False) -> tuple[str, list]:
         """Translate the legacy age window into the shared activity filter, then build WHERE.
         ``whole_lineages`` (prune) keeps a compression ancestor while any continuation after it
         is unmatched."""
@@ -259,8 +264,8 @@ class SessionMaintenanceMixin:
         # segment stays, deleting it would cut the start off a chat that is still in use.
         return f"{where} AND s.id NOT IN ({_continued_ancestors_sql(where)})", [*params, *params]
 
-    def list_prune_candidates(self, older_than_days: Optional[float] = None, source: str = None, *,
-                              whole_lineages: bool = False, **filters) -> List[Dict[str, Any]]:
+    def list_prune_candidates(self, older_than_days: float | None = None, source: str = None, *,
+                              whole_lineages: bool = False, **filters) -> list[dict[str, Any]]:
         """Dry-run: sessions a matching prune/archive would touch, oldest first (``older_than_days``
         = inactivity threshold: freshest of ``last_activity_at`` / latest message / ``started_at``)."""
         where, params = self._prune_where(older_than_days, source, filters, whole_lineages=whole_lineages)
@@ -271,7 +276,7 @@ class SessionMaintenanceMixin:
                     FROM sessions s WHERE {where}
                     ORDER BY last_active ASC, s.started_at ASC""", params)]
 
-    def count_prune_matches(self, older_than_days: Optional[float] = None, source: str = None, *,
+    def count_prune_matches(self, older_than_days: float | None = None, source: str = None, *,
                             pinned_only: bool = False, **filters) -> int:
         """Count-only :meth:`list_prune_candidates`; ``pinned_only`` counts rows carrying the pin
         itself, not the continuations it protects (CLI reports spared pinned sessions)."""
@@ -282,7 +287,7 @@ class SessionMaintenanceMixin:
             where += " AND COALESCE(s.pinned, 0) = 1"
         return int(self._read_one(f"SELECT COUNT(*) FROM sessions s WHERE {where}", params)[0])
 
-    def count_open_prune_matches(self, older_than_days: Optional[float] = None, source: str = None,
+    def count_open_prune_matches(self, older_than_days: float | None = None, source: str = None,
                                  **filters) -> int:
         """Count open sessions a matching prune skips (``ended_at`` guard inverted); visibility-only."""
         where, params = self._prune_where(older_than_days, source, filters)
@@ -319,8 +324,8 @@ class SessionMaintenanceMixin:
             self._auto_archive_lineage(row[0])
         return len(rows)
 
-    def prune_sessions(self, older_than_days: Optional[float] = 90, source: str = None,
-                       sessions_dir: Optional[Path] = None, exclude_active_write_guards: bool = False,
+    def prune_sessions(self, older_than_days: float | None = 90, source: str = None,
+                       sessions_dir: Path | None = None, exclude_active_write_guards: bool = False,
                        **filters) -> int:
         """Delete ended sessions inactive for ``older_than_days`` (an explicit ``started_before`` /
         ``last_active_before`` overrides it; None = no implicit bound) matching the filters.
@@ -352,7 +357,7 @@ class SessionMaintenanceMixin:
             self._remove_session_files(sessions_dir, sid)
         return count
 
-    def _page_pragmas(self, names: Tuple[str, ...], fail_msg: str) -> Optional[list]:
+    def _page_pragmas(self, names: tuple[str, ...], fail_msg: str) -> list | None:
         """Integer PRAGMAs over the existing connection (never a byte probe); None + debug log on failure."""
         try:
             with self._read_ctx() as conn:
@@ -363,7 +368,7 @@ class SessionMaintenanceMixin:
             logger.debug(fail_msg, exc)
             return None
 
-    def logical_size_bytes(self) -> Optional[int]:
+    def logical_size_bytes(self) -> int | None:
         """``page_count * page_size``: main-file size once the WAL is checkpointed in.  Prefer
         over ``os.path.getsize`` when reporting a VACUUM: in WAL mode the rewrite lands in
         ``-wal`` and the checkpoint is refused while another connection holds a read-mark, so
@@ -371,7 +376,7 @@ class SessionMaintenanceMixin:
         values = self._page_pragmas(("page_count", "page_size"), "Could not read logical DB size: %s")
         return None if values is None else values[0] * values[1]
 
-    def _freelist_ratio(self) -> Optional[float]:
+    def _freelist_ratio(self) -> float | None:
         """Reclaimable fraction (``freelist_count / page_count``) gating VACUUM in
         :meth:`maybe_auto_prune_and_vacuum`; None = fall back to the time throttle.
 
@@ -420,9 +425,9 @@ class SessionMaintenanceMixin:
 
     def maybe_auto_prune_and_vacuum(
         self, retention_days: int = 90, min_interval_hours: int = 24, vacuum: bool = True,
-        sessions_dir: Optional[Path] = None, min_vacuum_interval_days: int = 30,
+        sessions_dir: Path | None = None, min_vacuum_interval_days: int = 30,
         min_vacuum_freelist_ratio: float = AUTO_VACUUM_MIN_FREELIST_RATIO,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Idempotent startup auto-maintenance (never raises): prune inactive sessions, reap stale open
         state-owned rows, optional VACUUM.  Runs at most once per ``min_interval_hours``; VACUUM has its own
         ``min_vacuum_interval_days`` throttle and also requires ``freelist_count / page_count`` >
@@ -441,8 +446,11 @@ class SessionMaintenanceMixin:
         ``request_dump_*``) for pruned sessions are removed as part of the same sweep (issue #3015).
         Messaging and UI sources are never touched here. See #54189.
         """
-        from hermes_state_repair import _release_auto_maintenance_lock, _try_acquire_auto_maintenance_lock
-        result: Dict[str, Any] = {"skipped": False, "pruned": 0, "closed": 0, "vacuumed": False}
+        from hermes_state_repair import (
+            _release_auto_maintenance_lock,
+            _try_acquire_auto_maintenance_lock,
+        )
+        result: dict[str, Any] = {"skipped": False, "pruned": 0, "closed": 0, "vacuumed": False}
         if retention_days is None or retention_days < 0:
             # A negative retention would build a future cutoff and match every ended
             # session; auto_prune=false is the disable switch, not a negative bound.
@@ -491,7 +499,9 @@ class SessionMaintenanceMixin:
                 # just as much a holder as another process would be.
                 # Automatic maintenance only ever SKIPS — a turn is never refused over housekeeping.
                 from hermes_state_holders import (
-                    foreign_state_db_holders, in_process_state_db_holders)
+                    foreign_state_db_holders,
+                    in_process_state_db_holders,
+                )
                 holders = (foreign_state_db_holders(self.db_path)
                            + in_process_state_db_holders(self.db_path, exclude=self))
                 if holders:

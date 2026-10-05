@@ -6,10 +6,10 @@ Split out of :mod:`hermes_cli.config` (code-health size ratchet); ``set_config_v
 from __future__ import annotations
 
 import sys
-from typing import Any, Dict
+from typing import Any
 
 
-def _guard_section_overwrite(key: str, value: Any, user_config: Dict[str, Any], force: bool) -> str:
+def _guard_section_overwrite(key: str, value: Any, user_config: dict[str, Any], force: bool) -> str:
     """Refuse (or with ``force`` allow) a single-segment key overwriting a mapping with a scalar.
     Bare ``model`` is a documented shorthand — redirected to ``model.default`` so siblings survive;
     a list (or a mapping over an existing section) under it is refused without ``force``.

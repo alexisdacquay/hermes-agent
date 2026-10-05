@@ -6,14 +6,14 @@ test patches on ``update_cmd`` stay effective).
 """
 
 import logging
-from contextlib import suppress
 import os
 import shutil
 import subprocess
 import sys
 import time as _time
+from contextlib import suppress
+from datetime import UTC
 from pathlib import Path
-from typing import Optional
 
 from hermes_cli.update_cmd_common import _best_effort
 
@@ -142,7 +142,7 @@ def _print_fts_optimize_available_notice() -> None:
             "SELECT sql FROM sqlite_master "
             "WHERE type = 'table' AND name = 'messages_fts'"
         ).fetchone()
-        needs_upgrade = bool(row) and getattr(db, "_db_needs_fts_storage_upgrade")(db._conn)
+        needs_upgrade = bool(row) and db._db_needs_fts_storage_upgrade(db._conn)
         # Interrupted optimize-storage: v23 table shape but backfill markers / trash
         # tables remain. Re-running resumes it, so offer the command again.
         interrupted = bool(
@@ -237,11 +237,11 @@ def _print_curator_recent_run_notice() -> None:
 def _format_time_ago(iso_ts: str) -> str:
     """Render an ISO timestamp as `Xh ago` / `Xd ago` / `Xm ago`. Best effort."""
     try:
-        from datetime import datetime, timezone
+        from datetime import datetime
         ts = datetime.fromisoformat(iso_ts.replace("Z", "+00:00"))
         if ts.tzinfo is None:
-            ts = ts.replace(tzinfo=timezone.utc)
-        secs = int((datetime.now(timezone.utc) - ts).total_seconds())
+            ts = ts.replace(tzinfo=UTC)
+        secs = int((datetime.now(UTC) - ts).total_seconds())
         if secs < 60:
             return "just now"
         if secs < 3600:
@@ -260,7 +260,7 @@ def _reload_process_scan_modules() -> None:
 
 
 def _finish_dashboard_update_cleanup(
-    node_failures: list[str], already_restarted_units: "set[str] | None" = None
+    node_failures: list[str], already_restarted_units: set[str] | None = None
 ) -> None:
     """Historical updater hook; do not continue a pre-PM update after the swap."""
     from hermes_cli._old_updater import stop_for_relaunch
@@ -277,8 +277,9 @@ def _refresh_dashboard_after_update(*, already_restarted_units: set[str] | None 
 
     See #83595.
     """
-    from hermes_cli.update_cmd import _m, _record_update_step
     from hermes_constants import get_hermes_home
+
+    from hermes_cli.update_cmd import _m, _record_update_step
 
     try:
         stop_result = _m()._kill_stale_dashboard_processes(
@@ -683,10 +684,10 @@ def _verify_state_db_after_snapshot(snapshot_id: str) -> None:
     print()
 
 
-def _run_quick_snapshots() -> Optional[str]:
+def _run_quick_snapshots() -> str | None:
     """Quick snapshot of the root home plus every sibling profile; returns the root snapshot id."""
-    from hermes_cli.update_cmd import _record_update_step
     from hermes_cli.backup import create_quick_snapshot
+    from hermes_cli.update_cmd import _record_update_step
     snapshot_id = create_quick_snapshot(
         label="pre-update", keep=_PRE_UPDATE_SNAPSHOT_KEEP, max_file_size=_PRE_UPDATE_SNAPSHOT_MAX_FILE_SIZE,
     )
@@ -702,7 +703,7 @@ def _run_quick_snapshots() -> Optional[str]:
             keep=_PRE_UPDATE_SNAPSHOT_KEEP, max_file_size=_PRE_UPDATE_SNAPSHOT_MAX_FILE_SIZE,
         )
         if _sibling_snaps:
-            print(f"◆ Sibling profile snapshot(s): " + ", ".join(sorted(_sibling_snaps)))
+            print("◆ Sibling profile snapshot(s): " + ", ".join(sorted(_sibling_snaps)))
             _record_update_step(
                 "sibling_profile_snapshots",
                 True,
@@ -752,7 +753,7 @@ def _run_full_backup() -> None:
     from hermes_cli.sizefmt import format_bytes
     # display_hermes_home so the user sees ~/.hermes/...
     try:
-        from hermes_constants import get_hermes_home, display_hermes_home
+        from hermes_constants import display_hermes_home, get_hermes_home
         display_path = f"{display_hermes_home()}/{out_path.relative_to(get_hermes_home())}"
     except Exception:
         display_path = str(out_path)
@@ -763,7 +764,7 @@ def _run_full_backup() -> None:
     print()
 
 
-def _run_pre_update_backup(args) -> Optional[str]:
+def _run_pre_update_backup(args) -> str | None:
     """Run the pre-update backup; return the quick-snapshot id (None when off/failed). Never raises.
 
     ``off`` — nothing. ``quick`` (default) — snapshot of critical small files under
@@ -932,8 +933,12 @@ def _print_checkpoint_footprint_notice() -> None:
 def _print_post_update_notices_and_self_heals() -> None:
     """Best-effort notices (FTS optimize, curator) and self-heals (FHS PATH, ACP launcher,
     Windows bin launchers, cua-driver refresh) that run after the summary."""
-    from hermes_cli.update_cmd import _m, _print_curator_first_run_notice, _print_curator_recent_run_notice
     from hermes_cli import _launchers
+    from hermes_cli.update_cmd import (
+        _m,
+        _print_curator_first_run_notice,
+        _print_curator_recent_run_notice,
+    )
 
     def _migrate_windows_bin_path() -> None:
         # Windows launchers into the managed bin dir: in-checkout launchers were swept by the
@@ -1050,7 +1055,10 @@ def _run_post_update_maintenance(
     # A multi-profile host whose gateway came back standalone on a guard says so here too — the
     # update summary is the one line operators read (the boot log under s6 is not).
     with suppress(Exception):
-        from hermes_cli.gateway_multiplex_mode import consume_rewritten_notice, recorded_standalone_warning_lines
+        from hermes_cli.gateway_multiplex_mode import (
+            consume_rewritten_notice,
+            recorded_standalone_warning_lines,
+        )
         for line in [*consume_rewritten_notice(), *recorded_standalone_warning_lines()]:
             print(line)
 

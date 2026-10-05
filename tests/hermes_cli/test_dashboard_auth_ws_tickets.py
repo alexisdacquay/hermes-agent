@@ -10,7 +10,6 @@ from __future__ import annotations
 import threading
 
 import pytest
-
 from hermes_cli.dashboard_auth import ws_tickets
 from hermes_cli.dashboard_auth.ws_tickets import (
     TTL_SECONDS,

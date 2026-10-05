@@ -38,12 +38,11 @@ Design notes
 """
 
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import patch
 
-import pytest
-
 import cron.scheduler as sched
+import pytest
 
 
 @pytest.fixture(autouse=True)
@@ -370,7 +369,7 @@ class TestLedgerTerminalReconciliation:
     def _row_at(offset_seconds: float) -> str:
         """ISO claimed_at at now+offset (aware, local tz)."""
         return datetime.fromtimestamp(
-            time.time() + offset_seconds, tz=timezone.utc
+            time.time() + offset_seconds, tz=UTC
         ).isoformat()
 
     def _inject_young_claim(self, job_id: str, home) -> None:

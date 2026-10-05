@@ -19,10 +19,8 @@ import http.server
 import json
 import threading
 
-import pytest
-
 import agent.model_metadata as mm
-
+import pytest
 
 GRANTED = 262144
 

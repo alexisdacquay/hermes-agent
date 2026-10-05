@@ -5,7 +5,6 @@ import subprocess
 from types import SimpleNamespace
 
 import pytest
-
 from hermes_cli.local_runtime import supervisor
 
 

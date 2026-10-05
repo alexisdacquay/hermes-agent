@@ -9,10 +9,8 @@ through the guard connection, before the guard releases.
 
 import sqlite3
 
-import pytest
-
-import hermes_state
 import hermes_state_repair
+import pytest
 from hermes_state_repair import repair_state_db_schema
 
 

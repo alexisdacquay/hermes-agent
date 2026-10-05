@@ -15,22 +15,23 @@ must be excluded from the dedup set; genuinely-prior turns must stay in it.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from gateway.config import PlatformConfig, Platform
+from gateway.config import Platform, PlatformConfig
 from gateway.platforms.base import BasePlatformAdapter, SendResult
 
+
 class _StubStore:
-    def __init__(self, transcript: List[Dict[str, Any]]) -> None:
+    def __init__(self, transcript: list[dict[str, Any]]) -> None:
         self._transcript = transcript
 
-    def load_transcript(self, session_id: str) -> List[Dict[str, Any]]:
+    def load_transcript(self, session_id: str) -> list[dict[str, Any]]:
         return list(self._transcript)
 
 class _StubAdapter(BasePlatformAdapter):
     """Minimal concrete adapter (BasePlatformAdapter is abstract)."""
 
-    def __init__(self, transcript: List[Dict[str, Any]]) -> None:
+    def __init__(self, transcript: list[dict[str, Any]]) -> None:
         super().__init__(PlatformConfig(), Platform.API_SERVER)
         self._session_store = _StubStore(transcript)
 
@@ -52,7 +53,7 @@ class _StubAdapter(BasePlatformAdapter):
     async def send(self, chat_id, content, reply_to=None, metadata=None) -> SendResult:  # pragma: no cover - unused
         return SendResult(success=True)
 
-def _tts_tool_row(path: str) -> Dict[str, Any]:
+def _tts_tool_row(path: str) -> dict[str, Any]:
     return {
         "role": "tool",
         "content": (
@@ -74,7 +75,7 @@ def test_current_turn_tts_media_not_treated_as_history():
         {"role": "assistant", "content": f"MEDIA:{current}"},
     ]
     adapter = _StubAdapter(transcript)
-    paths: Optional[set] = adapter._history_media_paths_for_session("k")
+    paths: set | None = adapter._history_media_paths_for_session("k")
     assert not paths or current not in paths
 
 def test_prior_turn_media_still_deduped():

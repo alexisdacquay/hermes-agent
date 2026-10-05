@@ -16,12 +16,12 @@ import shlex
 import socket
 import subprocess
 import threading
-from typing import Optional, Sequence
+from collections.abc import Sequence
 
 from tools.environments.base import BaseEnvironment
 
 
-def exec_prefix(env: BaseEnvironment, *, user: Optional[str] = None, interactive: bool = True) -> Optional[list[str]]:
+def exec_prefix(env: BaseEnvironment, *, user: str | None = None, interactive: bool = True) -> list[str] | None:
     """Local argv that runs its remainder inside ``env``, or None for backends without one.
 
     ``user`` selects the sandbox-side account (docker only; ssh runs as the configured login, apptainer as
@@ -54,7 +54,7 @@ def supports_streams(env: BaseEnvironment) -> bool:
     return exec_prefix(env, interactive=True) is not None
 
 
-def remote_argv(prefix: Sequence[str], argv: Sequence[str], *, env: Optional[dict] = None,
+def remote_argv(prefix: Sequence[str], argv: Sequence[str], *, env: dict | None = None,
                 shell_joined: bool = False) -> list[str]:
     """``prefix`` + a ``bash -c`` that exports ``env`` and execs ``argv``.
 
@@ -75,8 +75,8 @@ def shell_joined(env: BaseEnvironment) -> bool:
     return isinstance(env, SSHEnvironment)
 
 
-def remote_command(env: BaseEnvironment, argv: Sequence[str], *, child_env: Optional[dict] = None,
-                   user: Optional[str] = None, interactive: bool = True) -> Optional[list[str]]:
+def remote_command(env: BaseEnvironment, argv: Sequence[str], *, child_env: dict | None = None,
+                   user: str | None = None, interactive: bool = True) -> list[str] | None:
     """Full local argv running ``argv`` inside ``env`` with ``child_env`` exported, quoted for that backend's
     client; None for a backend without an exec prefix."""
     prefix = exec_prefix(env, user=user, interactive=interactive)
@@ -85,8 +85,8 @@ def remote_command(env: BaseEnvironment, argv: Sequence[str], *, child_env: Opti
     return remote_argv(prefix, argv, env=child_env, shell_joined=shell_joined(env))
 
 
-def open_stream(env: BaseEnvironment, argv: Sequence[str], *, child_env: Optional[dict] = None,
-                user: Optional[str] = None, stderr=subprocess.DEVNULL) -> subprocess.Popen:
+def open_stream(env: BaseEnvironment, argv: Sequence[str], *, child_env: dict | None = None,
+                user: str | None = None, stderr=subprocess.DEVNULL) -> subprocess.Popen:
     """Spawn ``argv`` inside ``env`` with stdin and stdout as pipes (bytes). Raises ``RuntimeError`` for a
     backend that cannot host a stream."""
     command = remote_command(env, argv, child_env=child_env, user=user, interactive=True)
@@ -96,8 +96,8 @@ def open_stream(env: BaseEnvironment, argv: Sequence[str], *, child_env: Optiona
         command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=stderr, close_fds=True)
 
 
-def run_in(env: BaseEnvironment, argv: Sequence[str], *, child_env: Optional[dict] = None, user: Optional[str] = None,
-           timeout: float = 30.0, stdin: Optional[bytes] = None) -> subprocess.CompletedProcess:
+def run_in(env: BaseEnvironment, argv: Sequence[str], *, child_env: dict | None = None, user: str | None = None,
+           timeout: float = 30.0, stdin: bytes | None = None) -> subprocess.CompletedProcess:
     """One short command inside ``env`` with captured bytes output (probes: ``command -v``, ``cat env``)."""
     command = remote_command(env, argv, child_env=child_env, user=user, interactive=stdin is not None)
     if command is None:
@@ -129,14 +129,14 @@ _TCP_RELAY = (
     "  os.write(1,d)\n"
 )
 
-_forwards: dict[tuple[int, str, int], "PortForward"] = {}
+_forwards: dict[tuple[int, str, int], PortForward] = {}
 _forwards_lock = threading.Lock()
 
 
 class PortForward:
     """Local ``127.0.0.1:<local_port>`` whose connections land on ``remote_host:remote_port`` inside ``env``."""
 
-    def __init__(self, env: BaseEnvironment, remote_host: str, remote_port: int, *, user: Optional[str]):
+    def __init__(self, env: BaseEnvironment, remote_host: str, remote_port: int, *, user: str | None):
         self.env, self.remote_host, self.remote_port, self.user = env, remote_host, remote_port, user
         self._server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -202,7 +202,7 @@ class PortForward:
 
 
 def forward_port(env: BaseEnvironment, remote_port: int, *, remote_host: str = "127.0.0.1",
-                 user: Optional[str] = None) -> int:
+                 user: str | None = None) -> int:
     """Local port on 127.0.0.1 that reaches ``remote_host:remote_port`` inside ``env``; one listener per
     (env, host, port) is kept for the process lifetime (daemon threads, nothing to clean up)."""
     key = (id(env), remote_host, int(remote_port))

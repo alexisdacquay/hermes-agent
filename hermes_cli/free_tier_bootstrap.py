@@ -17,7 +17,7 @@ import logging
 import threading
 import time
 from dataclasses import asdict, dataclass, field, replace
-from typing import Any, Dict, Optional
+from typing import Any
 
 logger = logging.getLogger("hermes_cli.auth")
 
@@ -41,14 +41,14 @@ class SetupRecord:
     # The mint memo's verdict, verbatim (``anon_auth.MintFailure.as_payload``):
     # ``{error, error_code, retryable, retry_after}`` when the mint did not happen, else ``{}``.
     # One wire shape: every status RPC spreads it as is.
-    failure: Dict[str, Any] = field(default_factory=dict)
+    failure: dict[str, Any] = field(default_factory=dict)
     finished_at: float = field(default_factory=time.time)
 
     @property
     def free_tier_route(self) -> bool:
         return self.free_tier_account and self.inference_provider == "nous"
 
-    def as_payload(self) -> Dict[str, Any]:
+    def as_payload(self) -> dict[str, Any]:
         # The broadcast carries the failure block flat, the same shape ``setup.status`` spreads,
         # so a client keys on ``error_code`` identically whichever surface it read.
         payload = asdict(self)
@@ -56,26 +56,26 @@ class SetupRecord:
         payload["free_tier_route"] = self.free_tier_route
         return payload
 
-    def failure_fields(self) -> Dict[str, Any]:
+    def failure_fields(self) -> dict[str, Any]:
         return dict(self.failure)
 
 
 _lock = threading.Lock()
-_record: Optional[SetupRecord] = None
+_record: SetupRecord | None = None
 _done = threading.Event()
 _started = False
 # ``(mtime_ns, size)`` of the files the inventory reads, taken by the inventory that built the
 # current record; ``reconcile_record`` re-inventories only when they moved.
-_inventory_stamp: Optional[tuple] = None
+_inventory_stamp: tuple | None = None
 _INVENTORY_FILES = ("config.yaml", ".env", "auth.json")
 
 
-def current_record() -> Optional[SetupRecord]:
+def current_record() -> SetupRecord | None:
     """The record, or None until the first bootstrap finishes."""
     return _record
 
 
-def wait_for_record(timeout: float = SETUP_READY_WAIT_SECONDS) -> Optional[SetupRecord]:
+def wait_for_record(timeout: float = SETUP_READY_WAIT_SECONDS) -> SetupRecord | None:
     """Block up to ``timeout`` seconds for a bootstrap that is IN FLIGHT, then return whatever it
     produced, reconciled with any provider configured since (:func:`reconcile_record`). Returns
     None at once when no bootstrap ever started in this process (a bare ``tui_gateway`` under
@@ -87,7 +87,7 @@ def wait_for_record(timeout: float = SETUP_READY_WAIT_SECONDS) -> Optional[Setup
     return reconcile_record()
 
 
-def reconcile_record() -> Optional[SetupRecord]:
+def reconcile_record() -> SetupRecord | None:
     """Let a provider configured AFTER boot count: a record that says ``provider_configured:
     false`` is re-inventoried once ``config.yaml`` / ``.env`` / ``auth.json`` moved since the
     inventory that built it, and replaced (+ ``setup.ready``) when something now carries
@@ -174,8 +174,8 @@ def _build_record(*, other: bool, force: bool) -> SetupRecord:
     from hermes_cli import anon_auth
 
     error = ""
-    failure: Dict[str, Any] = {}
-    state: Optional[Dict[str, Any]] = anon_auth.current_nous_state()
+    failure: dict[str, Any] = {}
+    state: dict[str, Any] | None = anon_auth.current_nous_state()
     if anon_auth.guest_enabled():
         try:
             state = anon_auth.ensure_portal_identity(explicit=True, force=force)

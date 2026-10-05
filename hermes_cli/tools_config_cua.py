@@ -8,10 +8,10 @@ import shutil
 import subprocess
 import sys
 import time
-from typing import Optional
 
-from hermes_cli.cli_output import (
-    print_info as _print_info, print_success as _print_success, print_warning as _print_warning)
+from hermes_cli.cli_output import print_info as _print_info
+from hermes_cli.cli_output import print_success as _print_success
+from hermes_cli.cli_output import print_warning as _print_warning
 
 
 def _run_text(cmd: list, *, timeout, capture_output: bool = True,
@@ -54,7 +54,7 @@ def _cua_version_summary(raw: str, *, limit: int = 120) -> str:
     return next((line.strip()[:limit] for line in (raw or "").splitlines() if line.strip()), "")
 
 
-def _resolved_cua_driver_cmd() -> Optional[str]:
+def _resolved_cua_driver_cmd() -> str | None:
     from tools.computer_use.cua_backend_driver import resolve_cua_driver_cmd
     return resolve_cua_driver_cmd()
 
@@ -67,7 +67,7 @@ def _cua_driver_env() -> dict:
 _CUA_DRIVER_CONTRACT_CACHE: dict = {}
 
 
-def _cua_driver_contract_status(binary: Optional[str] = None) -> dict:
+def _cua_driver_contract_status(binary: str | None = None) -> dict:
     """Cache the runtime manifest check by binary identity for UI polling."""
     from tools.computer_use.cua_backend_driver import cua_driver_runtime_contract_status
     resolved = binary or _resolved_cua_driver_cmd()
@@ -141,7 +141,9 @@ def install_cua_driver(upgrade: bool = False, show_installer_progress: bool = Tr
         return _fail("    cua-driver is compatible, but Windows autostart setup failed.")
     if sys.platform == "darwin":
         from tools.computer_use.cua_backend_daemon import (
-            _resolve_cua_driver_app_path, _validate_cua_driver_app_signature)
+            _resolve_cua_driver_app_path,
+            _validate_cua_driver_app_signature,
+        )
 
         app = _resolve_cua_driver_app_path(binary)
         if not app:
@@ -168,7 +170,7 @@ def _ps_single_quote(value: str) -> str:
     return "'" + value.replace("'", "''") + "'"
 
 
-def _cua_driver_autostart_registered_windows(binary: Optional[str] = None) -> bool:
+def _cua_driver_autostart_registered_windows(binary: str | None = None) -> bool:
     """A task targeting a previous PM version is not a ready registration."""
     if sys.platform != "win32":
         return False

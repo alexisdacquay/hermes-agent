@@ -12,8 +12,8 @@ import shutil
 import subprocess
 
 import pytest
-
 from pm.environments import shell_exports
+
 from tests.pm.activation_support import bash
 
 NASTY = {

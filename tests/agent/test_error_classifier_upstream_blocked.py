@@ -4,7 +4,6 @@ A relay that blocks the SDK User-Agent answers ``403 Your request was blocked.``
 browser challenge answers 403 HTML. Both used to classify as ``auth`` and print key guidance.
 """
 import pytest
-
 from agent.error_classifier import FailoverReason, classify_api_error
 
 

@@ -18,10 +18,8 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from gateway.config import Platform
 from gateway.platforms.base import SendResult
-
 
 # ---------------------------------------------------------------------------
 # Helpers

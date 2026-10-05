@@ -21,12 +21,11 @@ import asyncio
 import json
 import os
 import sys
-from typing import Any, Dict, Optional
-
-from gateway.config import Platform
-from gateway.platforms.base import BasePlatformAdapter, MessageEvent, SendResult
+from typing import Any
 
 import gateway.run as gateway_run
+from gateway.config import Platform
+from gateway.platforms.base import BasePlatformAdapter, MessageEvent, SendResult
 
 PARITY_USER_ID = os.environ.get("PARITY_GATEWAY_USER", "424242")
 PARITY_CHAT_ID = PARITY_USER_ID  # Telegram private chats use the user id as chat id
@@ -47,7 +46,7 @@ class ParityTelegramAdapter(BasePlatformAdapter):
     def __init__(self, config: Any, platform: Platform) -> None:
         super().__init__(config, platform)
         self._sent = 0
-        self._inject_task: Optional[asyncio.Task] = None
+        self._inject_task: asyncio.Task | None = None
 
     async def connect(self, *, is_reconnect: bool = False) -> bool:
         self._mark_connected()
@@ -78,8 +77,8 @@ class ParityTelegramAdapter(BasePlatformAdapter):
             self._inject_task.cancel()
         self._mark_disconnected()
 
-    async def send(self, chat_id: str, content: str, reply_to: Optional[str] = None,
-                   metadata: Optional[Dict[str, Any]] = None) -> SendResult:
+    async def send(self, chat_id: str, content: str, reply_to: str | None = None,
+                   metadata: dict[str, Any] | None = None) -> SendResult:
         self._sent += 1
         message_id = f"parity-{self._sent}"
         emit("send", chat_id=str(chat_id), message_id=message_id, content=content)
@@ -90,7 +89,7 @@ class ParityTelegramAdapter(BasePlatformAdapter):
         emit("edit", chat_id=str(chat_id), message_id=message_id, content=content)
         return SendResult(success=True, message_id=message_id)
 
-    async def get_chat_info(self, chat_id: str) -> Dict[str, Any]:
+    async def get_chat_info(self, chat_id: str) -> dict[str, Any]:
         return {"name": "parity", "type": "dm", "chat_id": chat_id}
 
     async def on_processing_complete(self, event: MessageEvent, outcome: Any) -> None:

@@ -6,7 +6,6 @@ import json
 import re
 
 import pytest
-
 from cron.scheduler_preflight import _preflight_check_provider_key
 from cron.scheduler_provider import _profile_cron_scope
 

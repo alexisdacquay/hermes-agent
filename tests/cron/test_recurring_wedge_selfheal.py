@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import sys
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest import mock
 
@@ -60,7 +60,7 @@ def cron_env(tmp_path, monkeypatch):
         no_agent=True,
         script="probe.py",
     )
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     jobs_mod.update_job(job["id"], {"next_run_at": (now - timedelta(minutes=1)).isoformat()})
 
     script = hermes_home / "scripts" / "probe.py"
@@ -71,8 +71,8 @@ def cron_env(tmp_path, monkeypatch):
 
 class TestStaleInflightSelfHeal:
     def _setup(self, cron_env, monkeypatch):
-        from cron import scheduler as S
         from cron import executions as E
+        from cron import scheduler as S
 
         env = cron_env
         monkeypatch.setattr(E, "EXECUTIONS_FILE", env["home"] / "cron" / "executions.db")
@@ -133,9 +133,9 @@ class TestEAGAINCreateExecutionLeak:
 
 
     def test_pool_submit_eagain_releases_claim_and_redispatches(self, cron_env, monkeypatch, tmp_path):
-        from cron import scheduler as S
-        from cron import executions as E
         import cron.jobs as J
+        from cron import executions as E
+        from cron import scheduler as S
 
         env = cron_env
         monkeypatch.setattr(E, "EXECUTIONS_FILE", env["home"] / "cron" / "executions.db")
@@ -165,7 +165,7 @@ class TestEAGAINCreateExecutionLeak:
         assert job_id not in S.get_running_job_ids()
 
         # Second tick (substrate recovered): job re-dispatches and completes.
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         J.update_job(job_id, {"next_run_at": (now - timedelta(minutes=1)).isoformat()})
         with mock.patch("cron.jobs.load_jobs", return_value=[J.get_job(job_id)]):
             S.tick(verbose=False, sync=True)

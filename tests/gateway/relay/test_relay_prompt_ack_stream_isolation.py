@@ -22,10 +22,8 @@ contract that real turn-finals still absorb into their stream.
 """
 
 import asyncio
-import json
 
 import pytest
-
 from gateway.config import PlatformConfig
 from gateway.relay.adapter import RelayAdapter
 from gateway.relay.descriptor import CapabilityDescriptor

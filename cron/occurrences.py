@@ -1,6 +1,6 @@
 """Exact scheduled identities, independent of mutable jobs.json dispatch stamps."""
-from datetime import datetime, timedelta, timezone
 import logging
+from datetime import UTC, datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +13,7 @@ def scheduled_instant(value):
         instant = datetime.fromisoformat(value)
         if instant.tzinfo is None:
             return None
-        return instant.astimezone(timezone.utc).isoformat()
+        return instant.astimezone(UTC).isoformat()
     except ValueError:
         return None
 

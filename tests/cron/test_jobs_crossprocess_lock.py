@@ -20,9 +20,7 @@ import textwrap
 import time
 
 import pytest
-
 from cron import jobs
-
 
 # Repo root (parent of the ``cron`` package) so the child process can import it.
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(jobs.__file__)))

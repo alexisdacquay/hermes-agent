@@ -13,7 +13,6 @@ import sys
 from pathlib import Path
 
 import pytest
-
 from agent.lsp.manager import LSPService
 from agent.lsp.servers import SERVERS, ServerContext, ServerDef, SpawnSpec
 from agent.lsp.workspace import clear_cache

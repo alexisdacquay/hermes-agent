@@ -6,13 +6,12 @@ It now overrides two hooks. Slack and Discord parsed ``Retry-After`` by hand and
 the numeric form; both now go through ``agent.retry_utils.parse_retry_after_seconds``.
 """
 
+from datetime import UTC, datetime, timedelta
 from email.utils import format_datetime
-from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
-from typing import Any, Dict
+from typing import Any
 
 import pytest
-
 from gateway.config import Platform, PlatformConfig
 from gateway.platforms.base import BasePlatformAdapter, SendResult
 
@@ -31,7 +30,7 @@ class _Adapter(BasePlatformAdapter):
     async def disconnect(self) -> None:
         pass
 
-    async def get_chat_info(self, chat_id: str) -> Dict[str, Any]:
+    async def get_chat_info(self, chat_id: str) -> dict[str, Any]:
         return {}
 
     async def send(self, chat_id, content, reply_to=None, metadata=None) -> SendResult:
@@ -77,7 +76,7 @@ async def test_server_retry_after_is_honoured_by_every_adapter(monkeypatch):
 
 
 def _http_date_in(seconds: int) -> str:
-    return format_datetime(datetime.now(timezone.utc) + timedelta(seconds=seconds), usegmt=True)
+    return format_datetime(datetime.now(UTC) + timedelta(seconds=seconds), usegmt=True)
 
 
 def test_slack_retry_after_understands_http_date():

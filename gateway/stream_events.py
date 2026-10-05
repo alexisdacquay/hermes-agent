@@ -9,7 +9,7 @@ diverge from the agent-owned message history.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional, Union
+from typing import Any, Union
 
 
 @dataclass(frozen=True)
@@ -35,8 +35,8 @@ class Commentary:
 class ToolCallChunk:
     """A tool invocation started. Raw facts only; the adapter decides presentation."""
     tool_name: str
-    preview: Optional[str] = None
-    args: Optional[Dict[str, Any]] = None
+    preview: str | None = None
+    args: dict[str, Any] | None = None
     index: int = 0  # monotonic per-turn index: correlates a finish with its start
 
 
@@ -64,7 +64,7 @@ class GatewayNotice:
     (``"restart"`` / ``"online"`` / ``"long_run"`` / …), ``text`` the default rendering."""
     kind: str
     text: str = ""
-    extra: Dict[str, Any] = field(default_factory=dict)
+    extra: dict[str, Any] = field(default_factory=dict)
 
 
 # Explicit union (not a marker base class) so a missing ``case`` in an
@@ -75,6 +75,12 @@ StreamEvent = Union[
 ]
 
 __all__ = [
-    "MessageChunk", "MessageStop", "Commentary", "ToolCallChunk",
-    "ToolCallFinished", "LongToolHint", "GatewayNotice", "StreamEvent",
+    "Commentary",
+    "GatewayNotice",
+    "LongToolHint",
+    "MessageChunk",
+    "MessageStop",
+    "StreamEvent",
+    "ToolCallChunk",
+    "ToolCallFinished",
 ]

@@ -16,9 +16,7 @@ the repaired row win recovery from then on.
 import time
 
 import pytest
-
 from hermes_state import SessionDB
-
 
 PEER = {
     "source": "telegram",

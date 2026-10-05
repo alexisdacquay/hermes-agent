@@ -1,6 +1,6 @@
 import json
-from pathlib import Path
 import subprocess
+from pathlib import Path
 
 from hermes_cli.version_info import (
     VersionInfo,

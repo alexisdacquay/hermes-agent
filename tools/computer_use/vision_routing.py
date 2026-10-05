@@ -19,11 +19,11 @@ it is a hard failure, while aux routing costs one extra LLM call and yields a us
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
-def _explicit_aux_vision_override(cfg: Optional[Dict[str, Any]]) -> bool:
+def _explicit_aux_vision_override(cfg: dict[str, Any] | None) -> bool:
     """True when ``auxiliary.vision`` carries a non-default user override; mirrors ``agent.image_routing`` so the capture
     and user-attached-image paths agree. ``provider: "auto"``, blanks or a missing block are *not* explicit."""
     aux = cfg.get("auxiliary") if isinstance(cfg, dict) else None
@@ -33,7 +33,7 @@ def _explicit_aux_vision_override(cfg: Optional[Dict[str, Any]]) -> bool:
     provider = str(vision.get("provider") or "").strip().lower()
     return provider not in ("", "auto") or any(str(vision.get(k) or "").strip() for k in ("model", "base_url"))
 
-def _lookup_user_declared_supports_vision(provider: str, model: str, cfg: Optional[Dict[str, Any]]) -> Optional[bool]:
+def _lookup_user_declared_supports_vision(provider: str, model: str, cfg: dict[str, Any] | None) -> bool | None:
     """Config-declared ``supports_vision`` for the active route (None on failure)."""
     try:
         from agent.image_routing import _supports_vision_override
@@ -42,7 +42,7 @@ def _lookup_user_declared_supports_vision(provider: str, model: str, cfg: Option
         logger.debug("computer_use vision_routing: config override lookup failed: %s", exc)
         return None
 
-def _provider_accepts_multimodal_tool_result(provider: str, model: str, cfg: Optional[Dict[str, Any]] = None) -> Optional[bool]:
+def _provider_accepts_multimodal_tool_result(provider: str, model: str, cfg: dict[str, Any] | None = None) -> bool | None:
     """Whether *provider*+*model* may carry images inside tool-result messages — the SAME predicate the
     ``vision_analyze`` fast path uses (#115248: the two gates disagreed for deepseek/deepseek-flash, so the route
     depended on which tool asked). None on import failure so callers fall back to aux, not guess."""
@@ -55,7 +55,7 @@ def _provider_accepts_multimodal_tool_result(provider: str, model: str, cfg: Opt
         return None
     return bool(_accepts_tool_result_images(provider, model, cfg))
 
-def should_route_capture_to_aux_vision(provider: str, model: str, cfg: Optional[Dict[str, Any]]) -> bool:
+def should_route_capture_to_aux_vision(provider: str, model: str, cfg: dict[str, Any] | None) -> bool:
     """True iff the screenshot should be pre-analysed via aux vision; False keeps the multimodal envelope. *provider* is
     the lower-case canonical id, *model* the slug sent to the provider, *cfg* the loaded ``config.yaml`` dict (or None).
     Steps follow the module docstring's decision order."""

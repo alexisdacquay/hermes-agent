@@ -7,9 +7,8 @@ Behaviour contract per ``cron/AGENTS.md``: loose bounds on a virtual clock, no s
 """
 from unittest.mock import patch
 
-import pytest
-
 import cron.scheduler_provider as sp
+import pytest
 
 INTERVAL = 60.0
 

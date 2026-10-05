@@ -2,9 +2,8 @@
 import time
 from types import SimpleNamespace
 
-from prompt_toolkit.utils import get_cwidth
-
 from agent.i18n import t
+from prompt_toolkit.utils import get_cwidth
 
 
 def _wait(predicate, timeout=5.0):

@@ -23,7 +23,6 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from tools import mcp_tool
 from tools import mcp_tool_handlers as _mcp_handlers
 from tools import mcp_tool_registration as _mcp_registration

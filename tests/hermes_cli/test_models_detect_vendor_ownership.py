@@ -9,7 +9,6 @@ vendor) and silently rebuilding the session on a metered aggregator.
 from __future__ import annotations
 
 import pytest
-
 from hermes_cli import models, models_detect
 
 

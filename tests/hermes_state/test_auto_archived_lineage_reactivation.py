@@ -9,7 +9,6 @@ must keep hiding the chat through the same re-activation.
 import time
 
 import pytest
-
 from hermes_state import SessionDB
 
 

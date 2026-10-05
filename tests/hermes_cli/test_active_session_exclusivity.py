@@ -21,7 +21,6 @@ import itertools
 import os
 
 import pytest
-
 from hermes_cli.active_sessions import (
     MAX_CONCURRENT_SESSIONS,
     SESSION_NOT_OWNED,
@@ -29,6 +28,7 @@ from hermes_cli.active_sessions import (
     release_active_session,
     try_acquire_active_session,
 )
+
 
 @pytest.fixture(autouse=True)
 def _isolated_registry(tmp_path, monkeypatch):

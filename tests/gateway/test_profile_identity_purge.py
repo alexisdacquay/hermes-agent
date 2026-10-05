@@ -9,7 +9,6 @@ never in the unserve path (#111926, delete side).
 
 from __future__ import annotations
 
-import json
 import time
 from pathlib import Path
 from types import SimpleNamespace
@@ -32,7 +31,7 @@ def _make_store(tmp_path):
 
 
 def _entry(session_key, chat_id, profile):
-    from gateway.session import SessionEntry, SessionSource, Platform
+    from gateway.session import Platform, SessionEntry, SessionSource
     from gateway.session_lifecycle import _now
     now = _now()
     return SessionEntry(

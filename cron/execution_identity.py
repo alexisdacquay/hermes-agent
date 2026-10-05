@@ -9,9 +9,10 @@ scheduled occurrence.
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from contextvars import ContextVar, Token
 from dataclasses import dataclass
-from typing import Any, Mapping, Optional
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -20,12 +21,12 @@ class CronExecution:
     job_name: str
     execution_id: str
     source: str  # "builtin" (ticker), "direct" (manual run / dashboard Run now), provider name...
-    scheduled_instant: Optional[str]  # the occurrence fired; None for an off-schedule run
-    started_at: Optional[str]
+    scheduled_instant: str | None  # the occurrence fired; None for an off-schedule run
+    started_at: str | None
     profile: str
 
 
-_CURRENT: ContextVar[Optional[CronExecution]] = ContextVar("hermes_cron_execution", default=None)
+_CURRENT: ContextVar[CronExecution | None] = ContextVar("hermes_cron_execution", default=None)
 
 
 def enter_cron_execution(job: Mapping[str, Any], execution_id: str, record: Mapping[str, Any]) -> Token:
@@ -43,12 +44,12 @@ def enter_cron_execution(job: Mapping[str, Any], execution_id: str, record: Mapp
     ))
 
 
-def exit_cron_execution(token: Optional[Token]) -> None:
+def exit_cron_execution(token: Token | None) -> None:
     if token is not None:
         _CURRENT.reset(token)
 
 
-def current_cron_execution() -> Optional[CronExecution]:
+def current_cron_execution() -> CronExecution | None:
     from agent.delegation_context import is_delegated_child_context
 
     return None if is_delegated_child_context() else _CURRENT.get()

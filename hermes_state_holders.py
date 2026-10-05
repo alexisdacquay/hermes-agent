@@ -13,8 +13,8 @@ import logging
 import os
 import sqlite3
 import sys
+from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Callable, List, Optional, Sequence, Set, Tuple
 
 from hermes_state_errors import is_sqlite_lock_error
 
@@ -42,7 +42,7 @@ _PYTHON_LONG_OPTIONS_WITH_OPERANDS = frozenset(
 )
 
 
-def _read_proc_argv(pid: int) -> Optional[List[str]]:
+def _read_proc_argv(pid: int) -> list[str] | None:
     """Read /proc/<pid>/cmdline without losing argv boundaries."""
     try:
         with open(f"/proc/{pid}/cmdline", "rb") as handle:
@@ -78,7 +78,7 @@ def _looks_like_python_executable(program: str) -> bool:
     return False
 
 
-def _python_execution_target(argv: Sequence[str]) -> Optional[Tuple[str, str]]:
+def _python_execution_target(argv: Sequence[str]) -> tuple[str, str] | None:
     """Return the Python module or script selected by interpreter options."""
     index = 1
     while index < len(argv):
@@ -155,9 +155,9 @@ def _norm_path(value: str) -> str:
     return os.path.normcase(os.path.normpath(value))
 
 
-def _argv_flag_value(argv: Sequence[str], flags: Sequence[str]) -> Optional[str]:
+def _argv_flag_value(argv: Sequence[str], flags: Sequence[str]) -> str | None:
     """Last ``--flag X`` / ``--flag=X`` value, token-exact (``--profile timothy`` is not ``tim``)."""
-    value: Optional[str] = None
+    value: str | None = None
     index, count = 0, len(argv)
     while index < count:
         token = argv[index]
@@ -174,7 +174,7 @@ def _argv_flag_value(argv: Sequence[str], flags: Sequence[str]) -> Optional[str]
     return value
 
 
-def _argv_env_home(argv: Sequence[str]) -> Optional[str]:
+def _argv_env_home(argv: Sequence[str]) -> str | None:
     """``HERMES_HOME=<path>`` env-style assignment on the argv (``env HERMES_HOME=… hermes …``)."""
     for token in reversed(list(argv)):
         if isinstance(token, str) and token.startswith("HERMES_HOME="):
@@ -182,7 +182,7 @@ def _argv_env_home(argv: Sequence[str]) -> Optional[str]:
     return None
 
 
-def _store_install_layout(this_home: str) -> Tuple[Optional[str], Optional[str]]:
+def _store_install_layout(this_home: str) -> tuple[str | None, str | None]:
     """``(<install root>, <our profile name>)`` for the home holding the store, else ``(None, None)``.
 
     Derived with the canonical ``named_profile_home`` predicate, never a ``basename == "profiles"``
@@ -204,7 +204,7 @@ def _store_install_layout(this_home: str) -> Tuple[Optional[str], Optional[str]]
     return None, None
 
 
-def _names_other_profile(normalized: str, install_root: Optional[str], our_profile: Optional[str]) -> bool:
+def _names_other_profile(normalized: str, install_root: str | None, our_profile: str | None) -> bool:
     """True when the token is under ``<install root>/profiles/<name>`` for a name that is not ours."""
     if install_root is None:
         return False
@@ -216,8 +216,8 @@ def _names_other_profile(normalized: str, install_root: Optional[str], our_profi
 
 
 def _argv_home_selection(
-    argv: Sequence[str], this_home: str, install_root: Optional[str], our_profile: Optional[str]
-) -> Optional[str]:
+    argv: Sequence[str], this_home: str, install_root: str | None, our_profile: str | None
+) -> str | None:
     """``"ours"``/``"other"``/``None`` from the process's OWN profile/home selection.
 
     Under one process per host the shared binary path proves nothing about which home a process
@@ -236,9 +236,9 @@ def _argv_home_selection(
     return None
 
 
-def _argv_path_tokens(argv: Sequence[str]) -> List[Tuple[int, str]]:
+def _argv_path_tokens(argv: Sequence[str]) -> list[tuple[int, str]]:
     """``(argv index, normalized absolute path)`` for every path-bearing token."""
-    tokens: List[Tuple[int, str]] = []
+    tokens: list[tuple[int, str]] = []
     for index, token in enumerate(argv):
         if not isinstance(token, str):
             continue
@@ -312,9 +312,7 @@ def _argv_scoped_to_other_home(argv: Sequence[str], db_path: Path) -> bool:
             continue  # shared install root: neutral, every served profile lives under it
         if index == 0 and not argv0_locates_home:
             continue
-        if "/.hermes" in normalized or normalized.endswith("/.hermes"):
-            other_home_seen = True
-        elif os.path.basename(normalized) in _STATE_DB_NAMES:
+        if "/.hermes" in normalized or normalized.endswith("/.hermes") or os.path.basename(normalized) in _STATE_DB_NAMES:
             other_home_seen = True
     return other_home_seen
 
@@ -363,12 +361,12 @@ def _rm_ctypes():
     return _RmProcessInfo, argtypes
 
 
-def _sqlite_family(base: str) -> Tuple[str, str, str]:
+def _sqlite_family(base: str) -> tuple[str, str, str]:
     """The main database file plus the ``-wal``/``-shm`` sidecars SQLite may hold alongside it."""
     return (base, base + "-wal", base + "-shm")
 
 
-def _windows_restart_manager_holders(db_path: Path) -> List[Tuple[int, str]]:
+def _windows_restart_manager_holders(db_path: Path) -> list[tuple[int, str]]:
     """Return foreign processes using state.db or a WAL sidecar via Windows Restart Manager."""
     import ctypes
     from ctypes import wintypes
@@ -424,7 +422,7 @@ def _windows_restart_manager_holders(db_path: Path) -> List[Tuple[int, str]]:
         end(session)
 
 
-def foreign_state_db_holders(db_path: Path) -> List[Tuple[int, str]]:
+def foreign_state_db_holders(db_path: Path) -> list[tuple[int, str]]:
     """Return foreign holders of the DB or one of its WAL sidecars.
 
     A scan failure is represented as an unknown holder. Structural maintenance
@@ -445,9 +443,9 @@ def foreign_state_db_holders(db_path: Path) -> List[Tuple[int, str]]:
     # HERMES_HOME would otherwise make every holder invisible and let maintenance proceed.
     db_path_str = os.path.realpath(os.fspath(db_path))
     watched = {canonical_sqlite_path(candidate) for candidate in _sqlite_family(db_path_str)}
-    holders: List[Tuple[int, str]] = []
-    watched_ids: Set[Tuple[int, int]] = set()
-    db_dev: Optional[int] = None
+    holders: list[tuple[int, str]] = []
+    watched_ids: set[tuple[int, int]] = set()
+    db_dev: int | None = None
     for candidate in _sqlite_family(db_path_str):
         try:
             stat_result = os.stat(candidate)
@@ -568,7 +566,7 @@ def foreign_state_db_holders(db_path: Path) -> List[Tuple[int, str]]:
 
 def in_process_state_db_holders(
     db_path: Path, *, exclude=None
-) -> List[Tuple[int, str]]:
+) -> list[tuple[int, str]]:
     """Return holders of ``db_path`` inside THIS process, other than *exclude*.
 
     :func:`foreign_state_db_holders` skips ``os.getpid()`` by design, so it answers a
@@ -584,7 +582,7 @@ def in_process_state_db_holders(
     ]
 
 
-def held_store_refusal(db_path: Path, *, command: str, force_hint: Optional[str] = "--force") -> Optional[str]:
+def held_store_refusal(db_path: Path, *, command: str, force_hint: str | None = "--force") -> str | None:
     """Operator-facing refusal for structural maintenance (VACUUM, index rebuild, bulk delete) while another
     process holds ``db_path`` or a WAL sidecar; ``None`` when the store is provably quiet.
 
@@ -598,8 +596,8 @@ def held_store_refusal(db_path: Path, *, command: str, force_hint: Optional[str]
     from hermes_constants import profile_cli_selector
     from hermes_state_errors import STORAGE_RECOVERY_DOCS_URL
 
-    by_pid: dict[int, Set[str]] = {}
-    unknown: List[str] = []
+    by_pid: dict[int, set[str]] = {}
+    unknown: list[str] = []
     for pid, target in holders:
         if pid <= 0 or target.startswith("uninspectable"):
             unknown.append(target)

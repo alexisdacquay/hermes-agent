@@ -15,19 +15,27 @@ import subprocess
 import tempfile
 from functools import partial
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 from hermes_cli._subprocess_compat import windows_hide_flags
 from utils import is_truthy_value
+
 from tools.transcription_common import (
-    COMMON_LOCAL_BIN_DIRS, LOCAL_NATIVE_AUDIO_FORMATS, MAX_FILE_SIZE, SUPPORTED_FORMATS,
-    _config_number, _error_result, _lazy_ensure_quietly, _process_error_detail)
+    COMMON_LOCAL_BIN_DIRS,
+    LOCAL_NATIVE_AUDIO_FORMATS,
+    MAX_FILE_SIZE,
+    SUPPORTED_FORMATS,
+    _config_number,
+    _error_result,
+    _lazy_ensure_quietly,
+    _process_error_detail,
+)
 
 # Log-record parity with the origin module.
 logger = logging.getLogger("tools.transcription_tools")
 
 
-def _find_binary(binary_name: str) -> Optional[str]:
+def _find_binary(binary_name: str) -> str | None:
     """Find a local binary, checking common Homebrew/local prefixes as well as PATH."""
     for directory in COMMON_LOCAL_BIN_DIRS:
         candidate = Path(directory) / binary_name
@@ -41,7 +49,7 @@ _find_ffprobe_binary = partial(_find_binary, "ffprobe")
 _find_whisper_binary = partial(_find_binary, "whisper")
 
 
-def _run_quiet(command: list, *, timeout: float, env: Optional[dict] = None) -> subprocess.CompletedProcess:
+def _run_quiet(command: list, *, timeout: float, env: dict | None = None) -> subprocess.CompletedProcess:
     """``subprocess.run`` for STT helper binaries: checked, captured, utf-8 text, no stdin, hidden window."""
     return subprocess.run(
         command, check=True, capture_output=True, text=True,
@@ -54,14 +62,14 @@ def _run_quiet(command: list, *, timeout: float, env: Optional[dict] = None) -> 
 _STT_M4A_ENCODE_ARGS = ("-vn", "-ac", "1", "-ar", "16000", "-c:a", "aac", "-b:a", "32k", "-movflags", "+faststart")
 
 
-def _run_ffmpeg_stt_encode(ffmpeg: str, input_path: str, output_path: str, *, audio_filter: Optional[str] = None) -> None:
+def _run_ffmpeg_stt_encode(ffmpeg: str, input_path: str, output_path: str, *, audio_filter: str | None = None) -> None:
     """Run the shared STT m4a encode, optionally with an ``-af`` filter. Raises on failure; callers own the semantics."""
     filter_args = ["-af", audio_filter] if audio_filter else []
     _run_quiet([ffmpeg, "-y", "-i", input_path, *filter_args, *_STT_M4A_ENCODE_ARGS, output_path],
                timeout=120)
 
 
-def _transcode_audio_for_stt(file_path: str, work_dir: str) -> tuple[Optional[str], Optional[str]]:
+def _transcode_audio_for_stt(file_path: str, work_dir: str) -> tuple[str | None, str | None]:
     """Transcode to a compact 16 kHz mono AAC/m4a for STT upload; ``(converted_path, None)`` or ``(None, error)``.
     Newer OpenAI models reject containers ``whisper-1`` accepted (notably Ogg/Opus voice notes) and
     gateway downloads may carry a misleading extension."""
@@ -76,12 +84,12 @@ def _transcode_audio_for_stt(file_path: str, work_dir: str) -> tuple[Optional[st
         details = _process_error_detail(exc)
         logger.error("ffmpeg STT transcode failed for %s: %s", file_path, details)
         return None, f"failed to transcode audio for the STT API: {details}"
-    except Exception as exc:  # noqa: BLE001 - transcode is best-effort
+    except Exception as exc:
         logger.error("unexpected STT transcode failure for %s: %s", file_path, exc, exc_info=True)
         return None, f"failed to transcode audio for the STT API: {exc}"
 
 
-def _validate_audio_file_size(audio_path: Path, *, enforce_size_limit: bool = True) -> Optional[Dict[str, Any]]:
+def _validate_audio_file_size(audio_path: Path, *, enforce_size_limit: bool = True) -> dict[str, Any] | None:
     """Return an error when *audio_path* is inaccessible or (if enforced) exceeds the remote upload cap."""
     try:
         file_size = audio_path.stat().st_size
@@ -92,7 +100,7 @@ def _validate_audio_file_size(audio_path: Path, *, enforce_size_limit: bool = Tr
     return None
 
 
-def _validate_audio_source_file(file_path: str, *, enforce_size_limit: bool = True) -> Optional[Dict[str, Any]]:
+def _validate_audio_source_file(file_path: str, *, enforce_size_limit: bool = True) -> dict[str, Any] | None:
     """Validate source path safety (and optionally size) before any decoder runs."""
     audio_path = Path(file_path)
     if os.path.islink(audio_path):
@@ -104,7 +112,7 @@ def _validate_audio_source_file(file_path: str, *, enforce_size_limit: bool = Tr
     return _validate_audio_file_size(audio_path, enforce_size_limit=enforce_size_limit)
 
 
-def _validate_audio_file(file_path: str, *, enforce_size_limit: bool = True) -> Optional[Dict[str, Any]]:
+def _validate_audio_file(file_path: str, *, enforce_size_limit: bool = True) -> dict[str, Any] | None:
     """Validate a supported, decoder-safe audio file."""
     source_error = _validate_audio_source_file(file_path, enforce_size_limit=enforce_size_limit)
     suffix = Path(file_path).suffix
@@ -113,7 +121,7 @@ def _validate_audio_file(file_path: str, *, enforce_size_limit: bool = True) -> 
     return _error_result(f"Unsupported format: {suffix}. Supported: {', '.join(sorted(SUPPORTED_FORMATS))}")
 
 
-def _prepare_audio_for_transcription(file_path: str) -> tuple[Optional[str], Optional[str], Optional[Dict[str, Any]]]:
+def _prepare_audio_for_transcription(file_path: str) -> tuple[str | None, str | None, dict[str, Any] | None]:
     """Convert a decoder-safe .silk source to a temporary supported WAV file."""
     from tools.transcription_tools import _HAS_PILK, _safe_find_spec
     audio_path = Path(file_path)
@@ -140,7 +148,7 @@ def _prepare_audio_for_transcription(file_path: str) -> tuple[Optional[str], Opt
         return None, None, _error_result(f"Failed to convert .silk audio for transcription: {exc}")
 
 
-def _prepare_local_audio(file_path: str, work_dir: str) -> tuple[Optional[str], Optional[str]]:
+def _prepare_local_audio(file_path: str, work_dir: str) -> tuple[str | None, str | None]:
     """Normalize audio for local CLI STT when needed."""
     audio_path = Path(file_path)
     if audio_path.suffix.lower() in LOCAL_NATIVE_AUDIO_FORMATS:
@@ -161,7 +169,7 @@ def _prepare_local_audio(file_path: str, work_dir: str) -> tuple[Optional[str], 
         return None, f"Failed to convert audio for local STT: {details}"
 
 
-def _convert_caf_to_wav(file_path: str, work_dir: str) -> Optional[str]:
+def _convert_caf_to_wav(file_path: str, work_dir: str) -> str | None:
     """Convert CAF to WAV in a caller-owned directory using ffmpeg or afconvert."""
     audio_path = Path(file_path)
     wav_path = os.path.join(work_dir, f"{audio_path.stem}.wav")
@@ -201,7 +209,7 @@ _CLOUD_TRIM_MIN_RESULT_SECONDS = 0.3  # all-silence guard floor: never upload ~e
 _CLOUD_TRIM_MIN_INPUT_SECONDS = 12.0
 
 
-def _probe_audio_duration(file_path: str) -> Optional[float]:
+def _probe_audio_duration(file_path: str) -> float | None:
     """Return the audio duration in seconds via ffprobe, or None. Canonical sync probe;
     ``gateway/run.py._probe_audio_duration`` and the Telegram adapter carry local variants — keep
     the command shape in sync."""
@@ -216,7 +224,7 @@ def _probe_audio_duration(file_path: str) -> Optional[float]:
         return None
 
 
-def _cloud_trim_settings(stt_config: Dict[str, Any]) -> tuple[bool, int, int]:
+def _cloud_trim_settings(stt_config: dict[str, Any]) -> tuple[bool, int, int]:
     """Resolve (enabled, threshold_db, keep_ms) for the cloud silence trim."""
     cfg = stt_config if isinstance(stt_config, dict) else {}
     # is_truthy_value: a YAML string "false" must disable, exactly like is_stt_enabled.
@@ -226,7 +234,7 @@ def _cloud_trim_settings(stt_config: Dict[str, Any]) -> tuple[bool, int, int]:
     return enabled, threshold_db, max(keep_ms, 0)
 
 
-def _trim_silence_for_cloud_stt(file_path: str, stt_config: Dict[str, Any]) -> Optional[str]:
+def _trim_silence_for_cloud_stt(file_path: str, stt_config: dict[str, Any]) -> str | None:
     """Return a silence-trimmed copy of *file_path* for cloud upload, or None (= upload the original).
     On success the caller owns deleting the returned file's parent directory."""
     enabled, threshold_db, keep_ms = _cloud_trim_settings(stt_config)

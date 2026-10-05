@@ -5,9 +5,8 @@ from datetime import datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
 import hermes_yaml as yaml
-
+import pytest
 from gateway.config import GatewayConfig, Platform
 from gateway.platforms.base import (
     BasePlatformAdapter,
@@ -420,7 +419,6 @@ def test_scheduler_rejects_submission_failure():
 
     def _reject(coro, _target_loop, **_kwargs):
         coro.close()
-        return None
 
     with patch("gateway.run.safe_schedule_threadsafe", side_effect=_reject):
         assert (

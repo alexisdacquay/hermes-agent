@@ -21,9 +21,8 @@ import base64
 import sys
 from types import SimpleNamespace
 
-
-from agent.turn_recovery import _image_error_max_dimension
 from agent.error_classifier import FailoverReason, classify_api_error
+from agent.turn_recovery import _image_error_max_dimension
 
 
 class _FakeApiError(Exception):
@@ -229,9 +228,8 @@ class TestImagePatchBudgetShrink:
         real shrink pass rewrite the Responses ``input_image`` part to within the budget."""
         import io
 
-        from PIL import Image
-
         from agent.conversation_compression import try_shrink_image_parts_in_messages
+        from PIL import Image
 
         err = _FakeApiError(
             status_code=400,

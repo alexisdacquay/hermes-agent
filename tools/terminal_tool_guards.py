@@ -15,7 +15,7 @@ import re
 import shlex
 import stat
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from tools.shell_heredoc import strip_inert_heredoc_bodies
 
@@ -41,7 +41,7 @@ def _validate_workdir(workdir: str) -> str | None:
     for ch in workdir or "":
         if not _is_safe_workdir_char(ch):
             return (
-                f"Blocked: workdir contains disallowed character {repr(ch)}. "
+                f"Blocked: workdir contains disallowed character {ch!r}. "
                 "Use a simple filesystem path without shell metacharacters."
             )
     return None
@@ -141,7 +141,7 @@ def _foreground_background_guidance(command: str) -> str | None:
     return next((msg for hit, msg in _FOREGROUND_GUIDANCE if hit(unquoted)), None)
 
 
-def _read_script_for_guard(env: Any, guard_cwd: str, script_path: str, max_bytes: int) -> Optional[str]:
+def _read_script_for_guard(env: Any, guard_cwd: str, script_path: str, max_bytes: int) -> str | None:
     """Best-effort script read: host filesystem first, then a bounded
     ``env.execute('head -c ... < path')`` for remote backends. Binary content
     (NUL byte) is not a script: feeding it to the guard tokenizes machine code
@@ -181,9 +181,9 @@ def gateway_lifecycle_block(
     env: Any,
     env_type: str,
     cwd: str,
-    workdir: Optional[str],
+    workdir: str | None,
     session_key: str,
-) -> Optional[str]:
+) -> str | None:
     """Refuse gateway lifecycle commands issued from inside the supervised gateway.
 
     ``systemctl``/``launchctl``/``hermes gateway restart|stop|uninstall``
@@ -267,9 +267,9 @@ def self_repo_block(
     *,
     command: str,
     cwd: str,
-    workdir: Optional[str],
+    workdir: str | None,
     session_key: str,
-) -> Optional[str]:
+) -> str | None:
     """Windows-only guard against git-mutating the checkout backing this interpreter.
 
     NTFS locks loaded module files, so rewriting the live checkout can corrupt

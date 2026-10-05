@@ -5,12 +5,9 @@ before dispatching; Telegram waits 0.3s (1.0s near a split chunk).
 """
 
 import pytest
-
 from gateway.config import PlatformConfig
 from gateway.platforms.weixin import WeixinAdapter
 from plugins.platforms.whatsapp.adapter import WhatsAppAdapter
-
-
 
 
 @pytest.mark.parametrize(

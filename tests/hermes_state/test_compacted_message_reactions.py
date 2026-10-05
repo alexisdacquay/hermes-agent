@@ -1,7 +1,6 @@
 """Visible archived messages keep the same once-only reaction contract."""
 
 import pytest
-
 from hermes_state import SessionDB
 
 

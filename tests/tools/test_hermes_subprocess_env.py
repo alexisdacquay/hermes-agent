@@ -15,8 +15,9 @@ import os
 from unittest.mock import patch
 
 from tools.environments.local import hermes_subprocess_env
-from tools.environments.local_env_policy import _ALWAYS_STRIP_KEYS, _HERMES_PROVIDER_ENV_FORCE_PREFIX
-
+from tools.environments.local_env_policy import (
+    _ALWAYS_STRIP_KEYS,
+)
 
 _TIER1_SAMPLE = {
     "GH_TOKEN": "ghp_secret",
@@ -177,9 +178,8 @@ class TestDelegatedChildMarker:
                 "HERMES_KANBAN_WORKSPACE": "/tmp/parent-workspace",
             },
             clear=True,
-        ):
-            with delegated_child_context():
-                env = hermes_subprocess_env(inherit_credentials=True)
+        ), delegated_child_context():
+            env = hermes_subprocess_env(inherit_credentials=True)
 
         assert env["HERMES_DELEGATED_CHILD_CONTEXT"]  # fenced board root (path), not a bare flag
         # Worker identity is scrubbed; board location and workspace routing survive so the

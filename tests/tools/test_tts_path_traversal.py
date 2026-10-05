@@ -10,7 +10,6 @@ always either a bug or prompt-injection-controlled
 import json
 
 import pytest
-
 from tools.tts_tool import text_to_speech_tool
 
 
@@ -36,7 +35,7 @@ def test_output_path_rejects_bare_dotdot():
 
 def test_output_path_rejects_hermes_oauth_store(tmp_path, monkeypatch):
     """TTS output_path must not bypass the shared protected-file write guard."""
-    import agent.file_safety as file_safety
+    from agent import file_safety
 
     hermes_home = tmp_path / "hermes-home"
     hermes_home.mkdir()
@@ -103,7 +102,7 @@ def test_media_directive_in_path_is_rejected_before_any_echo(tmp_path):
 
 def test_output_path_rejects_mcp_token_directory(tmp_path, monkeypatch):
     """TTS output_path must not write synthesized audio over MCP token files."""
-    import agent.file_safety as file_safety
+    from agent import file_safety
 
     hermes_home = tmp_path / "hermes-home"
     token_dir = hermes_home / "mcp-tokens"

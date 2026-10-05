@@ -6,9 +6,9 @@ from __future__ import annotations
 
 import itertools
 import threading
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from types import ModuleType
-from typing import Any, Callable
+from typing import Any
 
 from gateway import hosted_room_driver as state
 

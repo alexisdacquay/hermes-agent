@@ -9,8 +9,6 @@ A :class:`Transport` forwards a JSON-serialisable dict to its peer, so one dispa
 
 from __future__ import annotations
 
-from collections import deque
-from dataclasses import dataclass, field
 import contextlib
 import contextvars
 import errno
@@ -18,7 +16,10 @@ import json
 import logging
 import os
 import threading
-from typing import Any, Callable, Optional, Protocol, runtime_checkable
+from collections import deque
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from typing import Any, Protocol, runtime_checkable
 
 # Errno values that mean "the peer is gone" rather than "the host has a real I/O problem". Anything
 # outside this set re-raises so it surfaces in the crash log instead of looking like a clean disconnect.
@@ -45,16 +46,16 @@ class Transport(Protocol):
         """Release any resources owned by this transport."""
 
 
-_current_transport: contextvars.ContextVar[Optional[Transport]] = contextvars.ContextVar(
+_current_transport: contextvars.ContextVar[Transport | None] = contextvars.ContextVar(
     "hermes_gateway_transport", default=None
 )
 
 
-def current_transport() -> Optional[Transport]:
+def current_transport() -> Transport | None:
     return _current_transport.get()
 
 
-def bind_transport(transport: Optional[Transport]):
+def bind_transport(transport: Transport | None):
     """Bind *transport* for the current context; returns a token for :func:`reset_transport`."""
     return _current_transport.set(transport)
 
@@ -99,7 +100,7 @@ class StdioTransport:
     """Writes JSON frames to a stream (usually ``sys.stdout``) resolved via a callable, so runtime
     monkey-patches of the stream keep working."""
 
-    __slots__ = ("_stream_getter", "_lock")
+    __slots__ = ("_lock", "_stream_getter")
 
     def __init__(self, stream_getter: Callable[[], Any], lock: threading.Lock) -> None:
         self._stream_getter = stream_getter
@@ -290,7 +291,7 @@ class TeeTransport:
 
     __slots__ = ("_primary", "_secondaries")
 
-    def __init__(self, primary: "Transport", *secondaries: "Transport") -> None:
+    def __init__(self, primary: Transport, *secondaries: Transport) -> None:
         self._primary = primary
         self._secondaries = secondaries
 

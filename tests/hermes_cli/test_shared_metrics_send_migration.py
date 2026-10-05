@@ -12,7 +12,6 @@ import json
 import sqlite3
 
 import pytest
-
 from hermes_cli.observability.shared_metrics import SharedMetricsStore
 
 SEND_COLUMNS = {

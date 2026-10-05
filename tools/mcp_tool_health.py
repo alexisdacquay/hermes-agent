@@ -6,11 +6,12 @@ import asyncio
 import json
 import logging
 import time
-from typing import Iterable, Optional
+from collections.abc import Iterable
+
+from tools import mcp_tool_registration as _registration
+from tools.mcp_tool_common import _core
 from tools.mcp_tool_errors import _is_method_not_found_error, _unwrap_exception_group
 from tools.mcp_tool_schema import mcp_prefixed_tool_name
-from tools.mcp_tool_common import _core
-from tools import mcp_tool_registration as _registration
 
 logger = logging.getLogger("tools.mcp_tool")
 
@@ -45,12 +46,12 @@ class MCPServerHealthMixin:
                   (self._last_tool_call_at, self._idle_timeout_seconds, "idle_timeout_seconds"))
         return [(start + limit, reason) for start, limit, reason in limits if limit is not None]
 
-    def _stdio_recycle_reason(self, now: Optional[float] = None) -> Optional[str]:
+    def _stdio_recycle_reason(self, now: float | None = None) -> str | None:
         """The stdio recycle reason if idle/age limits have elapsed (lifetime wins), else None."""
         now = time.monotonic() if now is None else now
         return next((reason for deadline, reason in self._stdio_recycle_deadlines() if now >= deadline), None)
 
-    def _next_stdio_recycle_deadline(self) -> Optional[float]:
+    def _next_stdio_recycle_deadline(self) -> float | None:
         return min((d for d, _ in self._stdio_recycle_deadlines()), default=None)
 
     def _mark_stdio_recycled(self, reason: str) -> None:

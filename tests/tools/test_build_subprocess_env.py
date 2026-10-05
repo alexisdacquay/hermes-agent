@@ -3,14 +3,14 @@
 import os
 
 import pytest
+from tools.environments.local import build_subprocess_env
 
 from tests.tools._child_env_fixtures import child_env, observe_child  # noqa: F401
-from tools.environments.local import build_subprocess_env
 
 
 @pytest.mark.parametrize("scrub,inherit_home", [(True, True), (True, False), (False, True), (False, False)])
 def test_factory_child_policy_and_profile_home(child_env, monkeypatch, scrub, inherit_home):
-    from hermes_constants import set_hermes_home_override, reset_hermes_home_override
+    from hermes_constants import reset_hermes_home_override, set_hermes_home_override
     routed = child_env / "profiles/coder"
     routed.mkdir(parents=True)
     monkeypatch.setenv("ANTHROPIC_API_KEY", "fake-parent-secret")

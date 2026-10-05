@@ -7,7 +7,6 @@ tmp_path); only the platform adapter is a fake whose ``create_handoff_thread`` r
 from __future__ import annotations
 
 import pytest
-
 from gateway.config import GatewayConfig, Platform
 from gateway.platforms.event import MessageEvent
 from gateway.session import SessionSource, SessionStore

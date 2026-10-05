@@ -9,7 +9,8 @@ auth, billing and payment failures keep benching the whole credential with.
 from __future__ import annotations
 
 import time
-from typing import Any, Dict, Iterable, Optional, TYPE_CHECKING
+from collections.abc import Iterable
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from agent.credential_pool import PooledCredential
@@ -19,7 +20,7 @@ if TYPE_CHECKING:
 MODEL_ENTITLEMENT_BENCH_SECONDS = 365 * 24 * 60 * 60
 
 
-def model_cooldown_until(entry: "PooledCredential", model: Optional[str]) -> Optional[float]:
+def model_cooldown_until(entry: PooledCredential, model: str | None) -> float | None:
     """Active cooldown blocking *entry* for *model*, or ``None``.
 
     Callers that do not know the model stay conservative: any active model
@@ -32,9 +33,9 @@ def model_cooldown_until(entry: "PooledCredential", model: Optional[str]) -> Opt
     return max(active) if active else None
 
 
-def merge_model_cooldowns(*maps: Any) -> Dict[str, float]:
+def merge_model_cooldowns(*maps: Any) -> dict[str, float]:
     """Latest reset per model across snapshots — each writer only observed its own model."""
-    merged: Dict[str, float] = {}
+    merged: dict[str, float] = {}
     for cooldowns in maps:
         if not isinstance(cooldowns, dict):
             continue
@@ -45,7 +46,7 @@ def merge_model_cooldowns(*maps: Any) -> Dict[str, float]:
 
 
 class CredentialPoolModelCooldownMixin:
-    def token_is_blocked(self, token: str, *, model: Optional[str] = None) -> bool:
+    def token_is_blocked(self, token: str, *, model: str | None = None) -> bool:
         """Whether a pool cooldown blocks *token* for *model*.
 
         Closes the paths that hand out a native Anthropic token without
@@ -59,11 +60,14 @@ class CredentialPoolModelCooldownMixin:
             )
 
     def _is_model_scoped_failure(
-        self, status_code: Optional[int], model: Optional[str], failure_reason: Optional[str],
+        self, status_code: int | None, model: str | None, failure_reason: str | None,
     ) -> bool:
         """Anthropic per-model 429s, and a Codex ChatGPT-account model entitlement 400: the
         account cannot use *model*, but the credential stays valid for every other model (#71970)."""
-        from agent.credential_pool import FAILURE_REASON_BILLING, FAILURE_REASON_BILLING_UNVERIFIED
+        from agent.credential_pool import (
+            FAILURE_REASON_BILLING,
+            FAILURE_REASON_BILLING_UNVERIFIED,
+        )
 
         if not model:
             return False
@@ -75,8 +79,8 @@ class CredentialPoolModelCooldownMixin:
         )
 
     def _cool_down_model(
-        self, entry: "PooledCredential", model: str, error_context: Optional[Dict[str, Any]],
-        failure_reason: Optional[str] = None,
+        self, entry: PooledCredential, model: str, error_context: dict[str, Any] | None,
+        failure_reason: str | None = None,
     ) -> None:
         """Record a cooldown for *model* on *entry* and every sibling sharing its key.
 
@@ -103,7 +107,7 @@ class CredentialPoolModelCooldownMixin:
             self._adopt(scoped, persist=False, model_cooldowns=cooldowns)
         self._persist()
 
-    def limit_state(self, models: Iterable[str]) -> Optional[Dict[str, Any]]:
+    def limit_state(self, models: Iterable[str]) -> dict[str, Any] | None:
         """What a picker should say about this pool's rate limits, or ``None`` when nothing is limited.
 
         ``{"scope": "account", "resets_at": epoch}`` when every live entry is benched credential-wide
@@ -123,7 +127,7 @@ class CredentialPoolModelCooldownMixin:
             if live and len(benched) == len(live):
                 return {"scope": "account", "resets_at": min(benched.values())}
             usable = [entry for entry in live if entry.id not in benched]
-            cooled: Dict[str, float] = {}
+            cooled: dict[str, float] = {}
             for model in models:
                 waits = [model_cooldown_until(entry, model) for entry in usable]
                 if waits and all(waits) and min(waits) - now < MODEL_ENTITLEMENT_BENCH_SECONDS / 2:

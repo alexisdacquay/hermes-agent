@@ -11,16 +11,13 @@ from __future__ import annotations
 import sys
 import threading
 import time
-import types
 from contextlib import nullcontext
 from types import ModuleType, SimpleNamespace
 
 import pytest
-
 from acp_adapter.server import HermesACPAgent
-from acp_adapter.session import SessionManager, SessionState
+from acp_adapter.session import SessionManager
 from hermes_cli import mcp_startup
-
 
 # ---------------------------------------------------------------------------
 # Shared helpers
@@ -112,7 +109,7 @@ def test_acp_background_discovery_does_not_block_startup(monkeypatch):
     )
     elapsed = time.monotonic() - start
 
-    assert elapsed < 0.2, "start_background_mcp_discovery blocked for {:.3f}s".format(elapsed)
+    assert elapsed < 0.2, f"start_background_mcp_discovery blocked for {elapsed:.3f}s"
     thread = mcp_startup._current_home_thread()
     assert thread is not None
     assert thread.is_alive()

@@ -4,27 +4,26 @@ from __future__ import annotations
 
 import argparse
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Optional
 
 
-def _parse_ts(ts) -> Optional[datetime]:
+def _parse_ts(ts) -> datetime | None:
     """ISO timestamp -> aware UTC datetime, or None when unparseable."""
     try:
         dt = datetime.fromisoformat(ts)
     except (TypeError, ValueError):
         return None
-    return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt
+    return dt.replace(tzinfo=UTC) if dt.tzinfo is None else dt
 
 
-def _fmt_ts(ts: Optional[str]) -> str:
+def _fmt_ts(ts: str | None) -> str:
     if not ts:
         return "never"
     dt = _parse_ts(ts)
     if dt is None:
         return str(ts)
-    secs = int((datetime.now(timezone.utc) - dt).total_seconds())
+    secs = int((datetime.now(UTC) - dt).total_seconds())
     for unit, div, limit in (("s", 1, 60), ("m", 60, 3600), ("h", 3600, 86400)):
         if secs < limit:
             return f"{secs // div}{unit} ago"
@@ -322,12 +321,12 @@ def _cmd_archive(args) -> int:
     return _as_user(skill_usage.archive_skill, args.skill)
 
 
-def _idle_days(record: dict) -> Optional[int]:
+def _idle_days(record: dict) -> int | None:
     """Days since last activity, falling back to ``created_at`` so never-used skills aren't
     immortal; None only when both fields are missing or unparseable."""
     ts = record.get("last_activity_at") or record.get("created_at")
     dt = _parse_ts(str(ts)) if ts else None
-    return None if dt is None else max(0, (datetime.now(timezone.utc) - dt).days)
+    return None if dt is None else max(0, (datetime.now(UTC) - dt).days)
 
 
 def _cmd_prune(args) -> int:
@@ -422,8 +421,10 @@ def _cmd_purge(args) -> int:
     entry, so even a purge is auditable and blob-recoverable."""
     import shutil
     import time
-    from hermes_cli.config import cfg_get, load_config
+
     from tools import skill_ledger, skill_usage
+
+    from hermes_cli.config import cfg_get, load_config
     ttl_days = getattr(args, "days", None)
     if ttl_days is None:
         ttl_days = int(cfg_get(load_config(), "curator", "archive_ttl_days", default=0) or 0)
@@ -574,6 +575,7 @@ _USAGE_SORTS = {
 def _cmd_usage(args) -> int:
     """Usage telemetry for ALL skills on disk (bundled + hub included), with provenance."""
     import json as _json
+
     from tools import skill_usage
     rows = skill_usage.usage_report()
     prov_filter = getattr(args, "provenance", None)

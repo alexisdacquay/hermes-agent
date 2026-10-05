@@ -6,7 +6,6 @@ import logging
 import threading
 
 import pytest
-
 from agent import secret_scope as ss
 from hermes_constants import reset_hermes_home_override, set_hermes_home_override
 

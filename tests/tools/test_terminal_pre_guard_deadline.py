@@ -12,7 +12,6 @@ import time
 from types import SimpleNamespace
 
 import pytest
-
 import tools.terminal_tool as terminal_module
 
 

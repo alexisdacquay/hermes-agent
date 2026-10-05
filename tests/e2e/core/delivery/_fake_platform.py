@@ -33,16 +33,17 @@ import subprocess
 import sys
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 POLL = 0.02
 DEADLINE = 120.0
 REPO_ROOT = Path(__file__).resolve().parents[4]
 
 # Per-platform send/edit semantics (what the real service enforces, not what Hermes believes).
-PROFILES: Dict[str, Dict[str, Any]] = {
+PROFILES: dict[str, dict[str, Any]] = {
     "telegram": {"max_len": 4096, "edits": True, "threads": False},
     "discord": {"max_len": 2000, "edits": True, "threads": True},
     "slack": {"max_len": 3900, "edits": True, "threads": True},
@@ -51,7 +52,7 @@ PROFILES: Dict[str, Dict[str, Any]] = {
 
 
 def wait_until(predicate: Callable[[], Any], what: str, timeout: float = DEADLINE,
-               proc: Optional[subprocess.Popen] = None, log: Optional[Path] = None) -> Any:
+               proc: subprocess.Popen | None = None, log: Path | None = None) -> Any:
     deadline = time.monotonic() + timeout
     while True:
         value = predicate()
@@ -75,7 +76,7 @@ def _append_jsonl(path: Path, record: dict) -> None:
         os.close(fd)
 
 
-def read_jsonl(path: Path) -> List[dict]:
+def read_jsonl(path: Path) -> list[dict]:
     if not path.exists():
         return []
     out = []
@@ -98,9 +99,9 @@ class PlatformMessage:
     message_id: str
     platform: str
     chat_id: str
-    thread_id: Optional[str]
+    thread_id: str | None
     text: str
-    reply_to: Optional[str] = None
+    reply_to: str | None = None
     deleted: bool = False
     edits: int = 0
 
@@ -110,8 +111,8 @@ class FakePlatformServer:
 
     def __init__(self, journal: Path) -> None:
         self._lock = threading.Lock()
-        self.messages: Dict[str, PlatformMessage] = {}
-        self.order: List[str] = []
+        self.messages: dict[str, PlatformMessage] = {}
+        self.order: list[str] = []
         self.journal = journal
         for rec in read_jsonl(journal):
             self._apply(rec)
@@ -138,8 +139,8 @@ class FakePlatformServer:
         _append_jsonl(self.journal, rec)
         self._apply(rec)
 
-    def post(self, platform: str, chat_id: str, thread_id: Optional[str], text: str,
-             reply_to: Optional[str]) -> str:
+    def post(self, platform: str, chat_id: str, thread_id: str | None, text: str,
+             reply_to: str | None) -> str:
         with self._lock:
             mid = f"pm-{os.getpid()}-{len(self.order) + 1}"
             self._commit({"kind": "post", "message_id": mid, "platform": platform, "chat_id": str(chat_id),
@@ -161,7 +162,7 @@ class FakePlatformServer:
             self._commit({"kind": "delete", "message_id": message_id})
             return True
 
-    def visible(self, platform: Optional[str] = None, chat_id: Optional[str] = None) -> List[PlatformMessage]:
+    def visible(self, platform: str | None = None, chat_id: str | None = None) -> list[PlatformMessage]:
         with self._lock:
             return [m for m in (self.messages[i] for i in self.order)
                     if not m.deleted and (platform is None or m.platform == platform)
@@ -188,13 +189,13 @@ class Fault:
     platform: str
     op: str
     kind: str
-    contains: Optional[str] = None
+    contains: str | None = None
     retry_after: float = 0.3
     times: int = 1
-    chat_id: Optional[str] = None
+    chat_id: str | None = None
     hits: int = 0
 
-    def matches(self, platform: str, op: str, content: str, chat_id: Optional[str] = None) -> bool:
+    def matches(self, platform: str, op: str, content: str, chat_id: str | None = None) -> bool:
         if self.hits >= self.times or platform != self.platform:
             return False
         if self.chat_id is not None and chat_id != self.chat_id:
@@ -218,7 +219,7 @@ def _adapter_class():
 
         splits_long_messages = True
 
-        def __init__(self, config, *, name: str, profile: str, world: "ChildWorld"):
+        def __init__(self, config, *, name: str, profile: str, world: ChildWorld):
             super().__init__(config, Platform(name))
             self.pname = name
             self.world = world
@@ -239,7 +240,7 @@ def _adapter_class():
             self._running = False
             self._mark_disconnected()
 
-        async def get_chat_info(self, chat_id: str) -> Dict[str, Any]:
+        async def get_chat_info(self, chat_id: str) -> dict[str, Any]:
             return {"name": f"chat-{chat_id}", "type": "dm", "chat_id": chat_id}
 
         async def send_typing(self, chat_id: str, metadata=None) -> None:
@@ -247,7 +248,7 @@ def _adapter_class():
 
         # faults
         async def _fault(self, op: str, content: str, accept: Callable[[], Any],
-                         chat_id: Optional[str] = None) -> Optional[Any]:
+                         chat_id: str | None = None) -> Any | None:
             fault = self.world.take_fault(self.pname, op, content, chat_id)
             if fault is None:
                 return None
@@ -271,22 +272,22 @@ def _adapter_class():
                 await asyncio.Event().wait()  # parked until the process is killed
             raise AssertionError(f"unknown fault kind {fault.kind}")
 
-        def _thread(self, metadata: Optional[Dict[str, Any]]) -> Optional[str]:
+        def _thread(self, metadata: dict[str, Any] | None) -> str | None:
             if not self.profile["threads"] or not metadata:
                 return None
             tid = metadata.get("thread_id")
             return str(tid) if tid else None
 
         # outbound
-        async def send(self, chat_id: str, content: str, reply_to: Optional[str] = None,
-                       metadata: Optional[Dict[str, Any]] = None) -> SendResult:
+        async def send(self, chat_id: str, content: str, reply_to: str | None = None,
+                       metadata: dict[str, Any] | None = None) -> SendResult:
             content = content or ""
             thread_id = self._thread(metadata)
             self.world.record_op({"platform": self.pname, "op": "send", "chat_id": str(chat_id),
                                   "thread_id": thread_id, "content": content,
                                   "interim": bool((metadata or {}).get("_interim_send"))})
             chunks = self.truncate_message(content, self.MAX_MESSAGE_LENGTH) if content else [""]
-            posted: List[str] = []
+            posted: list[str] = []
 
             def accept() -> None:
                 for chunk in chunks:
@@ -330,7 +331,7 @@ def _adapter_class():
 
         # inbound
         async def inject(self, text: str, message_id: str, *, chat_id: str = "c1", user_id: str = "u1",
-                         thread_id: Optional[str] = None, chat_type: str = "dm") -> None:
+                         thread_id: str | None = None, chat_type: str = "dm") -> None:
             if self._dedup.is_duplicate(message_id):
                 self.world.record_op({"platform": self.pname, "op": "inbound_duplicate_dropped",
                                       "chat_id": str(chat_id), "message_id": message_id})
@@ -352,9 +353,9 @@ class ChildWorld:
         self.spool = spool
         self.server = FakePlatformServer(spool / "platform.jsonl")
         self._lock = threading.Lock()
-        self.faults: List[Fault] = []
+        self.faults: list[Fault] = []
 
-    def take_fault(self, platform: str, op: str, content: str, chat_id: Optional[str] = None) -> Optional[Fault]:
+    def take_fault(self, platform: str, op: str, content: str, chat_id: str | None = None) -> Fault | None:
         with self._lock:
             for f in self.faults:
                 if f.matches(platform, op, content, chat_id):
@@ -383,7 +384,13 @@ def _serve(spool: Path) -> None:  # pragma: no cover - runs in the child process
     import gateway.delivery_ledger as ledger
     ledger._RETRY_BACKOFF_SECONDS = tuple(cfg.get("ledger_backoff", (0.5, 1.0)))
 
-    from gateway.config import GatewayConfig, HomeChannel, Platform, PlatformConfig, StreamingConfig
+    from gateway.config import (
+        GatewayConfig,
+        HomeChannel,
+        Platform,
+        PlatformConfig,
+        StreamingConfig,
+    )
     from gateway.platform_registry import PlatformEntry, platform_registry
     from gateway.run import GatewayRunner
 
@@ -488,7 +495,7 @@ _KEEP_ENV = ("PATH", "LANG", "LC_ALL", "TMPDIR", "PYTHONPATH", "VIRTUAL_ENV", "S
 class GatewayProcess:
     """A real gateway in a child process on ``home``; RPC + SIGKILL + restart on the same state."""
 
-    def __init__(self, root: Path, *, platforms: Dict[str, str], llm_base_url: str,
+    def __init__(self, root: Path, *, platforms: dict[str, str], llm_base_url: str,
                  extra_config: str = "", ledger_backoff=(0.5, 1.0)) -> None:
         from tests.fakes.fake_llm_provider import write_hermes_home
 
@@ -500,11 +507,11 @@ class GatewayProcess:
         write_hermes_home(self.hermes_home, llm_base_url, extra_config=extra_config)
         (self.spool / "config.json").write_text(json.dumps(
             {"platforms": platforms, "ledger_backoff": list(ledger_backoff)}))
-        self.proc: Optional[subprocess.Popen] = None
-        self.sock: Optional[socket.socket] = None
+        self.proc: subprocess.Popen | None = None
+        self.sock: socket.socket | None = None
         self._rfile = None
         self.boots = 0
-        self.pids: List[int] = []
+        self.pids: list[int] = []
 
     @property
     def db_path(self) -> Path:
@@ -514,7 +521,7 @@ class GatewayProcess:
     def log(self) -> Path:
         return self.spool / f"child-{self.boots}.log"
 
-    def env(self) -> Dict[str, str]:
+    def env(self) -> dict[str, str]:
         env = {k: os.environ[k] for k in _KEEP_ENV if k in os.environ}
         env.update({
             "HOME": str(self.home), "HERMES_HOME": str(self.hermes_home),
@@ -529,7 +536,7 @@ class GatewayProcess:
         })
         return env
 
-    def start(self) -> "GatewayProcess":
+    def start(self) -> GatewayProcess:
         assert self.proc is None
         self.boots += 1
         ready_before = len(read_jsonl(self.spool / "ready.jsonl"))
@@ -558,18 +565,18 @@ class GatewayProcess:
         assert resp.get("ok"), f"rpc {cmd} failed: {resp}"
         return resp
 
-    def inject(self, platform: str, text: str, message_id: str, chat_id: str, thread_id: Optional[str] = None):
+    def inject(self, platform: str, text: str, message_id: str, chat_id: str, thread_id: str | None = None):
         return self.rpc("inject", platform=platform, text=text, message_id=message_id, chat_id=chat_id,
                         thread_id=thread_id)
 
     def fault(self, **fault: Any) -> None:
         self.rpc("fault", fault=fault)
 
-    def idle(self, chats: Optional[List[str]]) -> bool:
+    def idle(self, chats: list[str] | None) -> bool:
         r = self.rpc("busy", chats=chats)
         return not r["busy"] and not r["running"]
 
-    def wait_idle(self, chats: Optional[List[str]], what: str, timeout: float = DEADLINE, settle: int = 3) -> None:
+    def wait_idle(self, chats: list[str] | None, what: str, timeout: float = DEADLINE, settle: int = 3) -> None:
         """Idle for ``settle`` consecutive polls (a queued drain task can hop between checks)."""
         streak = [0]
 
@@ -579,7 +586,7 @@ class GatewayProcess:
 
         wait_until(check, what, timeout=timeout, proc=self.proc, log=self.log)
 
-    def holds(self) -> List[dict]:
+    def holds(self) -> list[dict]:
         return read_jsonl(self.spool / "holds.jsonl")
 
     def kill9(self) -> None:
@@ -618,7 +625,7 @@ class GatewayProcess:
     def platform_view(self) -> FakePlatformServer:
         return FakePlatformServer(self.spool / "platform.jsonl")
 
-    def ops(self) -> List[dict]:
+    def ops(self) -> list[dict]:
         return read_jsonl(self.spool / "ops.jsonl")
 
 
@@ -628,7 +635,11 @@ RECOVERY_MARKER_PREFIXES: tuple = ()
 
 
 def recovery_markers() -> tuple:
-    from gateway.delivery_ledger import FLOOD_MARKER, RECONNECTED_MARKER, RECOVERED_MARKER
+    from gateway.delivery_ledger import (
+        FLOOD_MARKER,
+        RECONNECTED_MARKER,
+        RECOVERED_MARKER,
+    )
     return (RECOVERED_MARKER, RECONNECTED_MARKER, FLOOD_MARKER)
 
 
@@ -641,7 +652,7 @@ def norm(text: str) -> str:
     return "".join((text or "").split())
 
 
-def join_chunks(parts: List[str]) -> str:
+def join_chunks(parts: list[str]) -> str:
     """Re-join a reply rendered across several messages.
 
     The stream consumer's fallback continuation deliberately re-sends the broken word when the last
@@ -672,10 +683,10 @@ class Copy:
     text: str
     marked: bool
     complete: bool
-    message_ids: List[str]
+    message_ids: list[str]
 
 
-def visible_copies(msgs: List[PlatformMessage], aid: str) -> List[Copy]:
+def visible_copies(msgs: list[PlatformMessage], aid: str) -> list[Copy]:
     """Every visible rendition of answer ``aid``: starts at a message carrying its header and spans
     split chunks until the footer. A copy without a footer is incomplete (truncated/stale preview)."""
     markers = recovery_markers()
@@ -686,7 +697,7 @@ def visible_copies(msgs: List[PlatformMessage], aid: str) -> List[Copy]:
             if text.startswith(mk):
                 text, marked = text[len(mk):], True
         cleaned.append((m.message_id, _CHUNK_INDICATOR.sub("", text), marked))
-    copies: List[Copy] = []
+    copies: list[Copy] = []
     h, f = header(aid), footer(aid)
     for i, (mid, text, marked) in enumerate(cleaned):
         start = text.index(h) if h in text else None
@@ -718,7 +729,7 @@ def visible_copies(msgs: List[PlatformMessage], aid: str) -> List[Copy]:
     return copies
 
 
-def persisted_answers(db_path: Path, aid: str) -> List[str]:
+def persisted_answers(db_path: Path, aid: str) -> list[str]:
     import sqlite3
 
     conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=30)
@@ -731,7 +742,7 @@ def persisted_answers(db_path: Path, aid: str) -> List[str]:
     return [r[0] for r in rows]
 
 
-def persisted_user_rows(db_path: Path, token: str) -> List[str]:
+def persisted_user_rows(db_path: Path, token: str) -> list[str]:
     import sqlite3
 
     conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=30)

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from pm.update import (
     best_in_minor,
     minor_of,

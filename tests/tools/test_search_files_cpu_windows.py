@@ -1,11 +1,10 @@
 """Concurrency admission tests for expensive filename walks."""
 
-from concurrent.futures import ThreadPoolExecutor
 import threading
 import types
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
-
 from tools.environments.local import LocalEnvironment
 from tools.file_operations import SearchResult, ShellFileOperations
 from tools.file_operations_search import (

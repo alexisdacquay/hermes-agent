@@ -37,21 +37,21 @@ sync never displaces the outer update's entry.
 from __future__ import annotations
 
 import contextvars
-from contextlib import contextmanager
 import copy
 import json
 import os
 import time
 import uuid
-from datetime import datetime, timezone
+from contextlib import contextmanager
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 _RECEIPT_KEEP = 20
 
 # Scoped current receipt — per-context (threads get their own via
 # context isolation), same pattern as agent/context_compressor's pin.
-_current: contextvars.ContextVar[Optional[dict[str, Any]]] = contextvars.ContextVar(
+_current: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextVar(
     "pm_receipt_current", default=None
 )
 
@@ -61,21 +61,21 @@ _current: contextvars.ContextVar[Optional[dict[str, Any]]] = contextvars.Context
 # a nested update's sync can never displace the outer update's, and a
 # standalone sync (update_id None) is never embedded. Bounded: one entry
 # per distinct update id seen in this context (nesting depth).
-_completed_by_update: contextvars.ContextVar[Optional[dict[str, dict[str, Any]]]] = (
+_completed_by_update: contextvars.ContextVar[dict[str, dict[str, Any]] | None] = (
     contextvars.ContextVar("pm_receipt_completed_by_update", default=None)
 )
 
 
-_worker_update: contextvars.ContextVar[tuple[Optional[str]] | None] = contextvars.ContextVar(
+_worker_update: contextvars.ContextVar[tuple[str | None] | None] = contextvars.ContextVar(
     "pm_worker_update", default=None
 )
-_last_completed: contextvars.ContextVar[Optional[dict[str, Any]]] = contextvars.ContextVar(
+_last_completed: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextVar(
     "pm_last_completed", default=None
 )
 
 
 @contextmanager
-def worker_context(update_id: Optional[str]):
+def worker_context(update_id: str | None):
     """Carry correlation across the worker seam without consulting disk state."""
     token = _worker_update.set((update_id,))
     completed = _last_completed.set(None)
@@ -86,11 +86,11 @@ def worker_context(update_id: Optional[str]):
         _worker_update.reset(token)
 
 
-def last_completed() -> Optional[dict[str, Any]]:
+def last_completed() -> dict[str, Any] | None:
     return copy.deepcopy(_last_completed.get())
 
 
-def accept_worker_receipt(data: Optional[dict[str, Any]], update_id: Optional[str]) -> None:
+def accept_worker_receipt(data: dict[str, Any] | None, update_id: str | None) -> None:
     if data is None:
         return
     if data.get("update_id") != update_id:
@@ -101,7 +101,7 @@ def accept_worker_receipt(data: Optional[dict[str, Any]], update_id: Optional[st
         _completed_by_update.set(completed)
 
 
-def _ambient_update_id() -> Optional[str]:
+def _ambient_update_id() -> str | None:
     """The update correlation id in force in this context, or None.
 
     Lazy import: hermes_cli.update_receipt imports pm.receipt at embed
@@ -118,7 +118,7 @@ def _ambient_update_id() -> Optional[str]:
 
 
 def _utc_now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _receipt_dir() -> Path:
@@ -175,7 +175,7 @@ def record_venv_rebuild(ok: bool, reason: str = "") -> None:
     _record(lambda r: r.__setitem__("venv_rebuild", {"ok": ok, "reason": reason}))
 
 
-def record_feature_list(extras: Optional[list[str]]) -> None:
+def record_feature_list(extras: list[str] | None) -> None:
     _record(lambda r: r.__setitem__("feature_list", extras))
 
 
@@ -215,7 +215,7 @@ def record_refusal(code: str, detail: str = "") -> None:
     )
 
 
-def snapshot() -> Optional[dict[str, Any]]:
+def snapshot() -> dict[str, Any] | None:
     """The in-flight receipt data — for the updater to EMBED its sync
     sections into its own receipt (one schema, one directory). A deep
     COPY: the authoritative in-flight dict is never exposed for the
@@ -225,8 +225,8 @@ def snapshot() -> Optional[dict[str, Any]]:
 
 
 def finalize(
-    outcome: str, exit_code: int = 0, token: Optional[contextvars.Token] = None
-) -> Optional[Path]:
+    outcome: str, exit_code: int = 0, token: contextvars.Token | None = None
+) -> Path | None:
     """Write the receipt (``outcome``: ok | refused | failed | bisected)
     and rotate. Returns its path; None when nothing was begun.
 
@@ -258,7 +258,7 @@ def finalize(
     return path
 
 
-def last_for_update(update_id: Optional[str], *, consume: bool = False) -> Optional[dict[str, Any]]:
+def last_for_update(update_id: str | None, *, consume: bool = False) -> dict[str, Any] | None:
     """The last sync receipt completed in THIS context under ``update_id``
     — the correlation surface for an invoking update's embed. A sync from
     before this update, a standalone sync, or one from a concurrent
@@ -275,7 +275,7 @@ def last_for_update(update_id: Optional[str], *, consume: bool = False) -> Optio
     return copy.deepcopy(completed) if completed is not None else None
 
 
-def latest() -> Optional[dict[str, Any]]:
+def latest() -> dict[str, Any] | None:
     """The newest receipt (any kind) — the reader surface for
     ``hermes pm status`` + the desktop. Pure read: never creates the
     receipts dir."""

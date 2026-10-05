@@ -25,7 +25,6 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from hermes_cli import process_identity as pi
 
 

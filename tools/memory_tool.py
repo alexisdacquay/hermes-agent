@@ -9,10 +9,11 @@ import json
 import logging
 from contextvars import ContextVar
 from pathlib import Path
-from hermes_constants import get_hermes_home
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Any
 
+from hermes_constants import get_hermes_home
 from utils import is_truthy_value
+
 from tools.registry import no_cache_check_fn
 
 # fcntl is Unix-only; Windows uses msvcrt. MemoryStore reads both lazily from
@@ -32,7 +33,7 @@ logger = logging.getLogger(__name__)
 # One tool-definition pass must use ONE config decision for availability and the
 # dynamic target schema: the check_fn result flows to the immediately following
 # dynamic_schema_overrides call; ContextVar isolates concurrent profile builds.
-_memory_surface_flags: ContextVar[Optional[Tuple[bool, bool]]] = ContextVar("memory_surface_flags", default=None)
+_memory_surface_flags: ContextVar[tuple[bool, bool] | None] = ContextVar("memory_surface_flags", default=None)
 
 
 def get_memory_dir() -> Path:
@@ -40,11 +41,15 @@ def get_memory_dir() -> Path:
     return get_hermes_home() / "memories"
 
 
-from tools.memory_tool_store import (  # noqa: E402,F401  (re-exports)
-    ENTRY_DELIMITER, MEMORY_BLOCK_HEADERS, MemoryStore, _scan_memory_content)
+from tools.memory_tool_store import (  # noqa: F401  (re-exports)
+    ENTRY_DELIMITER,
+    MEMORY_BLOCK_HEADERS,
+    MemoryStore,
+    _scan_memory_content,
+)
 
 
-def load_on_disk_store() -> "MemoryStore":
+def load_on_disk_store() -> MemoryStore:
     """Fresh on-disk MemoryStore with configured limits/flags for contexts with no live
     agent (gateway, Desktop, ``/memory``) so approvals enforce the SAME caps as
     ``agent_init``. Falls back to defaults if config can't load; never raises."""
@@ -61,7 +66,7 @@ def load_on_disk_store() -> "MemoryStore":
     return store
 
 
-def _pin_matched_entries(store: "MemoryStore", payload: Dict[str, Any]) -> Optional[str]:
+def _pin_matched_entries(store: MemoryStore, payload: dict[str, Any]) -> str | None:
     """Record on each staged replace/remove the FULL entry its old_text selects now. Approval
     then applies to exactly the entry the approver reviewed and refuses if it changed:
     re-running the old_text search at approve time could hit a newer entry that still
@@ -81,7 +86,7 @@ def _pin_matched_entries(store: "MemoryStore", payload: Dict[str, Any]) -> Optio
     return None if result.get("success") else json.dumps(result, ensure_ascii=False)
 
 
-def _gate_or_stage(store: "MemoryStore", summary: str, detail: str, payload: Dict[str, Any]) -> Optional[str]:
+def _gate_or_stage(store: MemoryStore, summary: str, detail: str, payload: dict[str, Any]) -> str | None:
     """JSON tool-result string when the write must NOT proceed (blocked or staged
     for approval), None to proceed. Fails open if the gate module can't load."""
     try:
@@ -111,7 +116,7 @@ _STORE_ACTIONS = {
                lambda label, content, old_text: (f"remove from {label}", old_text or ""))}
 
 
-def _batch_op_line(op: Dict[str, Any]) -> str:
+def _batch_op_line(op: dict[str, Any]) -> str:
     op = op or {}
     act, content, old = op.get("action", "?"), op.get("content") or op.get("new_text") or "", op.get("old_text", "")
     if act == "remove":
@@ -121,8 +126,8 @@ def _batch_op_line(op: Dict[str, Any]) -> str:
             else f"- {act}: {content}")
 
 
-def _apply_write_gate(store: "MemoryStore", action: str, target: str, content: Optional[str],
-                      old_text: Optional[str], operations: Optional[List[Dict[str, Any]]] = None) -> Optional[str]:
+def _apply_write_gate(store: MemoryStore, action: str, target: str, content: str | None,
+                      old_text: str | None, operations: list[dict[str, Any]] | None = None) -> str | None:
     """Gate one mutating op, or (``operations`` set) a whole batch as a single unit."""
     label = "user profile" if target == "user" else "memory"
     if operations is not None:
@@ -133,7 +138,7 @@ def _apply_write_gate(store: "MemoryStore", action: str, target: str, content: O
                           {"action": action, "target": target, "content": content, "old_text": old_text})
 
 
-def _validate_single_op(store, action, target, content, old_text) -> Optional[str]:
+def _validate_single_op(store, action, target, content, old_text) -> str | None:
     """Validate BEFORE the gate so an invalid write is rejected now, not at approve time.
     Missing ``old_text`` is recoverable (it can't be schema-required — needs a combinator
     the Codex backend rejects): return the inventory plus a retry instruction."""
@@ -157,14 +162,14 @@ def _validate_single_op(store, action, target, content, old_text) -> Optional[st
 _BG_DELETE_ACTIONS = ("replace", "remove")
 
 
-def destructive_ops(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
+def destructive_ops(payload: dict[str, Any]) -> list[dict[str, Any]]:
     """The replace/remove ops of a staged memory payload, single-op or batch shape."""
     ops = (payload.get("operations") or []) if payload.get("action") == "batch" else [payload]
     return [op for op in ops if (op or {}).get("action") in _BG_DELETE_ACTIONS]
 
 
 def _background_delete_gate(store, action, operations, target="memory", content=None,
-                            old_text=None) -> Optional[str]:
+                            old_text=None) -> str | None:
     """Fail-closed operation gate for unattended background-review forks (#105921): ``add``
     stays available (it is all any review prompt asks for), while ``replace``/``remove`` —
     single or inside a batch — are never applied unattended. The op is staged in the pending
@@ -205,8 +210,8 @@ def _background_delete_gate(store, action, operations, target="memory", content=
 
 
 def memory_tool(action: str = None, target: str = "memory", content: str = None, old_text: str = None,
-                new_text: str = None, operations: Optional[List[Dict[str, Any]]] = None,
-                store: Optional[MemoryStore] = None) -> str:
+                new_text: str = None, operations: list[dict[str, Any]] | None = None,
+                store: MemoryStore | None = None) -> str:
     """Tool entry point; returns a JSON string. Single op (action + content/old_text)
     or batch (``operations``, atomic against the final budget). ``new_text``
     aliases ``content`` -- for 'replace' both mean the COMPLETE new entry (the
@@ -219,11 +224,11 @@ def memory_tool(action: str = None, target: str = "memory", content: str = None,
     return result
 
 
-def _applied(result: Dict[str, Any]) -> Tuple[str, str]:
+def _applied(result: dict[str, Any]) -> tuple[str, str]:
     return ("success" if result.get("success") else "failed"), json.dumps(result, ensure_ascii=False)
 
 
-def _memory_tool(action, target, content, old_text, new_text, operations, store) -> Tuple[str, str]:
+def _memory_tool(action, target, content, old_text, new_text, operations, store) -> tuple[str, str]:
     """``(outcome, result_json)``: ``rejected`` when refused or held before touching the store."""
     if content is None and new_text is not None:
         content = new_text
@@ -263,7 +268,7 @@ def _memory_tool(action, target, content, old_text, new_text, operations, store)
     return _applied(_STORE_ACTIONS[action][0](store, target, content, old_text))
 
 
-def get_builtin_memory_config(config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+def get_builtin_memory_config(config: dict[str, Any] | None = None) -> dict[str, Any]:
     """Normalized ``memory`` config section ({} when missing/malformed → flags default to
     enabled). ``agent_init`` reads the same section so availability and store cannot diverge."""
     if config is None:
@@ -277,7 +282,7 @@ def get_builtin_memory_config(config: Optional[Dict[str, Any]] = None) -> Dict[s
     return section if isinstance(section, dict) else {}
 
 
-def get_builtin_memory_store_flags(config: Optional[Dict[str, Any]] = None) -> Tuple[bool, bool]:
+def get_builtin_memory_store_flags(config: dict[str, Any] | None = None) -> tuple[bool, bool]:
     """Return ``(memory_enabled, user_profile_enabled)`` from resolved config."""
     section = get_builtin_memory_config(config)
     return tuple(is_truthy_value(section.get(k), default=True) for k in ("memory_enabled", "user_profile_enabled"))
@@ -292,7 +297,7 @@ def check_memory_requirements() -> bool:
     return flags[0] or flags[1]
 
 
-def _memory_target_error(store: "MemoryStore", target: str) -> Optional[Dict[str, Any]]:
+def _memory_target_error(store: MemoryStore, target: str) -> dict[str, Any] | None:
     """Return a shared validation error for an invalid or disabled target."""
     if target not in {"memory", "user"}:
         from tools.registry import _bound_error_text
@@ -304,7 +309,7 @@ def _memory_target_error(store: "MemoryStore", target: str) -> Optional[Dict[str
     return {"success": False, "error": f"Built-in {label} writes are disabled in memory config.", "target": target}
 
 
-def apply_memory_pending(payload: Dict[str, Any], store: "MemoryStore") -> Dict[str, Any]:
+def apply_memory_pending(payload: dict[str, Any], store: MemoryStore) -> dict[str, Any]:
     """Replay a staged write against the store, bypassing the gate (/memory approve). A
     replace/remove applies to exactly its pinned ``matched_entry`` or is refused; a record
     staged before pinning has no verifiable target, so it is refused rather than replayed by
@@ -408,7 +413,7 @@ _SINGLE_TARGET_TEXT = {
                 "TARGET: only 'user' is enabled for user profile facts (name, role, preferences, style).")}
 
 
-def _build_memory_schema_overrides() -> Dict[str, Any]:
+def _build_memory_schema_overrides() -> dict[str, Any]:
     """Narrow the advertised target surface using the availability snapshot."""
     flags = _memory_surface_flags.get() or get_builtin_memory_store_flags()
     _memory_surface_flags.set(None)
@@ -424,7 +429,10 @@ def _build_memory_schema_overrides() -> Dict[str, Any]:
     return {"description": description, "parameters": parameters}
 
 
-from tools.registry import registry, tool_error  # noqa: E402  (registration at import time)
+from tools.registry import (
+    registry,
+    tool_error,
+)
 
 registry.register(
     name="memory",

@@ -7,12 +7,11 @@ import argparse
 import io
 import json
 import os
-from pathlib import Path
-import subprocess
 import sys
 import tempfile
 import threading
 import time
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
@@ -29,8 +28,11 @@ def run_child(mode):
 
 
 def step(mode):
-    from hermes_cli.main_dashboard import _install_hangup_protection, _finalize_update_output
     from hermes_cli.main import _run_logged_subprocess
+    from hermes_cli.main_dashboard import (
+        _finalize_update_output,
+        _install_hangup_protection,
+    )
     state = _install_hangup_protection(gateway_mode=True)
     try:
         return _run_logged_subprocess([sys.executable, __file__, "--child", mode]).returncode
@@ -39,8 +41,11 @@ def step(mode):
 
 
 def probe():
-    from hermes_cli.main_dashboard import _install_hangup_protection, _finalize_update_output
     from hermes_cli.main import _run_logged_subprocess
+    from hermes_cli.main_dashboard import (
+        _finalize_update_output,
+        _install_hangup_protection,
+    )
     receipts = []
     for gateway in (False, True):
         with tempfile.TemporaryDirectory(prefix="update-output-") as temp:

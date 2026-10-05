@@ -10,7 +10,6 @@ import base64
 import io
 import os
 import threading
-from typing import Optional
 
 from tools.bot_desktop import runtime
 
@@ -18,7 +17,7 @@ THUMB_MAX = (960, 600)
 _grab_lock = threading.Lock()
 
 
-def thumbnail_data_url(max_size: tuple[int, int] = THUMB_MAX, quality: int = 72) -> Optional[str]:
+def thumbnail_data_url(max_size: tuple[int, int] = THUMB_MAX, quality: int = 72) -> str | None:
     """``data:image/jpeg;base64,...`` of the running screen, or ``None`` when no screen is up."""
     env = runtime.published_env()
     display = env.get("DISPLAY")
@@ -31,7 +30,9 @@ def thumbnail_data_url(max_size: tuple[int, int] = THUMB_MAX, quality: int = 72)
         return "data:image/jpeg;base64," + base64.b64encode(jpeg).decode("ascii") if jpeg else None
     if runtime._launcher_pid() is None:
         return None
-    from PIL import ImageGrab  # Pillow is a hard dependency; import lazily to keep status calls cheap
+    from PIL import (
+        ImageGrab,  # Pillow is a hard dependency; import lazily to keep status calls cheap
+    )
 
     # Xlib reads XAUTHORITY from the process env; the launcher publishes a per-profile cookie file.
     # The swap is process-wide, so two profiles grabbed on worker threads at once serialise here or

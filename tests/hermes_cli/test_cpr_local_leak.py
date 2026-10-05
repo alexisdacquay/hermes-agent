@@ -6,11 +6,11 @@ from __future__ import annotations
 import sys
 
 import pytest
-
 from cli import (
     _select_classic_cli_pt_output,
     _terminal_may_leak_cpr,
 )
+
 
 @pytest.fixture(autouse=True)
 def _clear_cpr_env(monkeypatch):

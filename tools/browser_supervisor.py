@@ -17,12 +17,18 @@ import json
 import logging
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from tools.browser_supervisor_dialogs import (
-    DEFAULT_DIALOG_POLICY, DEFAULT_DIALOG_TIMEOUT_S, RECENT_DIALOGS_MAX, _VALID_POLICIES, DialogRecord,
-    DialogSupervisionMixin, PendingDialog,
+    _VALID_POLICIES,
+    DEFAULT_DIALOG_POLICY,
+    DEFAULT_DIALOG_TIMEOUT_S,
+    RECENT_DIALOGS_MAX,
+    DialogRecord,
+    DialogSupervisionMixin,
+    PendingDialog,
 )
 from tools.browser_supervisor_frames import FrameInfo, FrameTrackingMixin
 
@@ -66,11 +72,11 @@ def _schedule(coro, loop, *, timeout: float):
     return fut.result(timeout=timeout)
 
 
-def _fail(error: str) -> Dict[str, Any]:
+def _fail(error: str) -> dict[str, Any]:
     return {"ok": False, "error": error}
 
 
-def _err(exc: BaseException) -> Dict[str, Any]:
+def _err(exc: BaseException) -> dict[str, Any]:
     return _fail(f"{type(exc).__name__}: {exc}")
 
 
@@ -78,16 +84,16 @@ def _err(exc: BaseException) -> Dict[str, Any]:
 class SupervisorSnapshot:
     """Read-only snapshot of supervisor state for tool handlers."""
 
-    pending_dialogs: Tuple[PendingDialog, ...]
-    recent_dialogs: Tuple[DialogRecord, ...]
-    frame_tree: Dict[str, Any]
+    pending_dialogs: tuple[PendingDialog, ...]
+    recent_dialogs: tuple[DialogRecord, ...]
+    frame_tree: dict[str, Any]
     active: bool  # False if supervisor is detached/stopped
     cdp_url: str
     task_id: str
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize for inclusion in ``browser_snapshot`` output."""
-        out: Dict[str, Any] = {"pending_dialogs": [d.to_dict() for d in self.pending_dialogs], "frame_tree": self.frame_tree}
+        out: dict[str, Any] = {"pending_dialogs": [d.to_dict() for d in self.pending_dialogs], "frame_tree": self.frame_tree}
         if self.recent_dialogs:
             out["recent_dialogs"] = [d.to_dict() for d in self.recent_dialogs]
         return out
@@ -110,23 +116,23 @@ class CDPSupervisor(DialogSupervisionMixin, FrameTrackingMixin):
 
         # State protected by ``_state_lock`` for cross-thread reads.
         self._state_lock = threading.Lock()
-        self._pending_dialogs: Dict[str, PendingDialog] = {}
-        self._recent_dialogs: List[DialogRecord] = []
-        self._frames: Dict[str, FrameInfo] = {}
+        self._pending_dialogs: dict[str, PendingDialog] = {}
+        self._recent_dialogs: list[DialogRecord] = []
+        self._frames: dict[str, FrameInfo] = {}
         self._active = False
         # Supervisor loop machinery — populated in start().
-        self._loop: Optional[asyncio.AbstractEventLoop] = None
-        self._thread: Optional[threading.Thread] = None
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._thread: threading.Thread | None = None
         self._ready_event = threading.Event()
-        self._start_error: Optional[BaseException] = None
+        self._start_error: BaseException | None = None
         self._stop_requested = False
         # CDP call tracking (runs on supervisor loop only).
         self._next_call_id = 1
-        self._pending_calls: Dict[int, asyncio.Future] = {}
-        self._ws: Optional[ClientConnection] = None
-        self._page_session_id: Optional[str] = None
+        self._pending_calls: dict[int, asyncio.Future] = {}
+        self._ws: ClientConnection | None = None
+        self._page_session_id: str | None = None
         # Dialog auto-dismiss watchdog handles (per dialog id) + id generator.
-        self._dialog_watchdogs: Dict[str, asyncio.TimerHandle] = {}
+        self._dialog_watchdogs: dict[str, asyncio.TimerHandle] = {}
         self._dialog_seq = 0
 
     # ── Public sync API ──────────────────────────────────────────────────────
@@ -176,8 +182,8 @@ class CDPSupervisor(DialogSupervisionMixin, FrameTrackingMixin):
                 active=self._active, cdp_url=self.cdp_url, task_id=self.task_id,
             )
 
-    def respond_to_dialog(self, action: str, *, prompt_text: Optional[str] = None,
-                          dialog_id: Optional[str] = None, timeout: float = 10.0) -> Dict[str, Any]:
+    def respond_to_dialog(self, action: str, *, prompt_text: str | None = None,
+                          dialog_id: str | None = None, timeout: float = 10.0) -> dict[str, Any]:
         """Accept/dismiss a pending dialog (sync bridge onto the supervisor loop). Returns
         ``{"ok": True, "dialog"}`` or ``{"ok": False, "error"}`` for recoverable errors."""
         if action not in {"accept", "dismiss"}:
@@ -209,7 +215,7 @@ class CDPSupervisor(DialogSupervisionMixin, FrameTrackingMixin):
         return {"ok": True, "dialog": dialog.to_dict()}
 
     def evaluate_runtime(self, expression: str, *, return_by_value: bool = True,
-                         await_promise: bool = True, timeout: float = 10.0) -> Dict[str, Any]:
+                         await_promise: bool = True, timeout: float = 10.0) -> dict[str, Any]:
         """Evaluate ``expression`` in the page's Runtime context over the live WS.
         Returns ``{"ok": True, "result", "result_type"}`` or ``{"ok": False, "error"}``.
         ``return_by_value=True`` JSON-serializes the result (DevTools-console
@@ -224,7 +230,7 @@ class CDPSupervisor(DialogSupervisionMixin, FrameTrackingMixin):
         if not session_id:
             return _fail("supervisor has no attached page session")
 
-        def _run_eval(by_value: bool) -> Dict[str, Any]:
+        def _run_eval(by_value: bool) -> dict[str, Any]:
             # userGesture: clipboard / fullscreen APIs need user activation.
             params = {"expression": expression, "returnByValue": by_value,
                       "awaitPromise": await_promise, "userGesture": True}
@@ -263,7 +269,7 @@ class CDPSupervisor(DialogSupervisionMixin, FrameTrackingMixin):
             value = result_obj.get("description") or result_obj.get("unserializableValue")
         return {"ok": True, "result": value, "result_type": result_type}
 
-    def focus_page(self, origin: str, *, accept: Optional[str] = None, timeout: float = 10.0) -> Dict[str, Any]:
+    def focus_page(self, origin: str, *, accept: str | None = None, timeout: float = 10.0) -> dict[str, Any]:
         """Re-attach the supervisor's page session to an open page target on ``origin``
         (``scheme://host[:port]``). The initial attach picks the FIRST page target, but tools
         that open their own tabs (browser_exec) put the login form somewhere else. With
@@ -281,7 +287,7 @@ class CDPSupervisor(DialogSupervisionMixin, FrameTrackingMixin):
             await self._install_dialog_bridge(sid)
             return sid
 
-        async def _focus() -> Dict[str, Any]:
+        async def _focus() -> dict[str, Any]:
             from agent.vault_store import normalize_origin
             targets = (await self._cdp("Target.getTargets", timeout=timeout)).get("result", {}).get("targetInfos", [])
             candidates = []
@@ -440,13 +446,13 @@ class CDPSupervisor(DialogSupervisionMixin, FrameTrackingMixin):
         await self._enable_page_domains(sid, timeout=10.0)
         await self._install_dialog_bridge(sid)
 
-    async def _cdp(self, method: str, params: Optional[Dict[str, Any]] = None, *,
-                   session_id: Optional[str] = None, timeout: float = 10.0) -> Dict[str, Any]:
+    async def _cdp(self, method: str, params: dict[str, Any] | None = None, *,
+                   session_id: str | None = None, timeout: float = 10.0) -> dict[str, Any]:
         """Send a CDP command and await its response."""
         if self._ws is None:
             raise RuntimeError("supervisor WebSocket is not connected")
         call_id, self._next_call_id = self._next_call_id, self._next_call_id + 1
-        payload: Dict[str, Any] = {"id": call_id, "method": method}
+        payload: dict[str, Any] = {"id": call_id, "method": method}
         payload.update({k: v for k, v in (("params", params), ("sessionId", session_id)) if v})
         fut: asyncio.Future = asyncio.get_running_loop().create_future()
         self._pending_calls[call_id] = fut
@@ -485,7 +491,7 @@ class CDPSupervisor(DialogSupervisionMixin, FrameTrackingMixin):
 
     # CDP event → handler(self, params, session_id). Async handlers return an
     # awaitable that ``_read_loop`` awaits; sync handlers return None.
-    _EVENT_HANDLERS: Dict[str, Callable[..., Any]] = {
+    _EVENT_HANDLERS: dict[str, Callable[..., Any]] = {
         **DialogSupervisionMixin.EVENT_HANDLERS, **FrameTrackingMixin.EVENT_HANDLERS
     }
 
@@ -495,13 +501,13 @@ class _SupervisorRegistry:
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
-        self._by_task: Dict[str, CDPSupervisor] = {}
+        self._by_task: dict[str, CDPSupervisor] = {}
 
-    def get(self, task_id: str) -> Optional[CDPSupervisor]:
+    def get(self, task_id: str) -> CDPSupervisor | None:
         with self._lock:
             return self._by_task.get(task_id)
 
-    def _pop(self, task_id: str) -> Optional[CDPSupervisor]:
+    def _pop(self, task_id: str) -> CDPSupervisor | None:
         with self._lock:
             return self._by_task.pop(task_id, None)
 
@@ -549,4 +555,4 @@ class _SupervisorRegistry:
 SUPERVISOR_REGISTRY = _SupervisorRegistry()
 
 
-__all__ = ["CDPSupervisor", "SUPERVISOR_REGISTRY", "SupervisorSnapshot", "_SupervisorRegistry"]
+__all__ = ["SUPERVISOR_REGISTRY", "CDPSupervisor", "SupervisorSnapshot", "_SupervisorRegistry"]

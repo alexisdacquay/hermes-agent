@@ -21,7 +21,6 @@ import secrets
 import threading
 import time
 from dataclasses import dataclass
-from typing import Dict, Optional
 
 from hermes_cli.dashboard_auth.base import Session
 
@@ -53,8 +52,8 @@ class _IssuedCode:
     expires_at: int
 
 
-_pending: Dict[str, _Pending] = {}  # broker_state -> _Pending
-_issued: Dict[str, _IssuedCode] = {}  # gw_code -> _IssuedCode
+_pending: dict[str, _Pending] = {}  # broker_state -> _Pending
+_issued: dict[str, _IssuedCode] = {}  # gw_code -> _IssuedCode
 
 
 class NativeFlowError(Exception):
@@ -86,7 +85,7 @@ def _capacity_ok_locked() -> bool:
     return (len(_pending) + len(_issued)) < _MAX_ENTRIES
 
 
-def _now(now: Optional[int]) -> int:
+def _now(now: int | None) -> int:
     return int(time.time()) if now is None else now
 
 
@@ -100,7 +99,7 @@ def _pop_pending_locked(broker_state: str, *, consume: bool) -> _Pending:
 
 def register_pending(
     *, code_challenge: str, redirect_uri: str, client_state: str, client_ip: str = "",
-    now: Optional[int] = None) -> str:
+    now: int | None = None) -> str:
     """Stash a pending native authorization; return an opaque ``broker_state``. ``code_challenge``
     is the DESKTOP's cc_d. Raises ``NativeFlowError`` (fail closed) at store capacity or when
     ``client_ip`` holds ``_MAX_PENDING_PER_IP`` entries."""
@@ -119,14 +118,14 @@ def register_pending(
     return broker_state
 
 
-def get_pending(broker_state: str, *, now: Optional[int] = None) -> _Pending:
+def get_pending(broker_state: str, *, now: int | None = None) -> _Pending:
     """Peek (without consuming) the pending authorization."""
     with _lock:
         _gc_locked(_now(now))
         return _pop_pending_locked(broker_state, consume=False)
 
 
-def complete_pending(broker_state: str, *, session: Session, now: Optional[int] = None) -> str:
+def complete_pending(broker_state: str, *, session: Session, now: int | None = None) -> str:
     """Consume a pending authorization (single use) and mint a one-time gateway code bound to the
     desktop's challenge + ``session``."""
     now = _now(now)
@@ -142,7 +141,7 @@ def complete_pending(broker_state: str, *, session: Session, now: Optional[int] 
     return gw_code
 
 
-def redeem_code(*, code: str, code_verifier: str, now: Optional[int] = None) -> Session:
+def redeem_code(*, code: str, code_verifier: str, now: int | None = None) -> Session:
     """Verify PKCE + consume a gateway code; return the bound :class:`Session`. The entry is popped
     BEFORE the PKCE check so a wrong verifier cannot be retried (no oracle, no replay)."""
     now = _now(now)

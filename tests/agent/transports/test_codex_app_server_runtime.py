@@ -11,7 +11,6 @@ import sys
 import threading
 
 import pytest
-
 from hermes_cli.runtime_provider import (
     _VALID_API_MODES,
     _maybe_apply_codex_app_server_runtime,
@@ -112,11 +111,9 @@ class TestCodexAppServerClose:
         """
         import os
         import stat
-        import sys
         import time
 
         import psutil
-
         from agent.transports.codex_app_server import CodexAppServerClient
 
         child_pid_file = tmp_path / "child.pid"
@@ -220,6 +217,7 @@ class TestSpawnEnvIsolation:
         """CODEX_HOME isolation must still work — that's the whole point
         of the codex_home arg."""
         import subprocess
+
         from agent.transports import codex_app_server as cas
 
         captured = {}
@@ -264,6 +262,7 @@ class TestSpawnEnvIsolation:
         for the Kanban root only.
         """
         import subprocess
+
         from agent.transports import codex_app_server as cas
 
         captured = {}
@@ -330,6 +329,7 @@ class TestSpawnEnvSecretStripping:
     @staticmethod
     def _capture_spawn_env(monkeypatch):
         import subprocess
+
         from agent.transports import codex_app_server as cas
 
         captured = {}

@@ -2,7 +2,6 @@
 the WSL / MSIX stubs never win (#116818). Host-independent — the candidate
 ladder takes the ``which`` result and env as arguments."""
 import pytest
-
 from pm.shell import windows_bash_candidates
 
 PF = r"D:\Progs"
@@ -34,6 +33,7 @@ def test_per_user_and_32bit_git_roots_are_candidates():
 
 def test_nonstarting_bash_is_rejected(monkeypatch):
     import subprocess
+
     from pm import shell
 
     monkeypatch.setattr(shell.subprocess, "run", lambda *a, **kw: subprocess.CompletedProcess(a, 1))

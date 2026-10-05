@@ -8,7 +8,7 @@ import os
 import time
 from contextlib import suppress
 from types import SimpleNamespace
-from typing import Any, Dict, Optional
+from typing import Any
 
 from agent.usage_pricing import normalize_usage
 
@@ -32,7 +32,7 @@ def _model_dump(value: Any) -> Any:
 class ApiRequestHooksMixin:
     """Hook payload sanitising + ``api_request_error`` dispatch (see module docstring)."""
 
-    def _usage_summary_for_api_request_hook(self, response: Any) -> Optional[Dict[str, Any]]:
+    def _usage_summary_for_api_request_hook(self, response: Any) -> dict[str, Any] | None:
         """Token buckets for ``post_api_request`` plugins (no raw ``response`` object)."""
         if response is None:
             return None
@@ -86,7 +86,7 @@ class ApiRequestHooksMixin:
             )
 
         if isinstance(value, dict):
-            out: Dict[str, Any] = {}
+            out: dict[str, Any] = {}
             for idx, (key, item) in enumerate(value.items()):
                 if idx >= max_sequence:
                     out["_truncated_items"] = len(value) - max_sequence
@@ -131,7 +131,7 @@ class ApiRequestHooksMixin:
             "_truncated": True, "original_type": type(value).__name__, "preview": encoded[:limit]
         }
 
-    def _api_request_payload_for_hook(self, api_kwargs: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    def _api_request_payload_for_hook(self, api_kwargs: dict[str, Any] | None) -> dict[str, Any]:
         body = {
             key: value
             for key, value in (api_kwargs or {}).items()
@@ -140,8 +140,8 @@ class ApiRequestHooksMixin:
         return self._sanitize_hook_payload({"method": "POST", "body": body})
 
     def _api_response_payload_for_hook(
-        self, response: Any, assistant_message: Any, *, finish_reason: Optional[str]
-    ) -> Dict[str, Any]:
+        self, response: Any, assistant_message: Any, *, finish_reason: str | None
+    ) -> dict[str, Any]:
         # Raw provider SDK tool_call objects are handed to the sanitizer on purpose; `_hook_jsonable` must
         # keep normalising them (model_dump / __dict__ / dataclass) or subscribers get str() blobs.
         tool_calls = getattr(assistant_message, "tool_calls", None) or []
@@ -162,10 +162,10 @@ class ApiRequestHooksMixin:
 
     def _invoke_api_request_error_hook(
         self, *, task_id: str, turn_id: str, api_request_id: str, api_call_count: int,
-        api_start_time: float, api_kwargs: Optional[Dict[str, Any]], error_type: str,
-        error_message: str, status_code: Optional[int] = None, retry_count: Optional[int] = None,
-        max_retries: Optional[int] = None, retryable: Optional[bool] = None,
-        reason: Optional[str] = None,
+        api_start_time: float, api_kwargs: dict[str, Any] | None, error_type: str,
+        error_message: str, status_code: int | None = None, retry_count: int | None = None,
+        max_retries: int | None = None, retryable: bool | None = None,
+        reason: str | None = None,
     ) -> None:
         # Lazy module import (not from-import) so tests can replace lifecycle dispatch at this call site.
         with suppress(Exception):

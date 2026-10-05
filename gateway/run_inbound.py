@@ -7,19 +7,19 @@ so ``patch("gateway.run.X")`` keeps intercepting them at call time.
 
 from __future__ import annotations
 
-import logging
-from typing import TYPE_CHECKING
 import asyncio
 import concurrent.futures
 import dataclasses
 import json
+import logging
 import os
 import re
 import time
 from contextlib import suppress
-from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 from agent.i18n import t
+
 from gateway.config import Platform
 from gateway.platforms.base import EphemeralReply
 from gateway.platforms.event import MessageEvent, MessageType
@@ -27,15 +27,19 @@ from gateway.run_busy import approval_input_words
 from gateway.run_common import _UNSET
 from gateway.run_inbound_media import rehome_inbound_media
 from gateway.run_inbound_unauthorized import (
-    UnauthorizedOwnerNotifier, pairing_code_reply, pairing_profile_arg, pairing_rate_limited_reply,
+    UnauthorizedOwnerNotifier,
+    pairing_code_reply,
+    pairing_profile_arg,
+    pairing_rate_limited_reply,
     unauthorized_owner_hint,
 )
 from gateway.session import (
-    SessionSource, build_session_context, is_shared_multi_user_session,
+    SessionSource,
+    build_session_context,
+    is_shared_multi_user_session,
     neutralize_untrusted_inline_text,
 )
 from gateway.turn_lease import TurnLeaseTimeoutError
-from typing import Any, Dict, List, Optional, Tuple
 
 if TYPE_CHECKING:  # string annotations only; never imported at runtime (cycle)
     from gateway.run import GatewayRunner  # noqa: F401
@@ -63,15 +67,15 @@ def strip_discord_triggering_note(event: Any, message_text: Any) -> Any:
     if not message_id or not isinstance(message_text, str):
         return message_text
     prefix = f"{discord_triggering_note(message_id)}\n\n"
-    return message_text[len(prefix):] if message_text.startswith(prefix) else message_text
+    return message_text.removeprefix(prefix)
 
 
 class GatewayInboundMixin:
     """Inbound message pipeline (_handle_message, text/media preparation, durable-turn markers, plugin injection) for GatewayRunner."""
 
     async def _hm_pre_gateway_dispatch_hook(
-        self, event: "MessageEvent", source: SessionSource
-    ) -> Optional["MessageEvent"]:
+        self, event: MessageEvent, source: SessionSource
+    ) -> MessageEvent | None:
         """Run the ``pre_gateway_dispatch`` plugin hook; None = drop, else the (maybe rewritten) event.
         Results: ``{"action": "skip"}`` → drop; ``{"action": "rewrite", "text"}`` → replace ``event.text``;
         ``allow``/None → normal dispatch. Runs BEFORE auth so plugins can handle unauthorized senders."""
@@ -164,8 +168,8 @@ class GatewayInboundMixin:
             await notifier.notify(self, source, hint)
 
     async def _hm_admit_event(
-        self, event: "MessageEvent"
-    ) -> Optional[Tuple["MessageEvent", SessionSource, bool]]:
+        self, event: MessageEvent
+    ) -> tuple[MessageEvent, SessionSource, bool] | None:
         """Ingress gates for ``_handle_message``; None when dropped, else ``(event, source, is_internal)``
         (the ``pre_gateway_dispatch`` hook may have rewritten ``event``)."""
         from gateway.run import _is_slack_ignored_channel
@@ -259,7 +263,7 @@ class GatewayInboundMixin:
             return None
         return event, source, False
 
-    def _hm_estop_turn_allowed(self, event: "MessageEvent", source: SessionSource) -> bool:
+    def _hm_estop_turn_allowed(self, event: MessageEvent, source: SessionSource) -> bool:
         """Whether a turn may bypass the global emergency stop: pause blocks NEW agent turns, never
         running work or control traffic — recognized slash commands (incl. /pause off, the in-band
         resume) and replies owned by in-flight work (pending update prompt, running session,
@@ -287,8 +291,8 @@ class GatewayInboundMixin:
         return False
 
     def _hm_estop_gate(
-        self, event: "MessageEvent", source: SessionSource, is_internal: bool
-    ) -> Optional[str]:
+        self, event: MessageEvent, source: SessionSource, is_internal: bool
+    ) -> str | None:
         """Global emergency-stop (`hermes pause`) notice when this turn must be blocked, else None.
         Placed after auth so unauthorized senders can't probe pause state. A synthetic heartbeat that
         slipped past the poller's pause check gets "" (blocked, nothing sent): nobody typed it, and
@@ -313,7 +317,7 @@ class GatewayInboundMixin:
         return _paused_notice
 
     @staticmethod
-    def _hm_write_update_response(response_text: str) -> Optional[str]:
+    def _hm_write_update_response(response_text: str) -> str | None:
         """Atomically hand *response_text* to the detached update process; returns the OSError str."""
         from gateway.run import _hermes_home
         response_path = _hermes_home / ".update_response"
@@ -326,7 +330,7 @@ class GatewayInboundMixin:
             return str(e)
         return None
 
-    def _hm_update_prompt_reply(self, event: "MessageEvent", _quick_key: str) -> Optional[str]:
+    def _hm_update_prompt_reply(self, event: MessageEvent, _quick_key: str) -> str | None:
         """Consume a reply to a pending ``/update`` prompt (routed to the detached update process via
         ``.update_response``); None when nothing was consumed. Recognized slash commands must bypass
         this or /new, /help etc. get silently consumed as update answers."""
@@ -343,7 +347,9 @@ class GatewayInboundMixin:
         else:
             if cmd:
                 with suppress(Exception):
-                    from hermes_cli.commands import resolve_command as _resolve_update_cmd
+                    from hermes_cli.commands import (
+                        resolve_command as _resolve_update_cmd,
+                    )
                     _cmd_def = _resolve_update_cmd(cmd)
                     _recognized_cmd = _cmd_def.name if _cmd_def else None
             response_text = "" if _recognized_cmd else (event.text or "").strip()
@@ -372,8 +378,8 @@ class GatewayInboundMixin:
         return None
 
     async def _hm_clarify_reply(
-        self, event: "MessageEvent", source: SessionSource, _quick_key: str
-    ) -> Optional[str]:
+        self, event: MessageEvent, source: SessionSource, _quick_key: str
+    ) -> str | None:
         """Intercept a reply to a pending clarify prompt; None when the message falls through.
         Free text answers open-ended/"Other" prompts; "2" answers a multi-choice one. Resolved/retained
         replies return "" so adapters don't double-post — the agent produces the next user-facing message."""
@@ -460,14 +466,14 @@ class GatewayInboundMixin:
     # Free-text spellings: ``approval.inputs.confirm_*`` comma-lists (English ∪ active language).
     _SLASH_CONFIRM_TEXT_INPUT_KEYS = (("confirm_once", "once"), ("confirm_always", "always"), ("confirm_cancel", "cancel"))
 
-    def _slash_confirm_text_choices(self) -> Dict[str, str]:
-        choices: Dict[str, str] = {}
+    def _slash_confirm_text_choices(self) -> dict[str, str]:
+        choices: dict[str, str] = {}
         for input_key, choice in self._SLASH_CONFIRM_TEXT_INPUT_KEYS:
             for word in approval_input_words(input_key):
                 choices.setdefault(word, choice)
         return choices
 
-    async def _hm_slash_confirm_reply(self, event: "MessageEvent", _quick_key: str) -> Optional[str]:
+    async def _hm_slash_confirm_reply(self, event: MessageEvent, _quick_key: str) -> str | None:
         """Resolve a reply (/approve, /always, /cancel + aliases) to a pending slash-confirm prompt;
         None when it falls through — a stale pending confirm does NOT block other commands. A pending
         dangerous-command approval takes precedence: /approve there unblocks the waiting tool thread."""
@@ -516,7 +522,9 @@ class GatewayInboundMixin:
         if _stale_agent and hasattr(_stale_agent, "get_activity_summary"):
             with suppress(Exception):
                 _sa = _stale_agent.get_activity_summary()
-                from gateway.session_stall import resolve_session_idle_seconds_from_activity
+                from gateway.session_stall import (
+                    resolve_session_idle_seconds_from_activity,
+                )
 
                 _sa_d = _sa if isinstance(_sa, dict) else {}
                 _resolved_idle = resolve_session_idle_seconds_from_activity(
@@ -573,14 +581,17 @@ class GatewayInboundMixin:
             logger.debug("reaped-session staleness check failed", exc_info=True)
 
     def _hm_evict_running_agent(self, _quick_key: str, reason: str) -> None:
-        from gateway.run import _INTERRUPT_REASON_EVICTED, _INTERRUPT_TOOL_REASON_EVICTED
+        from gateway.run import (
+            _INTERRUPT_REASON_EVICTED,
+            _INTERRUPT_TOOL_REASON_EVICTED,
+        )
         _generation_at_interrupt = self._interrupt_running_turn(
             _quick_key, interrupt_reason=_INTERRUPT_REASON_EVICTED, invalidation_reason=reason,
             tool_reason=_INTERRUPT_TOOL_REASON_EVICTED)
         self._drop_turn_slot(_quick_key, run_generation=_generation_at_interrupt)
 
     def _hm_merge_pending_for_source(
-        self, source: SessionSource, _quick_key: str, event: "MessageEvent", *, merge_text: bool = False
+        self, source: SessionSource, _quick_key: str, event: MessageEvent, *, merge_text: bool = False
     ) -> None:
         """Merge *event* into the source adapter's pending slot (no-op without an adapter)."""
         from gateway.platforms.base import merge_pending_message_event
@@ -589,8 +600,8 @@ class GatewayInboundMixin:
             merge_pending_message_event(adapter._pending_messages, _quick_key, event, merge_text=merge_text)
 
     async def _hm_busy_slash_or_photo(
-        self, event: "MessageEvent", source: SessionSource, _quick_key: str
-    ) -> Tuple[bool, Optional[str]]:
+        self, event: MessageEvent, source: SessionSource, _quick_key: str
+    ) -> tuple[bool, str | None]:
         """Slash-command / photo-burst handling on the busy fast-path → ``(handled, result)``. Each
         command's mid-run behavior is declared on its CommandDef (busy_policy / busy_handler)."""
         from hermes_cli.commands import resolve_command as _resolve_cmd_inner
@@ -621,7 +632,7 @@ class GatewayInboundMixin:
         return False, None
 
     def _hm_busy_telegram_grace_queue(
-        self, event: "MessageEvent", source: SessionSource, _quick_key: str, effective_busy_input_mode: str
+        self, event: MessageEvent, source: SessionSource, _quick_key: str, effective_busy_input_mode: str
     ) -> bool:
         """Queue a Telegram text follow-up that lands within the post-start grace window."""
         _grace = float(os.getenv("HERMES_TELEGRAM_FOLLOWUP_GRACE_SECONDS", "3.0"))
@@ -645,10 +656,10 @@ class GatewayInboundMixin:
         return True
 
     @staticmethod
-    def _hm_text_only(event: "MessageEvent") -> bool:
+    def _hm_text_only(event: MessageEvent) -> bool:
         return event.message_type == MessageType.TEXT and not event.media_urls and not event.media_types
 
-    def _hm_busy_steer(self, event: "MessageEvent", running_agent: Any, _quick_key: str) -> None:
+    def _hm_busy_steer(self, event: MessageEvent, running_agent: Any, _quick_key: str) -> None:
         """Steer mode: inject text mid-run via ``agent.steer()``, else fall back to queue semantics."""
         steer_text = (event.text or "").strip()
         steered = False
@@ -665,7 +676,7 @@ class GatewayInboundMixin:
         self._queue_or_replace_pending_event(_quick_key, event)
 
     async def _hm_busy_interrupt(
-        self, event: "MessageEvent", source: SessionSource, running_agent: Any, _quick_key: str
+        self, event: MessageEvent, source: SessionSource, running_agent: Any, _quick_key: str
     ) -> None:
         """Interrupt path: redirect text-only corrections when supported, else ``agent.interrupt()``."""
         from gateway.run import _build_media_placeholder
@@ -690,8 +701,8 @@ class GatewayInboundMixin:
         running_agent.interrupt(_interrupt_text)
 
     async def _hm_handle_running_session_message(
-        self, event: "MessageEvent", source: SessionSource, _quick_key: str
-    ) -> Optional[str]:
+        self, event: MessageEvent, source: SessionSource, _quick_key: str
+    ) -> str | None:
         """Fast-path while this session's agent is running: interrupt by default (minimal latency);
         busy_input_mode queue/steer, subagent and compression protection demote to queue."""
         from gateway.run import _AGENT_PENDING_SENTINEL
@@ -750,7 +761,7 @@ class GatewayInboundMixin:
         return qc if isinstance(qc, dict) else {}
 
     @staticmethod
-    def _hm_expand_alias_quick_command(event: "MessageEvent", qcmd: dict) -> Optional[str]:
+    def _hm_expand_alias_quick_command(event: MessageEvent, qcmd: dict) -> str | None:
         """Rewrite ``event.text`` to an alias quick command's target; returns the new command name."""
         target = (qcmd.get("target") or "").strip()
         if not target:
@@ -761,8 +772,8 @@ class GatewayInboundMixin:
         return target_command.split()[0] if target_command else target_command
 
     async def _hm_command_hooks(
-        self, event: "MessageEvent", source: SessionSource, _quick_key: str, command: str, canonical: str
-    ) -> Tuple[bool, Optional[str], Optional[str]]:
+        self, event: MessageEvent, source: SessionSource, _quick_key: str, command: str, canonical: str
+    ) -> tuple[bool, str | None, str | None]:
         """Fire ``pre_command`` (observer) and ``command:<canonical>`` (interceptor) hooks →
         ``(handled, result, new_command)`` (``new_command`` set when a handler rewrote the command).
         The running-agent path deliberately does NOT fire these — a slow or hostile plugin must not
@@ -808,11 +819,12 @@ class GatewayInboundMixin:
         return False, None, None
 
     async def _hm_resolve_command(
-        self, event: "MessageEvent", source: SessionSource, _quick_key: str
-    ) -> Tuple[bool, Optional[str], Optional[str], Optional[str]]:
+        self, event: MessageEvent, source: SessionSource, _quick_key: str
+    ) -> tuple[bool, str | None, str | None, str | None]:
         """Resolve the slash command (aliases, access gate, hooks) → ``(handled, result, command,
         canonical)``; when ``handled`` the caller returns ``result`` as-is (may be None)."""
-        from hermes_cli.commands import is_gateway_known_command, resolve_command as _resolve_cmd
+        from hermes_cli.commands import is_gateway_known_command
+        from hermes_cli.commands import resolve_command as _resolve_cmd
 
         def _canon(cmd):
             # Aliases resolve to the canonical name so dispatch and hook names don't depend on them.
@@ -853,7 +865,7 @@ class GatewayInboundMixin:
             _cmd_def, canonical = _canon(command)
         return False, None, command, canonical
 
-    async def _hm_confirm_destructive(self, event, command: str, detail: str, handler) -> Tuple[bool, Optional[str]]:
+    async def _hm_confirm_destructive(self, event, command: str, detail: str, handler) -> tuple[bool, str | None]:
         async def _execute():
             return await handler(event)
         return True, await self._maybe_confirm_destructive_slash(
@@ -876,7 +888,7 @@ class GatewayInboundMixin:
         from hermes_cli.proxy_cli import format_status_text
         return True, format_status_text()
 
-    async def _hm_rewrite_turn_to_prompt(self, event, source, name: str, ack: str, build) -> Tuple[bool, Optional[str]]:
+    async def _hm_rewrite_turn_to_prompt(self, event, source, name: str, ack: str, build) -> tuple[bool, str | None]:
         """Ack, then rewrite the turn to ``build()`` and fall through to the agent (keeps role
         alternation; works on any backend). A failing builder replies with a retry hint."""
         await self._send_command_ack(source, ack, name)
@@ -963,7 +975,7 @@ class GatewayInboundMixin:
         return self._hm_send_payload_as_turn(event, t("gateway.steer.usage_idle"))
 
     @staticmethod
-    def _hm_send_payload_as_turn(event, usage: str) -> Tuple[bool, Optional[str]]:
+    def _hm_send_payload_as_turn(event, usage: str) -> tuple[bool, str | None]:
         payload = event.get_command_args().strip()
         if not payload:
             return True, usage
@@ -975,8 +987,8 @@ class GatewayInboundMixin:
         # /moa is one-shot sugar only: run a single prompt through the default MoA preset, then
         # restore the prior model. To *switch* to a MoA preset for the session, pick it from the
         # model picker (MoA presets surface as a virtual "Mixture of Agents" provider).
-        from hermes_cli.moa_config import moa_usage, normalize_moa_config
         from hermes_cli.config import load_config
+        from hermes_cli.moa_config import moa_usage, normalize_moa_config
 
         moa_payload = event.get_command_args().strip()
         if not moa_payload:
@@ -1007,9 +1019,9 @@ class GatewayInboundMixin:
     })
 
     async def _hm_dispatch_canonical_command(
-        self, event: "MessageEvent", source: SessionSource, _quick_key: str,
-        canonical: Optional[str],
-    ) -> Tuple[bool, Optional[str]]:
+        self, event: MessageEvent, source: SessionSource, _quick_key: str,
+        canonical: str | None,
+    ) -> tuple[bool, str | None]:
         """Dispatch built-in idle-path commands → ``(handled, result)``; prompt-rewriting commands
         mutate ``event.text`` and return ``(False, None)`` to fall through to the agent."""
         plain_handler = (
@@ -1038,14 +1050,14 @@ class GatewayInboundMixin:
                 from agent.redact import redact_sensitive_text
                 output = redact_sensitive_text(output)
             return output or t("gateway.quick_command.no_output")
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return t("gateway.quick_command.timed_out")
         except Exception as e:
             return t("gateway.quick_command.error", error=e)
 
     async def _hm_dispatch_quick_and_plugin_commands(
-        self, event: "MessageEvent", source: SessionSource, command: Optional[str]
-    ) -> Tuple[bool, Optional[str], Optional[str]]:
+        self, event: MessageEvent, source: SessionSource, command: str | None
+    ) -> tuple[bool, str | None, str | None]:
         """Drain gate, user-defined quick commands (exec/alias) and plugin slash commands →
         ``(handled, result, command)``; an alias quick command rewrites ``command``."""
         if self._draining:
@@ -1104,13 +1116,14 @@ class GatewayInboundMixin:
         return False, None, command
 
     def _hm_bundle_slash_rewrite(
-        self, event: "MessageEvent", source: SessionSource, _quick_key: str, command: str
+        self, event: MessageEvent, source: SessionSource, _quick_key: str, command: str
     ) -> bool:
         """Rewrite ``/<bundle>`` to the bundle invocation message; True when handled.
         Skill bundles take precedence over individual skill commands (mirrors CLI dispatch)."""
         try:
             from agent.skill_bundles import (
-                build_bundle_invocation_message, resolve_bundle_command_key
+                build_bundle_invocation_message,
+                resolve_bundle_command_key,
             )
             bundle_key = resolve_bundle_command_key(command)
             if bundle_key is None:
@@ -1134,10 +1147,11 @@ class GatewayInboundMixin:
             return False
 
     @staticmethod
-    def _hm_unknown_slash_reply(command: str, source: SessionSource) -> Optional[str]:
+    def _hm_unknown_slash_reply(command: str, source: SessionSource) -> str | None:
         """Reply for a /command that is not built-in/plugin/skill; None when it is known."""
-        from gateway.run import _check_unavailable_skill
         from hermes_cli.commands import GATEWAY_KNOWN_COMMANDS
+
+        from gateway.run import _check_unavailable_skill
         # Known commands never need an unavailable-skill hint (which can require a cold scan).
         if command.replace("_", "-") in GATEWAY_KNOWN_COMMANDS:
             return None
@@ -1155,8 +1169,8 @@ class GatewayInboundMixin:
         return t("gateway.unknown_command", command=command)
 
     def _hm_skill_slash_rewrite(
-        self, event: "MessageEvent", source: SessionSource, _quick_key: str, command: Optional[str]
-    ) -> Optional[str]:
+        self, event: MessageEvent, source: SessionSource, _quick_key: str, command: str | None
+    ) -> str | None:
         """Rewrite ``/<bundle>`` / ``/<skill>`` invocations into the skill prompt on ``event.text``;
         returns a reply string when the command is disabled/unknown/failed, else None.
         resolve_skill_command_key() handles the Telegram underscore/hyphen round-trip (/claude_code)."""
@@ -1164,7 +1178,9 @@ class GatewayInboundMixin:
             return None
         try:
             from agent.skill_commands import (
-                get_skill_commands, build_skill_invocation_message, resolve_skill_command_key
+                build_skill_invocation_message,
+                get_skill_commands,
+                resolve_skill_command_key,
             )
             skill_cmds = get_skill_commands()
             cmd_key = resolve_skill_command_key(command)
@@ -1177,6 +1193,8 @@ class GatewayInboundMixin:
             try:
                 from agent.skill_commands import (
                     build_stacked_skill_invocation_message as _build_stacked,
+                )
+                from agent.skill_commands import (
                     split_stacked_skill_commands,
                 )
                 extra_keys, stacked_instruction = split_stacked_skill_commands(user_instruction)
@@ -1188,7 +1206,9 @@ class GatewayInboundMixin:
                 # Per-platform disabled check: get_skill_commands() only applies the *global*
                 # disabled list at scan time (process-global cache across platforms), and
                 # split_stacked_skill_commands() only checks each extra token is a KNOWN skill.
-                from agent.skill_utils import get_disabled_skill_names as _get_plat_disabled
+                from agent.skill_utils import (
+                    get_disabled_skill_names as _get_plat_disabled,
+                )
                 _plat_disabled = _get_plat_disabled(platform=_plat)
                 if _skill_name and _skill_name in _plat_disabled:
                     return t("gateway.skills.disabled_for_platform", name=_skill_name, platform=_plat)
@@ -1216,8 +1236,8 @@ class GatewayInboundMixin:
         return None
 
     async def _hm_pending_reply_intercepts(
-        self, event: "MessageEvent", source: SessionSource, _quick_key: str
-    ) -> Optional[str]:
+        self, event: MessageEvent, source: SessionSource, _quick_key: str
+    ) -> str | None:
         """Replies owned by in-flight work: pending /update prompt, clarify, slash-confirm.
         Only events that may control the gateway (``allow_gateway_control``) can answer them."""
         if not event.allow_gateway_control:
@@ -1230,8 +1250,8 @@ class GatewayInboundMixin:
         return _reply
 
     async def _hm_dispatch_idle_commands(
-        self, event: "MessageEvent", source: SessionSource, _quick_key: str
-    ) -> Tuple[bool, Optional[str]]:
+        self, event: MessageEvent, source: SessionSource, _quick_key: str
+    ) -> tuple[bool, str | None]:
         """Idle path: resolve + dispatch slash commands; rewriting commands fall through to the agent."""
         _handled, _result, command, canonical = await self._hm_resolve_command(event, source, _quick_key)
         if not _handled:
@@ -1249,8 +1269,8 @@ class GatewayInboundMixin:
         return _handled, _result
 
     def _hm_rescue_orphaned_fifo(
-        self, event: "MessageEvent", source: SessionSource, is_internal: bool, _quick_key: str
-    ) -> Tuple["MessageEvent", SessionSource, bool]:
+        self, event: MessageEvent, source: SessionSource, is_internal: bool, _quick_key: str
+    ) -> tuple[MessageEvent, SessionSource, bool]:
         """FIFO orphan rescue: a session that went idle with a populated overflow (post-turn drain
         never promoted, e.g. a compression-demoted follow-up) silently orphaned those events. The
         oldest orphan runs as THIS turn and the incoming event is parked behind the chain. Skipped
@@ -1281,7 +1301,7 @@ class GatewayInboundMixin:
             logger.debug("FIFO orphan rescue pre-claim failed for %s", _quick_key, exc_info=True)
             return event, source, is_internal
 
-    async def _handle_message(self, event: MessageEvent) -> Optional[str]:
+    async def _handle_message(self, event: MessageEvent) -> str | None:
         """Handle an incoming message from any platform: auth → command check → running-agent
         interrupt → get/create session → build context → run agent → return response."""
         from gateway.run import _AGENT_PENDING_SENTINEL
@@ -1290,7 +1310,9 @@ class GatewayInboundMixin:
             return None
         event, source, is_internal = _admitted
         if not is_internal:
-            from hermes_cli.observability.shared_metrics_events import record_gateway_slash_command
+            from hermes_cli.observability.shared_metrics_events import (
+                record_gateway_slash_command,
+            )
             record_gateway_slash_command(event)
         # TERMINAL-DECLINE LATCH TEARDOWN. Deliberately placed AFTER admission,
         # not on the adapter's raw inbound: profile routing, the ignored-channel
@@ -1446,11 +1468,15 @@ class GatewayInboundMixin:
     @staticmethod
     def _classify_inbound_media(
         event: MessageEvent, pending_stt_prepared: bool
-    ) -> Tuple[list, list, list, list]:
+    ) -> tuple[list, list, list, list]:
         """Split ``event.media_urls`` into (image, STT-voice, audio-file, video) paths. Per-attachment
         MIME wins over the message-level type (a document sent alongside an image must not be routed
         as an image). MessageType.AUDIO / mixed DOCUMENT audio is a file attachment, never STT."""
-        from gateway.run import _event_media_is_audio, _event_media_is_image, _event_media_is_stt_input
+        from gateway.run import (
+            _event_media_is_audio,
+            _event_media_is_image,
+            _event_media_is_stt_input,
+        )
         image_paths, audio_paths, audio_file_paths, video_paths = [], [], [], []
         for i, path in enumerate(event.media_urls or []):
             mtype = event.media_types[i] if i < len(event.media_types) else ""
@@ -1502,7 +1528,7 @@ class GatewayInboundMixin:
             return await self._enrich_message_with_vision(message_text, image_paths)
 
     async def _echo_stt_transcripts(
-        self, adapter, source: SessionSource, transcripts: List[str], *, metadata=None, log_context: str = "Transcript"
+        self, adapter, source: SessionSource, transcripts: list[str], *, metadata=None, log_context: str = "Transcript"
     ) -> None:
         """Send each transcript back as ``🎙️ "…"`` (best-effort; failures are logged, never raised)."""
         for tx in transcripts:
@@ -1528,7 +1554,7 @@ class GatewayInboundMixin:
         return message_text
 
     @staticmethod
-    def _inbound_attachment_display_name(path: str) -> Tuple[str, str]:
+    def _inbound_attachment_display_name(path: str) -> tuple[str, str]:
         """``(display_name, agent_visible_path)``: cache filename is ``<id>_<id>_<original>``; the
         path is translated to the in-container mount under a Docker backend."""
         from tools.credential_files import to_agent_visible_cache_path
@@ -1561,7 +1587,9 @@ class GatewayInboundMixin:
     def _prepend_inbound_document_notes(cls, event: MessageEvent, message_text: str) -> str:
         """Prepend a context note per non-media attachment (anything not routed as image/audio/video)."""
         from gateway.run import (
-            _build_document_context_note, _event_media_is_audio, _event_media_is_image,
+            _build_document_context_note,
+            _event_media_is_audio,
+            _event_media_is_image,
             _event_media_is_video,
         )
         if not event.media_urls:
@@ -1618,8 +1646,9 @@ class GatewayInboundMixin:
     async def _inbound_model_context_length(self, source: SessionSource, session_key: str) -> int:
         """Context length of the model this turn runs on. A global ``model.context_length`` pin
         belongs to the configured model, not a /model or channel override; custom-provider limits win."""
-        from gateway.run import _load_gateway_config
         from agent.model_metadata import get_model_context_length_async
+
+        from gateway.run import _load_gateway_config
 
         _msg_config_ctx = None
         _msg_cfg = None
@@ -1676,7 +1705,7 @@ class GatewayInboundMixin:
 
     async def _expand_inbound_context_references(
         self, source: SessionSource, session_key: str, message_text: str
-    ) -> Optional[str]:
+    ) -> str | None:
         """Expand ``@`` context references; returns None when the injection was refused (user notified)."""
         try:
             from agent.context_references import preprocess_context_references_async
@@ -1706,9 +1735,9 @@ class GatewayInboundMixin:
         return message_text
 
     async def _prepare_inbound_message_text(
-        self, *, event: MessageEvent, source: SessionSource, history: List[Dict[str, Any]],
-        session_key: Optional[str] = None,
-    ) -> Optional[str]:
+        self, *, event: MessageEvent, source: SessionSource, history: list[dict[str, Any]],
+        session_key: str | None = None,
+    ) -> str | None:
         """Prepare inbound event text for the agent. Shared by the normal inbound and queued
         follow-up paths so attribution, image enrichment, STT, document notes, reply context and
         @ references behave the same. Side effect: buffers per-session native image paths when the
@@ -1739,9 +1768,9 @@ class GatewayInboundMixin:
         return self._prepend_inbound_reply_context(event, source, message_text)
 
     async def _prepare_profile_scoped_inbound_message_text(
-        self, *, event: MessageEvent, source: SessionSource, history: List[Dict[str, Any]],
-        session_key: Optional[str] = None,
-    ) -> Optional[str]:
+        self, *, event: MessageEvent, source: SessionSource, history: list[dict[str, Any]],
+        session_key: str | None = None,
+    ) -> str | None:
         """Run inbound preprocessing under the routed profile when multiplexed."""
         from gateway.run import _async_profile_runtime_scope
         kwargs = dict(event=event, source=source, history=history, session_key=session_key)
@@ -1757,14 +1786,14 @@ class GatewayInboundMixin:
         _, successful_transcripts = await self._transcribe_pending_audio_event_once(event, "")
         return "\n\n".join(t.strip() for t in successful_transcripts if t.strip())
 
-    def _consume_pending_native_image_paths(self, session_key: str) -> List[str]:
+    def _consume_pending_native_image_paths(self, session_key: str) -> list[str]:
         state = self._peek_session_state(session_key)
         paths = list(state.persistent.native_image_paths or []) if state is not None else []
         if paths:
             state.persistent.native_image_paths = []
         return paths
 
-    async def _mark_durable_active_turn(self, event: "MessageEvent", session_key: str) -> bool:
+    async def _mark_durable_active_turn(self, event: MessageEvent, session_key: str) -> bool:
         """Persist the exact resolved routing key for this running turn."""
         try:
             token = await self.async_session_store.mark_turn_active(session_key)
@@ -1779,7 +1808,7 @@ class GatewayInboundMixin:
         event._gateway_active_turn_token = token
         return True
 
-    async def _clear_durable_active_turn(self, event: "MessageEvent") -> bool:
+    async def _clear_durable_active_turn(self, event: MessageEvent) -> bool:
         """Best-effort CAS clear of the marker owned by *event* (3 attempts; never blocks agent/lease
         release — a stale marker is bounded by the agent timeout and clean-start discard)."""
         session_key = getattr(event, "_gateway_active_turn_session_key", None)
@@ -1787,7 +1816,7 @@ class GatewayInboundMixin:
         try:
             if not session_key or not token:
                 return False
-            last_error: Optional[Exception] = None
+            last_error: Exception | None = None
             for attempt in range(1, 4):
                 try:
                     return bool(await self.async_session_store.clear_turn_active(session_key, token))
@@ -1919,17 +1948,17 @@ class GatewayInboundMixin:
         return True
 
     def _decide_image_input_mode(
-        self, *, source: Optional[SessionSource] = None, session_key: Optional[str] = None,
-        user_config: Optional[dict] = None, provider: Optional[str] = None,
-        model: Optional[str] = None,
+        self, *, source: SessionSource | None = None, session_key: str | None = None,
+        user_config: dict | None = None, provider: str | None = None,
+        model: str | None = None,
     ) -> str:
         """Resolve image-input routing (``"native"`` / ``"text"``) for the effective model this turn
         (see agent/image_routing.py). Sessions can carry /model overrides and this runs before AIAgent
         sets the auxiliary_client runtime globals, so resolve the per-session runtime bundle the
         upcoming turn will use, not just the persisted default."""
         try:
-            from agent.image_routing import decide_image_input_mode
             from agent.auxiliary_client import _read_main_model, _read_main_provider
+            from agent.image_routing import decide_image_input_mode
             from hermes_cli.config import load_config
 
             cfg = user_config if isinstance(user_config, dict) else load_config()
@@ -1963,12 +1992,12 @@ class GatewayInboundMixin:
             logger.debug("image_routing: decision failed, falling back to text — %s", exc)
             return "text"
 
-    async def _enrich_message_with_vision(self, user_text: str, image_paths: List[str]) -> str:
+    async def _enrich_message_with_vision(self, user_text: str, image_paths: list[str]) -> str:
         """Auto-analyze user-attached images with the vision tool and prepend the descriptions.
         Description *and* local cache path are injected so the model understands the image without
         a tool call and can re-examine it with vision_analyze."""
-        from tools.vision_tools import vision_analyze_tool
         from agent.memory_manager import sanitize_context
+        from tools.vision_tools import vision_analyze_tool
 
         analysis_prompt = (
             "Concisely describe this image in 2-4 sentences "
@@ -2025,7 +2054,7 @@ class GatewayInboundMixin:
         agent_path = to_agent_visible_cache_path(os.path.abspath(path))
         return f"[voice message could not be transcribed automatically; the audio is available at: {agent_path}]"
 
-    async def _transcribe_one_clip(self, path: str, transcribe_audio, transcribe_audio_local_fallback) -> Tuple[Optional[str], str]:
+    async def _transcribe_one_clip(self, path: str, transcribe_audio, transcribe_audio_local_fallback) -> tuple[str | None, str]:
         """``(transcript_or_None, note)`` for one clip via configured STT with local fallback."""
         result = await asyncio.to_thread(transcribe_audio, path, None, "gateway")
         if not result.get("success"):
@@ -2052,8 +2081,8 @@ class GatewayInboundMixin:
         return transcript, f'"{transcript}"'
 
     async def _enrich_message_with_transcription(
-        self, user_text: str, audio_paths: List[str]
-    ) -> tuple[str, List[str]]:
+        self, user_text: str, audio_paths: list[str]
+    ) -> tuple[str, list[str]]:
         """Transcribe voice clips with the configured STT provider and prepend the transcripts →
         ``(enriched_text, successful_transcripts)``; the transcripts (input order; empty if every clip
         failed or STT is disabled) let callers echo them back before the agent loop."""
@@ -2070,14 +2099,15 @@ class GatewayInboundMixin:
 
         try:
             from tools.transcription_tools import (
-                transcribe_audio, transcribe_audio_local_fallback
+                transcribe_audio,
+                transcribe_audio_local_fallback,
             )
         except ModuleNotFoundError as e:
             logger.error("Transcription module unavailable: %s", e)
             return self._prepend_media_prefix("[voice message could not be transcribed]", user_text), []
 
         enriched_parts = []
-        successful_transcripts: List[str] = []
+        successful_transcripts: list[str] = []
         for path in audio_paths:
             try:
                 logger.debug("Transcribing user voice: %s", path)
@@ -2095,7 +2125,7 @@ class GatewayInboundMixin:
             user_text = self._prepend_media_prefix("\n\n".join(enriched_parts), user_text)
         return user_text, successful_transcripts
 
-    def _pending_event_audio_paths(self, event) -> List[str]:
+    def _pending_event_audio_paths(self, event) -> list[str]:
         """Return STT-eligible paths from a pending voice message."""
         from gateway.run import _event_media_is_stt_input
         return [
@@ -2104,8 +2134,8 @@ class GatewayInboundMixin:
         ]
 
     async def _transcribe_pending_audio_event_once(
-        self, event, user_text: Optional[str] = None
-    ) -> tuple[str | None, List[str]]:
+        self, event, user_text: str | None = None
+    ) -> tuple[str | None, list[str]]:
         """Transcribe a pending audio event once and cache the result on the event: the interrupt
         monitor and the pending-drain path both need it — one STT call and one echo per message."""
         if hasattr(event, "_gateway_pending_stt_text"):
@@ -2120,7 +2150,7 @@ class GatewayInboundMixin:
         return enriched_text, successful_transcripts
 
     async def _echo_pending_stt_transcripts_once(
-        self, event, adapter, source, transcripts: List[str], *, metadata=None,
+        self, event, adapter, source, transcripts: list[str], *, metadata=None,
         log_context: str = "Transcript",
     ) -> None:
         """Echo pending-event STT transcripts to the chat at most once. Tracked as a COUNT (not a
@@ -2137,7 +2167,7 @@ class GatewayInboundMixin:
 
     async def _transcribe_and_echo_pending_voice(
         self, event, adapter, source, text: str, *, log_context: str, metadata=_UNSET
-    ) -> tuple[str, List[str]]:
+    ) -> tuple[str, list[str]]:
         """Transcribe a pending voice event and echo transcripts once → ``(enriched_text,
         transcripts)`` for ``agent.interrupt()`` or the pending-drain flow; ``(text, [])`` when there
         is no STT-eligible media (caller owns the ``_build_media_placeholder`` fallback)."""

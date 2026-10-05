@@ -8,16 +8,16 @@ import re
 import subprocess
 import sys
 import tempfile
-import tomllib
 import urllib.error
 import urllib.request
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 from hermes_cli.update_channel import STABLE_TAG_RE
 from scripts.releases.draft_warning import strip_draft_warning
 from scripts.releases.versioning import tag_record
+
 SHA = re.compile(r"[a-f0-9]{40}")
 DIGEST = re.compile(r"[a-f0-9]{64}")
 DESKTOP_TARGETS = ("windows/x64", "windows/arm64", "macos/x64", "macos/arm64")
@@ -132,8 +132,8 @@ def require_smokes_match_claim(manifest: dict, *, skip_tests: bool) -> None:
 def stable_windows_version(epoch: object) -> str:
     if isinstance(epoch, bool) or not isinstance(epoch, int) or epoch < 0:
         raise ValueError("Stable release epoch must be a non-negative integer")
-    instant = datetime.fromtimestamp(epoch, tz=timezone.utc)
-    start = datetime(instant.year, 1, 1, tzinfo=timezone.utc)
+    instant = datetime.fromtimestamp(epoch, tz=UTC)
+    start = datetime(instant.year, 1, 1, tzinfo=UTC)
     hour_of_year = (instant - start).days * 24 + instant.hour
     second_of_hour = instant.minute * 60 + instant.second
     return f"{instant.year}.{hour_of_year}.{second_of_hour}.0"
@@ -562,8 +562,7 @@ def final_context(env: dict, run=output) -> tuple[str, str, dict]:
 
 def emit(values: dict, env: dict) -> None:
     with Path(env["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as file:
-        for key, value in values.items():
-            file.write(f"{key}={value if isinstance(value, str) else json.dumps(value, separators=(',', ':'))}\n")
+        file.writelines(f"{key}={value if isinstance(value, str) else json.dumps(value, separators=(',', ':'))}\n" for key, value in values.items())
 
 
 def read_candidate(env: dict) -> dict:

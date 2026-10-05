@@ -8,10 +8,10 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from gateway.config import GatewayConfig, Platform, PlatformConfig
 from gateway.platforms.event import MessageEvent
 from gateway.session import SessionSource
+
 
 def _make_event(text="/title", platform=Platform.TELEGRAM,
                 user_id="12345", chat_id="67890"):

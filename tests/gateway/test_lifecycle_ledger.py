@@ -11,11 +11,9 @@ from __future__ import annotations
 
 import json
 import os
-import sys
 from pathlib import Path
 
 import pytest
-
 from gateway.lifecycle_ledger import (
     detect_unclean_exit,
     get_lifecycle_sentinel_path,
@@ -24,7 +22,6 @@ from gateway.lifecycle_ledger import (
     record_startup,
     sample_memory,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers

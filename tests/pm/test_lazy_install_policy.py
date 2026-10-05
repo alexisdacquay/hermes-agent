@@ -1,8 +1,7 @@
 """PM reads boolean install policy from real config, without CLI output."""
 
-import pytest
-
 import pm
+import pytest
 from hermes_cli.config import get_config_path
 
 

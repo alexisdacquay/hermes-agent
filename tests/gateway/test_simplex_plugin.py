@@ -307,7 +307,6 @@ async def test_standalone_send_missing_websockets(monkeypatch):
         def find_spec(name, path=None, target=None):
             if name == "websockets" or name.startswith("websockets."):
                 raise ImportError("websockets blocked for test")
-            return None
 
     sys.meta_path.insert(0, _Blocker())
     try:
@@ -495,7 +494,11 @@ async def test_name_allowlist_warning_once_scoped_even_if_first_connect_fails(mo
     import logging
 
     import websockets
-    from agent.secret_scope import reset_secret_scope, set_multiplex_active, set_secret_scope
+    from agent.secret_scope import (
+        reset_secret_scope,
+        set_multiplex_active,
+        set_secret_scope,
+    )
     from gateway.config import PlatformConfig
 
     monkeypatch.setenv("SIMPLEX_ALLOWED_USERS", "bob")  # default profile's bridge output

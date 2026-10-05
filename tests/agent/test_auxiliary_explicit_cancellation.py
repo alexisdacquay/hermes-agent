@@ -5,11 +5,11 @@ from __future__ import annotations
 import contextvars
 import threading
 import time
+from collections.abc import Callable
 from types import SimpleNamespace
-from typing import Any, Callable
+from typing import Any
 
 import pytest
-
 from agent import auxiliary_client as aux
 
 
@@ -79,7 +79,7 @@ class _AnthropicStreamContext:
     def __enter__(self) -> _BlockingStream:
         return self.stream
 
-    def __exit__(self, *_args: Any) -> None:
+    def __exit__(self, *_args: object) -> None:
         self.stream.close()
 
 
@@ -555,7 +555,10 @@ def test_isolated_provider_worker_inherits_protection_and_progress_hook() -> Non
 
 def test_isolated_provider_worker_inherits_caller_contextvars() -> None:
     from tools.approval import get_current_session_key
-    from tools.approval_context import reset_current_session_key, set_current_session_key
+    from tools.approval_context import (
+        reset_current_session_key,
+        set_current_session_key,
+    )
 
     arbitrary = contextvars.ContextVar("isolated-provider-test", default="missing")
     arbitrary_token = arbitrary.set("caller-value")

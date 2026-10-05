@@ -7,11 +7,8 @@ the gateway submit_pending path, cron_mode, and fail-closed timeouts.
 """
 
 import pytest
-
-import tools.approval as approval
-import tools.approval_prompt as approval_prompt
 import tools.approval_context as tools_approval_context
-from tools import approval_context
+from tools import approval, approval_context, approval_prompt
 from tools.approval import request_tool_approval
 
 

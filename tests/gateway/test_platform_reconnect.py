@@ -6,7 +6,6 @@ import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from gateway.config import GatewayConfig, Platform, PlatformConfig
 from gateway.platforms.base import BasePlatformAdapter, SendResult
 from gateway.platforms.helpers import MessageDeduplicator
@@ -618,7 +617,6 @@ class TestSpawnSupervised:
 
         async def _coro():
             calls["n"] += 1
-            return
 
         runner._spawn_supervised(lambda: _coro(), "clean_watcher")
 

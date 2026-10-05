@@ -26,10 +26,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
-
 import hermes_state
 import hermes_state_guard
+import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 

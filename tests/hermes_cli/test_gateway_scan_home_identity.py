@@ -16,9 +16,7 @@ import time
 from pathlib import Path
 
 import pytest
-
-import hermes_cli.gateway as gateway
-from hermes_cli import dashboard_procs
+from hermes_cli import dashboard_procs, gateway
 
 # Named ``hermes`` so ``python <dir>/hermes gateway run`` satisfies the canonical gateway matcher.
 _GATEWAY_STUB = """

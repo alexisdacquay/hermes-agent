@@ -6,8 +6,9 @@ Availability fails closed; the gateway remains authoritative for entitlement and
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,7 @@ class ConnectorConfig:
     enabled: bool = True
 
     @classmethod
-    def from_raw(cls, raw: Any) -> "ConnectorConfig":
+    def from_raw(cls, raw: Any) -> ConnectorConfig:
         """Malformed configuration falls back to the enabled default."""
         if isinstance(raw, bool):
             return cls(enabled=raw)
@@ -80,8 +81,8 @@ def managed_tools_rolled_out() -> bool:
 
 
 def connectors_available(
-    config_loader: Optional[Callable[[], ConnectorConfig]] = None,
-    entitlement_check: Optional[Callable[[], bool]] = None,
+    config_loader: Callable[[], ConnectorConfig] | None = None,
+    entitlement_check: Callable[[], bool] | None = None,
 ) -> bool:
     """Fail closed so availability failures do not become model-visible errors.
 
@@ -95,6 +96,7 @@ def connectors_available(
             return False
         if entitlement_check is None:
             from hermes_cli.anon_auth import is_guest_state
+
             from tools.managed_tool_gateway import _read_nous_provider_state
 
             # Availability must not mint or refresh an identity.
@@ -108,7 +110,7 @@ def connectors_available(
         return False
 
 
-def operation_session_key(session_id: Optional[str]) -> str:
+def operation_session_key(session_id: str | None) -> str:
     """The key an operation is registered under: the gateway session key the RPCs look up by
     (``HERMES_SESSION_KEY``), falling back to the agent's session id where no gateway bound one.
     The agent id alone is wrong on the desktop: compaction rotates it mid-turn while the gateway

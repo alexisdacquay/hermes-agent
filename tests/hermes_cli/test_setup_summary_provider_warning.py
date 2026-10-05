@@ -8,15 +8,15 @@ working model configured (consumer-onboarding audit finding #7, Aug 2026).
 
 from unittest.mock import patch
 
-from hermes_cli.auth import AuthError
 from hermes_cli import nous_subscription
+from hermes_cli.auth import AuthError
 
 
 def _summary_output(capsys, provider_ready: bool):
     from hermes_cli import setup as setup_mod
 
     if provider_ready:
-        resolver = lambda *a, **k: "openrouter"  # noqa: E731
+        resolver = lambda *a, **k: "openrouter"
     else:
         def resolver(*a, **k):
             raise AuthError(

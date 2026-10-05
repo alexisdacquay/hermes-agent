@@ -9,7 +9,6 @@ import shutil
 import subprocess
 
 import pytest
-
 from tools.working_diff import collect_working_diff
 
 pytestmark = pytest.mark.skipif(

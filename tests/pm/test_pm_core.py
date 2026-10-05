@@ -12,14 +12,14 @@ import threading
 from pathlib import Path
 
 import pytest
-
-import pm.paths as paths
-import pm.registry as registry
+from pm import paths, registry
 from pm.lock import Facts, Lockfile
 from pm.package import InstallError, compose_env
 from pm.packages import BinaryPackage, Venv
 from pm.store import Store, current_target
-from tests.pm._fixtures import make_tar, served as served
+
+from tests.pm._fixtures import make_tar
+from tests.pm._fixtures import served as served
 
 
 class FakeTool(BinaryPackage):
@@ -190,6 +190,7 @@ def test_deps_compose_dependents_win(pm_env):
 def test_cli_env_reports_only_package_exports(pm_env, monkeypatch, capsys):
     import json
     from argparse import Namespace
+
     from pm.cli import cmd_env
     from pm.install import ensure
 
@@ -215,6 +216,7 @@ def test_activation_trusts_a_recorded_entry_a_deliberate_install_repairs(pm_env,
     corruption, installed without the flag, is still detected and rewritten.
     """
     import importlib
+
     from pm.cli import _install_names
 
     ensure = importlib.import_module("pm.install")
@@ -249,8 +251,9 @@ def test_warm_install_verifies_shared_dependencies_once_under_lock(pm_env, monke
     import importlib
     import os
     from collections import Counter
-    from pm.filesystem import lock_fd
+
     from pm.cli import _install_names
+    from pm.filesystem import lock_fd
 
     ensure = importlib.import_module("pm.install")
     lockfile_path, runtime, docroot, _ = pm_env
@@ -288,24 +291,25 @@ def test_warm_install_verifies_shared_dependencies_once_under_lock(pm_env, monke
 
 def test_standalone_warm_ensure_does_not_wait_for_unrelated_writer(pm_env):
     from concurrent.futures import ThreadPoolExecutor
+
     from pm.install import ensure
 
     _, runtime, _, _ = pm_env
     ensure("faketool", explicit=True)
-    with ThreadPoolExecutor(max_workers=1) as pool:
-        with Store(runtime).install_lock():
-            # A downloader can hold this lock for minutes. A healthy unrelated
-            # tool must remain usable without waiting for that writer to finish.
-            future = pool.submit(ensure, "faketool", explicit=True, base_env={})
-            runner = future.result(timeout=3)
-            assert "faketool-1.0" in runner.env["PATH"]
+    with ThreadPoolExecutor(max_workers=1) as pool, Store(runtime).install_lock():
+        # A downloader can hold this lock for minutes. A healthy unrelated
+        # tool must remain usable without waiting for that writer to finish.
+        future = pool.submit(ensure, "faketool", explicit=True, base_env={})
+        runner = future.result(timeout=3)
+        assert "faketool-1.0" in runner.env["PATH"]
 
 
 def test_install_forgets_verification_when_state_operation_releases_lock(pm_env, monkeypatch):
     import importlib
     import os
-    from pm.filesystem import lock_fd
+
     from pm.cli import _install_names
+    from pm.filesystem import lock_fd
 
     ensure = importlib.import_module("pm.install")
     lockfile_path, runtime, docroot, _ = pm_env
@@ -409,6 +413,7 @@ def test_single_flight_one_store_entry(pm_env, monkeypatch):
     from concurrent.futures import ThreadPoolExecutor
     from contextlib import contextmanager
     from http.server import SimpleHTTPRequestHandler
+
     from pm.install import ensure
 
     _, runtime, *_ = pm_env
@@ -474,7 +479,7 @@ def test_gc_keeps_used_removes_orphans(pm_env):
 def _hold(monkeypatch, *prefixes):
     """Model a Windows hold (a running process mapping the old interpreter's
     DLLs): removal under these names fails past every retry; rename still works."""
-    import pm.install as install
+    from pm import install
 
     real_remove = install._remove_entry
     held = {"on": True}
@@ -547,7 +552,7 @@ def test_held_displacement_does_not_fail_restore_and_gc_spares_interrupted_one(p
     """A restore that succeeded leaves the displaced tree as garbage; a held one
     must not fail the install. An interrupted restore's displacement is never
     set aside, so gc keeps it."""
-    import pm.install as install
+    from pm import install
     from pm.cli import cmd_gc
 
     _, runtime, *_ = pm_env
@@ -638,6 +643,7 @@ def test_python_package_stably_signs_macos_runtime(tmp_path):
     import shutil
     import subprocess
     import sys
+
     from pm.registry import get_package
 
     python = get_package("python")
@@ -709,9 +715,9 @@ def test_machine_matches_binary_elf(tmp_path):
 def test_bundle_closure_uv_stays_internal_node_npm_ship(monkeypatch, tmp_path):
     """Locks the semantics split: uv is pm's install machinery and never
     ships by closure, node/npm are runtime tools and always do."""
-    from scripts.bundles.native import _bundle_package_names
     from pm.lock import Lockfile
     from pm.registry import get_package
+    from scripts.bundles.native import _bundle_package_names
 
     lock = Lockfile(tmp_path / "lock.json")
     for name in ("uv", "node", "npm"):
@@ -731,9 +737,9 @@ def test_bundle_closure_uv_stays_internal_node_npm_ship(monkeypatch, tmp_path):
 def test_arch_guard_allows_emulated_x64_on_win32_arm64(monkeypatch, tmp_path):
     """agent-browser on win32-arm64 ships the x64 PE (emulated). The guard
     must not reject it when the package declares the target emulated."""
-    from scripts.bundles import native as cli
     from pm.lock import Facts, Lockfile
     from pm.registry import get_package
+    from scripts.bundles import native as cli
 
     store = tmp_path / "store"
     entry = store / "agent-browser-0.35.1"

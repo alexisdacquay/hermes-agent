@@ -2,7 +2,6 @@
 from datetime import timedelta
 
 import pytest
-
 from cron import jobs
 
 

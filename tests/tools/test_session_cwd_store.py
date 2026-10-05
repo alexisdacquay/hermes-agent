@@ -8,7 +8,6 @@ read-side flip will rely on.
 """
 
 import pytest
-
 import tools.terminal_tool as tt
 
 

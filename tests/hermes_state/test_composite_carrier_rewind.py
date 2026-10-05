@@ -5,12 +5,10 @@ from __future__ import annotations
 import os
 
 import pytest
-
 from agent.context_compressor import (
+    _SUMMARY_END_MARKER,
     HISTORICAL_TASK_HEADING,
     SUMMARY_PREFIX,
-    _MERGED_SUMMARY_DELIMITER,
-    _SUMMARY_END_MARKER,
 )
 from hermes_state import SessionCompressionInProgressError, SessionDB
 from hermes_state_errors import CompressionSessionClosedError, SessionTurnLeaseLostError

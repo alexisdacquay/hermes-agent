@@ -14,14 +14,12 @@ from __future__ import annotations
 
 import os
 import stat
-import sys
 from pathlib import Path
 
 import pytest
 
 fastapi = pytest.importorskip("fastapi")
-from fastapi.testclient import TestClient  # noqa: E402
-
+from fastapi.testclient import TestClient
 
 SOUL = "# Persona\n\nYou are a careful, terse assistant.\n"
 

@@ -1,10 +1,9 @@
 """Provider aliases preserve the native-vs-compatible client boundary."""
 from types import SimpleNamespace
 
-from openai import OpenAI
-
 from agent.agent_runtime_helpers import create_openai_client
 from agent.gemini_native_adapter import GeminiNativeClient
+from openai import OpenAI
 from providers import get_provider_profile
 
 

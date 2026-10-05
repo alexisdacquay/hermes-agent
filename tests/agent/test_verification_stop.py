@@ -1,10 +1,8 @@
 import json
-import sys
 import tempfile
 from pathlib import Path
 
 import pytest
-
 from agent.verification_evidence import (
     mark_workspace_edited,
     record_terminal_result,
@@ -13,6 +11,7 @@ from agent.verification_stop import (
     build_verify_on_stop_nudge,
     verify_on_stop_enabled,
 )
+
 
 def _node_project(root: Path) -> None:
     (root / "package.json").write_text(

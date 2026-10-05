@@ -12,14 +12,18 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
-from agent.codex_responses_adapter import _chat_content_to_responses_parts, _chat_messages_to_responses_input, _normalize_codex_response, _preflight_codex_input_items
+from agent.codex_responses_adapter import (
+    _chat_content_to_responses_parts,
+    _chat_messages_to_responses_input,
+    _normalize_codex_response,
+    _preflight_codex_input_items,
+)
 
 sys.modules.setdefault("fire", types.SimpleNamespace(Fire=lambda *a, **k: None))
 sys.modules.setdefault("firecrawl", types.SimpleNamespace(Firecrawl=object))
 sys.modules.setdefault("fal_client", types.SimpleNamespace())
 
 from run_agent import AIAgent
-
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -67,7 +71,7 @@ def _reset_auxiliary_provider_state():
 
 def _make_agent(monkeypatch, provider, api_mode="chat_completions", base_url="https://openrouter.ai/api/v1", model=None):
     monkeypatch.setattr("model_tools.get_tool_definitions", lambda **kw: _tool_defs("web_search", "terminal"))
-    monkeypatch.setattr("model_tools.check_toolset_requirements", lambda: {})
+    monkeypatch.setattr("model_tools.check_toolset_requirements", dict)
     monkeypatch.setattr("agent.process_bootstrap.OpenAI", _FakeOpenAI)
     kwargs = dict(
         api_key="test-key",

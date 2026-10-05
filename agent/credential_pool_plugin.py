@@ -21,8 +21,9 @@ Contract (documented in website/docs/developer-guide/model-provider-plugin.md):
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from dataclasses import fields, replace
-from typing import TYPE_CHECKING, Any, Mapping, Optional, Tuple
+from typing import TYPE_CHECKING, Any
 
 from hermes_cli.auth import _OAUTH_GRANT_DEAD_CODES
 from hermes_cli.auth_constants import AuthError
@@ -33,7 +34,7 @@ if TYPE_CHECKING:  # pragma: no cover
 logger = logging.getLogger(__name__)
 
 
-def apply_plugin_refresh_result(entry: "PooledCredential", result: Any) -> "PooledCredential":
+def apply_plugin_refresh_result(entry: PooledCredential, result: Any) -> PooledCredential:
     """Merge a ``refresh_credential`` return value into *entry*.
 
     Field names go through ``dataclasses.replace``; everything else is merged into ``extra``
@@ -66,8 +67,8 @@ def is_terminal_plugin_refresh_error(exc: BaseException) -> bool:
 
 
 def recover_failed_plugin_refresh(
-    pool: "CredentialPool", entry: "PooledCredential", exc: Exception,
-) -> Tuple[bool, Optional["PooledCredential"]]:
+    pool: CredentialPool, entry: PooledCredential, exc: Exception,
+) -> tuple[bool, PooledCredential | None]:
     """Recovery for a plugin hook that raised: adopt a peer's rotation, or quarantine a dead grant.
 
     Returns ``(handled, result)``; ``handled=False`` means the caller should bench the row as a

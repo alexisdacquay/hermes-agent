@@ -8,6 +8,7 @@ import contextlib
 import json
 
 from gateway.session_context import get_session_env
+
 from tools import desktop_ui
 from tools.registry import registry, tool_error
 

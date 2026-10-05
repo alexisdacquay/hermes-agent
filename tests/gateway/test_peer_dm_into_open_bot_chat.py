@@ -18,7 +18,6 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
-
 from gateway.config import PlatformConfig
 from gateway.platforms.api_server import APIServerAdapter
 from hermes_cli.subcommands import peer as peer_mod

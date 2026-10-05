@@ -2,8 +2,7 @@
 ``hermes-gateway.service`` pinning THIS home is this home's service (#109476)."""
 
 import pytest
-
-import hermes_cli.gateway as gateway
+from hermes_cli import gateway
 
 pytestmark = pytest.mark.platforms("linux")
 

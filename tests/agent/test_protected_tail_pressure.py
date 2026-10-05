@@ -17,11 +17,8 @@ import json
 from unittest.mock import patch
 
 import pytest
-
 from agent.context_compressor import (
     ContextCompressor,
-    _MAX_TAIL_MESSAGE_FLOOR,
-    _PRESSURE_KEEP_RECENT_MESSAGES,
     _tool_content_has_images,
 )
 from agent.model_metadata import estimate_messages_tokens_rough

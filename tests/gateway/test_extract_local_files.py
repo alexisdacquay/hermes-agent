@@ -11,9 +11,7 @@ Based on PR #1636 by sudoingX (salvaged + hardened).
 from unittest.mock import patch
 
 import pytest
-
 from gateway.platforms.base import BasePlatformAdapter
-
 
 # ---------------------------------------------------------------------------
 # Helpers

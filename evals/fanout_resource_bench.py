@@ -21,7 +21,6 @@ import http.server
 import json
 import os
 import shutil
-import socket
 import subprocess
 import sys
 import tempfile
@@ -164,10 +163,9 @@ def main() -> None:
 
     srv = _serve()
     port = srv.server_address[1]
+    from hermes_state import SessionDB
     from run_agent import AIAgent
     from tools import delegate_tool
-
-    from hermes_state import SessionDB
     db_path = os.path.join(home, "state.db")
     from pathlib import Path
     session_db = SessionDB(db_path=Path(db_path))

@@ -3,7 +3,6 @@
 from unittest.mock import patch
 
 import pytest
-
 from tools.environments import docker as docker_mod
 
 

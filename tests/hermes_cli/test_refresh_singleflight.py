@@ -7,11 +7,11 @@ from concurrent.futures import ThreadPoolExecutor
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-
 from hermes_cli.dashboard_auth import clear_providers, register_provider
 from hermes_cli.dashboard_auth import refresh_singleflight as replay
 from hermes_cli.dashboard_auth.base import ProviderError, RefreshExpiredError, Session
 from hermes_cli.dashboard_auth.routes import router
+
 from tests.hermes_cli.conftest_dashboard_auth import StubAuthProvider
 
 

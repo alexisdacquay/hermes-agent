@@ -11,14 +11,14 @@ import os
 import shutil
 from collections.abc import Mapping
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from pm.environment import PythonEnvironment
 
 from pm import paths
 from pm.package import InstallError
-from pm.plugin_declarations import read_python_declaration, manifest_version_error
+from pm.plugin_declarations import manifest_version_error, read_python_declaration
 
 _MEMBER_EXCLUDE = frozenset({".git", ".venv", "venv", "node_modules", "__pycache__"})
 
@@ -30,7 +30,7 @@ def _member_ignored(directory, names):
 # The uv failure classifier lives beside the uv runner (stdlib-only imports): the bootstrap
 # runner streams uv output from a pre-3.11 system python where this module's tomllib import
 # cannot load. Workspace callers keep reaching it from here.
-from pm.environment import ResolutionConflict, classify_uv_failure  # noqa: E402,F401
+from pm.environment import ResolutionConflict, classify_uv_failure  # noqa: F401
 
 
 def member_sources(plugin_dirs) -> dict[Path, Path]:
@@ -304,7 +304,7 @@ def install_node_sidecar(
     plugin_dir: Path,
     *,
     explicit: bool = False,
-) -> Optional[str]:
+) -> str | None:
     """Install plugin-local dependencies using PM's paired npm/Node context.
 
     Explicit user consent permits acquisition even when on-demand installs

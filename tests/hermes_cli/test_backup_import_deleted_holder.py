@@ -16,7 +16,6 @@ import sys
 import zipfile
 
 import pytest
-
 from hermes_cli import backup_restore as backup_mod
 
 pytestmark = pytest.mark.platforms("linux")  # /proc holder scan is Linux-only
@@ -61,9 +60,8 @@ def test_import_refuses_to_publish_over_a_deleted_but_held_database(tmp_path):
         target.unlink()  # the deleted-inode window: holder keeps writing it
         assert backup_mod._foreign_db_holder_pids(target) == [holder.pid]
 
-        with zipfile.ZipFile(archive) as zf:
-            with pytest.raises(OSError) as excinfo:
-                backup_mod._import_db_member(zf, _MEMBER, target)
+        with zipfile.ZipFile(archive) as zf, pytest.raises(OSError) as excinfo:
+            backup_mod._import_db_member(zf, _MEMBER, target)
 
         assert str(holder.pid) in str(excinfo.value)
         assert not target.exists(), "a new inode was published under a live holder"

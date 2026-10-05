@@ -9,7 +9,6 @@ import json
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from tools.browser_camofox import (
     _get_session,
     _managed_persistence_enabled,

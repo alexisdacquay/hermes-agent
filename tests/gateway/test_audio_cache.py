@@ -9,7 +9,6 @@ import time
 from pathlib import Path
 
 import pytest
-
 from gateway.platforms.base import (
     cache_audio_from_bytes,
     cleanup_audio_cache,

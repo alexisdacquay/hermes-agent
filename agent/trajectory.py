@@ -4,7 +4,7 @@ import json
 import logging
 import os
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ def _lock_append_handle(f, acquire: bool) -> None:
         fcntl.flock(f.fileno(), fcntl.LOCK_EX if acquire else fcntl.LOCK_UN)
 
 
-def save_trajectory(trajectory: List[Dict[str, Any]], model: str, completed: bool, filename: str = None):
+def save_trajectory(trajectory: list[dict[str, Any]], model: str, completed: bool, filename: str = None):
     """Append a ShareGPT-format entry to a JSONL file (default trajectory_samples.jsonl / failed_trajectories.jsonl by ``completed``)."""
     if filename is None:
         filename = "trajectory_samples.jsonl" if completed else "failed_trajectories.jsonl"

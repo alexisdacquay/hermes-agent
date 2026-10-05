@@ -10,10 +10,9 @@ import io
 import json
 import os
 
-import pytest
-
 import hermes_cli.update_cmd_fleet as fleet_mod
 import hermes_cli.update_receipt as ur
+import pytest
 
 OLD = "a" * 40
 HEAD = "b" * 40
@@ -65,8 +64,7 @@ def test_restart_phase_records_accepted_self_restart_and_verify_exits_clean(monk
     """The ancestor branch of the drain triage feeds the pid set the matrix reads: end to end the
     verify phase exits 0 (not 1) and clears the pending marker for an update whose only old-code
     gateway is the one it runs inside."""
-    import hermes_cli.gateway as gateway
-    import hermes_cli.update_cmd as update_cmd
+    from hermes_cli import gateway, update_cmd
 
     ancestor = os.getpid()
     monkeypatch.setattr(gateway, "_is_pid_ancestor_of_current_process", lambda pid: pid == ancestor)

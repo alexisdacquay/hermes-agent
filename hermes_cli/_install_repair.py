@@ -126,13 +126,13 @@ def ensure_windows_bin_launchers(
 
     # Only the launch producer knows the executable/boot contract. Old venv
     # paths below identify obsolete artifacts; they never select dependencies.
+    from hermes_constants import project_venv_dir
+
     from hermes_cli._launchers import (
         ensure_install_launchers,
         exe_is_venv_bound,
         stage_launcher,
     )
-
-    from hermes_constants import project_venv_dir
 
     venv_dir = project_venv_dir(root)
 

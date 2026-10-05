@@ -2,10 +2,11 @@
 from __future__ import annotations
 
 import argparse
-import pytest
 
+import pytest
 from hermes_cli import main, uninstall
 from hermes_cli.subcommands.uninstall import build_uninstall_parser
+
 from tests.hermes_cli.test_data_uninstall import layout  # noqa: F401 — isolated home
 
 

@@ -15,7 +15,6 @@ import os
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Dict, List, Optional
 
 from agent.secret_sources.base import run_cli, scrub_ansi
 from agent.vault_backends import unlock as _unlock
@@ -35,7 +34,7 @@ class BitwardenLoginBackend(LoginBackend):
     prefix = "bw:"
     needs_unlock = True
 
-    def __init__(self, cfg: Optional[Dict] = None):
+    def __init__(self, cfg: dict | None = None):
         self.cfg = cfg or {}
 
     def _bw(self) -> Path:
@@ -45,7 +44,7 @@ class BitwardenLoginBackend(LoginBackend):
             raise RuntimeError("Bitwarden CLI (bw) not found — install it or set vault.bitwarden.binary_path")
         return Path(found)
 
-    def _env(self, session_token: Optional[str]) -> Dict[str, str]:
+    def _env(self, session_token: str | None) -> dict[str, str]:
         env = {k: os.environ[k] for k in _ENV_KEEP if k in os.environ}
         env["NO_COLOR"] = "1"
         if session_token:
@@ -85,16 +84,16 @@ class BitwardenLoginBackend(LoginBackend):
             raise RuntimeError(f"bw failed: {err[:200]}")
         return proc.stdout or ""
 
-    def list_items(self) -> List[VaultItemMeta]:
+    def list_items(self) -> list[VaultItemMeta]:
         if not self.is_unlocked():
             return []
         raw = json.loads(self._run("list", "items") or "[]")
-        out: List[VaultItemMeta] = []
+        out: list[VaultItemMeta] = []
         for item in raw if isinstance(raw, list) else []:
             if item.get("type") != 1 or not isinstance(item.get("login"), dict):
                 continue
             login = item["login"]
-            origins: List[str] = []
+            origins: list[str] = []
             for uri in login.get("uris") or []:
                 if uri.get("match") == 5:  # Bitwarden URI match "Never": not a fill target
                     continue
@@ -117,13 +116,13 @@ class BitwardenLoginBackend(LoginBackend):
                 allowed_origins=web_origins))
         return out
 
-    def get_meta(self, handle: str) -> Optional[VaultItemMeta]:
+    def get_meta(self, handle: str) -> VaultItemMeta | None:
         return next((m for m in self.list_items() if m.id == handle), None)
 
     def resolve_password(self, handle: str) -> str:
         return self._run("get", "password", handle[len(self.prefix):]).rstrip("\r\n")
 
-    def resolve_otp(self, handle: str) -> Optional[str]:
+    def resolve_otp(self, handle: str) -> str | None:
         # `bw get totp <id>` mints the current code from the item's TOTP seed; "No TOTP available" otherwise.
         try:
             code = self._run("get", "totp", handle[len(self.prefix):]).strip()

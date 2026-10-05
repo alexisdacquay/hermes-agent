@@ -4,7 +4,6 @@ import json
 from unittest.mock import Mock
 
 import pytest
-
 from hermes_cli import banner, source_check
 from hermes_cli.source_releases import SourceTarget
 from hermes_cli.update_channel import install_id

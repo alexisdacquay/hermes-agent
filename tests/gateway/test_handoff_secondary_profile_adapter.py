@@ -19,7 +19,6 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from gateway.config import GatewayConfig, HomeChannel, Platform, PlatformConfig
 from gateway.run import GatewayRunner
 from gateway.session import SessionEntry

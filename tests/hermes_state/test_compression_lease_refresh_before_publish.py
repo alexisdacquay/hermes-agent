@@ -4,13 +4,10 @@ When the lease refresher stopped due to transient DB failures, the final
 pre-publication refresh inside the same transaction gives one last chance
 to extend the lease before the expiry check.
 """
-import sqlite3
-import threading
 import time
 from unittest.mock import patch
 
 import pytest
-
 from hermes_state import SessionDB
 from hermes_state_errors import CompressionSessionBusyError
 

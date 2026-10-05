@@ -13,10 +13,9 @@ trusts the payload.
 from __future__ import annotations
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
-
 from gateway.config import Platform, PlatformConfig
 from plugins.platforms.whatsapp.adapter import WhatsAppAdapter
 

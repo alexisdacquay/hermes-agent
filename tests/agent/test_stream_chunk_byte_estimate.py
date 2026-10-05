@@ -6,13 +6,12 @@ Replaced ``len(repr(chunk))`` in the streaming hot loop. Contract:
 - monotonic accumulation stays positive.
 """
 
+from agent.chat_completion_helpers import _estimate_chunk_bytes
 from openai.types.chat import ChatCompletionChunk
 from openai.types.chat.chat_completion_chunk import (
     Choice,
     ChoiceDelta,
 )
-
-from agent.chat_completion_helpers import _estimate_chunk_bytes
 
 
 def _chunk(delta):

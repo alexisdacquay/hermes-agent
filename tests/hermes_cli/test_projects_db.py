@@ -5,7 +5,6 @@ from __future__ import annotations
 import os
 
 import pytest
-
 from hermes_cli import projects_db as pdb
 
 

@@ -33,7 +33,6 @@ import time
 from dataclasses import replace as dc_replace
 
 import pytest
-
 from agent import anthropic_credentials as AA
 from agent.credential_persistence import sanitize_borrowed_credential_payload
 from agent.credential_pool import (

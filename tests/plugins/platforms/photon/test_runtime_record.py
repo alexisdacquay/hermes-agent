@@ -10,16 +10,13 @@ No Node, no ports, no network.
 """
 from __future__ import annotations
 
-import asyncio
 import json
 import os
 import stat
-import sys
 from pathlib import Path
 from typing import Any
 
 import pytest
-
 from gateway.config import PlatformConfig
 from plugins.platforms.photon import adapter as photon_adapter
 from plugins.platforms.photon import sidecar_paths
@@ -85,10 +82,10 @@ class _HealthzClient:
     def __init__(self, *a: Any, **k: Any) -> None:
         pass
 
-    async def __aenter__(self) -> "_HealthzClient":
+    async def __aenter__(self) -> _HealthzClient:
         return self
 
-    async def __aexit__(self, *a: Any) -> bool:
+    async def __aexit__(self, *a: object) -> bool:
         return False
 
     async def post(self, *a: Any, **k: Any) -> Any:
@@ -193,10 +190,10 @@ class _SendClient:
     def __init__(self, *a: Any, **k: Any) -> None:
         pass
 
-    async def __aenter__(self) -> "_SendClient":
+    async def __aenter__(self) -> _SendClient:
         return self
 
-    async def __aexit__(self, *a: Any) -> bool:
+    async def __aexit__(self, *a: object) -> bool:
         return False
 
     async def post(self, url: str, json: Any = None, headers: Any = None) -> Any:

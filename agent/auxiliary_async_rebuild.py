@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Mapping
-from typing import Any, Dict
+from typing import Any
 
 from openai import OpenAI
 
@@ -33,7 +33,7 @@ def async_api_key(sync_client: Any) -> Any:
     return _provide
 
 
-def configured_default_headers(sync_client: Any) -> Dict[str, str]:
+def configured_default_headers(sync_client: Any) -> dict[str, str]:
     """The ``default_headers`` mapping the sync client was constructed with (SDK ``_custom_headers``).
 
     SECURITY: values may carry credentials — never log them.

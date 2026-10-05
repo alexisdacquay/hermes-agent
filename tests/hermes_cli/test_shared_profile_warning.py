@@ -9,7 +9,6 @@ from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
-
 from hermes_cli import process_identity
 from hermes_constants import hermes_home_key
 

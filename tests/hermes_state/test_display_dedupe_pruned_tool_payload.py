@@ -13,7 +13,6 @@ calls collapse without losing the original output, distinct calls do not merge).
 import json
 
 import pytest
-
 from hermes_state import SessionDB
 
 

@@ -5,16 +5,16 @@ Run: python evals/mcp_device_flow.py --repo /path/to/checkout
 from __future__ import annotations
 
 import argparse
-from contextlib import contextmanager
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
-from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import threading
 import time
+from contextlib import contextmanager
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from urllib.parse import parse_qs
 
 DEVICE_GRANT = "urn:ietf:params:oauth:grant-type:device_code"
@@ -38,7 +38,7 @@ def oauth_fixture(mode="success"):
             self.end_headers()
             self.wfile.write(body)
 
-        def do_GET(self):  # noqa: N802
+        def do_GET(self):
             wire.append({"path": self.path, "method": "GET"})
             if self.path == "/mcp":
                 if self.headers.get("Authorization") == "Bearer fixture-access":
@@ -62,7 +62,7 @@ def oauth_fixture(mode="success"):
                 return self.reply(200, metadata)
             self.reply(404, {})
 
-        def do_POST(self):  # noqa: N802
+        def do_POST(self):
             raw = self.rfile.read(int(self.headers.get("Content-Length", 0)))
             data = json.loads(raw) if "json" in self.headers.get("Content-Type", "") else {
                 key: value[0] for key, value in parse_qs(raw.decode()).items()}

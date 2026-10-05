@@ -6,7 +6,6 @@ working regardless of whether the model chooses to mention it. These tests
 lock the formatting (singular/plural/generic) and the aggregation across
 providers, all deterministically (no LLM, no network).
 """
-from typing import Optional
 
 from agent.memory_manager import MemoryManager
 from agent.memory_provider import MemoryProvider, RecallStatus
@@ -15,7 +14,7 @@ from agent.memory_provider import MemoryProvider, RecallStatus
 class _FakeProvider(MemoryProvider):
     """Provider with a settable recall_status for indicator tests."""
 
-    def __init__(self, name: str, status: Optional[RecallStatus], *, raises: bool = False):
+    def __init__(self, name: str, status: RecallStatus | None, *, raises: bool = False):
         self._name = name
         self._status = status
         self._raises = raises
@@ -36,7 +35,7 @@ class _FakeProvider(MemoryProvider):
     def handle_tool_call(self, tool_name, args, **kwargs) -> str:
         return ""
 
-    def recall_status(self) -> Optional[RecallStatus]:
+    def recall_status(self) -> RecallStatus | None:
         if self._raises:
             raise RuntimeError("boom")
         return self._status

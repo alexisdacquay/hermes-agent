@@ -2,14 +2,14 @@
 from __future__ import annotations
 
 import builtins
-from functools import lru_cache, wraps
 import io
 import os
-from pathlib import Path
 import shutil
 import sqlite3
 import sys
 import threading
+from functools import lru_cache, wraps
+from pathlib import Path
 
 _INTERPRETER_PREFIXES = tuple({
     Path(p).resolve() for p in (sys.prefix, sys.base_prefix, sys.exec_prefix, sys.base_exec_prefix)
@@ -128,7 +128,7 @@ class HomeIOGuard:
         resolved = _normcase(os.path.realpath(absolute))
         for app in apps:
             if _within(absolute, app) or _within(resolved, app):
-                import pytest  # noqa: PLC0415
+                import pytest
                 # pytest.fail, not AssertionError: removal helpers catch Exception and would log
                 # the refusal as a warning while the test passed.
                 pytest.fail(f"TEST BUG: changing the REAL installed Hermes desktop app: {value}\n"

@@ -5,7 +5,6 @@ import time
 import pytest
 from aiohttp import WSServerHandshakeError, web
 from aiohttp.test_utils import TestClient, TestServer
-
 from gateway.browser_control_broker import (
     ControllerCancelled,
     ControllerRejected,
@@ -17,7 +16,6 @@ from gateway.platforms.api_server import (
     _browser_controller_ws_sender,
 )
 from tools.browser_extension_router import route_browser_tool
-
 
 API_KEY = "-".join(("fixture", "neutral", "api", "key", "123"))
 CONTROL_PROTOCOL = "hermes-browser-control-v1"
@@ -199,7 +197,6 @@ def test_ws_sender_treats_wait_timeout_as_in_flight_and_real_error_as_failure(mo
         def result(self, timeout=None):
             if self.error is not None:
                 raise self.error
-            return None
 
         def add_done_callback(self, callback):
             self.callbacks.append(callback)

@@ -22,7 +22,6 @@ keep accepting free text.
 from unittest.mock import patch
 
 import pytest
-
 from gateway.config import Platform, PlatformConfig
 from gateway.platforms.base import (
     BasePlatformAdapter,
@@ -30,7 +29,6 @@ from gateway.platforms.base import (
 )
 from gateway.platforms.event import MessageEvent, MessageType
 from gateway.session import SessionSource
-
 
 SESSION_KEY = "agent:main:slack:dm:D123:1111.2222"
 

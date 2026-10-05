@@ -14,7 +14,6 @@ supported vocabulary. The policy under test:
 """
 
 import pytest
-
 from agent.reasoning_effort import (
     CODEX_GPT56_EFFORTS,
     EFFORT_LADDER,

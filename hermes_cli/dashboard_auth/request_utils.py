@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Callable, Optional
+from collections.abc import Callable
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
@@ -55,10 +55,10 @@ def unreachable_response(provider_name: str) -> JSONResponse:
 
 
 def scan_session_providers(
-    provider_hint: Optional[str], call: Callable[[DashboardAuthProvider], object], *, phase: str,
+    provider_hint: str | None, call: Callable[[DashboardAuthProvider], object], *, phase: str,
     log: logging.Logger, swallow: tuple[type[BaseException], ...] = (),
-    on_swallow: Optional[Callable[[DashboardAuthProvider], None]] = None,
-    on_unreachable: Optional[Callable[[DashboardAuthProvider], None]] = None):
+    on_swallow: Callable[[DashboardAuthProvider], None] | None = None,
+    on_unreachable: Callable[[DashboardAuthProvider], None] | None = None):
     """Run ``call`` across the session providers; first non-``None`` result or ``None``.
 
     The hinted provider goes first (stable sort; a stale/unknown hint leaves registration order
@@ -70,7 +70,7 @@ def scan_session_providers(
     providers = list_session_providers()
     if provider_hint:
         providers.sort(key=lambda provider: provider.name != provider_hint)
-    unreachable: Optional[str] = None
+    unreachable: str | None = None
     for provider in providers:
         try:
             result = call(provider)

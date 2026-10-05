@@ -14,13 +14,16 @@ import logging
 import os
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Optional
+from typing import Any
 
 from agent.codex_responses_adapter import _format_responses_error
 from agent.redact import redact_sensitive_text
 from agent.transports.codex_app_server import (
-    CodexAppServerClient, CodexAppServerError, CodexAppServerTransportError,
+    CodexAppServerClient,
+    CodexAppServerError,
+    CodexAppServerTransportError,
 )
 from agent.transports.codex_event_projector import CodexEventProjector, ProjectionResult
 from agent.transports.hermes_tools_mcp_server import HERMES_TOOLS_MCP_SERVER_NAME
@@ -47,13 +50,13 @@ class TurnResult:
     projected_messages: list[dict] = field(default_factory=list)
     tool_iterations: int = 0
     interrupted: bool = False
-    error: Optional[str] = None  # non-recoverable turn error
-    turn_id: Optional[str] = None
-    thread_id: Optional[str] = None
+    error: str | None = None  # non-recoverable turn error
+    turn_id: str | None = None
+    thread_id: str | None = None
     # Exact turn/start text distinguishes the input echo from a new user event.
-    submitted_user_text: Optional[str] = None
-    token_usage_last: Optional[dict[str, Any]] = None
-    model_context_window: Optional[int] = None
+    submitted_user_text: str | None = None
+    token_usage_last: dict[str, Any] | None = None
+    model_context_window: int | None = None
     compacted: bool = False
     # Codex likely wedged (turn timeout, dead subprocess, token refresh failure): caller respawns next turn.
     should_retire: bool = False
@@ -74,7 +77,7 @@ def _first_scope_id(*lookups: tuple[Any, str, str]) -> Any:
     return None
 
 
-def _notification_scope_ids(note: dict) -> tuple[Optional[str], Optional[str]]:
+def _notification_scope_ids(note: dict) -> tuple[str | None, str | None]:
     """Extract the thread/turn identity carried by a notification (top-level, then turn/item)."""
     params = (note.get("params") or {}) if isinstance(note, dict) else None
     if not isinstance(params, dict):
@@ -86,7 +89,7 @@ def _notification_scope_ids(note: dict) -> tuple[Optional[str], Optional[str]]:
     )
 
 
-def _notification_belongs_to_turn(note: dict, *, thread_id: Optional[str], turn_id: Optional[str]) -> bool:
+def _notification_belongs_to_turn(note: dict, *, thread_id: str | None, turn_id: str | None) -> bool:
     """Whether a multiplexed notification belongs to this turn.
 
     One connection can carry parent and hosted subagent threads; an explicitly
@@ -107,7 +110,7 @@ _IMAGE_PART_TYPES = frozenset({"image", "image_url", "input_image"})
 _IMAGE_URL_SCHEMES = ("data:", "http://", "https://")
 
 
-def _image_part_to_turn_input(item: dict) -> Optional[dict]:
+def _image_part_to_turn_input(item: dict) -> dict | None:
     """Map one Hermes image part onto the app-server ``UserInput`` shape.
 
     ``turn/start`` accepts ``{type: image, url}`` (data:/http URLs) and ``{type: localImage, path}``
@@ -121,8 +124,7 @@ def _image_part_to_turn_input(item: dict) -> Optional[dict]:
         return None
     if ref.startswith(_IMAGE_URL_SCHEMES):
         return {"type": "image", "url": ref}
-    if ref.startswith("file://"):
-        ref = ref[len("file://"):]
+    ref = ref.removeprefix("file://")
     return {"type": "localImage", "path": ref}
 
 
@@ -174,7 +176,7 @@ _OAUTH_REAUTH_HINT = (
 )
 
 
-def _classify_oauth_failure(primary: str = "", *, stderr: str = "") -> Optional[str]:
+def _classify_oauth_failure(primary: str = "", *, stderr: str = "") -> str | None:
     """Re-auth hint when ``primary`` (the operation's own error) or ``stderr`` proves the codex login is broken."""
     primary_l = (primary or "").lower()
     stderr_l = (stderr or "").lower()
@@ -200,7 +202,7 @@ class CodexThreadResumeError(CodexAppServerError):
         self.thread_id = thread_id
 
 
-def _extract_thread_id(result: dict) -> Optional[str]:
+def _extract_thread_id(result: dict) -> str | None:
     """Different codex versions serialize the id under thread.id / sessionId / threadId."""
     thread_obj = result.get("thread") or {}
     return thread_obj.get("id") or thread_obj.get("sessionId") or result.get("sessionId") or result.get("threadId")
@@ -210,15 +212,15 @@ class CodexAppServerSession:
     """One Codex thread per Hermes session, lifetime owned by AIAgent. Not thread-safe: one caller at a time."""
 
     def __init__(
-        self, *, cwd: Optional[str] = None, codex_bin: str = "codex",
-        codex_home: Optional[str] = None, permission_profile: Optional[str] = None,
-        approval_callback: Optional[Callable[..., str]] = None,
-        on_event: Optional[Callable[[dict], None]] = None,
-        request_routing: Optional[_ServerRequestRouting] = None,
-        client_factory: Optional[Callable[..., CodexAppServerClient]] = None,
-        model: Optional[str] = None, model_provider: Optional[str] = None,
-        developer_instructions: Optional[str] = None, resume_thread_id: Optional[str] = None,
-        history_seed: Optional[str] = None,
+        self, *, cwd: str | None = None, codex_bin: str = "codex",
+        codex_home: str | None = None, permission_profile: str | None = None,
+        approval_callback: Callable[..., str] | None = None,
+        on_event: Callable[[dict], None] | None = None,
+        request_routing: _ServerRequestRouting | None = None,
+        client_factory: Callable[..., CodexAppServerClient] | None = None,
+        model: str | None = None, model_provider: str | None = None,
+        developer_instructions: str | None = None, resume_thread_id: str | None = None,
+        history_seed: str | None = None,
     ) -> None:
         self._cwd = cwd or os.getcwd()
         self._codex_bin = codex_bin
@@ -249,10 +251,10 @@ class CodexAppServerSession:
         self._routing = request_routing or _ServerRequestRouting()
         self._client_factory = client_factory or CodexAppServerClient
 
-        self._client: Optional[CodexAppServerClient] = None
-        self._thread_id: Optional[str] = None
+        self._client: CodexAppServerClient | None = None
+        self._thread_id: str | None = None
         self._interrupt_event = threading.Event()
-        self._active_turn_id: Optional[str] = None
+        self._active_turn_id: str | None = None
         self._active_turn_lock = threading.Lock()
         # In-progress fileChange items by id (item/started -> item/completed):
         # approval params don't carry the changeset, so this feeds the prompt summary.
@@ -392,7 +394,7 @@ class CodexAppServerSession:
         result.thread_id = self._thread_id
         return True
 
-    def _request_for(self, result: TurnResult, method: str, params: dict, label: str) -> Optional[dict]:
+    def _request_for(self, result: TurnResult, method: str, params: dict, label: str) -> dict | None:
         """Issue ``method``; on failure fill ``result.error`` and return None. A timeout always retires."""
         try:
             return self._client.request(method, params, timeout=10)
@@ -405,7 +407,7 @@ class CodexAppServerSession:
             self._retire(result, hint or self._format_error_with_stderr(f"{label} timed out", exc))
         return None
 
-    def _subprocess_died(self, result: TurnResult, client: Optional[CodexAppServerClient]) -> bool:
+    def _subprocess_died(self, result: TurnResult, client: CodexAppServerClient | None) -> bool:
         """Bail out early (rather than waiting on the deadline) when codex exited or close() ran.
 
         ``client`` is the loop's snapshot: close() on another thread nulls ``self._client``
@@ -452,8 +454,8 @@ class CodexAppServerSession:
         return projection, aborted
 
     def run_turn(
-        self, user_input: Any, *, model: Optional[str] = None, reasoning_effort: Optional[str] = None,
-        service_tier: Optional[str] = None, turn_timeout: float = 600.0,
+        self, user_input: Any, *, model: str | None = None, reasoning_effort: str | None = None,
+        service_tier: str | None = None, turn_timeout: float = 600.0,
         notification_poll_timeout: float = 0.25, post_tool_quiet_timeout: float = 90.0,
     ) -> TurnResult:
         """Send a user message and block until turn/completed, bridging approvals and projecting items.
@@ -503,7 +505,7 @@ class CodexAppServerSession:
             self._active_turn_id = result.turn_id
         # Post-tool quiet timer: armed on each tool completion, cleared by any other activity.
         # Observability only — it never interrupts or retires (see run_turn docstring).
-        last_tool_completion_at: Optional[float] = None
+        last_tool_completion_at: float | None = None
 
         def warn_if_quiet() -> bool:
             nonlocal last_tool_completion_at
@@ -564,8 +566,8 @@ class CodexAppServerSession:
     def _drive_turn(
         self, result: TurnResult, *, turn_timeout: float, notification_poll_timeout: float,
         timeout_label: str, on_server_request: Callable[[dict], bool],
-        on_note: Callable[[dict, str], bool], before_poll: Optional[Callable[[], bool]] = None,
-        pre_scope_filter: Optional[Callable[[dict, str], bool]] = None,
+        on_note: Callable[[dict, str], bool], before_poll: Callable[[], bool] | None = None,
+        pre_scope_filter: Callable[[dict, str], bool] | None = None,
         accept_final_text_at_deadline: bool = False,
     ) -> None:
         """Shared poll loop for run_turn / compact_thread until turn/completed or deadline.
@@ -684,7 +686,7 @@ class CodexAppServerSession:
         )
         return result
 
-    def _issue_interrupt(self, turn_id: Optional[str]) -> None:
+    def _issue_interrupt(self, turn_id: str | None) -> None:
         client = self._client
         if client is None or self._thread_id is None or turn_id is None:
             return

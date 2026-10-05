@@ -9,13 +9,11 @@ from __future__ import annotations
 import json
 from unittest import mock
 
-import pytest
 import hermes_yaml as yaml
-
+import pytest
 from hermes_cli.plugin_packs import (
     PackError,
     ResolvedPackPlugin,
-    _sanitized_entry_config as real_sanitized_entry_config,
     cmd_pack_install,
     export_pack,
     install_pack_plugins,
@@ -23,6 +21,9 @@ from hermes_cli.plugin_packs import (
     parse_pack,
     resolve_pack_plugins,
     validate_config_seed,
+)
+from hermes_cli.plugin_packs import (
+    _sanitized_entry_config as real_sanitized_entry_config,
 )
 
 SHA_A = "a" * 40
@@ -381,9 +382,8 @@ def test_pack_install_exits_nonzero_on_partial_failure(tmp_path, monkeypatch):
     monkeypatch.setattr("sys.stdout", mock.MagicMock(isatty=lambda: True))
     with mock.patch.multiple("hermes_cli.plugins_cmd", **patches), mock.patch(
         "rich.console.Console", return_value=fake_console
-    ):
-        with pytest.raises(SystemExit) as exc:
-            cmd_pack_install(str(pack_file))
+    ), pytest.raises(SystemExit) as exc:
+        cmd_pack_install(str(pack_file))
     assert exc.value.code == 1
 
 

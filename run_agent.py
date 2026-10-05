@@ -25,21 +25,22 @@ if "hermes_cli.main" not in sys.modules:
 
 import json
 import logging
+
 logger = logging.getLogger(__name__)
 import os
 import re
-import time
 import threading
 import uuid
 import warnings
-from typing import List, Dict, Any, Optional, Callable
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from hermes_constants import get_hermes_home
 
 
-def _launch_cwd_for_session(source: str) -> Optional[str]:
+def _launch_cwd_for_session(source: str) -> str | None:
     """cwd to stamp on a new session row (``hermes -c`` / ``--resume``), or None.
 
     Only local CLI sessions record one: gateway/cron/remote backends (non-"local" ``TERMINAL_ENV``) have no
@@ -66,7 +67,7 @@ ONESHOT_SOURCE = "oneshot"
 CLI_FAMILY_SOURCES = frozenset({"cli", ONESHOT_SOURCE})
 
 
-def _session_source_for_agent(platform: Optional[str]) -> str:
+def _session_source_for_agent(platform: str | None) -> str:
     try:
         from gateway.session_context import get_session_env
     except Exception:
@@ -81,7 +82,7 @@ def _session_source_for_agent(platform: Optional[str]) -> str:
     return source or platform or "cli"
 
 
-def _gateway_origin_json(agent: "AIAgent") -> Optional[str]:
+def _gateway_origin_json(agent: AIAgent) -> str | None:
     """Gateway routing ``origin_json`` for a session row; None when the agent carries no gateway identity.
 
     Mirrors ``SessionSource.to_dict()`` so state.db consumers see the same fields ``record_gateway_session_peer`` writes.
@@ -91,7 +92,7 @@ def _gateway_origin_json(agent: "AIAgent") -> Optional[str]:
     user_id = getattr(agent, "_user_id", None)
     if not (chat_id or session_key or user_id):
         return None
-    origin: Dict[str, Any] = {
+    origin: dict[str, Any] = {
         "platform": getattr(agent, "platform", None) or "", "chat_id": chat_id,
         "chat_name": getattr(agent, "_chat_name", None), "chat_type": getattr(agent, "_chat_type", None) or "dm",
         "user_id": user_id, "user_name": getattr(agent, "_user_name", None), "thread_id": getattr(agent, "_thread_id", None),
@@ -127,44 +128,62 @@ if not _loaded_env_paths:
     logger.info("No .env file found. Using system environment variables.")
 
 
-from model_tools import get_toolset_for_tool
-from tools.terminal_tool_lifecycle import cleanup_vm, get_active_env
-from tools.interrupt import set_interrupt as _set_interrupt
-from tools.browser_tool_lifecycle import cleanup_browser
-from tools.connectors.turn import agent_connection_surface, scoped_connection_surface
-
-from agent.memory_provider import is_trivial_prompt
-from agent.client_lifecycle import ClientLifecycleMixin
-from agent.stream_delivery import StreamDeliveryMixin
-from agent.status_output import StatusOutputMixin
-from agent.api_request_hooks import ApiRequestHooksMixin
-from agent.api_error_summary import ApiErrorSummaryMixin, is_provider_stream_parse_error
-from agent.interrupt_control import InterruptControlMixin
-from agent.turn_explainers import TurnExplainersMixin
 from agent.activity_tracking import ActivityTrackingMixin
-from agent.rate_limit_credits import RateLimitCreditsMixin
-from agent.session_persistence import SessionPersistenceMixin
-from agent.compression_facade import CompressionFacadeMixin
-from agent.turn_facade import TurnFacadeMixin
-from agent.vision_message_prep import VisionMessagePrepMixin
-from agent.reasoning_params import ReasoningParamsMixin
-from agent.lazy_forward import forward as _forward, forward_static as _forward_static
-from agent.session_activity import ActivityProvenance
-from agent.model_metadata import is_local_endpoint
-from agent.message_sanitization import (
-    coalesce_tool_call_id as _sanitize_coalesce_tool_call_id,
-    deterministic_call_id as _codex_deterministic_call_id,
-    uniquify_tool_call_ids as _sanitize_uniquify_tool_call_ids,
-)
+from agent.api_error_summary import ApiErrorSummaryMixin, is_provider_stream_parse_error
+from agent.api_request_hooks import ApiRequestHooksMixin
+from agent.client_lifecycle import ClientLifecycleMixin
 from agent.codex_responses_adapter import (
     _derive_responses_function_call_id as _codex_derive_responses_function_call_id,
+)
+from agent.codex_responses_adapter import (
     _split_responses_tool_id as _codex_split_responses_tool_id,
+)
+from agent.codex_responses_adapter import (
     _summarize_user_message_for_log,
 )
-from agent.tool_guardrails import ToolGuardrailDecision, append_toolguard_guidance, toolguard_synthetic_result
-from hermes_cli.observability.shared_metrics_harness import record_guardrail_decision, record_guardrail_warnings
-from utils import base_url_host_matches, base_url_hostname, env_float, model_forces_max_completion_tokens
-
+from agent.compression_facade import CompressionFacadeMixin
+from agent.interrupt_control import InterruptControlMixin
+from agent.lazy_forward import forward as _forward
+from agent.lazy_forward import forward_static as _forward_static
+from agent.memory_provider import is_trivial_prompt
+from agent.message_sanitization import (
+    coalesce_tool_call_id as _sanitize_coalesce_tool_call_id,
+)
+from agent.message_sanitization import (
+    deterministic_call_id as _codex_deterministic_call_id,
+)
+from agent.message_sanitization import (
+    uniquify_tool_call_ids as _sanitize_uniquify_tool_call_ids,
+)
+from agent.model_metadata import is_local_endpoint
+from agent.rate_limit_credits import RateLimitCreditsMixin
+from agent.reasoning_params import ReasoningParamsMixin
+from agent.session_activity import ActivityProvenance
+from agent.session_persistence import SessionPersistenceMixin
+from agent.status_output import StatusOutputMixin
+from agent.stream_delivery import StreamDeliveryMixin
+from agent.tool_guardrails import (
+    ToolGuardrailDecision,
+    append_toolguard_guidance,
+    toolguard_synthetic_result,
+)
+from agent.turn_explainers import TurnExplainersMixin
+from agent.turn_facade import TurnFacadeMixin
+from agent.vision_message_prep import VisionMessagePrepMixin
+from hermes_cli.observability.shared_metrics_harness import (
+    record_guardrail_decision,
+    record_guardrail_warnings,
+)
+from model_tools import get_toolset_for_tool
+from tools.connectors.turn import agent_connection_surface, scoped_connection_surface
+from tools.interrupt import set_interrupt as _set_interrupt
+from tools.terminal_tool_lifecycle import get_active_env
+from utils import (
+    base_url_host_matches,
+    base_url_hostname,
+    env_float,
+    model_forces_max_completion_tokens,
+)
 
 _MAX_TOOL_WORKERS = 8
 
@@ -191,12 +210,12 @@ def _call_engine_hook(engine: Any, hook: str, *args, **kwargs) -> None:
         logger.debug("context engine %s during transition: %s", hook, exc)
 
 
-def _positive_int(value: Any) -> Optional[int]:
+def _positive_int(value: Any) -> int | None:
     """``value`` when it is a real positive int (bools excluded), else None."""
     return value if isinstance(value, int) and not isinstance(value, bool) and value > 0 else None
 
 
-def _review_should_defer(agent: Any, task_cfg: Optional[Dict[str, Any]]) -> bool:
+def _review_should_defer(agent: Any, task_cfg: dict[str, Any] | None) -> bool:
     """True when an automatic background review targets the managed local runtime under ``defer: auto``."""
     from agent.review_idle_queue import defer_mode, review_targets_managed_local
     return defer_mode(task_cfg) == "auto" and review_targets_managed_local(agent, task_cfg)
@@ -206,7 +225,7 @@ def _review_queue_key(agent: Any) -> str:
     return str(getattr(agent, "session_id", None) or id(agent))
 
 
-def _notify_context_engine_session_end(agent: Any, messages: Optional[list]) -> None:
+def _notify_context_engine_session_end(agent: Any, messages: list | None) -> None:
     """Tell the context engine the session ended (flush DAG, close DBs) at the same lifecycle moment as the
     memory manager, so per-session engine state never leaks into the next session."""
     engine = getattr(agent, "context_compressor", None)
@@ -230,12 +249,12 @@ class _StreamErrorEvent(Exception):
     Gives ``_summarize_api_error`` / the entitlement detector the familiar ``.body`` / ``.status_code`` shape.
     """
 
-    def __init__(self, message: str, *, code: Optional[str] = None, param: Optional[str] = None,
-                 status_code: Optional[int] = None) -> None:
+    def __init__(self, message: str, *, code: str | None = None, param: str | None = None,
+                 status_code: int | None = None) -> None:
         super().__init__(message)
         self.message, self.code, self.param, self.status_code = message, code, param, status_code
         # OpenAI SDK-shaped body so _extract_api_error_context / _summarize_api_error / classify_api_error pick it up.
-        self.body: Dict[str, Any] = {"error": {"message": message, "code": code, "param": param, "type": "error"}}
+        self.body: dict[str, Any] = {"error": {"message": message, "code": code, "param": param, "type": "error"}}
 
 
 class AIAgent(
@@ -267,13 +286,13 @@ class AIAgent(
         model: str = "",
         max_iterations: int = sys.maxsize,  # unlimited tool-calling iterations by default (shared with subagents)
         tool_delay: float = None,  # deprecated: accepted for compatibility, ignored
-        enabled_toolsets: List[str] = None, disabled_toolsets: List[str] = None,
+        enabled_toolsets: list[str] = None, disabled_toolsets: list[str] = None,
         save_trajectories: bool = False, verbose_logging: bool = False, quiet_mode: bool = False,
         tool_progress_mode: str = "all", ephemeral_system_prompt: str = None,
         log_prefix_chars: int = 100, log_prefix: str = "",
-        providers_allowed: List[str] = None, providers_ignored: List[str] = None, providers_order: List[str] = None,
+        providers_allowed: list[str] = None, providers_ignored: list[str] = None, providers_order: list[str] = None,
         provider_sort: str = None, provider_require_parameters: bool = False, provider_data_collection: str = None,
-        openrouter_min_coding_score: Optional[float] = None,
+        openrouter_min_coding_score: float | None = None,
         session_id: str = None,
         tool_progress_callback: callable = None, tool_start_callback: callable = None,
         tool_complete_callback: callable = None, thinking_callback: callable = None,
@@ -284,24 +303,24 @@ class AIAgent(
         stream_delta_callback: callable = None, interim_assistant_callback: callable = None,
         tool_gen_callback: callable = None, status_callback: callable = None,
         notice_callback: callable = None, notice_clear_callback: callable = None,
-        event_callback: Optional[Callable[[str, dict], None]] = None,
-        reaction_callback: Optional[Callable[[str], None]] = None,
-        max_tokens: int = None, reasoning_config: Dict[str, Any] = None, service_tier: str = None,
-        request_overrides: Dict[str, Any] = None, prefill_messages: List[Dict[str, Any]] = None,
+        event_callback: Callable[[str, dict], None] | None = None,
+        reaction_callback: Callable[[str], None] | None = None,
+        max_tokens: int = None, reasoning_config: dict[str, Any] = None, service_tier: str = None,
+        request_overrides: dict[str, Any] = None, prefill_messages: list[dict[str, Any]] = None,
         platform: str = None, user_id: str = None, user_id_alt: str = None, user_name: str = None,
         chat_id: str = None, chat_name: str = None, chat_type: str = None, thread_id: str = None,
         gateway_session_key: str = None,
         skip_context_files: bool = False, load_soul_identity: bool = False,
         skip_memory: bool = False, skip_background_review: bool = False,
         session_db=None, parent_session_id: str = None,
-        iteration_budget: "IterationBudget" = None, run_budget_seconds: Optional[float] = None,
-        fallback_model: Dict[str, Any] = None, credential_pool=None,
+        iteration_budget: IterationBudget = None, run_budget_seconds: float | None = None,
+        fallback_model: dict[str, Any] = None, credential_pool=None,
         checkpoints_enabled: bool = False, checkpoint_max_snapshots: int = 20,
         checkpoint_max_total_size_mb: int = 500, checkpoint_max_file_size_mb: int = 10,
         pass_session_id: bool = False, requested_provider: str = None,
-        capabilities: Dict[str, bool] | None = None, cwd: str | None = None,
+        capabilities: dict[str, bool] | None = None, cwd: str | None = None,
         side_agent: bool = False, memory_manager=None,
-        tool_result_metadata_callback: Optional[Callable[..., dict]] = None,
+        tool_result_metadata_callback: Callable[..., dict] | None = None,
     ):
         """Forwarder — see ``agent.agent_init.init_agent`` (same keyword parameters, minus ``tool_delay``)."""
         init_kwargs = {k: v for k, v in locals().items() if k not in ("self", "tool_delay")}
@@ -382,8 +401,8 @@ class AIAgent(
             logger.warning("Session DB creation failed (will retry next turn): %s", e)
 
     def _transition_context_engine_session(
-        self, *, old_session_id: Optional[str] = None, new_session_id: Optional[str] = None,
-        previous_messages: Optional[list] = None, carry_over_context: bool = False, reset_engine: bool = True,
+        self, *, old_session_id: str | None = None, new_session_id: str | None = None,
+        previous_messages: list | None = None, carry_over_context: bool = False, reset_engine: bool = True,
         **extra_context,
     ) -> None:
         """Drive the context engine's session transition: on_session_end → on_session_reset → on_session_start
@@ -410,7 +429,7 @@ class AIAgent(
         if carry_over_context and old_session_id and target_session_id:
             _call_engine_hook(engine, "carry_over_new_session_context", old_session_id, target_session_id)
 
-    def reset_session_state(self, previous_messages: Optional[list] = None, old_session_id: Optional[str] = None,
+    def reset_session_state(self, previous_messages: list | None = None, old_session_id: str | None = None,
                             carry_over_context: bool = False):
         """Reset session-scoped token/cost counters and compressor state for a fresh session.
 
@@ -460,7 +479,7 @@ class AIAgent(
                 logger.debug("context engine bind_session_state during reset: %s", exc)
 
     @staticmethod
-    def _effective_lmstudio_context_length(config_context_length: Optional[int], runtime_context_length: Any) -> Optional[int]:
+    def _effective_lmstudio_context_length(config_context_length: int | None, runtime_context_length: Any) -> int | None:
         """Return a safe context budget from explicit intent and verified runtime."""
         explicit = _positive_int(config_context_length)
         runtime = _positive_int(getattr(runtime_context_length, "context_length", runtime_context_length))
@@ -479,7 +498,7 @@ class AIAgent(
             bool(getattr(load_result, "load_attempted", False)) and getattr(load_result, "context_length", None) is None
         )
 
-    def _ensure_lmstudio_runtime_loaded(self, config_context_length: Optional[int] = None) -> Any:
+    def _ensure_lmstudio_runtime_loaded(self, config_context_length: int | None = None) -> Any:
         """Preload LM Studio unless configured to rely on JIT loading."""
         if (self.provider or "").strip().lower() != "lmstudio":
             return None
@@ -497,8 +516,8 @@ class AIAgent(
     switch_model = _forward("agent.agent_runtime_helpers", "switch_model")
 
     def _disable_codex_reasoning_replay(
-        self, messages: Optional[List[Dict[str, Any]]] = None, *, keep_replay: bool = False,
-    ) -> Dict[str, int]:
+        self, messages: list[dict[str, Any]] | None = None, *, keep_replay: bool = False,
+    ) -> dict[str, int]:
         """On HTTP 400 ``invalid_encrypted_content``: pop ``codex_reasoning_items`` from every assistant
         message and, unless ``keep_replay``, disable Responses reasoning replay. Returns
         ``{"messages", "items"}`` counts."""
@@ -537,7 +556,7 @@ class AIAgent(
             detail = detail[:217].rstrip() + "..."
         self._emit_warning(f"⚠ Auxiliary {task} failed: {detail}")
 
-    def _current_main_runtime(self) -> Dict[str, str]:
+    def _current_main_runtime(self) -> dict[str, str]:
         """Return the live main runtime for session-scoped auxiliary routing."""
         return {
             key: getattr(self, key, "") or ""
@@ -547,7 +566,7 @@ class AIAgent(
     _check_compression_model_feasibility = _forward("agent.conversation_compression", "check_compression_model_feasibility")
     _replay_compression_warning = _forward("agent.conversation_compression", "replay_compression_warning")
 
-    def _hostname_for(self, base_url: Optional[str]) -> str:
+    def _hostname_for(self, base_url: str | None) -> str:
         """Hostname of ``base_url``, or of the agent's own base URL when None."""
         if base_url is not None:
             return base_url_hostname(base_url)
@@ -602,7 +621,11 @@ class AIAgent(
         if uses_implicit_default and base_url and is_local_endpoint(base_url):
             return float("inf")
 
-        from agent.chat_completion_helpers import _high_effort_silence_floor, cap_to_run_budget, estimate_request_context_tokens
+        from agent.chat_completion_helpers import (
+            _high_effort_silence_floor,
+            cap_to_run_budget,
+            estimate_request_context_tokens,
+        )
         est_tokens = estimate_request_context_tokens(api_payload)
         timeout = max(stale_base, 240.0) if est_tokens > 100_000 else max(stale_base, 150.0) if est_tokens > 50_000 else stale_base
         explicit = self._stale_timeout_is_explicit()
@@ -622,7 +645,7 @@ class AIAgent(
         return (get_provider_stale_timeout(self.provider, self.model) is not None
                 or os.getenv("HERMES_API_CALL_STALE_TIMEOUT") is not None)
 
-    def _codex_silent_hang_hint(self, model: Optional[str] = None) -> Optional[str]:
+    def _codex_silent_hang_hint(self, model: str | None = None) -> str | None:
         """Actionable hint when the request matches a known Codex silent-reject shape (currently the ``gpt-5.5``
         family: connection accepted, no events, no error), else None. Makes the stale timeout actionable."""
         if self.api_mode != "codex_responses":
@@ -675,7 +698,7 @@ class AIAgent(
         return model.lower().rsplit("/", 1)[-1].startswith("gpt-5")  # strip vendor prefix ("openai/gpt-5.4")
 
     @staticmethod
-    def _provider_model_requires_responses_api(model: str, *, provider: Optional[str] = None) -> bool:
+    def _provider_model_requires_responses_api(model: str, *, provider: str | None = None) -> bool:
         """Return True when this provider/model pair should use Responses API."""
         from hermes_cli.providers import is_actual_route
         normalized_provider = (provider or "").strip().lower()
@@ -707,7 +730,7 @@ class AIAgent(
         return {"max_tokens": value}
 
     @staticmethod
-    def _requested_output_cap_from_api_kwargs(api_kwargs: Any) -> Optional[int]:
+    def _requested_output_cap_from_api_kwargs(api_kwargs: Any) -> int | None:
         """Extract the outgoing response token cap from a prepared request."""
         if not isinstance(api_kwargs, dict):
             return None
@@ -761,7 +784,7 @@ class AIAgent(
             return True
         return provider_lower == "ollama"
 
-    def _should_treat_stop_as_truncated(self, finish_reason: str, assistant_message, messages: Optional[list] = None) -> bool:
+    def _should_treat_stop_as_truncated(self, finish_reason: str, assistant_message, messages: list | None = None) -> bool:
         """Detect conservative stop->length misreports for Ollama-hosted GLM models."""
         if finish_reason != "stop" or self.api_mode != "chat_completions" or not self._is_ollama_glm_backend():
             return False
@@ -782,11 +805,15 @@ class AIAgent(
     _cleanup_task_resources = _forward("agent.chat_completion_helpers", "cleanup_task_resources")
 
     # Background memory/skill review — prompts live in agent.background_review.
-    from agent.background_review import _MEMORY_REVIEW_PROMPT, _SKILL_REVIEW_PROMPT, _COMBINED_REVIEW_PROMPT
+    from agent.background_review import (
+        _COMBINED_REVIEW_PROMPT,
+        _MEMORY_REVIEW_PROMPT,
+        _SKILL_REVIEW_PROMPT,
+    )
     _summarize_background_review_actions = _forward_static("agent.background_review", "summarize_background_review_actions")
 
-    def _spawn_background_review(self, messages_snapshot: List[Dict], review_memory: bool = False,
-                                 review_skills: bool = False, focus: Optional[str] = None, explicit: bool = False) -> None:
+    def _spawn_background_review(self, messages_snapshot: list[dict], review_memory: bool = False,
+                                 review_skills: bool = False, focus: str | None = None, explicit: bool = False) -> None:
         """Post-turn review entry point: decide WHEN, then spawn.
 
         A review whose runtime is the MANAGED LOCAL llama-server is queued for machine idle (``defer: auto``)
@@ -817,9 +844,9 @@ class AIAgent(
             return
         self._spawn_background_review_now(**kwargs)
 
-    def _spawn_background_review_now(self, messages_snapshot: List[Dict], review_memory: bool = False,
-                                     review_skills: bool = False, focus: Optional[str] = None,
-                                     task_cfg: Optional[Dict[str, Any]] = None, _requeue_attempts: int = 0,
+    def _spawn_background_review_now(self, messages_snapshot: list[dict], review_memory: bool = False,
+                                     review_skills: bool = False, focus: str | None = None,
+                                     task_cfg: dict[str, Any] | None = None, _requeue_attempts: int = 0,
                                      explicit: bool = False) -> None:
         """Spawn the background memory/skill review thread.
 
@@ -830,7 +857,9 @@ class AIAgent(
         rather than lost.
         """
         from agent.background_review import (
-            finish_background_review_run, prepare_background_review_run, spawn_background_review_thread,
+            finish_background_review_run,
+            prepare_background_review_run,
+            spawn_background_review_thread,
         )
         from tools.thread_context import propagate_context_to_thread
 
@@ -877,7 +906,7 @@ class AIAgent(
             from agent.review_idle_queue import QUEUE
             # kwargs carries the incremented _requeue_attempts through the queue so the cap survives.
             QUEUE.enqueue(self, _review_queue_key(self), dict(kwargs))
-        except Exception:  # noqa: BLE001 — requeue is best-effort
+        except Exception:
             logger.debug("Preempted-review requeue failed", exc_info=True)
 
     _build_memory_write_metadata = _forward("agent.background_review", "build_memory_write_metadata")
@@ -1053,7 +1082,7 @@ class AIAgent(
             from hermes_state_registry import release_or_close
             release_or_close(session_db)
 
-    def _hydrate_todo_store(self, history: List[Dict[str, Any]]) -> None:
+    def _hydrate_todo_store(self, history: list[dict[str, Any]]) -> None:
         """Replay the most recent todo tool response (the gateway builds a fresh AIAgent per message). Only
         results paired with an earlier assistant Todo-tool call count — a forged bare ``role: tool`` message
         must not seed the store (GHSA-5g4g-6jrg-mw3g)."""
@@ -1072,7 +1101,7 @@ class AIAgent(
                     self._vprint(f"{self.log_prefix}📋 Restored {len(last_todo_response)} todo item(s) from history")
         _set_interrupt(False)
 
-    def _latest_todo_response(self, history: List[Dict[str, Any]]) -> Optional[tuple]:
+    def _latest_todo_response(self, history: list[dict[str, Any]]) -> tuple | None:
         """Walk history backwards for the newest paired, size-bounded todo result → ``(todos, revision)``."""
         from tools.todo_tool import MAX_TODO_RESULT_CHARS
 
@@ -1096,7 +1125,7 @@ class AIAgent(
         return None
 
     @classmethod
-    def _tool_response_matches_todo_call(cls, history: List[Dict[str, Any]], tool_index: int) -> bool:
+    def _tool_response_matches_todo_call(cls, history: list[dict[str, Any]], tool_index: int) -> bool:
         """True when the nearest prior assistant message issued a Todo-tool call (legacy aliases and the
         ``tool_call`` bridge canonicalized) with this ``tool_call_id``; a ``user``/``system`` boundary or
         missing id means unpaired → must not hydrate."""
@@ -1112,7 +1141,7 @@ class AIAgent(
         return False
 
     @classmethod
-    def _assistant_has_todo_tool_call(cls, assistant_msg: Dict[str, Any], tool_call_id: str) -> bool:
+    def _assistant_has_todo_tool_call(cls, assistant_msg: dict[str, Any], tool_call_id: str) -> bool:
         """True when the paired call resolves to the registered Todo tool."""
         from tools.todo_tool import is_todo_tool_call
 
@@ -1143,7 +1172,7 @@ class AIAgent(
     _sanitize_api_messages = _forward_static("agent.agent_runtime_helpers", "sanitize_api_messages")
 
     @staticmethod
-    def _is_thinking_only_assistant(msg: Dict[str, Any], *, drop_codex_reasoning_items: bool = True) -> bool:
+    def _is_thinking_only_assistant(msg: dict[str, Any], *, drop_codex_reasoning_items: bool = True) -> bool:
         """True if ``msg`` is an assistant turn whose only payload is reasoning (no text, no tool_calls).
 
         Providers converting reasoning to thinking blocks reject it (400 "final block cannot be thinking"), so
@@ -1365,7 +1394,8 @@ class AIAgent(
 
     def _dispatch_delegate_task(self, function_args: dict) -> str:
         """Single call site for delegate_task dispatch; new DELEGATE_TASK_SCHEMA fields are added only here."""
-        from tools.delegate_tool import _strip_model_hidden_task_fields, delegate_task as _delegate_task
+        from tools.delegate_tool import _strip_model_hidden_task_fields
+        from tools.delegate_tool import delegate_task as _delegate_task
         # Top-level MODEL delegations always run in the background (handle returned, results re-enter as
         # messages). An ORCHESTRATOR SUBAGENT (depth > 0) stays synchronous — it needs results in-turn and
         # owns no gateway session. The schema-level `background` param is intentionally ignored.
@@ -1384,7 +1414,8 @@ class AIAgent(
     def _wrap_verbose(label: str, text: str, indent: str = "     ") -> str:
         """Word-wrap verbose tool output to the terminal width (each existing line separately), continuation
         lines indented."""
-        import shutil, textwrap
+        import shutil
+        import textwrap
         wrap_width = max(40, shutil.get_terminal_size((120, 24)).columns - len(indent))
         out_lines: list[str] = []
         for raw_line in text.split("\n"):
@@ -1398,7 +1429,7 @@ class AIAgent(
     _execute_tool_calls_sequential = _forward("agent.tool_executor", "execute_tool_calls_sequential")
     _handle_max_iterations = _forward("agent.chat_completion_helpers", "handle_max_iterations")
 
-    def _conversation_root_id(self) -> Optional[str]:
+    def _conversation_root_id(self) -> str | None:
         """Session-lineage ROOT id for Portal usage attribution, so one conversation keeps a single
         ``conversation=`` tag across compression rotation; subagents resolve via ``_parent_session_id``."""
         cached = getattr(self, "_cached_conversation_root", None)
@@ -1479,7 +1510,7 @@ def _print_tool_listing() -> None:
     print(_LIST_TOOLS_USAGE)
 
 
-def _parse_toolset_arg(raw: Optional[str], label: str) -> Optional[List[str]]:
+def _parse_toolset_arg(raw: str | None, label: str) -> list[str] | None:
     """Comma-separated toolset CLI arg → list (echoed), or None when absent."""
     if not raw:
         return None
@@ -1488,7 +1519,7 @@ def _parse_toolset_arg(raw: Optional[str], label: str) -> Optional[List[str]]:
     return names
 
 
-def _save_sample_trajectory(agent: "AIAgent", result: dict, user_query: str, model: str) -> None:
+def _save_sample_trajectory(agent: AIAgent, result: dict, user_query: str, model: str) -> None:
     """``--save_sample``: write one trajectory (same format as batch_runner) to a UUID-named JSON file."""
     sample_filename = f"sample_{str(uuid.uuid4())[:8]}.json"
     entry = {

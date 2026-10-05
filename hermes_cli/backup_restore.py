@@ -17,17 +17,20 @@ import sys
 import tempfile
 import zipfile
 from pathlib import Path
-from typing import List, Optional, Tuple
 
 from hermes_state_holders import read_only_db_uri
 from utils import (
-    _preserve_file_mode, _preserve_file_owner, _restore_file_mode, _restore_file_owner, atomic_replace,
+    _preserve_file_mode,
+    _preserve_file_owner,
+    _restore_file_mode,
+    _restore_file_owner,
+    atomic_replace,
     mkstemp_beside,
 )
 
 logger = logging.getLogger(__name__)
 
-def _foreign_db_holder_pids(db_path: Path) -> Optional[List[int]]:
+def _foreign_db_holder_pids(db_path: Path) -> list[int] | None:
     """PIDs of OTHER processes holding *db_path* or its WAL/SHM open.
 
     Linux-only ``/proc/<pid>/fd`` scan (no psutil dependency), preserving the
@@ -46,7 +49,7 @@ def _foreign_db_holder_pids(db_path: Path) -> Optional[List[int]]:
 
     canonical_db = _canonical(os.fspath(db_path))
     watched = {canonical_db, canonical_db + "-wal", canonical_db + "-shm"}
-    pids: List[int] = []
+    pids: list[int] = []
     try:
         own_pid = os.getpid()
         for pid_str in os.listdir("/proc"):
@@ -73,7 +76,7 @@ def _foreign_db_holder_pids(db_path: Path) -> Optional[List[int]]:
     return pids
 
 
-def _auth_restore_target(dst: Path) -> Optional[Path]:
+def _auth_restore_target(dst: Path) -> Path | None:
     """Writable auth-store path whose lock and publish name the same underlying file.
 
     A file symlink is resolved so refresh writers and restore take the same auth.lock. A hard-linked
@@ -194,7 +197,7 @@ def _safe_restore_db(src: Path, dst: Path) -> bool:
         logger.error("Refusing SQLite restore from %s: %s", src, source_check["message"])
         return False
 
-    dst_conn: Optional[sqlite3.Connection] = None
+    dst_conn: sqlite3.Connection | None = None
     try:
         dst_conn = sqlite3.connect(str(dst))
         try:
@@ -341,7 +344,7 @@ def _detect_prefix(zf: zipfile.ZipFile) -> str:
     return ""
 
 
-def _default_new_file_mode() -> Optional[int]:
+def _default_new_file_mode() -> int | None:
     """Return the mode ``open(path, "wb")`` gives a file it has to create.
 
     ``tempfile.mkstemp`` always creates at 0600, so staging an import through a
@@ -366,7 +369,7 @@ def _extract_member_atomically(
     zf: zipfile.ZipFile,
     member: str,
     target: Path,
-    new_file_mode: Optional[int] = None,
+    new_file_mode: int | None = None,
 ) -> None:
     """Restore one zip member onto *target* with no truncation window.
 
@@ -463,7 +466,7 @@ def _extract_member_atomically(
         raise
 
 
-def _count_session_rows(path: Path) -> Optional[Tuple[int, int]]:
+def _count_session_rows(path: Path) -> tuple[int, int] | None:
     """Return ``(sessions, messages)`` stored in the session database *path*.
 
     Read-only and best effort.  ``None`` means "unknown" — a missing file, a
@@ -492,7 +495,7 @@ def _import_db_member(
     zf: zipfile.ZipFile,
     member: str,
     target: Path,
-    new_file_mode: Optional[int] = None,
+    new_file_mode: int | None = None,
 ) -> None:
     """Publish a SQLite ``.db`` member onto *target* without replacing its inode.
 

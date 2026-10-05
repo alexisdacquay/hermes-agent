@@ -23,9 +23,8 @@ import concurrent.futures
 import threading
 import time
 
-import pytest
-
 import agent.conversation_compression as cc
+import pytest
 from agent.conversation_compression import (
     CompressionCommitFence,
     run_compress_context_with_progress_timeout,
@@ -297,7 +296,7 @@ class TestF6ExecutorSaturation:
                 session_id = "SATURATED_SESSION"
                 _compression_attempt_id = "sat-attempt"
 
-                class context_compressor:  # noqa: D106 — minimal stub
+                class context_compressor:
                     _last_compression_telemetry = None
                     _last_summary_fallback_used = False
                     _last_aux_model_failure_model = None
@@ -381,9 +380,9 @@ class TestF6ExecutorSaturation:
         not run and the transcript must come back unchanged.
         """
         import os
+        import tempfile
         from pathlib import Path
         from unittest.mock import MagicMock, patch
-        import tempfile
 
         from hermes_state import SessionDB
 

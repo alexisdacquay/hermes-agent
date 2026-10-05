@@ -8,7 +8,6 @@ decides it. The secret scope bound around the env build is what supplies B's OWN
 dispatcher's declared ``terminal.env_passthrough`` names.
 """
 import pytest
-
 from hermes_cli import kanban_db_dispatch
 from tools.terminal_scope import get_terminal_scope
 

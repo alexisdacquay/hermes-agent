@@ -6,14 +6,12 @@ exercise the dispatch site live in test_slash_access_dispatch.py.
 from __future__ import annotations
 
 import pytest
-
 from gateway.config import GatewayConfig, Platform, PlatformConfig
 from gateway.session import SessionSource
 from gateway.slash_access import (
     policy_for_source,
     policy_from_extra,
 )
-
 
 # ---------------------------------------------------------------------------
 # policy_from_extra — input normalization + scope resolution

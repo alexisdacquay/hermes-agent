@@ -8,23 +8,31 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import httpx
-
-from plugins.web._common import BaseWebSearchProvider, keyless_extract, keyless_search, search_fail, search_ok, setup_schema
 from tools import managed_tool_gateway as _gateway
 from tools import tool_backend_helpers as _backend_helpers
 from tools.url_safety import is_safe_url
+
 # Module-level (cheap import) so tests can monkeypatch the policy gate on this module.
 from tools.website_policy import check_website_access
+
+from plugins.web._common import (
+    BaseWebSearchProvider,
+    keyless_extract,
+    keyless_search,
+    search_fail,
+    search_ok,
+    setup_schema,
+)
 
 logger = logging.getLogger(__name__)
 
 _FIRECRAWL_CLOUD_API_URL = "https://api.firecrawl.dev"
 
 # The SDK costs ~200ms of imports on a cold CLI; defer to first use (tests patch ``Firecrawl`` here).
-_FIRECRAWL_CLS_CACHE: Optional[type] = None
+_FIRECRAWL_CLS_CACHE: type | None = None
 
 
 def _load_firecrawl_cls() -> type:
@@ -73,7 +81,7 @@ def _env(name: str) -> str:
     return (get_env_value(name) or "").strip()
 
 
-def _get_direct_firecrawl_config() -> Optional[tuple]:
+def _get_direct_firecrawl_config() -> tuple | None:
     """Direct Firecrawl ``(mode, kwargs, cache_key)`` or None. ``mode`` is ``"sdk"`` (keyed / self-hosted) or
     ``"keyless"`` (explicit selection + no credentials → anonymous public cloud; the explicit selection is
     required so an unconfigured install never silently routes to it)."""
@@ -97,6 +105,7 @@ def _use_keyless_ring() -> bool:
     if _env("FIRECRAWL_API_KEY") or _env("FIRECRAWL_API_URL"):
         return False
     from tools.tool_backend_helpers import NOUS_MANAGED_PROVIDER, read_selection
+
     from plugins.web.keyless_mcp import use_keyless
     # Both probes are optional layers: a failing probe never blocks the ring.
     for probe in (lambda: read_selection("web") == NOUS_MANAGED_PROVIDER, lambda: _is_tool_gateway_ready() and not _is_explicit_firecrawl_selection()):
@@ -115,12 +124,12 @@ class _KeylessFirecrawlClient:
     def __init__(self, api_url: str = _FIRECRAWL_CLOUD_API_URL):
         self.api_url = api_url.rstrip("/")
 
-    def _post(self, path: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+    def _post(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
         response = httpx.post(f"{self.api_url}{path}", json=payload, headers={"Content-Type": "application/json"}, timeout=60.0)
         response.raise_for_status()
         return response.json()
 
-    search = lambda self, *, query, limit=5: self._post("/v2/search", {"query": query, "limit": limit})  # noqa: E731
+    search = lambda self, *, query, limit=5: self._post("/v2/search", {"query": query, "limit": limit})
     def scrape(self, *, url, formats, timeout=None):
         # _scrape_one passes the SDK's server-side ``timeout`` (ms); the v2 REST payload takes the same field.
         payload = {"url": url, "formats": formats}
@@ -158,7 +167,11 @@ def _get_firecrawl_client() -> Any:
     managed fallback billed to Nous); never-configured → direct when present, else managed. Raises ValueError
     when the resolved path is unusable."""
     wt = _wt()
-    from tools.tool_backend_helpers import NOUS_MANAGED_PROVIDER, read_selection, selection_error
+    from tools.tool_backend_helpers import (
+        NOUS_MANAGED_PROVIDER,
+        read_selection,
+        selection_error,
+    )
     selected = read_selection("web")
     direct_config = _get_direct_firecrawl_config()
 
@@ -215,11 +228,11 @@ def _to_plain_object(value: Any) -> Any:
     return value
 
 
-def _normalize_result_list(values: Any) -> List[Dict[str, Any]]:
+def _normalize_result_list(values: Any) -> list[dict[str, Any]]:
     return [p for p in map(_to_plain_object, values) if isinstance(p, dict)] if isinstance(values, list) else []
 
 
-def _extract_web_search_results(response: Any) -> List[Dict[str, Any]]:
+def _extract_web_search_results(response: Any) -> list[dict[str, Any]]:
     """Search results across SDK/direct/gateway response shapes."""
     plain = _to_plain_object(response)
     if isinstance(plain, dict):
@@ -236,14 +249,14 @@ def _extract_web_search_results(response: Any) -> List[Dict[str, Any]]:
     return []
 
 
-def _extract_scrape_payload(scrape_result: Any) -> Dict[str, Any]:
+def _extract_scrape_payload(scrape_result: Any) -> dict[str, Any]:
     plain = _to_plain_object(scrape_result)
     if not isinstance(plain, dict):
         return {}
     return plain["data"] if isinstance(plain.get("data"), dict) else plain
 
 
-def _error_entry(url: str, error: str, *, title: str = "", raw: bool = False, blocked: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+def _error_entry(url: str, error: str, *, title: str = "", raw: bool = False, blocked: dict[str, Any] | None = None) -> dict[str, Any]:
     """Per-URL extract failure. ``raw`` adds ``raw_content`` (post-scrape failures carry
     it, pre-scrape ones don't); ``blocked`` adds ``blocked_by_policy``."""
     policy = {"blocked_by_policy": {k: blocked[k] for k in ("host", "rule", "source")}} if blocked else {}
@@ -254,7 +267,7 @@ _SCRAPE_TIMEOUT_MSG = "Scrape timed out after 60s — page may be too large or u
 _UNSAFE_REDIRECT_MSG = "Blocked: URL targets a private or internal network address"
 
 
-async def _scrape_one(url: str, formats: List[str], format: Optional[str]) -> Dict[str, Any]:
+async def _scrape_one(url: str, formats: list[str], format: str | None) -> dict[str, Any]:
     """Scrape one URL (60s timeout) and re-check SSRF + website policy against the
     post-redirect URL. Never raises for scrape errors; returns an error entry instead."""
     if blocked := check_website_access(url):
@@ -276,7 +289,7 @@ async def _scrape_one(url: str, formats: List[str], format: Optional[str]) -> Di
                 ),
                 timeout=60,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning("Firecrawl scrape timed out for %s", url)
             return _error_entry(url, _SCRAPE_TIMEOUT_MSG)
         payload = _extract_scrape_payload(scrape_result)
@@ -310,7 +323,7 @@ class FirecrawlWebSearchProvider(BaseWebSearchProvider):
     def is_available(self) -> bool:
         return check_firecrawl_api_key()
 
-    def search(self, query: str, limit: int = 5) -> Dict[str, Any]:
+    def search(self, query: str, limit: int = 5) -> dict[str, Any]:
         """Pre-flight errors (ValueError / ImportError) propagate so the dispatcher emits
         the legacy ``tool_error`` envelope; in-flight errors become failure dicts."""
         from tools.interrupt import is_interrupted
@@ -328,7 +341,7 @@ class FirecrawlWebSearchProvider(BaseWebSearchProvider):
             logger.warning("Firecrawl search error: %s", exc)
             return search_fail(f"Firecrawl search failed: {exc}")
 
-    async def extract(self, urls: List[str], **kwargs: Any) -> List[Dict[str, Any]]:
+    async def extract(self, urls: list[str], **kwargs: Any) -> list[dict[str, Any]]:
         """Per-URL scrape; failures become items with an ``error`` field.
         ``format``: "markdown" | "html" | both (markdown preferred)."""
         from tools.interrupt import is_interrupted as _is_interrupted
@@ -344,7 +357,7 @@ class FirecrawlWebSearchProvider(BaseWebSearchProvider):
         ]
 
 
-    def get_setup_schema(self) -> Dict[str, Any]:
+    def get_setup_schema(self) -> dict[str, Any]:
         return setup_schema(
             "Firecrawl", "keyless/paid · optional gateway",
             "Full search + extract; supports keyless cloud, direct API, and Nous tool-gateway routing.",

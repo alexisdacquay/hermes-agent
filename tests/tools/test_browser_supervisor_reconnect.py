@@ -7,7 +7,6 @@ import asyncio
 
 import pytest
 import websockets
-
 from tools import browser_supervisor as bs
 
 

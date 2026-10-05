@@ -9,8 +9,13 @@ from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
 from agent.i18n import t
+
 from hermes_cli.commands import (
-    COMMAND_REGISTRY, _is_gateway_available, _iter_plugin_command_entries, _resolve_config_gates)
+    COMMAND_REGISTRY,
+    _is_gateway_available,
+    _iter_plugin_command_entries,
+    _resolve_config_gates,
+)
 
 # Logger name parity with the origin module (tests capture "hermes_cli.commands").
 logger = logging.getLogger("hermes_cli.commands")
@@ -197,7 +202,10 @@ def _iter_gateway_skills(platform: str):
 
     from agent.skill_commands import get_skill_commands
     from agent.skill_utils import (
-        get_disabled_skill_names, get_external_skills_dirs, get_project_skills_dirs)
+        get_disabled_skill_names,
+        get_external_skills_dirs,
+        get_project_skills_dirs,
+    )
     from tools.skills_tool import SKILLS_DIR
 
     try:
@@ -232,7 +240,7 @@ def _iter_gateway_skills(platform: str):
 
 def _collect_gateway_skill_entries(
     platform: str, max_slots: int | None, reserved_names: set[str], desc_limit: int = 100,
-    sanitize_name: "Callable[[str], str] | None" = None,
+    sanitize_name: Callable[[str], str] | None = None,
 ) -> tuple[list[tuple[str, str, str, str]], int]:
     """Collect plugin + skill entries for a gateway platform.
 

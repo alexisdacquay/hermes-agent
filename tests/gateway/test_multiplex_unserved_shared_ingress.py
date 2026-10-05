@@ -9,7 +9,6 @@ from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
-
 from gateway import run as gateway_run
 from gateway.config import GatewayConfig, Platform, PlatformConfig
 from gateway.run import GatewayRunner
@@ -36,7 +35,7 @@ def _install_secondary(monkeypatch, runner, stamps):
         yield
 
     monkeypatch.setattr(gateway_run, "_profile_runtime_scope", fake_scope)
-    monkeypatch.setattr(gateway_run, "_load_gateway_config", lambda: {})
+    monkeypatch.setattr(gateway_run, "_load_gateway_config", dict)
     monkeypatch.setattr("hermes_cli.env_loader.hydrate_profile_secret_sources", lambda home: {})
     monkeypatch.setattr("hermes_cli.plugins.discover_plugins", lambda: None)
     monkeypatch.setattr(
@@ -106,7 +105,8 @@ async def test_boot_replays_the_launch_ledger_before_secondaries_and_watchers(mo
     """The gateway's idle notification loop (``_async_delegation_watcher``, spawned after this phase)
     reads ``completion_queue`` directly, so the launch profile's durable completions must already
     be queued by the boot hook — in the LAUNCH scope, before any secondary is bound (#123265)."""
-    from tools import async_delegation, process_registry as pr_mod
+    from tools import async_delegation
+    from tools import process_registry as pr_mod
     monkeypatch.setenv("HERMES_HOME", str(tmp_path / "launch"))
     monkeypatch.setattr(pr_mod.process_registry, "_completions_restored", False)
     order = []
@@ -119,6 +119,6 @@ async def test_boot_replays_the_launch_ledger_before_secondaries_and_watchers(mo
         return 0
 
     runner._start_secondary_profile_adapters = secondaries
-    runner._unserved_shared_ingress_warnings = lambda: []
+    runner._unserved_shared_ingress_warnings = list
     assert await runner._start_secondary_profiles(0, []) == (False, 0)
     assert order == [("restore", tmp_path / "launch" / "state.db"), ("secondaries", None)]

@@ -3,17 +3,16 @@
 import asyncio
 import threading
 import time
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from agent.auxiliary_client import (
-    call_llm,
-    async_call_llm,
-    _acquire_sync_aux_semaphore,
     _acquire_async_aux_semaphore,
+    _acquire_sync_aux_semaphore,
     _get_task_max_concurrency,
     _reset_aux_semaphores,
+    async_call_llm,
+    call_llm,
 )
 
 
@@ -93,8 +92,7 @@ class TestSyncCallEnforcesLimit:
             nonlocal active, max_active
             with lock:
                 active += 1
-                if active > max_active:
-                    max_active = active
+                max_active = max(max_active, active)
             try:
                 time.sleep(0.05)
             finally:
@@ -239,8 +237,7 @@ class TestAsyncCallEnforcesLimit:
         async def fake_create(**kwargs):
             nonlocal active, max_active
             active += 1
-            if active > max_active:
-                max_active = active
+            max_active = max(max_active, active)
             try:
                 await asyncio.sleep(0.05)
             finally:

@@ -4,9 +4,8 @@ from __future__ import annotations
 
 from importlib.metadata import PackageNotFoundError
 
-import pytest
-
 import pm
+import pytest
 from plugins.platforms.google_chat import oauth
 
 

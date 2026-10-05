@@ -10,7 +10,6 @@ stays silent, and a notify failure never breaks teardown.
 """
 
 import pytest
-
 from tui_gateway import server
 
 

@@ -12,8 +12,8 @@ from __future__ import annotations
 
 import os
 import time
+from collections.abc import Callable, Iterable
 from pathlib import Path
-from typing import Callable, Iterable, Optional
 
 # How often the housekeeping thread looks at the queue file between its ticks.
 DELIVERY_QUEUE_WATCH_SECONDS = 1.0
@@ -28,7 +28,7 @@ class DeliveryQueueWatch:
     stable, while a worker that enqueued during the drain still moves it again.
     """
 
-    def __init__(self, homes: Callable[[], Iterable[Optional[Path]]], drain: Callable[[], None]) -> None:
+    def __init__(self, homes: Callable[[], Iterable[Path | None]], drain: Callable[[], None]) -> None:
         self._homes = homes
         self.drain = drain
         self._served: list = list(homes())
@@ -61,7 +61,7 @@ class DeliveryQueueWatch:
         return True
 
 
-def wait_for_next_tick(stop_event, interval: float, watch: Optional[DeliveryQueueWatch], chore) -> None:
+def wait_for_next_tick(stop_event, interval: float, watch: DeliveryQueueWatch | None, chore) -> None:
     """Sleep one housekeeping interval, draining the worker queue the moment it changes."""
     if watch is None:
         stop_event.wait(timeout=interval)

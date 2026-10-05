@@ -16,10 +16,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 
-def _normalized(name: Optional[str]) -> str:
+def _normalized(name: str | None) -> str:
     if not name:
         return ""
     # Late import: ``hermes_cli.profiles`` imports gateway modules back.
@@ -41,9 +40,9 @@ class HostGatewayTopology:
     source: str
     #: Home the process was launched from (its ``gateway_state.json`` lives there); None when the
     #: rung cannot tell, which readers resolve to the default root.
-    home: Optional[Path] = None
+    home: Path | None = None
 
-    def serves(self, profile_name: Optional[str]) -> bool:
+    def serves(self, profile_name: str | None) -> bool:
         """True when this host process ticks/serves ``profile_name`` (``default`` included)."""
         wanted = _normalized(profile_name)
         return bool(wanted) and wanted in {_normalized(p) for p in self.profiles}
@@ -55,7 +54,7 @@ class HostGatewayTopology:
         return f"the host gateway (PID {self.pid}) serving profiles {roster}"
 
 
-def _from_host_record() -> Optional[HostGatewayTopology]:
+def _from_host_record() -> HostGatewayTopology | None:
     from gateway import host_rendezvous as hr
 
     record = hr.read_record(hr.ROLE_GATEWAY)  # already drops stale/PID-reused records
@@ -68,8 +67,9 @@ def _from_host_record() -> Optional[HostGatewayTopology]:
     # liveness_is_proven() would bless ANY process that happens to hold the recorded PID today.
     if record.create_time is None or not hr.liveness_is_proven(record):
         return None
-    from gateway.host_attach import launched_by_other_tenant, record_home
     from hermes_constants import get_hermes_home
+
+    from gateway.host_attach import launched_by_other_tenant, record_home
 
     # Another tenant root's gateway is a name collision, not this tenant's host process (#121352).
     if launched_by_other_tenant(record.home, get_hermes_home()):
@@ -78,10 +78,13 @@ def _from_host_record() -> Optional[HostGatewayTopology]:
                                home=record_home(record))
 
 
-def _from_served_record() -> Optional[HostGatewayTopology]:
+def _from_served_record() -> HostGatewayTopology | None:
     """A gateway started before the host record existed still publishes ``served_profiles`` into
     the default home's ``gateway_state.json``; that plus a proven-live PID is the same fact."""
-    from hermes_cli.gateway_multiplex_served import live_default_gateway_pid, recorded_served_profiles
+    from hermes_cli.gateway_multiplex_served import (
+        live_default_gateway_pid,
+        recorded_served_profiles,
+    )
 
     pid = live_default_gateway_pid()
     if pid is None:
@@ -91,7 +94,7 @@ def _from_served_record() -> Optional[HostGatewayTopology]:
     return HostGatewayTopology(pid=int(pid), profiles=tuple(roster), source="served_record")
 
 
-def host_gateway_topology() -> Optional[HostGatewayTopology]:
+def host_gateway_topology() -> HostGatewayTopology | None:
     """The one live host gateway and its served profiles, or None when no gateway owns the role."""
     for rung in (_from_host_record, _from_served_record):
         topology = rung()
@@ -100,7 +103,7 @@ def host_gateway_topology() -> Optional[HostGatewayTopology]:
     return None
 
 
-def host_gateway_serving(profile_name: Optional[str] = None) -> Optional[HostGatewayTopology]:
+def host_gateway_serving(profile_name: str | None = None) -> HostGatewayTopology | None:
     """The host gateway when it serves ``profile_name`` (default: the active profile), else None."""
     topology = host_gateway_topology()
     if topology is None:

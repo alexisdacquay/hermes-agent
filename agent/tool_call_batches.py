@@ -1,14 +1,19 @@
 """Normalize local bridge batches before persistence and per-tool execution."""
 
-from copy import deepcopy
 import json
+from copy import deepcopy
 
-from agent.message_sanitization import coalesce_tool_call_id, deterministic_call_id, uniquify_tool_call_ids
-from agent.transports.types import ToolCall
 from tools.connectors import is_connector_name
 from tools.connectors.gateway.config import MAX_CALLS_PER_DISPATCH
 from tools.tool_search_catalog import TOOL_CALL_NAME
 from tools.tool_search_validation import normalize_tool_call_entries
+
+from agent.message_sanitization import (
+    coalesce_tool_call_id,
+    deterministic_call_id,
+    uniquify_tool_call_ids,
+)
+from agent.transports.types import ToolCall
 
 
 def expand_local_tool_batches(tool_calls: list, *, provider_data: dict | None = None) -> list:

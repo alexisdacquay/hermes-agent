@@ -10,7 +10,6 @@ import os
 import socket
 
 import pytest
-
 from tools.file_tools import _special_file_kind, read_file_tool
 
 

@@ -9,11 +9,10 @@ stop any run in the same thread.
 """
 
 import pytest
-
-from gateway.run import GatewayRunner, _AGENT_PENDING_SENTINEL, _INTERRUPT_REASON_STOP
-from gateway.session import SessionSource, build_session_key
 from gateway.platforms.base import Platform
 from gateway.platforms.event import MessageEvent, MessageType
+from gateway.run import GatewayRunner
+from gateway.session import SessionSource, build_session_key
 
 
 class _FakeAgent:

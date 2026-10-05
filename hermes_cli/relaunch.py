@@ -5,11 +5,9 @@ import os
 import pathlib
 import shutil
 import sys
-from typing import Optional, Sequence
+from collections.abc import Sequence
 
-from hermes_cli._parser import (
-    PRE_ARGPARSE_INHERITED_FLAGS, build_top_level_parser
-)
+from hermes_cli._parser import PRE_ARGPARSE_INHERITED_FLAGS, build_top_level_parser
 
 
 def _build_inherited_flag_table() -> list[tuple[str, bool]]:
@@ -59,7 +57,7 @@ def _extract_inherited_flags(argv: Sequence[str]) -> list[str]:
     return flags
 
 
-def resolve_hermes_bin() -> Optional[str]:
+def resolve_hermes_bin() -> str | None:
     """Hermes entry point: ``sys.argv[0]`` if a real executable, else ``which hermes``, else ``None``
     (caller falls back to ``python -m hermes_cli.main``).
 
@@ -100,7 +98,7 @@ def resolve_hermes_bin() -> Optional[str]:
 
 
 def build_relaunch_argv(
-    extra_args: Sequence[str], *, preserve_inherited: bool = True, original_argv: Optional[Sequence[str]] = None
+    extra_args: Sequence[str], *, preserve_inherited: bool = True, original_argv: Sequence[str] | None = None
 ) -> list[str]:
     """Construct an argv list for replacing the current process with hermes."""
     bin_path = resolve_hermes_bin()
@@ -113,7 +111,7 @@ def build_relaunch_argv(
 
 
 def relaunch(
-    extra_args: Sequence[str], *, preserve_inherited: bool = True, original_argv: Optional[Sequence[str]] = None
+    extra_args: Sequence[str], *, preserve_inherited: bool = True, original_argv: Sequence[str] | None = None
 ) -> None:
     """Replace the current process with a fresh hermes invocation.
 
@@ -139,7 +137,9 @@ def relaunch(
             )
             sys.exit(1)
     else:
-        from hermes_cli.observability.shared_metrics_startup import mark_in_place_relaunch
+        from hermes_cli.observability.shared_metrics_startup import (
+            mark_in_place_relaunch,
+        )
 
         mark_in_place_relaunch()
         os.execvp(new_argv[0], new_argv)

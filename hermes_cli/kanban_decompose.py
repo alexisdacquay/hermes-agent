@@ -20,14 +20,17 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass
-from typing import Optional
 
 from hermes_cli import kanban_db as kb
-from hermes_cli.kanban_db_graph import decompose_triage_task
 from hermes_cli import kanban_db_connect as kbc
 from hermes_cli import profiles as profiles_mod
+from hermes_cli.kanban_db_graph import decompose_triage_task
 from hermes_cli.kanban_specify import (
-    _call_aux, _extract_json_blob, _load_triage_task, _task_prompt_fields, _title_body,
+    _call_aux,
+    _extract_json_blob,
+    _load_triage_task,
+    _task_prompt_fields,
+    _title_body,
 )
 from hermes_cli.kanban_specify import _profile_author as _specify_author
 
@@ -118,7 +121,7 @@ class DecomposeOutcome:
     reason: str = ""
     fanout: bool = False
     child_ids: list[str] | None = None
-    new_title: Optional[str] = None
+    new_title: str | None = None
 
 
 def _profile_author() -> str:
@@ -126,7 +129,7 @@ def _profile_author() -> str:
     return _specify_author("decomposer")
 
 
-def _resolve_profile_from_cfg(cfg: dict, key: str, *, fallback: Optional[str] = None) -> str:
+def _resolve_profile_from_cfg(cfg: dict, key: str, *, fallback: str | None = None) -> str:
     """``kanban.<key>`` if it names an existing profile, else ``fallback``
     (the root task's own assignee) if that does, else the active default
     profile — so a task is never stranded for lack of an owner.
@@ -201,7 +204,7 @@ class _Routing:
     valid_names: set[str]
 
 
-def _load_routing(*, root_assignee: Optional[str] = None) -> _Routing:
+def _load_routing(*, root_assignee: str | None = None) -> _Routing:
     from hermes_cli.config import load_config_readonly
     try:
         cfg = load_config_readonly()
@@ -303,8 +306,8 @@ def _apply_fanout(task_id: str, parsed: dict, routing: _Routing, author: str) ->
 def decompose_task(
     task_id: str,
     *,
-    author: Optional[str] = None,
-    timeout: Optional[int] = None,
+    author: str | None = None,
+    timeout: int | None = None,
 ) -> DecomposeOutcome:
     """Decompose a triage task into a graph of child tasks. Expected failures
     (not in triage, no aux client, API error, malformed/empty reply) surface
@@ -336,7 +339,7 @@ def decompose_task(
     return _apply_fanout(task_id, parsed, routing, audit_author)
 
 
-def list_triage_ids(*, tenant: Optional[str] = None) -> list[str]:
+def list_triage_ids(*, tenant: str | None = None) -> list[str]:
     """Return task ids currently in the triage column."""
     with kbc.connect_closing() as conn:
         rows = kb.list_tasks(conn, status="triage", tenant=tenant, limit=1000)

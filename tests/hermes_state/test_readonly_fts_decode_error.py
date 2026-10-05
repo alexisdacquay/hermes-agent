@@ -4,7 +4,6 @@ import sqlite3
 from pathlib import Path
 
 import pytest
-
 from hermes_state import SessionDB
 
 

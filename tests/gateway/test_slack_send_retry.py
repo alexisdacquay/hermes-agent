@@ -17,9 +17,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from gateway.config import PlatformConfig
-
 
 # ---------------------------------------------------------------------------
 # Ensure slack mocks are in place before importing the adapter
@@ -49,7 +47,6 @@ def _ensure_slack_mock():
 _ensure_slack_mock()
 
 from plugins.platforms.slack.adapter import SlackAdapter
-
 
 # ---------------------------------------------------------------------------
 # Helpers

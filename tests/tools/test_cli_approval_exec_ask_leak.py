@@ -10,20 +10,15 @@ with no Approve/Deny UI.
 from __future__ import annotations
 
 import os
-import shutil
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
-
 import tools.approval as approval_module
 from tools import approval_context
 from tools.approval import check_all_command_guards, check_execute_code_guard
 from tools.terminal_tool import set_approval_callback
-
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 

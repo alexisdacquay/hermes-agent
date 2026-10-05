@@ -11,7 +11,7 @@ import json
 import stat
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 IMAGE_PROVENANCE_PATH = Path("/etc/hermes/image-provenance.json")
 IMAGE_PROVENANCE_SCHEMA = 1
@@ -24,12 +24,12 @@ class ImageProvenance:
     schema: int
     deployment_kind: str
     manager: str
-    image: Optional[str] = None
-    version: Optional[str] = None
-    revision: Optional[str] = None
+    image: str | None = None
+    version: str | None = None
+    revision: str | None = None
     marker_path: str = ""
     valid: bool = True
-    error: Optional[str] = None
+    error: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -39,14 +39,14 @@ def _invalid(path: Path, reason: str) -> ImageProvenance:
     return ImageProvenance(IMAGE_PROVENANCE_SCHEMA, "image", "unknown", marker_path=str(path), valid=False, error=reason)
 
 
-def _optional_string(payload: dict, name: str) -> Optional[str]:
+def _optional_string(payload: dict, name: str) -> str | None:
     value = payload.get(name)
     if value is not None and not isinstance(value, str):
         raise TypeError(name)
     return (value.strip() or None) if value is not None else None
 
 
-def read_image_provenance(marker_path: Optional[Path] = None) -> Optional[ImageProvenance]:
+def read_image_provenance(marker_path: Path | None = None) -> ImageProvenance | None:
     """Read the baked marker without consulting environment or config. Never raises.
     ``marker_path`` is a dependency-injection seam for tests and alternate image builders."""
     path = IMAGE_PROVENANCE_PATH

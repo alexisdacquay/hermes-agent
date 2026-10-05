@@ -12,7 +12,6 @@ import threading
 import time
 
 import pytest
-
 from agent.interrupt_control import InterruptControlMixin
 from tools import interrupt as interrupt_mod
 from tools.process_registry import process_registry

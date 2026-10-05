@@ -7,7 +7,6 @@ sit in the launchd file, where it asserted the non-macOS branch under a faked
 from __future__ import annotations
 
 import pytest
-
 from hermes_cli.update_cmd_fleet import _warn_incomplete_gateway_fleet_restart
 
 pytestmark = pytest.mark.platforms("linux")

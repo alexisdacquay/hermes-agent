@@ -10,7 +10,6 @@ import pytest
 from agent.i18n import t
 
 
-
 def _make_cli(env_overrides=None, config_overrides=None, **kwargs):
     """Create a HermesCLI instance with minimal mocking."""
     import importlib
@@ -231,9 +230,9 @@ class TestPromptToolkitTerminalCompatibility:
         """
         import os as _os
         from unittest.mock import patch as _patch
-        from prompt_toolkit.key_binding import KeyBindings
 
         from cli import _bind_prompt_submit_keys
+        from prompt_toolkit.key_binding import KeyBindings
 
         def submit_handler(event):
             return None
@@ -284,9 +283,8 @@ class TestPromptToolkitTerminalCompatibility:
     def test_windows_leaves_ctrl_j_unbound(self):
         """On native Windows only enter submits; c-j is free for the newline
         binding added separately in the prompt setup."""
-        from prompt_toolkit.key_binding import KeyBindings
-
         from cli import _bind_prompt_submit_keys
+        from prompt_toolkit.key_binding import KeyBindings
 
         def submit_handler(event):
             return None

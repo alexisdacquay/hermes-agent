@@ -2,9 +2,9 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import subprocess
 import sys
+from pathlib import Path
 
 
 def prepare(request: dict) -> tuple[Path, dict[str, str]]:
@@ -19,7 +19,12 @@ def prepare(request: dict) -> tuple[Path, dict[str, str]]:
     publish_stage("Updating Python dependencies (PM)")
     from pm import receipt
     from pm.client import ensure_tools_for_sync, sync_venv, venv_is_current
-    from pm.environments import activation_environment, install_state_dir, runtime_facts_path
+    from pm.environments import (
+        activation_environment,
+        install_state_dir,
+        runtime_facts_path,
+    )
+
     from hermes_cli._launchers import resolve_store_python
     from hermes_cli.venv_sync import collect_superseded_generations, publish_launchers
 
@@ -51,8 +56,9 @@ def prepare(request: dict) -> tuple[Path, dict[str, str]]:
 
 
 def _record_failure(request: dict, result: Path, code: int, detail: str) -> None:
-    from hermes_cli import update_receipt
     from hermes_constants import get_hermes_home
+
+    from hermes_cli import update_receipt
 
     update_receipt.record_step("historical_takeover", False, detail)
     saved = update_receipt.finalize_pending_update_receipt(code, detail)
@@ -68,8 +74,9 @@ def main() -> int:
     if "stopped_serves" in request:
         # Historical atexit cleanup may run after the update's result is fixed.
         # It must reuse that installation, never start a second update/repair.
-        from hermes_cli._launchers import resolve_store_python
         from pm.environments import activation_environment
+
+        from hermes_cli._launchers import resolve_store_python
 
         root = Path(request["root"])
         python = resolve_store_python(root)

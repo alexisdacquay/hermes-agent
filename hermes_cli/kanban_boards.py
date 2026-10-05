@@ -6,7 +6,6 @@ Filesystem-only, so every action works before ``kanban init`` and must ignore th
 from __future__ import annotations
 
 import argparse
-from typing import Optional
 
 from hermes_cli import kanban_db as kb
 from hermes_cli import kanban_db_connect as kbc
@@ -34,7 +33,7 @@ def _board_task_counts(slug: str) -> dict[str, int]:
         return {}
 
 
-def _board_slug_arg(args: argparse.Namespace, cmd: str, *, must_exist: bool) -> tuple[Optional[str], int]:
+def _board_slug_arg(args: argparse.Namespace, cmd: str, *, must_exist: bool) -> tuple[str | None, int]:
     """Normalize ``args.slug`` for a ``boards`` subcommand; ``(slug, 0)`` or ``(None, rc)``."""
     try:
         normed = kb._normalize_board_slug(args.slug)

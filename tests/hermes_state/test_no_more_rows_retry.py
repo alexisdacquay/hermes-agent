@@ -17,7 +17,6 @@ deadline/patience loop; every other error propagates untouched.
 import sqlite3
 
 import pytest
-
 from hermes_state import SessionDB
 
 

@@ -8,7 +8,7 @@ renderer resolves refs and owns the overlay). ``desktop_ui`` toolset only.
 """
 
 import json
-from typing import Callable, Optional
+from collections.abc import Callable
 
 from tools.registry import registry, tool_error
 
@@ -19,8 +19,8 @@ WIRE = {"add": "pin", "hold": "hold", "remove": "unpin", "clear": "unpin"}
 
 
 def annotate_preview_tool(
-    action: str = "add", ref: Optional[str] = None, selector: Optional[str] = None,
-    label: Optional[str] = None, callback: Optional[Callable] = None,
+    action: str = "add", ref: str | None = None, selector: str | None = None,
+    label: str | None = None, callback: Callable | None = None,
 ) -> str:
     """Put one annotation up, take one down, or clear them all."""
     if callback is None:

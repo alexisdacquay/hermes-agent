@@ -20,11 +20,10 @@ from __future__ import annotations
 import pytest
 
 aiohttp = pytest.importorskip("aiohttp")
-from aiohttp import web  # noqa: E402
-from aiohttp.test_utils import TestClient, TestServer  # noqa: E402
-
-from gateway.config import GatewayConfig, PlatformConfig  # noqa: E402
-from gateway.platforms.api_server import (  # noqa: E402
+from aiohttp import web
+from aiohttp.test_utils import TestClient, TestServer
+from gateway.config import GatewayConfig, PlatformConfig
+from gateway.platforms.api_server import (
     APIServerAdapter,
 )
 
@@ -170,7 +169,7 @@ class TestWebhookMultiplexOffPrefixFailsClosed:
     """Same bug class in the webhook adapter's prefix resolver."""
 
     def _adapter(self, multiplex: bool):
-        from gateway.platforms.webhook import WebhookAdapter, _PROFILE_REJECTED
+        from gateway.platforms.webhook import _PROFILE_REJECTED, WebhookAdapter
 
         class _Runner:
             config = GatewayConfig(multiplex_profiles=multiplex)

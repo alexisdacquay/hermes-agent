@@ -33,8 +33,8 @@ Two subtleties this pins:
 import time
 
 import pytest
-
 from agent.context_compressor import ContextCompressor
+
 
 def _compressor(threshold_tokens: int) -> ContextCompressor:
     cc = ContextCompressor(

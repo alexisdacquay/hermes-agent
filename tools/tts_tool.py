@@ -8,22 +8,21 @@ Sibling ``tts_tool_*`` modules hold backends/delivery/lifecycle; they read the s
 here (config, provider resolution, lazy SDK importers) through ``_origin()`` at call time.
 """
 
-from pm import install_hint
 import asyncio
 import contextlib
+import copy
 import datetime
 import importlib.util
 import json
 import logging
 import os
 import re
-import tempfile
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, Dict, Any, List, Optional
-
-import copy
+from typing import Any
 
 from hermes_constants import display_hermes_home
+from pm import install_hint
 
 logger = logging.getLogger(__name__)
 
@@ -34,27 +33,42 @@ def _resolve_provider_key(env_var: str, provider_id: str) -> str:
     return resolve_provider_secret(env_var, provider_id)
 
 
-from tools.tts_command_provider import (
-    BUILTIN_TTS_PROVIDERS, _configured_command_tts_output_path, _generate_command_tts,
-    _get_command_tts_output_format, _is_command_tts_voice_compatible, _resolve_command_provider_config)
 from tools.tool_backend_helpers import NOUS_MANAGED_PROVIDER
+from tools.tts_command_provider import (
+    BUILTIN_TTS_PROVIDERS,
+    _configured_command_tts_output_path,
+    _generate_command_tts,
+    _get_command_tts_output_format,
+    _is_command_tts_voice_compatible,
+    _resolve_command_provider_config,
+)
 from tools.tts_tool_delivery import (
-    _resolve_max_text_length, _build_audio_delivery_files, _convert_to_opus, _remove_quietly,
-    _repair_ogg_container, _resolve_audio_delivery_profile, _split_text_for_tts)
-from tools.tts_tool_providers import (
-    _generate_edge_tts, _generate_elevenlabs, _generate_gemini_tts, _generate_minimax_tts,
-    _generate_mistral_tts, _generate_xai_tts, _resolve_minimax_tts_runtime)
-from tools.tts_tool_local import _generate_kittentts, _generate_neutts, _generate_piper_tts
+    _build_audio_delivery_files,
+    _convert_to_opus,
+    _remove_quietly,
+    _repair_ogg_container,
+    _resolve_audio_delivery_profile,
+    _resolve_max_text_length,
+    _split_text_for_tts,
+)
+from tools.tts_tool_openai import (
+    _generate_openai_tts,
+    _has_openai_audio_backend,
+)
 from tools.tts_tool_plugins import (
-    _dispatch_to_plugin_provider, _plugin_provider_is_available,
-    _plugin_provider_is_voice_compatible)
-from tools.tts_tool_openai import _generate_deepinfra_tts, _generate_openai_tts, _has_openai_audio_backend
-
+    _dispatch_to_plugin_provider,
+    _plugin_provider_is_available,
+    _plugin_provider_is_voice_compatible,
+)
+from tools.tts_tool_providers import (
+    _generate_edge_tts,
+    _resolve_minimax_tts_runtime,
+)
 
 _PM_FEATURE_ALIASES = {"tts.edge": "edge-tts", "tts.elevenlabs": "tts-premium", "tts.mistral": "mistral"}
 
 # --- Lazy SDK importers -- providers import only when used (headless boxes lack PortAudio etc.) ---
-def _sdk_importer(module: str, attr: Optional[str] = None, feature: Optional[str] = None) -> Callable[[], Any]:
+def _sdk_importer(module: str, attr: str | None = None, feature: str | None = None) -> Callable[[], Any]:
     """Lazy SDK importer: returns ``module`` (or ``module.attr``), raising ImportError when absent.
 
     ``feature`` names a ``pm.ensure_import`` extra to best-effort install first (users who enabled
@@ -129,7 +143,7 @@ def _default_output_dir() -> str:
     return _get_default_output_dir()
 
 
-def _load_tts_config() -> Dict[str, Any]:
+def _load_tts_config() -> dict[str, Any]:
     """Return the ``tts`` config section ({} when unavailable)."""
     try:
         from hermes_cli.config import load_config
@@ -141,7 +155,7 @@ def _load_tts_config() -> Dict[str, Any]:
     return {}
 
 
-def _get_provider(tts_config: Dict[str, Any]) -> str:
+def _get_provider(tts_config: dict[str, Any]) -> str:
     """Configured provider or the free default (inference credentials never imply consent to paid
     speech); ``nous`` is serviced by the OpenAI path through the managed openai-audio gateway."""
     provider = (tts_config.get("provider") or DEFAULT_PROVIDER).lower().strip()
@@ -167,7 +181,7 @@ _FFMPEG_OPUS_PROVIDERS = frozenset({"edge", "neutts", "minimax", "xai", "kittent
 # --- Built-in provider dispatch ---
 # provider -> (availability predicate or None, log label, generator name, "package missing" error).
 # Predicates/generator names resolve module globals at call time so test monkeypatches apply.
-_BUILTIN_DISPATCH: Dict[str, tuple] = {
+_BUILTIN_DISPATCH: dict[str, tuple] = {
     "elevenlabs": (lambda: _importable(_import_elevenlabs), "ElevenLabs", "_generate_elevenlabs",
                    "ElevenLabs provider selected but 'elevenlabs' package not installed. Run: "
                    f"{install_hint('tts-premium')}"),
@@ -196,9 +210,9 @@ def _error_json(message: str) -> str:
     return json.dumps({"success": False, "error": message}, ensure_ascii=False)
 
 
-def _run_edge_tts(text: str, file_str: str, tts_config: Dict[str, Any]) -> None:
+def _run_edge_tts(text: str, file_str: str, tts_config: dict[str, Any]) -> None:
     """Run the async Edge generator from sync code (worker thread; direct run if that fails)."""
-    run = lambda: asyncio.run(_generate_edge_tts(text, file_str, tts_config))  # noqa: E731
+    run = lambda: asyncio.run(_generate_edge_tts(text, file_str, tts_config))
     try:
         from concurrent.futures import ThreadPoolExecutor
         with ThreadPoolExecutor(max_workers=1) as pool:
@@ -225,7 +239,7 @@ def _select_builtin_engine(provider: str) -> tuple:
         "or run 'hermes setup tts' and choose NeuTTS for local synthesis.")
 
 
-def _synthesize_builtin(engine: str, text: str, file_str: str, tts_config: Dict[str, Any], instructions: Optional[str]) -> None:
+def _synthesize_builtin(engine: str, text: str, file_str: str, tts_config: dict[str, Any], instructions: str | None) -> None:
     """Run the already-selected built-in *engine*."""
     entry = _BUILTIN_DISPATCH.get(engine)
     logger.info("Generating speech with %s...", entry[1] if entry else "Edge TTS")
@@ -238,7 +252,7 @@ def _synthesize_builtin(engine: str, text: str, file_str: str, tts_config: Dict[
 
 
 def _finalize_voice_delivery(
-    file_str: str, provider: str, command_provider_config: Optional[Dict[str, Any]], want_opus: bool,
+    file_str: str, provider: str, command_provider_config: dict[str, Any] | None, want_opus: bool,
 ) -> tuple:
     """Voice-bubble eligibility (Opus-converting when needed) -> ``(path, voice_compatible)``.
 
@@ -266,7 +280,7 @@ def _finalize_voice_delivery(
 
 
 # --- Main tool function ---
-def _apply_call_overrides(tts_config: Dict[str, Any], speed: Optional[float], provider: Optional[str]):
+def _apply_call_overrides(tts_config: dict[str, Any], speed: float | None, provider: str | None):
     """Apply per-call ``speed`` (clamped, on a shallow copy so the cached config isn't mutated) and
     resolve the provider name."""
     if speed is not None:
@@ -282,7 +296,7 @@ def _session_platform() -> tuple:
 
 
 def _resolve_output_base(
-    output_path: Optional[str], provider: str, command_provider_config: Optional[Dict[str, Any]], want_opus: bool,
+    output_path: str | None, provider: str, command_provider_config: dict[str, Any] | None, want_opus: bool,
 ) -> tuple:
     """Pick the output file -> ``(Path, None)`` or ``(None, error_json)``.
 
@@ -323,7 +337,7 @@ def _resolve_output_base(
     return file_path, None
 
 
-def _media_tag(paths: List[str], voice_compatible: bool) -> str:
+def _media_tag(paths: list[str], voice_compatible: bool) -> str:
     """``MEDIA:<path>`` lines; the ``[[audio_as_voice]]`` marker asks the platform for a voice bubble."""
     media_tag = "\n".join(f"MEDIA:{path}" for path in paths)
     return f"[[audio_as_voice]]\n{media_tag}" if voice_compatible else media_tag
@@ -337,8 +351,8 @@ def _tool_failure(prefix: str, provider: str, exc: BaseException) -> str:
 
 
 def _text_to_speech_single(
-    text: str, file_str: str, *, provider: str, tts_config: Dict[str, Any],
-    command_provider_config: Optional[Dict[str, Any]], want_opus: bool, instructions: Optional[str],
+    text: str, file_str: str, *, provider: str, tts_config: dict[str, Any],
+    command_provider_config: dict[str, Any] | None, want_opus: bool, instructions: str | None,
 ) -> str:
     """Synthesize one provider-safe chunk into *file_str*; returns the result envelope.
 
@@ -389,14 +403,14 @@ class _ChunkFailed(Exception):
     """One chunk's synthesis returned an error envelope; message is the final tool error text."""
 
 
-def _synthesize_chunks(chunks: List[str], base_path: Path, generated_artifacts: set, **single_kwargs) -> tuple:
+def _synthesize_chunks(chunks: list[str], base_path: Path, generated_artifacts: set, **single_kwargs) -> tuple:
     """Synthesize chunks into ``<base>.chunkNNN<ext>`` (or ``base`` alone) -> ``(encoded_paths, results)``.
 
     Every touched path lands in *generated_artifacts* for the caller's sweep. Raises
     :class:`_ChunkFailed` on a reported failure, ``RuntimeError`` on garbage or missing audio."""
     provider = single_kwargs["provider"]
-    encoded_paths: List[str] = []
-    chunk_results: List[Dict[str, Any]] = []
+    encoded_paths: list[str] = []
+    chunk_results: list[dict[str, Any]] = []
     for index, chunk in enumerate(chunks, start=1):
         chunk_path = base_path
         if len(chunks) > 1:
@@ -420,8 +434,8 @@ def _synthesize_chunks(chunks: List[str], base_path: Path, generated_artifacts: 
 
 
 def text_to_speech_tool(
-    text: str, output_path: Optional[str] = None, speed: Optional[float] = None,
-    instructions: Optional[str] = None, provider: Optional[str] = None) -> str:
+    text: str, output_path: str | None = None, speed: float | None = None,
+    instructions: str | None = None, provider: str | None = None) -> str:
     """Convert text to speech with long-form chunking; returns the JSON result envelope.
 
     Text is normalized, split into provider-safe chunks (never silently truncated), synthesized
@@ -452,7 +466,7 @@ def text_to_speech_tool(
     if error:
         return error
     generated_artifacts: set[str] = set()
-    final_paths: List[str] = []
+    final_paths: list[str] = []
     try:
         encoded_paths, chunk_results = _synthesize_chunks(
             chunks, base_path, generated_artifacts, provider=provider, tts_config=tts_config,
@@ -515,7 +529,7 @@ def _xai_requirements() -> bool:
 # ``pm.ensure_import`` on import, so reaching them from here turned ``check_tts_requirements``
 # — the ``text_to_speech`` tool's ``check_fn`` — into an installer that ran during every tool
 # listing.
-_BUILTIN_REQUIREMENTS: Dict[str, Callable[[], bool]] = {
+_BUILTIN_REQUIREMENTS: dict[str, Callable[[], bool]] = {
     "edge": lambda: _pm_extra_available("edge-tts") or _check_neutts_available(),
     "elevenlabs": lambda: _pm_extra_available("tts-premium") and bool(_resolve_provider_key("ELEVENLABS_API_KEY", "elevenlabs")),
     "openai": lambda: _package_installed("openai") and _has_openai_audio_backend(),
@@ -547,7 +561,7 @@ def _pm_extra_available(extra: str) -> bool:
 # ``_PM_FEATURE_ALIASES`` (upstream's ``tts.<provider>`` ids), so that table stays their one
 # source. The install belongs to synthesis (``_select_builtin_engine`` and the command/streaming
 # paths), never to a requirement check — so a missing-but-installable SDK counts as READY here.
-_SDK_ON_DEMAND: Dict[str, Optional[str]] = {
+_SDK_ON_DEMAND: dict[str, str | None] = {
     "edge": None,
     "elevenlabs": "ELEVENLABS_API_KEY",
     "mistral": "MISTRAL_API_KEY"}
@@ -566,8 +580,8 @@ def _ready_after_first_use_install(provider: str) -> bool:
     if key_env and not _resolve_provider_key(key_env, provider):
         return False
     try:
-        from pm.install import lazy_installs_allowed
         from pm.extras import extra_supported
+        from pm.install import lazy_installs_allowed
     except Exception:
         return False
     return extra_supported(feature) and bool(lazy_installs_allowed())
@@ -589,6 +603,7 @@ def check_tts_requirements() -> bool:
 
 # --- Registry ---
 from tools.registry import registry, tool_error
+
 
 def _output_path_description(home: str) -> str:
     return f"Optional custom file path to save the audio. Defaults to {home}/audio_cache/<timestamp>.mp3"

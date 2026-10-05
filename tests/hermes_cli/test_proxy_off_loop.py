@@ -38,17 +38,14 @@ from __future__ import annotations
 import asyncio
 import threading
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import pytest
-
 from hermes_cli.proxy.adapters.base import UpstreamAdapter, UpstreamCredential
 
 aiohttp = pytest.importorskip("aiohttp")
-from aiohttp import web  # noqa: E402
-
-from hermes_cli.proxy.server import create_app  # noqa: E402
-
+from aiohttp import web
+from hermes_cli.proxy.server import create_app
 
 # How long the fake adapter blocks. Long enough that a starved loop records
 # zero heartbeats, short enough to keep the suite fast. The thread-identity
@@ -77,9 +74,9 @@ class _RecordingAdapter(UpstreamAdapter):
         base_url: str,
         *,
         stall: float = 0.0,
-        ticks: Optional[List[int]] = None,
+        ticks: list[int] | None = None,
         raise_on_credential: bool = False,
-        retry_bearer: Optional[str] = None,
+        retry_bearer: str | None = None,
         raise_on_retry: bool = False,
     ) -> None:
         self._base_url = base_url
@@ -88,13 +85,13 @@ class _RecordingAdapter(UpstreamAdapter):
         self._raise_on_credential = raise_on_credential
         self._retry_bearer = retry_bearer
         self._raise_on_retry = raise_on_retry
-        self.credential_thread: Optional[int] = None
-        self.authenticated_thread: Optional[int] = None
-        self.retry_thread: Optional[int] = None
-        self.retry_status_code: Optional[int] = None
-        self.ticks_across_credential: Optional[int] = None
-        self.ticks_across_is_authenticated: Optional[int] = None
-        self.ticks_across_retry: Optional[int] = None
+        self.credential_thread: int | None = None
+        self.authenticated_thread: int | None = None
+        self.retry_thread: int | None = None
+        self.retry_status_code: int | None = None
+        self.ticks_across_credential: int | None = None
+        self.ticks_across_is_authenticated: int | None = None
+        self.ticks_across_retry: int | None = None
 
     @property
     def name(self) -> str:
@@ -149,7 +146,7 @@ class _RecordingAdapter(UpstreamAdapter):
         )
 
 
-async def _start_runner(app: "web.Application"):
+async def _start_runner(app: web.Application):
     """Spin up an aiohttp app on an ephemeral localhost port. Returns (runner, base_url)."""
     runner = web.AppRunner(app, access_log=None)
     await runner.setup()
@@ -160,7 +157,7 @@ async def _start_runner(app: "web.Application"):
     return runner, f"http://127.0.0.1:{port}"
 
 
-def _build_fake_upstream(captured: Dict[str, Any]) -> "web.Application":
+def _build_fake_upstream(captured: dict[str, Any]) -> web.Application:
     async def echo(request):
         body = await request.read()
         captured["requests"].append(
@@ -174,8 +171,8 @@ def _build_fake_upstream(captured: Dict[str, Any]) -> "web.Application":
 
 
 def _build_rejecting_upstream(
-    captured: Dict[str, Any], *, reject_status: int, accept_bearer: str
-) -> "web.Application":
+    captured: dict[str, Any], *, reject_status: int, accept_bearer: str
+) -> web.Application:
     """Upstream that rejects every bearer except ``accept_bearer``.
 
     Drives ``handle_proxy``'s ``status in {401, 429}`` branch: the first forward
@@ -197,7 +194,7 @@ def _build_rejecting_upstream(
     return app
 
 
-async def _heartbeat(ticks: List[int], running: List[bool]) -> None:
+async def _heartbeat(ticks: list[int], running: list[bool]) -> None:
     """Tick a counter on the event loop until told to stop."""
     while running[0]:
         ticks[0] += 1
@@ -217,17 +214,16 @@ def test_get_credential_runs_off_the_event_loop():
     """
     async def run():
         loop_thread = threading.get_ident()
-        captured: Dict[str, Any] = {"requests": []}
+        captured: dict[str, Any] = {"requests": []}
         upstream_runner, upstream_base = await _start_runner(_build_fake_upstream(captured))
         adapter = _RecordingAdapter(f"{upstream_base}/v1")
         proxy_runner, proxy_base = await _start_runner(create_app(adapter))
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    f"{proxy_base}/v1/chat/completions", json={}
-                ) as resp:
-                    assert resp.status == 200
-                    await resp.read()
+            async with aiohttp.ClientSession() as session, session.post(
+                f"{proxy_base}/v1/chat/completions", json={}
+            ) as resp:
+                assert resp.status == 200
+                await resp.read()
 
             assert adapter.credential_thread is not None, "get_credential was never called"
             assert adapter.credential_thread != loop_thread, (
@@ -254,7 +250,7 @@ def test_event_loop_keeps_running_while_credentials_resolve():
     async def run():
         ticks = [0]
         running = [True]
-        captured: Dict[str, Any] = {"requests": []}
+        captured: dict[str, Any] = {"requests": []}
         upstream_runner, upstream_base = await _start_runner(_build_fake_upstream(captured))
         adapter = _RecordingAdapter(
             f"{upstream_base}/v1", stall=_STALL_SECONDS, ticks=ticks
@@ -262,11 +258,10 @@ def test_event_loop_keeps_running_while_credentials_resolve():
         proxy_runner, proxy_base = await _start_runner(create_app(adapter))
         beat = asyncio.create_task(_heartbeat(ticks, running))
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    f"{proxy_base}/v1/chat/completions", json={}
-                ) as resp:
-                    await resp.read()
+            async with aiohttp.ClientSession() as session, session.post(
+                f"{proxy_base}/v1/chat/completions", json={}
+            ) as resp:
+                await resp.read()
 
             assert adapter.ticks_across_credential is not None
             assert adapter.ticks_across_credential >= _MIN_TICKS_ACROSS_STALL, (
@@ -292,17 +287,16 @@ def test_credential_failure_still_maps_to_401():
     red-before set — it guards the behaviour the fix must leave alone.
     """
     async def run():
-        captured: Dict[str, Any] = {"requests": []}
+        captured: dict[str, Any] = {"requests": []}
         upstream_runner, upstream_base = await _start_runner(_build_fake_upstream(captured))
         adapter = _RecordingAdapter(f"{upstream_base}/v1", raise_on_credential=True)
         proxy_runner, proxy_base = await _start_runner(create_app(adapter))
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    f"{proxy_base}/v1/chat/completions", json={}
-                ) as resp:
-                    assert resp.status == 401
-                    payload = await resp.json()
+            async with aiohttp.ClientSession() as session, session.post(
+                f"{proxy_base}/v1/chat/completions", json={}
+            ) as resp:
+                assert resp.status == 401
+                payload = await resp.json()
 
             assert payload["error"]["code"] == "upstream_auth_failed"
             assert "simulated auth failure" in payload["error"]["message"]
@@ -336,7 +330,7 @@ def test_get_retry_credential_runs_off_the_event_loop():
     """
     async def run():
         loop_thread = threading.get_ident()
-        captured: Dict[str, Any] = {"requests": []}
+        captured: dict[str, Any] = {"requests": []}
         upstream_runner, upstream_base = await _start_runner(
             _build_rejecting_upstream(
                 captured, reject_status=401, accept_bearer="rotated-bearer"
@@ -347,12 +341,11 @@ def test_get_retry_credential_runs_off_the_event_loop():
         )
         proxy_runner, proxy_base = await _start_runner(create_app(adapter))
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    f"{proxy_base}/v1/chat/completions", json={}
-                ) as resp:
-                    assert resp.status == 200
-                    await resp.read()
+            async with aiohttp.ClientSession() as session, session.post(
+                f"{proxy_base}/v1/chat/completions", json={}
+            ) as resp:
+                assert resp.status == 200
+                await resp.read()
 
             assert adapter.retry_thread is not None, "get_retry_credential was never called"
             assert adapter.retry_thread != loop_thread, (
@@ -383,7 +376,7 @@ def test_event_loop_keeps_running_while_the_retry_credential_resolves():
     async def run():
         ticks = [0]
         running = [True]
-        captured: Dict[str, Any] = {"requests": []}
+        captured: dict[str, Any] = {"requests": []}
         upstream_runner, upstream_base = await _start_runner(
             _build_rejecting_upstream(
                 captured, reject_status=429, accept_bearer="rotated-bearer"
@@ -398,11 +391,10 @@ def test_event_loop_keeps_running_while_the_retry_credential_resolves():
         proxy_runner, proxy_base = await _start_runner(create_app(adapter))
         beat = asyncio.create_task(_heartbeat(ticks, running))
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    f"{proxy_base}/v1/chat/completions", json={}
-                ) as resp:
-                    await resp.read()
+            async with aiohttp.ClientSession() as session, session.post(
+                f"{proxy_base}/v1/chat/completions", json={}
+            ) as resp:
+                await resp.read()
 
             assert adapter.ticks_across_retry is not None
             assert adapter.ticks_across_retry >= _MIN_TICKS_ACROSS_STALL, (
@@ -428,7 +420,7 @@ def test_retry_credential_failure_still_returns_the_upstream_rejection():
     the red-before set — it guards behaviour the fix must leave alone.
     """
     async def run():
-        captured: Dict[str, Any] = {"requests": []}
+        captured: dict[str, Any] = {"requests": []}
         upstream_runner, upstream_base = await _start_runner(
             _build_rejecting_upstream(
                 captured, reject_status=401, accept_bearer="never-offered"
@@ -437,12 +429,11 @@ def test_retry_credential_failure_still_returns_the_upstream_rejection():
         adapter = _RecordingAdapter(f"{upstream_base}/v1", raise_on_retry=True)
         proxy_runner, proxy_base = await _start_runner(create_app(adapter))
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    f"{proxy_base}/v1/chat/completions", json={}
-                ) as resp:
-                    assert resp.status == 401
-                    await resp.read()
+            async with aiohttp.ClientSession() as session, session.post(
+                f"{proxy_base}/v1/chat/completions", json={}
+            ) as resp:
+                assert resp.status == 401
+                await resp.read()
 
             # One forward only — the failed rotation must not be retried.
             assert len(captured["requests"]) == 1

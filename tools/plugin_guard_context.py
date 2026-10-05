@@ -14,7 +14,6 @@ import base64
 import binascii
 import re
 from pathlib import Path
-from typing import Optional
 
 from tools.skills_guard import _COMPILED_THREAT_PATTERNS, Finding
 
@@ -76,7 +75,7 @@ def is_agent_facing(finding: Finding) -> bool:
             or finding.pattern_id in _PROSE_KEEPS_FULL_SEVERITY_IDS)
 
 
-def prose_cap(finding: Finding) -> Optional[str]:
+def prose_cap(finding: Finding) -> str | None:
     """Stepped-down severity for a command/path-shaped finding in documentation, else None."""
     return None if is_agent_facing(finding) else STEP_DOWN.get(finding.severity)
 
@@ -101,7 +100,7 @@ def is_locale_catalog(rel_path: str) -> bool:
     return len(p.parts) == 2 and p.parts[0].lower() == "locales" and p.suffix.lower() in _LOCALE_CATALOG_SUFFIXES
 
 
-def catalog_cap(finding: Finding) -> Optional[str]:
+def catalog_cap(finding: Finding) -> str | None:
     """Stepped-down severity for a finding inside a locale catalog, else None."""
     if finding.pattern_id in _CATALOG_STEPS_DOWN_IDS:
         return STEP_DOWN.get(finding.severity)
@@ -259,7 +258,7 @@ def is_regex_alternation_token(finding: Finding, line: str) -> bool:
     spans = [m.span() for m in _LITERAL_SPANS.finditer(line)]
     hits = list(token.finditer(line))
 
-    def inert(h: "re.Match[str]") -> bool:
+    def inert(h: re.Match[str]) -> bool:
         if " " in h.group(0):
             return False
         span = next(((a, b) for a, b in spans if a <= h.start() and h.end() <= b), None)
@@ -320,7 +319,7 @@ def is_pip_install_in_prose_literal(finding: Finding, line: str) -> bool:
     spans = [m.span() for m in _LITERAL_SPANS.finditer(line)]
     hits = list(_PIP_INSTALL_TOKEN.finditer(line))
 
-    def prose(h: "re.Match[str]") -> bool:
+    def prose(h: re.Match[str]) -> bool:
         span = next(((a, b) for a, b in spans if a <= h.start() and h.end() <= b), None)
         if span is None:
             return False
@@ -416,7 +415,7 @@ def is_json_prose_value(finding: Finding, rel_path: str, line: str) -> bool:
     if key is not None and not re.search(r"\s", key) and _JSON_COMMAND_KEY.search(key):
         return False
 
-    def prose(h: "re.Match[str]") -> bool:
+    def prose(h: re.Match[str]) -> bool:
         part = next((g for g in ("k", "v") if m.start(g) <= h.start() and h.end() <= m.end(g)), None)
         return part is not None and _COMMAND_POSITION.search(line[m.start(part):h.start()]) is None
 
@@ -463,10 +462,26 @@ def is_google_installed_app_secret(finding: Finding, line: str) -> bool:
 
 
 __all__ = [
-    "STEP_DOWN", "DOC_PROSE_EXTENSIONS", "TEST_TREE_DIRS", "LITERAL_INERT_PATTERN_IDS",
-    "is_doc_prose", "is_ci_workflow", "is_agent_facing", "prose_cap", "is_self_uninstall_doc", "is_test_tree",
-    "is_inert_fixture_line", "is_base64_media",
-    "is_regex_alternation_token", "is_data_decode", "is_loopback_only", "is_pip_install_in_prose_literal",
-    "is_hex_in_char_class", "logical_line", "is_loopback_continuation", "is_json_prose_value", "is_coin_name_only",
+    "DOC_PROSE_EXTENSIONS",
+    "LITERAL_INERT_PATTERN_IDS",
+    "STEP_DOWN",
+    "TEST_TREE_DIRS",
+    "is_agent_facing",
+    "is_base64_media",
+    "is_ci_workflow",
+    "is_coin_name_only",
+    "is_data_decode",
+    "is_doc_prose",
     "is_google_installed_app_secret",
+    "is_hex_in_char_class",
+    "is_inert_fixture_line",
+    "is_json_prose_value",
+    "is_loopback_continuation",
+    "is_loopback_only",
+    "is_pip_install_in_prose_literal",
+    "is_regex_alternation_token",
+    "is_self_uninstall_doc",
+    "is_test_tree",
+    "logical_line",
+    "prose_cap",
 ]

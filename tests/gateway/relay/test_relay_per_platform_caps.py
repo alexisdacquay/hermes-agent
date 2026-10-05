@@ -22,10 +22,8 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import Any, Dict, List, Optional
 
 import pytest
-
 from gateway.config import Platform, PlatformConfig
 from gateway.platforms.event import MessageEvent, MessageType
 from gateway.relay.adapter import RelayAdapter
@@ -60,7 +58,7 @@ class MultiDescriptorStub(StubConnector):
         super().__init__(primary)
         self._by_platform = {d.platform: d for d in (primary, *others)}
 
-    def descriptor_for_platform(self, platform: str) -> Optional[CapabilityDescriptor]:
+    def descriptor_for_platform(self, platform: str) -> CapabilityDescriptor | None:
         return self._by_platform.get(platform)
 
 
@@ -105,7 +103,7 @@ async def test_transport_descriptor_map_resets_on_redial(monkeypatch):
         async def close(self):  # pragma: no cover - not called
             pass
 
-    sent: List[str] = []
+    sent: list[str] = []
 
     async def _fake_connect(url, **kwargs):
         return _FakeWs()

@@ -9,8 +9,7 @@ only when they still resolve into the Hermes-managed node dir.
 from pathlib import Path
 
 import pytest
-
-import hermes_cli.uninstall as uninstall
+from hermes_cli import uninstall
 
 
 @pytest.fixture

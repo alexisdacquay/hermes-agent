@@ -7,13 +7,11 @@ thread; the adapter is Telegram-shaped (``SendResult`` shapes from
 """
 
 import asyncio
-import json
 import threading
 import time
 from types import SimpleNamespace
 
 import pytest
-
 from gateway.platforms.base import BasePlatformAdapter, SendResult
 from tools import clarify_gateway as cm
 

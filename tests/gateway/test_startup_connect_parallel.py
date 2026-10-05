@@ -28,7 +28,6 @@ wall-clock comparison. Event ordering cannot be defeated by a coarse clock.
 import asyncio
 
 import pytest
-
 from gateway.config import GatewayConfig, Platform, PlatformConfig
 from gateway.platforms.base import BasePlatformAdapter
 from gateway.run import GatewayRunner

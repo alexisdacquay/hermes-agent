@@ -4,25 +4,31 @@
 Disconnecting accounts remains a portal-only user decision.
 """
 
-from typing import Any, Callable, Dict, Optional
+from collections.abc import Callable
+from typing import Any
 
 from tools.connectors.catalog_tool import MANAGE_CATALOG_SCHEMA, manage_catalog
 from tools.connectors.gateway import config as gateway_config
 from tools.connectors.managed import run_managed_action
 from tools.connectors.mcp import run_mcp_operation
-from tools.connectors.targets import ALL_ACTIONS, MCP_ACTIONS, normalize_targets, validate_action
+from tools.connectors.targets import (
+    ALL_ACTIONS,
+    MCP_ACTIONS,
+    normalize_targets,
+    validate_action,
+)
 from tools.registry import registry, tool_error
 
 
 def manage_connections(
-    args: Dict[str, Any],
+    args: dict[str, Any],
     *,
-    client_factory: Optional[Callable[[], Any]] = None,
-    mcp_backend: Optional[Any] = None,
-    session_id: Optional[str] = None,
-    tool_call_id: Optional[str] = None,
-    connection_callback: Optional[Callable[[Dict[str, Any]], Optional[str]]] = None,
-    connectors_available: Optional[Callable[[], bool]] = None,
+    client_factory: Callable[[], Any] | None = None,
+    mcp_backend: Any | None = None,
+    session_id: str | None = None,
+    tool_call_id: str | None = None,
+    connection_callback: Callable[[dict[str, Any]], str | None] | None = None,
+    connectors_available: Callable[[], bool] | None = None,
 ) -> str:
     action = str(args.get("action") or "status").strip().lower()
     managed, mcp_targets, target_error = normalize_targets(args.get("connectors"))

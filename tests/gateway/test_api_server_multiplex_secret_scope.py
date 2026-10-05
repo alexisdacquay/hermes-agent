@@ -15,7 +15,6 @@ pre-``_profile_scope`` helper); no live gateway or network.
 from __future__ import annotations
 
 import pytest
-
 from agent import secret_scope as ss
 from gateway.config import PlatformConfig
 from gateway.platforms.api_server import APIServerAdapter

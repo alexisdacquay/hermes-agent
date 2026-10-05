@@ -184,7 +184,7 @@ async def test_websocket_loop_reconnects_when_read_goes_silent(monkeypatch, capl
         task.cancel()
         try:
             await asyncio.wait_for(task, 5.0)
-        except (asyncio.CancelledError, asyncio.TimeoutError):
+        except (TimeoutError, asyncio.CancelledError):
             pass
 
     assert len(sockets) >= 2, "idle read watchdog did not force a reconnect"
@@ -247,7 +247,7 @@ async def test_websocket_loop_reconnects_when_discovery_send_sees_closed_socket(
         task.cancel()
         try:
             await asyncio.wait_for(task, 5.0)
-        except (asyncio.CancelledError, asyncio.TimeoutError):
+        except (TimeoutError, asyncio.CancelledError):
             pass
 
     assert len(sockets) >= 2, "a closed socket seen by the discovery sweep did not force a reconnect"
@@ -286,7 +286,7 @@ async def test_websocket_loop_backs_off_and_publishes_retrying_on_clean_relay_cl
         task.cancel()
         try:
             await asyncio.wait_for(task, 5.0)
-        except (asyncio.CancelledError, asyncio.TimeoutError):
+        except (TimeoutError, asyncio.CancelledError):
             pass
 
     assert len(sockets) == 1, f"clean close must back off before reconnecting, got {len(sockets)} connects in 0.3s"
@@ -383,8 +383,8 @@ async def test_websocket_loop_drops_restricted_channel_without_reconnect():
     rejecting a private-channel subscription.
     """
     import sys
-    from unittest.mock import patch, MagicMock
     from contextlib import asynccontextmanager
+    from unittest.mock import MagicMock, patch
 
     adapter = _make_adapter(extra={"channels": [CHANNEL]})
     adapter._channel_state[CHANNEL] = {"chat_type": "group", "last_ts": 0, "seen": {}}
@@ -458,8 +458,8 @@ async def test_websocket_loop_reconnects_on_non_restricted_closed():
     _restricted_channels — it is a transient error and the loop should reconnect.
     """
     import sys
-    from unittest.mock import patch, MagicMock
     from contextlib import asynccontextmanager
+    from unittest.mock import MagicMock, patch
 
     adapter = _make_adapter(extra={"channels": [CHANNEL]})
     adapter._channel_state[CHANNEL] = {"chat_type": "group", "last_ts": 0, "seen": {}}
@@ -621,8 +621,8 @@ async def test_closed_membership_phrases_prune_without_reconnect(detail):
     """Every production-observed membership-rejection phrasing (#76850,
     #97502) prunes the subscription instead of tearing down the socket."""
     import sys
-    from unittest.mock import patch, MagicMock
     from contextlib import asynccontextmanager
+    from unittest.mock import MagicMock, patch
 
     adapter = _make_adapter(extra={"channels": [CHANNEL]})
     adapter._channel_state[CHANNEL] = {"chat_type": "group", "last_ts": 0, "seen": {}}

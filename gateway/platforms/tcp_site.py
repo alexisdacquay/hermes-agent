@@ -8,7 +8,7 @@ import errno
 import logging
 import socket
 import sys
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from aiohttp import web
@@ -29,7 +29,7 @@ def has_live_listener(host: str, port: int) -> bool:
         return True
 
 
-async def start_tcp_site(runner: web.BaseRunner, host: Optional[str], port: int, *, log_tag: str) -> web.TCPSite:
+async def start_tcp_site(runner: web.BaseRunner, host: str | None, port: int, *, log_tag: str) -> web.TCPSite:
     """Bind ``host:port`` on ``runner`` and return the started site; raises OSError when unavailable.
 
     SO_REUSEADDR: on macOS (BSD) two wildcard/specific sockets can silently split traffic while

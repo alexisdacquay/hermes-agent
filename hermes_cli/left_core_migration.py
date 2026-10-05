@@ -25,12 +25,16 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Optional
 
 from hermes_cli.memory_provider_migration import (
-    _home_consent, _home_label, _install_command, _interactive, _unattended_consent,
+    _home_consent,
+    _home_label,
+    _install_command,
+    _interactive,
+    _unattended_consent,
 )
 
 logger = logging.getLogger(__name__)
@@ -292,8 +296,12 @@ def _pending(home: Path, *, say: Callable[[str], None], process_env: bool = Fals
 
 def _install_into(home: Path) -> Callable[[str], dict]:
     def _install(name: str) -> dict:
+        from hermes_constants import (
+            reset_hermes_home_override,
+            set_hermes_home_override,
+        )
+
         from hermes_cli.plugins_cmd import dashboard_install_plugin
-        from hermes_constants import reset_hermes_home_override, set_hermes_home_override
         token = set_hermes_home_override(home)
         try:
             return dashboard_install_plugin("", force=False, enable=True, catalog_name=name,
@@ -346,8 +354,9 @@ def migrate_all_homes(*, say: Callable[[str], None] = print) -> list[str]:
     """``hermes update`` hook: every profile home sharing this venv. Grouped by plugin and each home's
     unattended consent like the memory migration: homes of one group share dependency answers, and a
     failure names the rest of its group in one line instead of failing them one by one."""
-    from hermes_cli.plugins_cmd_install import shared_dependency_answers
     from pm.plugins_state import dependency_homes
+
+    from hermes_cli.plugins_cmd_install import shared_dependency_answers
 
     def labelled(home: Path) -> Callable[[str], None]:
         return lambda message: say(f"  [{_home_label(home)}] {message.lstrip()}")
@@ -396,7 +405,7 @@ def _gateway_serves(home: Path) -> bool:
         return False
 
 
-def recover_at_startup(*, say: Optional[Callable[[str], None]] = None) -> list[str]:
+def recover_at_startup(*, say: Callable[[str], None] | None = None) -> list[str]:
     """Agent/gateway start hook for the active home: one attempt per process per home. With *say*
     (an agent's startup-warning sink) outcomes are delivered now, together with any a gateway-start
     attempt queued for this home; without it they are logged and queued for the home's first agent.

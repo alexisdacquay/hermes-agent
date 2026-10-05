@@ -23,7 +23,6 @@ import sqlite3
 from pathlib import Path
 
 import pytest
-
 from hermes_cli.update_cmd import (
     _clear_stale_sqlite_sidecars,
     _restore_state_db_from_snapshot,
@@ -244,7 +243,6 @@ def test_post_update_guard_covers_sibling_profiles(tmp_path, monkeypatch, capsys
     not just the root home's. Pre-update snapshots already cover siblings
     (#66140); the guard was the missing half."""
     from hermes_cli import update_cmd
-    from hermes_cli.backup import _sibling_profile_homes
 
     root_home = tmp_path / "default-home"
     root_home.mkdir()

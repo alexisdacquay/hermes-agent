@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ GMI_NATIVE_WIRE_CLEARED = False
 _OPENROUTER_ID = re.compile(r"^gen-\d{9,}-[A-Za-z0-9_-]{8,}$")
 
 
-def classify_upstream(response: Any) -> Optional[str]:
+def classify_upstream(response: Any) -> str | None:
     """``"openrouter"`` / ``"gmi"`` / ``None`` (unknown) from a Portal response object.
 
     Works on both wires: the OpenAI SDK object exposes ``.provider`` (OpenRouter's upstream name,
@@ -41,7 +41,7 @@ def classify_upstream(response: Any) -> Optional[str]:
     """
     if response is None:
         return None
-    if isinstance(getattr(response, "provider", None), str) and getattr(response, "provider"):
+    if isinstance(getattr(response, "provider", None), str) and response.provider:
         return "openrouter"
     rid = getattr(response, "id", None)
     if isinstance(rid, str):
@@ -52,7 +52,7 @@ def classify_upstream(response: Any) -> Optional[str]:
     return None
 
 
-def wire_for_upstream(upstream: Optional[str]) -> str:
+def wire_for_upstream(upstream: str | None) -> str:
     """The api_mode ``auto`` wants once the upstream is known. Chat unless GMI and cleared."""
     if upstream == "gmi" and GMI_NATIVE_WIRE_CLEARED:
         return "anthropic_messages"

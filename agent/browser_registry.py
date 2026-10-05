@@ -11,7 +11,6 @@ every provider implements the full :class:`agent.browser_provider.BrowserProvide
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 from agent.browser_provider import BrowserProvider
 from agent.provider_registry import ProviderRegistry, is_available_safe
@@ -31,7 +30,7 @@ _registry.export(globals())
 _LEGACY_PREFERENCE = ("browser-use", "browserbase")
 
 
-def _resolve(configured: Optional[str]) -> Optional[BrowserProvider]:
+def _resolve(configured: str | None) -> BrowserProvider | None:
     """Resolve the active browser provider (rules in the module docstring).
 
     Intentionally NO "single-eligible shortcut" (unlike ``agent.web_search_registry._resolve``): only

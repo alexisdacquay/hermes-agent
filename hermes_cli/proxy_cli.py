@@ -7,14 +7,13 @@ import os
 import shutil
 import sys
 from datetime import datetime
-from typing import List, Optional
 
+from agent.proxy_sources import iron_proxy as ip
+from agent.redact import mask_secret
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from agent.proxy_sources import iron_proxy as ip
-from agent.redact import mask_secret
 from hermes_cli.config import load_config, load_env, save_config
 
 
@@ -148,7 +147,7 @@ def _setup_ca_cert(console: Console):
 def _setup_mint_tokens(console: Console, args: argparse.Namespace):
     """Discover providers, merge with existing tokens (rotating on request), print the table."""
     _step(console, 3, "Mint proxy tokens for known providers")
-    available_env_names: List[str] = []
+    available_env_names: list[str] = []
     if args.from_bitwarden:
         available_env_names = _bitwarden_env_names(console)
         if available_env_names is None:
@@ -532,7 +531,7 @@ def cmd_config(args: argparse.Namespace) -> int:
     return 0
 
 
-def _bitwarden_env_names(console: Console) -> Optional[List[str]]:
+def _bitwarden_env_names(console: Console) -> list[str] | None:
     """Secret names from Bitwarden for ``setup --from-bitwarden``; prints the error and returns
     ``None`` on any failure so the wizard aborts loudly instead of falling back to the host env.
     """

@@ -26,7 +26,6 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from agent.auxiliary_client import _CodexCompletionsAdapter, call_llm
 
 

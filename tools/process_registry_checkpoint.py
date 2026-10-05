@@ -3,7 +3,7 @@
 import json
 import logging
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from agent.redact import redact_sensitive_text
 
@@ -11,15 +11,15 @@ logger = logging.getLogger("tools.process_registry")
 
 
 class ProcessCheckpointMixin:
-    def _detached_host_fate(self, pid: Optional[int], expected_start: Optional[int]) -> str:
+    def _detached_host_fate(self, pid: int | None, expected_start: int | None) -> str:
         """Subclass supplies the live PID decision. See ProcessRegistry."""
         raise NotImplementedError
 
     # ----- Checkpoint (crash recovery) -----
 
-    def _write_checkpoint(self, extra_entries: Optional[List[Dict[str, Any]]] = None):
+    def _write_checkpoint(self, extra_entries: list[dict[str, Any]] | None = None):
         """Write running process metadata to the checkpoint file atomically."""
-        from tools.process_registry import _checkpoint_path, _CHECKPOINT_FIELDS
+        from tools.process_registry import _CHECKPOINT_FIELDS, _checkpoint_path
 
         try:
             with self._lock:
@@ -51,8 +51,12 @@ class ProcessCheckpointMixin:
         """On gateway startup, probe PIDs from the checkpoint file; returns how many
         were recovered as detached sessions."""
         from tools.process_registry import (
-            ProcessSession, _CHECKPOINT_FIELDS, _checkpoint_path,
-            _CHECKPOINT_DEFAULTS, _WATCHER_ROUTE_KEYS, _stop_systemd_unit,
+            _CHECKPOINT_DEFAULTS,
+            _CHECKPOINT_FIELDS,
+            _WATCHER_ROUTE_KEYS,
+            ProcessSession,
+            _checkpoint_path,
+            _stop_systemd_unit,
         )
 
         checkpoint_path = _checkpoint_path()
@@ -63,7 +67,7 @@ class ProcessCheckpointMixin:
         except Exception:
             return 0
         recovered = 0
-        unresolved_scope_entries: List[Dict[str, Any]] = []
+        unresolved_scope_entries: list[dict[str, Any]] = []
         for entry in entries:
             pid, pid_scope = entry.get("pid"), entry.get("pid_scope", "host")
             if not pid:

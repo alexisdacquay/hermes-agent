@@ -6,7 +6,6 @@ import sys
 from types import SimpleNamespace
 
 import pytest
-
 from hermes_platform import declaration
 
 

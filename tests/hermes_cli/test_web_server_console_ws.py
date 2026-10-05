@@ -6,10 +6,9 @@ import time
 from urllib.parse import urlencode
 
 import pytest
+from hermes_cli import web_server
 from starlette.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
-
-from hermes_cli import web_server
 
 
 @pytest.fixture
@@ -197,7 +196,11 @@ def test_console_cancel_stops_forked_agent_request_before_reporting(console_clie
 def test_interrupt_scope_cancels_agents_that_start_after_the_cancel():
     """A turn that begins after the host cancelled must be interrupted on entry, else a cancel racing
     agent construction leaves a live request behind."""
-    from agent.interrupt_scope import InterruptScope, bind_interrupt_scope, track_in_interrupt_scope
+    from agent.interrupt_scope import (
+        InterruptScope,
+        bind_interrupt_scope,
+        track_in_interrupt_scope,
+    )
 
     class Agent:
         def __init__(self):
@@ -208,11 +211,10 @@ def test_interrupt_scope_cancels_agents_that_start_after_the_cancel():
 
     scope = InterruptScope()
     early, late_agent, unscoped = Agent(), Agent(), Agent()
-    with bind_interrupt_scope(scope):
-        with track_in_interrupt_scope(early):
-            scope.cancel("Console command cancelled")
-            with track_in_interrupt_scope(late_agent):
-                pass
+    with bind_interrupt_scope(scope), track_in_interrupt_scope(early):
+        scope.cancel("Console command cancelled")
+        with track_in_interrupt_scope(late_agent):
+            pass
     with track_in_interrupt_scope(unscoped):  # no scope bound: nothing to register with
         scope.cancel("Console command cancelled")
     assert early.stops == ["Console command cancelled"]

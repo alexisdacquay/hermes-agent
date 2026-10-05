@@ -4,16 +4,25 @@ from __future__ import annotations
 
 import sys
 from dataclasses import dataclass
-from typing import List, Optional
 
-from hermes_cli.colors import Colors
 from hermes_cli.cli_output import prompt_yes_no
+from hermes_cli.colors import Colors
+from hermes_cli.config import load_config, save_config
 from hermes_cli.curses_ui import curses_single_select
 from hermes_cli.mcp_catalog import (
-    CatalogEntry, CatalogError, catalog_diagnostics, install_entry, is_enabled, is_installed,
-    list_catalog, installed_servers, remove_server, server_enabled, uninstall_entry, _say,
+    CatalogEntry,
+    CatalogError,
+    _say,
+    catalog_diagnostics,
+    install_entry,
+    installed_servers,
+    is_enabled,
+    is_installed,
+    list_catalog,
+    remove_server,
+    server_enabled,
+    uninstall_entry,
 )
-from hermes_cli.config import load_config, save_config
 
 _STATUS_NOT_INSTALLED = "available"
 _STATUS_DISABLED = "installed (disabled)"
@@ -29,20 +38,20 @@ class _Row:
     name: str
     description: str
     status: str
-    entry: Optional[CatalogEntry] = None  # None for non-catalog (custom) rows
+    entry: CatalogEntry | None = None  # None for non-catalog (custom) rows
 
     @property
     def is_custom(self) -> bool:
         return self.entry is None
 
 
-def _build_rows() -> List[_Row]:
+def _build_rows() -> list[_Row]:
     """Return catalog rows + any custom (non-catalog) MCPs found in config."""
     catalog_entries = list_catalog()
     catalog_names = {e.name for e in catalog_entries}
     servers = installed_servers()
 
-    rows: List[_Row] = []
+    rows: list[_Row] = []
     for entry in catalog_entries:
         cfg = servers.get(entry.name)
         if entry.name not in servers:
@@ -85,6 +94,7 @@ def _enable_disable(name: str, *, enable: bool) -> None:
 def _configure_tools(name: str) -> None:
     """Open the tool selection checklist for an already-installed MCP."""
     from argparse import Namespace
+
     from hermes_cli.mcp_config import cmd_mcp_configure
 
     cmd_mcp_configure(Namespace(name=name))
@@ -158,7 +168,7 @@ def _handle_row(row: _Row) -> None:
          lambda: _install(row.entry, "reinstall"))])
 
 
-def _print_rows_text(rows: List[_Row]) -> None:
+def _print_rows_text(rows: list[_Row]) -> None:
     """Plain-text catalog dump: `hermes mcp catalog` output and the non-curses fallback."""
     print()
     if not rows:

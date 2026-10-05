@@ -11,11 +11,12 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Any
 
 # cwd -> ``{"repo_root", "worktree_root"}`` (COMMON main root / this cwd's checkout root);
 # ``None`` when not in git or unprobeable (remote backend).
-Resolve = Callable[[str], Optional[dict]]
+Resolve = Callable[[str], dict | None]
 # "does this directory still exist?"; always-True default keeps remote-host projects visible.
 Exists = Callable[[str], bool]
 
@@ -97,7 +98,7 @@ def base_name(path: str) -> str:
     return segs[-1] if segs else ""
 
 
-def kanban_worktree_dir(path: str) -> Optional[str]:
+def kanban_worktree_dir(path: str) -> str | None:
     """The ``<repo>/.worktrees`` dir for a ``.../.worktrees/<task>`` path, else None."""
     m = _KANBAN_DIR_RE.match(path or "")
     return m.group(1) if m else None
@@ -159,7 +160,7 @@ def _probe_sibling_worktree(cwd: str, resolve: Resolve) -> str:
     return ""
 
 
-def _place_by_heuristic(path: str) -> Optional[dict]:
+def _place_by_heuristic(path: str) -> dict | None:
     """Path-only fallback when there is no git probe and no persisted root."""
     base = base_name(path)
     if not base:
@@ -176,7 +177,7 @@ def _place_by_heuristic(path: str) -> Optional[dict]:
 
 
 def _place(
-        cwd: str, branch: str, resolve: Optional[Resolve], persisted_root: str) -> Optional[dict]:
+        cwd: str, branch: str, resolve: Resolve | None, persisted_root: str) -> dict | None:
     info = resolve(cwd) if resolve else None
     if info and info.get("repo_root") and info.get("worktree_root"):
         repo_root, worktree_root = info["repo_root"], info["worktree_root"]
@@ -202,7 +203,7 @@ def _place(
     return _place_by_heuristic(cwd)
 
 
-def _place_session(session: dict, resolve: Optional[Resolve]) -> Optional[dict]:
+def _place_session(session: dict, resolve: Resolve | None) -> dict | None:
     """``_place`` for a session row, anchored on its cwd or else its persisted repo root;
     ``None`` only when it has neither (the renderer's ``isDetachedSession``)."""
     root = _field(session, "git_repo_root")
@@ -212,7 +213,7 @@ def _place_session(session: dict, resolve: Optional[Resolve]) -> Optional[dict]:
     return _place(anchor, _field(session, "git_branch"), resolve, root)
 
 
-def _session_repo_root(session: dict, resolve: Optional[Resolve]) -> str:
+def _session_repo_root(session: dict, resolve: Resolve | None) -> str:
     """The COMMON repo root a session belongs to (folds linked worktrees)."""
     cwd = _field(session, "cwd")
     if cwd and resolve:
@@ -257,7 +258,7 @@ def _repo_node(root: str, label: str) -> dict:
     return {"id": root, "label": label, "path": root, "groups": [], "sessionCount": 0}
 
 
-def _build_repos(sessions: list[dict], resolve: Optional[Resolve], hydrate: bool) -> list[dict]:
+def _build_repos(sessions: list[dict], resolve: Resolve | None, hydrate: bool) -> list[dict]:
     """Build the ``repo -> lane -> sessions`` subtree for a set of sessions."""
     lanes: dict[str, tuple[dict, dict]] = {}  # lane identity -> (group, placement)
     for session in sessions:
@@ -290,7 +291,7 @@ def _build_repos(sessions: list[dict], resolve: Optional[Resolve], hydrate: bool
 
 
 def _seed_folder_repos(
-        repos: list[dict], folders: list[dict], resolve: Optional[Resolve]) -> list[dict]:
+        repos: list[dict], folders: list[dict], resolve: Resolve | None) -> list[dict]:
     """Ensure every declared project folder shows as a repo, even with 0 sessions (else the
     entered-project view renders blank); folders covered by a session-derived repo are untouched."""
     seen = {_path_key(v) for repo in repos for v in (repo.get("id"), repo.get("path")) if v}
@@ -323,7 +324,7 @@ class _FolderIndex:
                 if segs and len(segs) > self._by_path.get("/".join(segs), (None, -1))[1]:
                     self._by_path["/".join(segs)] = (project, len(segs))
 
-    def match(self, target: str) -> tuple[Optional[dict], int]:
+    def match(self, target: str) -> tuple[dict | None, int]:
         """Owning project for ``target`` by longest ancestor folder, + its depth."""
         segs = _comparison_segments(target or "")
         for end in range(len(segs), 0, -1):
@@ -334,7 +335,7 @@ class _FolderIndex:
 
 
 def _project_for_session(
-        session: dict, index: _FolderIndex, resolve: Optional[Resolve]) -> Optional[dict]:
+        session: dict, index: _FolderIndex, resolve: Resolve | None) -> dict | None:
     cwd = _field(session, "cwd")
     repo_root = _session_repo_root(session, resolve)
     # A root-only row (empty cwd) still belongs to the project owning its root.
@@ -346,8 +347,8 @@ def _project_for_session(
 
 
 def _project_node(
-    pid: str, label: str, path: Optional[str], repos: list[dict], session_count: int,
-    last_active: float, preview_sessions: list[dict], sessions: Optional[list[dict]] = None,
+    pid: str, label: str, path: str | None, repos: list[dict], session_count: int,
+    last_active: float, preview_sessions: list[dict], sessions: list[dict] | None = None,
     **flags: Any) -> dict:
     """``flags`` overrides ``color``/``icon``/``isAuto``/``isNoProject``; key order = wire shape."""
     rows = sessions or []
@@ -370,7 +371,7 @@ def _project_node(
 
 
 def _auto_buckets(
-    unowned: list[dict], resolve: Optional[Resolve], junk: Callable, junk_cwd: Callable,
+    unowned: list[dict], resolve: Resolve | None, junk: Callable, junk_cwd: Callable,
     exists: Callable) -> tuple[dict[str, dict], list[dict]]:
     """Group leftover sessions by auto-project root (common git root, else the session cwd
     for non-git workspaces); the rest go to the Home bucket."""
@@ -412,9 +413,9 @@ def _home_project(homeless: list[dict], hydrate: bool, previews: list[dict]) -> 
 
 def build_tree(
     projects: list[dict], sessions: list[dict], discovered_repos: list[dict],
-    resolve: Optional[Resolve] = None, *, preview_limit: int = 3, hydrate: bool = False,
-    is_junk_root: Optional[Callable[[str], bool]] = None,
-    is_junk_cwd: Optional[Callable[[str], bool]] = None, exists: Optional[Exists] = None) -> dict:
+    resolve: Resolve | None = None, *, preview_limit: int = 3, hydrate: bool = False,
+    is_junk_root: Callable[[str], bool] | None = None,
+    is_junk_cwd: Callable[[str], bool] | None = None, exists: Exists | None = None) -> dict:
     """Build the authoritative project tree -> ``{"projects", "scoped_session_ids"}``.
 
     ``is_junk_root`` flags git roots that must never become an AUTO project; ``is_junk_cwd``

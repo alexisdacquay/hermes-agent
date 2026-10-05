@@ -10,7 +10,6 @@ killed (#110637).
 from types import SimpleNamespace
 
 import pytest
-
 from gateway import status as gateway_status
 from hermes_cli import gateway as gw
 from hermes_cli import gateway_supervised_restart as supervised

@@ -12,7 +12,6 @@ can opt out for cloud mode via ``browser.allow_private_urls: true``.
 import json
 
 import pytest
-
 from tools import browser_tool
 from tools import browser_tool_cloud as bt_cloud
 from tools import browser_tool_session as bt_session

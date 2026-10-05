@@ -5,7 +5,6 @@ exactly as it does for Telegram/Discord/Slack.
 """
 
 import pytest
-
 from agent.process_bootstrap import _get_proxy_for_base_url
 from agent.proxy_bypass import should_bypass_proxy
 from gateway.platforms.base import is_host_excluded_by_no_proxy, resolve_proxy_url

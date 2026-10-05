@@ -9,11 +9,17 @@ import os
 import signal
 import subprocess
 import sys
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
-from tests.e2e.core.mcp_plugins._helpers import FIXTURE_SERVER, TURN_TIMEOUT, E2EHome, tagged_pids
+from tests.e2e.core.mcp_plugins._helpers import (
+    FIXTURE_SERVER,
+    TURN_TIMEOUT,
+    E2EHome,
+    tagged_pids,
+)
 from tests.e2e.core.parity._drive_rpc import READY_TIMEOUT, RpcClient, StreamCapture
 from tests.e2e.core.parity._helpers import terminate
 

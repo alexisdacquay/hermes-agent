@@ -10,8 +10,8 @@ decline, and leaves composites/empty lists alone.
 import os
 from unittest.mock import patch
 
-import pytest
 import hermes_yaml as yaml
+import pytest
 
 
 class TestConnectionsToolsetMigration:

@@ -10,13 +10,18 @@ from __future__ import annotations
 
 import logging
 import uuid
-from typing import Any, Dict, Optional
+from typing import Any
 from urllib.parse import urljoin
 
 from tools.managed_tool_gateway import resolve_managed_tool_gateway
 from tools.tool_backend_helpers import (
-    NOUS_MANAGED_PROVIDER, managed_nous_tools_enabled, nous_tool_gateway_unavailable_message,
-    read_selection, resolve_openai_audio_api_key, selection_error)
+    NOUS_MANAGED_PROVIDER,
+    managed_nous_tools_enabled,
+    nous_tool_gateway_unavailable_message,
+    read_selection,
+    resolve_openai_audio_api_key,
+    selection_error,
+)
 from tools.tts_tool_delivery import _origin, _section
 from tools.tts_tool_providers import _tts_response_format_from_path
 
@@ -31,7 +36,7 @@ DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1"
 DEFAULT_DEEPINFRA_TTS_VOICE = "default"
 
 
-def _managed_openai_audio_route() -> Optional[tuple]:
+def _managed_openai_audio_route() -> tuple | None:
     gateway = resolve_managed_tool_gateway("openai-audio")
     if gateway is None:
         return None
@@ -79,11 +84,11 @@ def _has_openai_audio_backend() -> bool:
         return False
 
 
-def _openai_extra_body(oai_config: Dict[str, Any]) -> Dict[str, Any]:
+def _openai_extra_body(oai_config: dict[str, Any]) -> dict[str, Any]:
     """Optional ``tts.openai`` fields OpenAI-compatible servers read from the JSON body: ``language``
     (sent as ``lang_code``) and ``consent_attestation`` (cloned voices). Unset keys are omitted so
     the official API and strict servers never see unknown fields."""
-    extra_body: Dict[str, Any] = {}
+    extra_body: dict[str, Any] = {}
     if oai_config.get("language"):
         extra_body["lang_code"] = oai_config["language"]
     if oai_config.get("consent_attestation"):
@@ -92,16 +97,16 @@ def _openai_extra_body(oai_config: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _generate_openai_tts(
-    text: str, output_path: str, tts_config: Dict[str, Any], *, api_key: Optional[str] = None,
-    base_url: Optional[str] = None, model: Optional[str] = None, voice: Optional[str] = None,
-    speed: Optional[float] = None, instructions: Optional[str] = None) -> str:
+    text: str, output_path: str, tts_config: dict[str, Any], *, api_key: str | None = None,
+    base_url: str | None = None, model: str | None = None, voice: str | None = None,
+    speed: float | None = None, instructions: str | None = None) -> str:
     """Generate audio via the OpenAI ``audio.speech.create`` SDK shape.
 
     Explicit kwargs let OpenAI-compatible backends (DeepInfra) supply credentials/model/voice
     and skip the managed-gateway resolution; otherwise the OpenAI auth chain and ``tts.openai``
     (speed falling back to ``tts.speed``) apply. ``instructions`` is forwarded only when truthy
     so ``tts-1`` and strict OpenAI-compatible servers that reject unknown kwargs are unaffected."""
-    fallback_base: Optional[str] = None
+    fallback_base: str | None = None
     is_managed = False
     explicit_base_url = base_url is not None
     if api_key is None:
@@ -126,7 +131,7 @@ def _generate_openai_tts(
             "to use %r directly.",
             model, DEFAULT_OPENAI_MODEL, model)
         model = DEFAULT_OPENAI_MODEL
-    create_kwargs: Dict[str, Any] = {
+    create_kwargs: dict[str, Any] = {
         "model": model, "voice": voice, "input": text,
         "response_format": _tts_response_format_from_path(output_path),
         "extra_headers": {"x-idempotency-key": str(uuid.uuid4())}}
@@ -146,7 +151,7 @@ def _generate_openai_tts(
             close()
 
 
-def _generate_deepinfra_tts(text: str, output_path: str, tts_config: Dict[str, Any]) -> str:
+def _generate_deepinfra_tts(text: str, output_path: str, tts_config: dict[str, Any]) -> str:
     """Resolve DeepInfra credentials/model (live ``hermes_cli.models`` catalog, no hardcoded ids), then
     delegate to the OpenAI-compatible handler."""
     api_key = _origin()._resolve_provider_key("DEEPINFRA_API_KEY", "deepinfra")

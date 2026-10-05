@@ -4,7 +4,6 @@ JSON-RPC surface — cross-gateway room durability."""
 from __future__ import annotations
 
 import pytest
-
 import tui_gateway.server as srv
 from tui_gateway import methods_groups
 

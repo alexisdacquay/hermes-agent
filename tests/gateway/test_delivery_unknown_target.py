@@ -3,7 +3,6 @@
 from pathlib import Path
 
 import pytest
-
 from gateway.config import GatewayConfig
 from gateway.delivery import DeliveryRouter, DeliveryTarget
 

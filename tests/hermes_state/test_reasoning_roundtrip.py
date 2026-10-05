@@ -9,9 +9,7 @@ or the forked session replays with reasoning fields decoding to strings
 and every isinstance(..., list) consumer silently drops them.
 """
 import pytest
-
 from hermes_state import SessionDB
-
 
 REASONING_DETAILS = [
     {"type": "reasoning.text", "text": "compare both branches first", "format": "unknown"}

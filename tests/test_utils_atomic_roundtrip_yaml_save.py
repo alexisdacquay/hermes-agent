@@ -9,8 +9,8 @@ import os
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
 import hermes_yaml as yaml
+import pytest
 
 
 class TestAtomicRoundtripYamlSave:

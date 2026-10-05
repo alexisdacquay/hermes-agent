@@ -6,7 +6,6 @@ hop to api.openai.com, 401 with the proxy-issued key, and then have that key qua
 from types import SimpleNamespace
 
 import pytest
-
 from agent import auxiliary_client as aux
 from hermes_cli.runtime_provider_custom import expand_direct_api_alias
 

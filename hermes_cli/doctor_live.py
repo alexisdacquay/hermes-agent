@@ -7,8 +7,8 @@ trivial amount of quota. They run ONLY when the user passes ``hermes doctor --li
 from __future__ import annotations
 
 import os
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable, List, Optional
 
 from hermes_cli.browser_runtime import chromium_executable
 from hermes_cli.doctor import _section, check_info
@@ -41,7 +41,7 @@ class ProbeResult:
 
 # ── Small seams (monkeypatchable in tests, and single points of control) ──
 
-def _http_get(url: str, headers: Optional[dict] = None, timeout: Optional[float] = None):
+def _http_get(url: str, headers: dict | None = None, timeout: float | None = None):
     """Single HTTP GET seam for all metadata probes."""
     import httpx
     return httpx.get(url, headers=headers or {}, timeout=timeout)
@@ -129,7 +129,7 @@ def _probe_audio(kind: str, config: dict, timeout: float) -> ProbeResult:
 _REPORTERS = {"pass": check_ok, "warn": check_warn, "fail": check_fail}
 
 
-def _report(result: ProbeResult, issues: List[str]) -> None:
+def _report(result: ProbeResult, issues: list[str]) -> None:
     reporter = _REPORTERS.get(result.status)
     if reporter is None:  # skip
         check_info(f"{result.name} {result.detail} — skipped")
@@ -139,7 +139,7 @@ def _report(result: ProbeResult, issues: List[str]) -> None:
         issues.append(f"Live probe failed: {result.name} {result.detail}")
 
 
-def _run_one(name: str, fn: Callable[[], ProbeResult], issues: List[str]) -> ProbeResult:
+def _run_one(name: str, fn: Callable[[], ProbeResult], issues: list[str]) -> ProbeResult:
     """Run one probe with a catch-all so a crash never kills doctor."""
     try:
         result = fn()
@@ -152,7 +152,7 @@ def _run_one(name: str, fn: Callable[[], ProbeResult], issues: List[str]) -> Pro
     return result
 
 
-def run_live_checks(issues: List[str]) -> List[ProbeResult]:
+def run_live_checks(issues: list[str]) -> list[ProbeResult]:
     """Run one bounded, read-only probe per configured tool backend — sequential by design (predictable output
     ordering). Appends a remediation line to ``issues`` per failed probe; skipped backends never append."""
     from hermes_cli.config import load_config_readonly
@@ -163,7 +163,7 @@ def run_live_checks(issues: List[str]) -> List[ProbeResult]:
         timeout = DEFAULT_PROBE_TIMEOUT
     timeout = max(1.0, timeout)
     _section("Live Backend Probes (opt-in, real calls)")
-    results: List[ProbeResult] = [
+    results: list[ProbeResult] = [
         _run_one(name, lambda n=name, spec=spec: _keyed_probe(n, *spec, timeout), issues)
         for name, spec in _KEYED_PROBES.items()
     ]
@@ -184,7 +184,7 @@ def run_live_checks(issues: List[str]) -> List[ProbeResult]:
     return results
 
 
-def maybe_run_live_checks(args, issues: List[str]):
+def maybe_run_live_checks(args, issues: list[str]):
     """Called from ``run_doctor`` after the static checks; no-op (None) unless ``--live`` was passed.
     A crash anywhere in the live subsystem must never break doctor."""
     if not getattr(args, "live", False):

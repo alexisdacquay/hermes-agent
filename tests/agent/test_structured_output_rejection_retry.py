@@ -26,17 +26,15 @@ field, retry once without it. These tests lock in that behaviour for both
 sync and async paths.
 """
 
-from unittest.mock import patch, MagicMock, AsyncMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from agent.auxiliary_client import (
-    call_llm,
-    async_call_llm,
     _is_structured_output_rejection,
     _without_structured_output_format,
+    async_call_llm,
+    call_llm,
 )
-
 
 _TITLE_RESPONSE_FORMAT = {
     "type": "json_schema",
@@ -211,17 +209,16 @@ class TestCallLlmStructuredOutputRetry:
             patch("agent.auxiliary_client._validate_llm_response",
                   side_effect=lambda resp, _task, **_kw: resp),
             patch("agent.auxiliary_client._try_payment_fallback",
-                  return_value=None),
+                  return_value=None),pytest.raises(RuntimeError, match="Invalid value")
         ):
-            with pytest.raises(RuntimeError, match="Invalid value"):
-                call_llm(
-                    task="title_generation",
-                    messages=[{"role": "user", "content": "x"}],
-                    max_tokens=64,
-                    extra_body={
-                        "response_format": dict(_TITLE_RESPONSE_FORMAT),
-                    },
-                )
+            call_llm(
+                task="title_generation",
+                messages=[{"role": "user", "content": "x"}],
+                max_tokens=64,
+                extra_body={
+                    "response_format": dict(_TITLE_RESPONSE_FORMAT),
+                },
+            )
         assert client.chat.completions.create.call_count == 1
 
     def test_no_retry_when_no_response_format_was_sent(self):
@@ -240,14 +237,13 @@ class TestCallLlmStructuredOutputRetry:
             patch("agent.auxiliary_client._validate_llm_response",
                   side_effect=lambda resp, _task, **_kw: resp),
             patch("agent.auxiliary_client._try_payment_fallback",
-                  return_value=None),
+                  return_value=None),pytest.raises(RuntimeError)
         ):
-            with pytest.raises(RuntimeError):
-                call_llm(
-                    task="title_generation",
-                    messages=[{"role": "user", "content": "x"}],
-                    max_tokens=64,
-                )
+            call_llm(
+                task="title_generation",
+                messages=[{"role": "user", "content": "x"}],
+                max_tokens=64,
+            )
         assert client.chat.completions.create.call_count == 1
 
 
@@ -305,15 +301,14 @@ class TestAsyncCallLlmStructuredOutputRetry:
             patch("agent.auxiliary_client._validate_llm_response",
                   side_effect=lambda resp, _task, **_kw: resp),
             patch("agent.auxiliary_client._try_payment_fallback",
-                  return_value=None),
+                  return_value=None),pytest.raises(RuntimeError, match="Invalid value")
         ):
-            with pytest.raises(RuntimeError, match="Invalid value"):
-                await async_call_llm(
-                    task="title_generation",
-                    messages=[{"role": "user", "content": "x"}],
-                    max_tokens=64,
-                    extra_body={
-                        "response_format": dict(_TITLE_RESPONSE_FORMAT),
-                    },
-                )
+            await async_call_llm(
+                task="title_generation",
+                messages=[{"role": "user", "content": "x"}],
+                max_tokens=64,
+                extra_body={
+                    "response_format": dict(_TITLE_RESPONSE_FORMAT),
+                },
+            )
         assert client.chat.completions.create.await_count == 1

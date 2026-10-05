@@ -13,8 +13,9 @@ import hashlib
 import json
 import logging
 import time
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, Dict, Iterator, Optional
+from typing import Any
 
 from utils import atomic_write_text
 
@@ -73,7 +74,7 @@ def skill_tree_digest(skill_dir: Path) -> str:
     return digest.hexdigest()
 
 
-def managed_skills(entry: Any) -> Dict[str, Optional[str]]:
+def managed_skills(entry: Any) -> dict[str, str | None]:
     """``imported_skills`` as ``{name: digest-at-import}`` (a pre-digest list maps to ``None`` = trusted)."""
     skills = entry.get("imported_skills") if isinstance(entry, dict) else None
     if isinstance(skills, dict):
@@ -81,7 +82,7 @@ def managed_skills(entry: Any) -> Dict[str, Optional[str]]:
     return {name: None for name in skills} if isinstance(skills, list) else {}
 
 
-def load_sync_manifest(target_root: Path) -> Dict[str, Any]:
+def load_sync_manifest(target_root: Path) -> dict[str, Any]:
     """Read the manifest; a missing, unreadable or malformed file yields an empty manifest."""
     path = sync_manifest_path(target_root)
     if not path.exists():
@@ -96,13 +97,13 @@ def load_sync_manifest(target_root: Path) -> Dict[str, Any]:
     return data
 
 
-def save_sync_manifest(target_root: Path, manifest: Dict[str, Any]) -> None:
+def save_sync_manifest(target_root: Path, manifest: dict[str, Any]) -> None:
     atomic_write_text(sync_manifest_path(target_root),
                       json.dumps(manifest, indent=2, sort_keys=True) + "\n")
 
 
 def update_sync_manifest(agent: str, source_root: Path, target_root: Path,
-                         overwrite: bool, report: Dict[str, Any], *, refresh_digest: bool = True) -> None:
+                         overwrite: bool, report: dict[str, Any], *, refresh_digest: bool = True) -> None:
     """Record/refresh the sync entry for ``agent`` after a real (non-dry-run) import.
 
     ``imported_skills`` maps every skill this command ever copied for the agent to the digest of
@@ -130,13 +131,14 @@ def update_sync_manifest(agent: str, source_root: Path, target_root: Path,
 def sync_imported_agents(args) -> None:
     """Handle ``hermes import-agent --sync``: re-import every registered source whose digest
     changed. Prompt-free (cron-friendly); ``--dry-run`` previews without touching the manifest."""
+    from hermes_constants import get_hermes_home
+
     from hermes_cli.agent_import import AgentImporter, print_import_report
     from hermes_cli.setup import print_error, print_header, print_info, print_success
-    from hermes_constants import get_hermes_home
 
     dry_run = bool(getattr(args, "dry_run", False))
     hermes_home = get_hermes_home().resolve()
-    agents: Dict[str, Any] = load_sync_manifest(hermes_home).get("agents", {})
+    agents: dict[str, Any] = load_sync_manifest(hermes_home).get("agents", {})
     if not agents:
         print()
         print_info("No import sources registered yet.")
@@ -165,7 +167,7 @@ def sync_imported_agents(args) -> None:
         try:
             report = AgentImporter(agent_name, source_dir, hermes_home, execute=not dry_run,
                                    overwrite=overwrite, sync_skills=managed_skills(entry)).run()
-        except Exception as exc:  # noqa: BLE001 — keep syncing the other sources
+        except Exception as exc:
             print_error(f"{agent_name}: sync failed: {exc}")
             logger.debug("import-agent sync error", exc_info=True)
             failed += 1

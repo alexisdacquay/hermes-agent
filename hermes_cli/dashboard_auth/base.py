@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass(frozen=True)
@@ -120,7 +119,7 @@ class DashboardAuthProvider(ABC):
         self, *, code: str, state: str, code_verifier: str, redirect_uri: str) -> Session: ...
 
     @abstractmethod
-    def verify_session(self, *, access_token: str) -> Optional[Session]: ...
+    def verify_session(self, *, access_token: str) -> Session | None: ...
 
     @abstractmethod
     def refresh_session(self, *, refresh_token: str) -> Session: ...
@@ -128,7 +127,7 @@ class DashboardAuthProvider(ABC):
     @abstractmethod
     def revoke_session(self, *, refresh_token: str) -> None: ...
 
-    def complete_password_login(self, *, username: str, password: str) -> "Session":
+    def complete_password_login(self, *, username: str, password: str) -> Session:
         """Verify a username/password pair and mint a :class:`Session` (only called when
         ``supports_password``). Raise ``InvalidCredentialsError`` on rejection (SHOULD be constant
         time for unknown users — no timing oracle) and ``ProviderError`` when the store is
@@ -137,7 +136,7 @@ class DashboardAuthProvider(ABC):
             f"{type(self).__name__} does not support password login "
             "(set supports_password = True and override complete_password_login)")
 
-    def verify_token(self, *, token: str) -> "Optional[TokenPrincipal]":
+    def verify_token(self, *, token: str) -> TokenPrincipal | None:
         """Verify a non-interactive bearer token; return its principal. Mirrors ``verify_session``:
         return ``None`` (never raise) for an unrecognised token so the seam falls through; raise
         ``ProviderError`` ONLY for a genuine backing-store outage. Shared secrets MUST be compared

@@ -6,12 +6,11 @@ test patches on ``update_cmd`` stay effective).
 """
 
 import logging
-from contextlib import suppress
 import subprocess
 import sys
-from datetime import datetime, timedelta, timezone
+from contextlib import suppress
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Optional
 
 from hermes_cli._subprocess_compat import windows_hide_flags
 
@@ -51,7 +50,7 @@ def _git_run(git_cmd, args, cwd=None, *, check=False):
     )
 
 
-def _git_stdout(git_cmd, args, cwd, **kw) -> Optional[str]:
+def _git_stdout(git_cmd, args, cwd, **kw) -> str | None:
     """Stripped stdout of a successful ``_git_run``; ``None`` on non-zero exit or any exception."""
     from hermes_cli.update_cmd import _git_run
     with suppress(Exception):
@@ -92,11 +91,11 @@ def _prune_orphan_rescue_refs(
             refs = [line.strip() for line in list_result.stdout.splitlines() if line.strip()]
             stale |= set(refs[:-keep] if keep > 0 else refs)
             if max_age_days > 0:
-                cutoff = datetime.now(timezone.utc) - timedelta(days=max_age_days)
+                cutoff = datetime.now(UTC) - timedelta(days=max_age_days)
                 for ref in refs:
                     with suppress(ValueError):
                         stamp = datetime.strptime(ref[len(prefix):][:15], "%Y%m%d-%H%M%S")
-                        if stamp.replace(tzinfo=timezone.utc) < cutoff:
+                        if stamp.replace(tzinfo=UTC) < cutoff:
                             stale.add(ref)
         for ref in sorted(stale):
             _git_run(git_cmd, ["update-ref", "-d", ref], cwd)
@@ -123,7 +122,7 @@ def _park_detached_head(git_cmd, cwd, branch) -> None:
     holders = [r for r in (contains.stdout or "").split() if r != "refs/stash"]
     if contains.returncode == 0 and holders:
         return  # already reachable from a branch, tag, remote or backup ref
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
     rescue_ref = f"refs/hermes-update-backups/detached-{branch}-{stamp}-{sha[:12]}"
     if _git_run(git_cmd, ["update-ref", rescue_ref, sha], cwd).returncode != 0:
         print(f"✗ HEAD is detached at {sha[:12]}, which no branch or tag contains, and backing it up "
@@ -247,19 +246,19 @@ OFFICIAL_REPO_URL = "https://github.com/NousResearch/hermes-agent.git"
 SKIP_UPSTREAM_PROMPT_FILE = ".skip_upstream_prompt"
 
 
-def _get_origin_url(git_cmd: list[str], cwd: Path) -> Optional[str]:
+def _get_origin_url(git_cmd: list[str], cwd: Path) -> str | None:
     """Get the URL of the origin remote, or None if not set."""
     return _git_stdout(git_cmd, ["remote", "get-url", "origin"], cwd)
 
 
-def _is_fork(origin_url: Optional[str]) -> bool:
+def _is_fork(origin_url: str | None) -> bool:
     """Check if the origin remote points to a fork (not the official repo)."""
     if not origin_url:
         return False
 
     def _norm(url: str) -> str:
         url = url.rstrip("/")
-        return url[:-4] if url.endswith(".git") else url
+        return url.removesuffix(".git")
 
     return _norm(origin_url) not in {_norm(official) for official in OFFICIAL_REPO_URLS}
 
@@ -342,7 +341,12 @@ def _sync_with_upstream_if_needed(git_cmd: list[str], cwd: Path, *, assume_yes: 
 
     See #97052.
     """
-    from hermes_cli.update_cmd import _count_commits_between, _has_upstream_remote, _no_prompt_git_kwargs, _should_skip_upstream_prompt
+    from hermes_cli.update_cmd import (
+        _count_commits_between,
+        _has_upstream_remote,
+        _no_prompt_git_kwargs,
+        _should_skip_upstream_prompt,
+    )
     from hermes_cli.update_cmd_check import tracking_refspec
     if not _has_upstream_remote(git_cmd, cwd) and (
         _should_skip_upstream_prompt() or not _offer_upstream_remote(git_cmd, cwd, assume_yes=assume_yes, input_fn=input_fn)
@@ -431,7 +435,7 @@ def _print_fetch_failure(stderr: str) -> None:
         print(f"  {stderr.splitlines()[0]}")
 
 
-def _probe_fork_bomb(argv: list) -> Optional[bool]:
+def _probe_fork_bomb(argv: list) -> bool | None:
     """Run ``<argv> --version``; True/False = guard message seen/absent, None = probe itself failed."""
     try:
         result = subprocess.run(argv + ["--version"], timeout=15, **_GIT_TEXT_KW)
@@ -468,7 +472,7 @@ def _portable_git_candidates() -> list:
     return candidates
 
 
-def _locate_real_git() -> Optional[Path]:
+def _locate_real_git() -> Path | None:
     """Find a real Git-for-Windows ``git-core/git.exe`` (standard locations + managed PortableGit) that runs
     without the trampoline guard. None when nothing suits — callers keep the broken command and let the
     fetch-failure ZIP fallback handle it. A failed probe (None) disqualifies a candidate like a guard hit.

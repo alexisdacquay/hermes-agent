@@ -9,7 +9,6 @@ request.
 """
 
 import pytest
-
 from agent.context_compressor import (
     COMPRESSION_CONTINUATION_USER_CONTENT,
     SUMMARY_PREFIX,

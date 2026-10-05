@@ -15,7 +15,6 @@ import time
 from contextlib import ExitStack, suppress
 
 import pytest
-
 from tools.connectors import live
 from tools.connectors.contract import Actor, TargetState
 from tools.connectors.operation import ConnectionOperation, Target

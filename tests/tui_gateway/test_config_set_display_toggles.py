@@ -6,10 +6,10 @@ renderer's `.catch()` swallows the refusal, which is how message reactions
 shipped with a toggle that never reached the backend gating the tool.
 """
 
-import pytest
 import hermes_yaml as yaml
-
+import pytest
 from tui_gateway import server
+
 
 @pytest.fixture
 def config_home(tmp_path, monkeypatch):

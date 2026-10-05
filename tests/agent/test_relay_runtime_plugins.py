@@ -10,9 +10,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-
 from agent import relay_runtime
-
 
 HOST_CONFLICT = RuntimeError(
     "conflict: a static plugin configuration is already active; to combine static and dynamic plugins, "

@@ -16,19 +16,30 @@ import time
 from collections.abc import Mapping
 from pathlib import Path
 
+from hermes_cli._subprocess_compat import windows_hide_flags
 from hermes_constants import get_process_hermes_home
+
 from tools.environments.base import BaseEnvironment
 from tools.environments.base_output import _pipe_stdin
-from hermes_cli._subprocess_compat import windows_hide_flags
 from tools.environments.local_env_policy import (  # noqa: F401 — _HERMES_PROVIDER_ENV_BLOCKLIST stays importable from here
-    _ALWAYS_STRIP_FOLDED, _ALWAYS_STRIP_KEYS, _HERMES_PROVIDER_ENV_BLOCKLIST, _HERMES_PROVIDER_ENV_FORCE_PREFIX,
-    _is_hermes_internal_secret, _is_provider_env_blocklisted, _is_terminal_first_party_env,
-    _home_adapter_secret_env, _matches_terminal_first_party_prefix, _plugin_terminal_env_strip_keys,
-    _registered_adapter_secret_env, _registry_adapter_secret_env,
-    strip_profile_gate_env)
+    _ALWAYS_STRIP_FOLDED,
+    _ALWAYS_STRIP_KEYS,
+    _HERMES_PROVIDER_ENV_BLOCKLIST,
+    _HERMES_PROVIDER_ENV_FORCE_PREFIX,
+    _home_adapter_secret_env,
+    _is_hermes_internal_secret,
+    _is_provider_env_blocklisted,
+    _is_terminal_first_party_env,
+    _matches_terminal_first_party_prefix,
+    _plugin_terminal_env_strip_keys,
+    _registered_adapter_secret_env,
+    _registry_adapter_secret_env,
+    strip_profile_gate_env,
+)
 from tools.environments.local_pythonpath import (
-    _build_hermes_repo_root_aliases, _strip_hermes_owned_pythonpath_and_runtime_markers)
-
+    _build_hermes_repo_root_aliases,
+    _strip_hermes_owned_pythonpath_and_runtime_markers,
+)
 
 _IS_WINDOWS = platform.system() == "Windows"
 
@@ -48,7 +59,7 @@ _terminal_temp_pruned_once = False
 _BG_GROUP_RE = re.compile(r"^(hermes_bg_[A-Za-z0-9_-]+)\.(log|pid|exit)$")
 
 
-def _default_terminal_temp_dir() -> "Path | None":
+def _default_terminal_temp_dir() -> Path | None:
     """Return HERMES_HOME/cache/terminal, or None if unresolvable."""
     try:
         from hermes_constants import get_hermes_home
@@ -348,8 +359,8 @@ def _scrub_credentials(env: dict, *, inherit_credentials: bool) -> dict:
 
 
 def build_subprocess_env(
-    base: "Mapping[str, str] | None" = None, *, inherit_profile_home: bool = True,
-    scrub_secrets: bool = True, extra: "Mapping[str, str] | None" = None,
+    base: Mapping[str, str] | None = None, *, inherit_profile_home: bool = True,
+    scrub_secrets: bool = True, extra: Mapping[str, str] | None = None,
     strip_launch_profile: bool = False) -> dict[str, str]:
     """Single factory for child-process envs. ``base=None`` snapshots ``os.environ``.
     ``scrub_secrets=True`` -> :func:`_sanitize_subprocess_env` (profile home inherent,
@@ -384,7 +395,7 @@ def build_subprocess_env(
 
 
 def served_profile_child_env(
-    base: "Mapping[str, str] | None" = None, *, target_home: "str | Path | None" = None,
+    base: Mapping[str, str] | None = None, *, target_home: str | Path | None = None,
     inherit_credentials: bool = False,
 ) -> dict[str, str]:
     """Child env for a process that acts FOR the active (possibly served) profile: ``hermes -p X``
@@ -403,7 +414,11 @@ def served_profile_child_env(
     ``get_secret``. ``target_home`` defaults to the active override; ``base`` replaces the
     ``hermes_subprocess_env`` snapshot."""
     from agent.secret_scope import (
-        UnscopedSecretError, build_profile_secret_scope, current_secret_scope, is_multiplex_active)
+        UnscopedSecretError,
+        build_profile_secret_scope,
+        current_secret_scope,
+        is_multiplex_active,
+    )
     from hermes_constants import apply_scratch_tmp_env, get_hermes_home_override
     env = dict(base) if base is not None else hermes_subprocess_env(inherit_credentials=inherit_credentials)
     target = str(target_home or get_hermes_home_override() or "")
@@ -428,7 +443,7 @@ def served_profile_child_env(
 
 
 def host_gateway_child_env(
-    base: "Mapping[str, str] | None" = None,
+    base: Mapping[str, str] | None = None,
 ) -> dict[str, str]:
     """Child env for the host gateway: the default profile's secrets, never the launcher's.
 
@@ -442,7 +457,7 @@ def host_gateway_child_env(
     )
 
 
-def _is_routed_home(target_home: "str | Path") -> bool:
+def _is_routed_home(target_home: str | Path) -> bool:
     """True when ``target_home`` is not the process's own (launch) home.
 
     Same launch-home identity as ``agent.secret_scope.serves_routed_profile()``: under a host that
@@ -455,7 +470,7 @@ def _is_routed_home(target_home: "str | Path") -> bool:
         return True
 
 
-def strip_launch_profile_env(env: dict, target_home: "str | Path | None" = None) -> dict:
+def strip_launch_profile_env(env: dict, target_home: str | Path | None = None) -> dict:
     """Drop the LAUNCH profile's residue from a child env built for another served profile.
     ``os.environ`` holds the default profile's ``.env`` and its bridged ``TERMINAL_*`` settings;
     the secret scrub removes credentials but not settings (``HERMES_MODEL``, ``TERMINAL_ENV``,
@@ -466,12 +481,16 @@ def strip_launch_profile_env(env: dict, target_home: "str | Path | None" = None)
     gateway-wide multiplex flag on": the Desktop/dashboard backend serves ``?profile=B`` by
     installing a HERMES_HOME override without that flag."""
     from agent.secret_scope import _is_global_env, load_env_file
-    from hermes_constants import get_hermes_home_override, get_routing_process_hermes_home
+    from hermes_constants import (
+        get_hermes_home_override,
+        get_routing_process_hermes_home,
+    )
     target = target_home or get_hermes_home_override()
     if not target or not _is_routed_home(target):
         return env
     launch_home = get_routing_process_hermes_home()
     from hermes_cli.config import TERMINAL_CONFIG_ENV_MAP
+
     # Folded strip: on Windows the env block is case-insensitive, so residue
     # stored under a variant casing is the same variable and must go too. The
     # selection folds the same way so a lowercase ``path`` in .env is still
@@ -484,7 +503,11 @@ def strip_launch_profile_env(env: dict, target_home: "str | Path | None" = None)
     # overlay puts back exactly the ones the target's own sources supply. The administrator-managed
     # .env is NOT residue: its values are policy for every profile (``_apply_managed_env`` applies
     # it last, with override, so it beats the user's own .env) — leave them in place.
-    from hermes_cli.env_loader import launch_dotenv_keys, managed_dotenv_keys, source_supplied_names
+    from hermes_cli.env_loader import (
+        launch_dotenv_keys,
+        managed_dotenv_keys,
+        source_supplied_names,
+    )
     managed_names = {key.upper() for key in managed_dotenv_keys()}
     residue_names = {
         key.upper() for key in
@@ -527,7 +550,7 @@ def _find_bash() -> str:
     )
 
 
-_git_bash_bin_dirs_cache: "list[str] | None" = None
+_git_bash_bin_dirs_cache: list[str] | None = None
 
 
 def _git_bash_bin_dirs() -> list[str]:
@@ -595,7 +618,7 @@ _SANE_PATH = ("/opt/homebrew/bin:/opt/homebrew/sbin:"
 # Cached directory containing the ``hermes`` console-script.
 # ``_SENTINEL`` distinguishes "not resolved yet" from a resolved ``None``.
 _SENTINEL = object()
-_HERMES_BIN_DIR: "str | None | object" = _SENTINEL
+_HERMES_BIN_DIR: str | None | object = _SENTINEL
 
 
 def _resolve_hermes_bin_dir() -> str | None:

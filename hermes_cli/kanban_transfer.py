@@ -29,7 +29,7 @@ import sqlite3
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from hermes_cli import kanban_db as kb
 from hermes_cli import kanban_db_connect as kbc
@@ -112,7 +112,7 @@ def _count_rows(conn: sqlite3.Connection) -> dict[str, int]:
 
 
 def export_board(
-    board: Optional[str],
+    board: str | None,
     output_path: str,
     *,
     include_attachments: bool = True,
@@ -286,7 +286,7 @@ def _relocate_imported_rows(conn: sqlite3.Connection, slug: str) -> tuple[dict[s
 
 def import_board(
     archive_path: str,
-    slug: Optional[str] = None,
+    slug: str | None = None,
     *,
     activate: bool = False,
 ) -> dict[str, Any]:

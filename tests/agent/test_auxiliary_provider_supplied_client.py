@@ -11,9 +11,8 @@ for a broken plugin.
 
 from __future__ import annotations
 
-import pytest
-
 import providers as _providers
+import pytest
 from providers.base import ProviderProfile
 
 _PROBE_ENV_VAR = "AUX_SEAM_PROBE_AUTH"
@@ -63,8 +62,8 @@ def registered(monkeypatch):
     profiles, which is what routes them into ``_resolve_api_key_branch`` in the first place.
     """
     import hermes_cli.auth as _auth
-    from hermes_cli.auth_plugin_providers import register_plugin_provider
     from agent import secret_scope as _secret_scope
+    from hermes_cli.auth_plugin_providers import register_plugin_provider
 
     _providers._discover_providers()
     monkeypatch.setattr(_providers, "_REGISTRY", dict(_providers._REGISTRY))
@@ -102,9 +101,8 @@ def test_native_profile_supplies_the_auxiliary_client(registered, extra):
     "profile_cls", [_PassThroughProfile, _ExplodingProfile], ids=["returns-None", "raises"]
 )
 def test_profile_without_a_client_falls_back_to_the_standard_client(registered, profile_cls):
-    from openai import OpenAI
-
     from agent.auxiliary_client import resolve_provider_client
+    from openai import OpenAI
 
     registered(_probe_profile(profile_cls, "aux-seam-fallback"))
     client, model = resolve_provider_client("aux-seam-fallback", "probe-model")

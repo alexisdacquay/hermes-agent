@@ -1,7 +1,6 @@
 """The onboarding card's catalog plugins: curated flag, platform filter, and the pinned app declaration."""
 
 import pytest
-
 from hermes_cli import plugin_catalog as pc
 from hermes_cli import plugin_catalog_presence as presence_mod
 

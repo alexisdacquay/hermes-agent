@@ -15,9 +15,7 @@ default off) makes that denial opt-out-able:
 """
 
 import pytest
-
 from cron.scheduler import _resolve_cron_disabled_toolsets
-
 
 # The toolsets that must be denied in cron context no matter what the
 # agent-scheduling gate says: messaging/clarify are interactive-only.

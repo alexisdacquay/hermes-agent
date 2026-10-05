@@ -23,8 +23,9 @@ import subprocess
 import sys
 import threading
 import time
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 
@@ -354,7 +355,7 @@ class Spawned:
         return leaked
 
 
-_SID_RE = re.compile(r"^session_id:\s*(\S+)\s*$", re.M)
+_SID_RE = re.compile(r"^session_id:\s*(\S+)\s*$", re.MULTILINE)
 
 
 def run_oneshot(env: dict[str, str], cwd: Path, prompt: str, spawned: Spawned, *,
@@ -395,7 +396,7 @@ class TuiGateway:
         self._wlock = threading.Lock()
         self.stored: dict[str, str] = {}
 
-    def __enter__(self) -> "TuiGateway":
+    def __enter__(self) -> TuiGateway:
         self.proc = self.spawned.add(subprocess.Popen(
             [sys.executable, "-m", "tui_gateway.entry"], cwd=self.cwd, env={**self.env, "PWD": self.cwd},
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
@@ -601,8 +602,13 @@ class InProcessSession:
     def compress(self, args: str = "") -> Any:
         """Mirror ``hermes_cli.cli_session_mixin`` ``/compress``: install ``after_messages``, follow a
         rotated session id, re-flush the handoff on rotation, finalize the engine notification."""
-        from agent.conversation_compression import finalize_context_engine_compression_notification
-        from agent.conversation_compression_manual import compress_now, parse_compress_args
+        from agent.conversation_compression import (
+            finalize_context_engine_compression_notification,
+        )
+        from agent.conversation_compression_manual import (
+            compress_now,
+            parse_compress_args,
+        )
 
         before_sid = self.sid
         result = compress_now(self.agent, self.history, parse_compress_args(args), task_id=before_sid)

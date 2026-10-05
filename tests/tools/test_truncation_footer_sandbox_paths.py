@@ -5,9 +5,7 @@ footer is unreadable from the sandbox (#72389, #81984, #77015)."""
 import os
 import re
 
-import tools.browser_tool_snapshot as browser_tool_snapshot
-import tools.delegate_tool_results as delegate_tool_results
-import tools.web_tools_truncate as web_tools_truncate
+from tools import browser_tool_snapshot, delegate_tool_results, web_tools_truncate
 
 
 def _footer_path(text: str) -> str:

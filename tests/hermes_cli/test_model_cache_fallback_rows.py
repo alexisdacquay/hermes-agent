@@ -9,9 +9,8 @@ from __future__ import annotations
 import time
 from unittest.mock import patch
 
-import pytest
-
 import hermes_cli.models as mod
+import pytest
 
 
 @pytest.fixture(autouse=True)

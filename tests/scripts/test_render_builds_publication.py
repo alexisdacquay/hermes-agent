@@ -1,15 +1,14 @@
 """Tag pages and release bodies publish the same independently named objects."""
 import importlib.util
 import json
-from pathlib import Path
 import re
 import subprocess
 import sys
+from pathlib import Path
 from urllib.parse import unquote
 from urllib.request import urlopen
 
 import pytest
-
 from tests.scripts.test_release_r2 import r2_server  # noqa: F401
 
 _SPEC = importlib.util.spec_from_file_location(

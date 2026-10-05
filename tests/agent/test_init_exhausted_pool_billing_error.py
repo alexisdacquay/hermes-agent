@@ -14,7 +14,6 @@ import time
 from types import SimpleNamespace
 
 import pytest
-
 from agent.credential_pool import (
     STATUS_EXHAUSTED,
     STATUS_OK,

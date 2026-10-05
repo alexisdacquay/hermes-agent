@@ -13,7 +13,6 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from tools.file_tools_read_tracking import _read_tracker, _read_tracker_lock, _task_data
 from tools.skills_tool import _skill_view_with_bump
 from tools.skills_tool_dedup import _check_skill_view_dedup, reset_skill_view_dedup

@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -24,12 +24,12 @@ _WHATSAPP_IDENTITY_PLATFORMS = {"whatsapp", "whatsapp_cloud"}
 _WHATSAPP_NON_USER_SUFFIXES = ("@g.us", "@broadcast", "@newsletter")
 
 
-def _is_whatsapp_non_user_chat(chat_id: Optional[str]) -> bool:
+def _is_whatsapp_non_user_chat(chat_id: str | None) -> bool:
     """True for group / broadcast / newsletter JIDs — not a sender identity."""
     return bool(chat_id) and str(chat_id).strip().lower().endswith(_WHATSAPP_NON_USER_SUFFIXES)
 
 
-def _whatsapp_user_chat_ids_match(platform: str, left: Optional[str], right: Optional[str]) -> bool:
+def _whatsapp_user_chat_ids_match(platform: str, left: str | None, right: str | None) -> bool:
     """True when two WhatsApp *user* chat_ids refer to the same person.
 
     Uses ``expand_whatsapp_aliases`` (same helper as session keys and adapter allowlists) so a bare
@@ -59,12 +59,12 @@ class ProfileRoute:
     name: str
     platform: str
     profile: str
-    guild_id: Optional[str] = None
-    chat_id: Optional[str] = None
-    thread_id: Optional[str] = None
+    guild_id: str | None = None
+    chat_id: str | None = None
+    thread_id: str | None = None
     enabled: bool = True
-    bot_profile: Optional[str] = None  # None = the default profile's bot
-    user_id: Optional[str] = None
+    bot_profile: str | None = None  # None = the default profile's bot
+    user_id: str | None = None
 
     @property
     def specificity(self) -> int:
@@ -72,9 +72,9 @@ class ProfileRoute:
         return 2 * bool(self.guild_id) + 4 * bool(self.chat_id) + 8 * bool(self.thread_id) + 16 * bool(self.user_id)
 
     def matches(
-        self, platform: str, guild_id: Optional[str] = None, chat_id: Optional[str] = None,
-        thread_id: Optional[str] = None, parent_chat_id: Optional[str] = None,
-        adapter_profile: Optional[str] = None, user_id: Optional[str] = None,
+        self, platform: str, guild_id: str | None = None, chat_id: str | None = None,
+        thread_id: str | None = None, parent_chat_id: str | None = None,
+        adapter_profile: str | None = None, user_id: str | None = None,
     ) -> bool:
         """True if every discriminator the route declares holds (AND).
 
@@ -101,13 +101,13 @@ class ProfileRoute:
         return not (self.guild_id and self.guild_id != guild_id)
 
 
-def _bot_profile_key(name: Optional[str]) -> Optional[str]:
+def _bot_profile_key(name: str | None) -> str | None:
     """``None`` for the default profile, else the profile name (mirrors ``set_owner_profile``)."""
     name = (name or "").strip()
     return None if not name or name == "default" else name
 
 
-def _coerce_route_id(value: Any) -> Optional[str]:
+def _coerce_route_id(value: Any) -> str | None:
     """Normalize a route discriminator to str for strict equality matching.
 
     YAML loads unquoted numeric IDs as ``int`` while ``SessionSource`` fields are ``str``. Only
@@ -130,11 +130,11 @@ def _coerce_route_id(value: Any) -> Optional[str]:
     return str(value)
 
 
-def parse_profile_routes(raw: Optional[List[Dict[str, Any]]]) -> List[ProfileRoute]:
+def parse_profile_routes(raw: list[dict[str, Any]] | None) -> list[ProfileRoute]:
     """Parse profile_routes from config.yaml, sorted most-specific-first."""
     if not raw:
         return []
-    routes: List[ProfileRoute] = []
+    routes: list[ProfileRoute] = []
     for entry in raw:
         if not isinstance(entry, dict):
             continue
@@ -146,7 +146,10 @@ def parse_profile_routes(raw: Optional[List[Dict[str, Any]]]) -> List[ProfileRou
             continue
         # Validate profile name to prevent path traversal (lazy import: cycle).
         try:
-            from hermes_cli.profiles import normalize_profile_name, validate_profile_name
+            from hermes_cli.profiles import (
+                normalize_profile_name,
+                validate_profile_name,
+            )
 
             profile = normalize_profile_name(profile)
             validate_profile_name(profile)
@@ -172,10 +175,10 @@ def parse_profile_routes(raw: Optional[List[Dict[str, Any]]]) -> List[ProfileRou
 
 
 def match_profile_route(
-    routes: List[ProfileRoute], platform: str, guild_id: Optional[str] = None, chat_id: Optional[str] = None,
-    thread_id: Optional[str] = None, parent_chat_id: Optional[str] = None,
-    adapter_profile: Optional[str] = None, user_id: Optional[str] = None,
-) -> Optional[ProfileRoute]:
+    routes: list[ProfileRoute], platform: str, guild_id: str | None = None, chat_id: str | None = None,
+    thread_id: str | None = None, parent_chat_id: str | None = None,
+    adapter_profile: str | None = None, user_id: str | None = None,
+) -> ProfileRoute | None:
     """Return the first (most specific) matching route, or None."""
     for route in routes:
         if route.matches(platform, guild_id=guild_id, chat_id=chat_id, thread_id=thread_id,

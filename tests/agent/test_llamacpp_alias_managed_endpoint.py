@@ -17,7 +17,6 @@ import sys
 
 import psutil
 import pytest
-
 from agent import auxiliary_client as aux
 from hermes_cli.local_runtime import detect
 from hermes_cli.local_runtime.supervisor import state_path

@@ -3,10 +3,9 @@ chat-completions route gets a wire copy without it (strict schemas 400/422 on th
 wedging the session after an in-session model switch — hermes-agent#70233; the Nous Portal
 additionally 400s on a cumulative replayed-reasoning budget — hermes-agent#118182)."""
 
-from openai import OpenAI
-
 from agent.auxiliary_wire import prepare_chat_messages
 from agent.transports import get_transport
+from openai import OpenAI
 
 _HISTORY = [
     {"role": "user", "content": "hi"},

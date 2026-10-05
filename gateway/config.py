@@ -7,19 +7,22 @@ import logging
 import math
 import os
 import re
-from pathlib import Path
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field, fields, is_dataclass
-from typing import Dict, List, Optional, Any, Callable
 from enum import Enum
+from pathlib import Path
+from typing import Any
 
+from agent.secret_scope import current_secret_scope
+from agent.secret_scope import get_secret as _get_secret
 from hermes_cli.config import get_hermes_home
-from agent.secret_scope import current_secret_scope, get_secret as _get_secret
+from utils import fast_safe_load, is_truthy_value
+
 from gateway.shutdown_watchdog import (
     DEFAULT_LOOP_WATCHDOG_INTERVAL_S,
     DEFAULT_LOOP_WATCHDOG_MAX_STRIKES,
     DEFAULT_LOOP_WATCHDOG_TIMEOUT_S,
 )
-from utils import fast_safe_load, is_truthy_value
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +30,7 @@ _TRUTHY_STRINGS = frozenset({"1", "true", "yes", "on"})
 _FALSY_STRINGS = frozenset({"0", "false", "no", "off"})
 
 
-def _bool_token(value: Any) -> Optional[bool]:
+def _bool_token(value: Any) -> bool | None:
     """True/False for a recognized truthy/falsy token, else None."""
     token = str(value).strip().lower()
     return True if token in _TRUTHY_STRINGS else False if token in _FALSY_STRINGS else None
@@ -43,7 +46,7 @@ def _coerce_bool(value: Any, default: bool = True) -> bool:
     return is_truthy_value(value, default=default)
 
 
-def _env_multiplex_profiles_override() -> "bool | None":
+def _env_multiplex_profiles_override() -> bool | None:
     """GATEWAY_MULTIPLEX_PROFILES operator override: True/False for a recognized token.
 
     ``None`` when unset, blank, or unrecognized so the caller keeps the config.yaml
@@ -68,7 +71,7 @@ def _env_multiplex_profiles_override() -> "bool | None":
 ON_ALL_ADAPTERS_DOWN_POLICIES = ("exit", "stay_alive")
 
 
-def _env_on_all_adapters_down_override() -> "str | None":
+def _env_on_all_adapters_down_override() -> str | None:
     """GATEWAY_ON_ALL_ADAPTERS_DOWN operator override: 'exit'/'stay_alive' for a recognized token.
 
     ``None`` when unset, blank, or unrecognized so the caller keeps the config.yaml value
@@ -117,7 +120,7 @@ def _coerce_int(value: Any, default: int) -> int:
     return _coerce_num(int, value, default)
 
 
-def _coerce_optional_positive_int(value: Any, key: str) -> Optional[int]:
+def _coerce_optional_positive_int(value: Any, key: str) -> int | None:
     """``None``/0/negative disable; malformed values are ignored with a warning so a typo never blocks startup."""
     if value is None:
         return None
@@ -141,7 +144,7 @@ def coerce_systemd_watchdog_seconds(
     and service generation so a value can never enable ``Type=notify`` without heartbeats."""
     if value is None:
         return 0
-    parsed: Optional[int] = None
+    parsed: int | None = None
     if isinstance(value, int) and not isinstance(value, bool):
         parsed = value
     elif isinstance(value, str) and value.strip().isascii() and value.strip().isdecimal():
@@ -156,7 +159,7 @@ def coerce_systemd_watchdog_seconds(
     return parsed
 
 
-def _coerce_dict(value: Any) -> Dict[str, Any]:
+def _coerce_dict(value: Any) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
@@ -183,7 +186,7 @@ def _dict_slot(container: dict, key: str) -> dict:
     return value
 
 
-def _getenv(name: str, default: Optional[str] = None) -> Optional[str]:
+def _getenv(name: str, default: str | None = None) -> str | None:
     """Env read through the active profile secret scope when present (multiplexed
     per-profile secrets must win); otherwise legacy ``os.getenv``."""
     if current_secret_scope() is not None:
@@ -196,11 +199,11 @@ def _getenv_str(name: str, default: str = "") -> str:
     return val if (val := _getenv(name, default)) is not None else default
 
 
-_Platform__bundled_plugin_names: Optional[set] = None  # cached outside the enum: never a member
-_Platform__bundled_plugin_aliases: Optional[dict] = None  # manifest ``name:`` (lower) -> directory name
+_Platform__bundled_plugin_names: set | None = None  # cached outside the enum: never a member
+_Platform__bundled_plugin_aliases: dict | None = None  # manifest ``name:`` (lower) -> directory name
 
 
-def _bundled_platform_manifest_name(plugin_dir: Path) -> Optional[str]:
+def _bundled_platform_manifest_name(plugin_dir: Path) -> str | None:
     """Lowercased ``name:`` from a bundled platform's plugin manifest (None when absent/unreadable)."""
     try:
         manifest_file = next(
@@ -267,7 +270,7 @@ class Platform(Enum):
         return cls._add_pseudo_member(value) if registered else None
 
     @classmethod
-    def _add_pseudo_member(cls, value: str) -> "Platform":
+    def _add_pseudo_member(cls, value: str) -> Platform:
         pseudo = object.__new__(cls)
         pseudo._value_ = value
         pseudo._name_ = value.upper().replace("-", "_").replace(" ", "_")
@@ -276,7 +279,7 @@ class Platform(Enum):
         return pseudo
 
     @classmethod
-    def _scan_bundled_plugin_platforms(cls) -> "tuple[set, dict]":
+    def _scan_bundled_plugin_platforms(cls) -> tuple[set, dict]:
         """Directory names of bundled platform plugins under ``plugins/platforms/``, plus a map of
         manifest ``name:`` keys that differ from their directory (alias -> directory name). Aliases
         never shadow a directory name, so the directory stays the canonical platform value."""
@@ -317,7 +320,7 @@ SHARED_LISTENER_MIRROR_PLATFORMS = frozenset({"api_server", "webhook"})
 SHARED_LISTENER_MIRROR_PATHS: dict[str, str] = {"api_server": "/v1", "webhook": "/webhooks/<route>"}
 
 
-def platform_binds_port(platform_value: str, extra: Optional[dict] = None) -> bool:
+def platform_binds_port(platform_value: str, extra: dict | None = None) -> bool:
     """True when *platform_value* actually binds a port for *extra* config."""
     if platform_value not in PORT_BINDING_PLATFORM_VALUES:
         return False
@@ -328,7 +331,7 @@ _DISCORD_CHANNEL_LINK_RE = re.compile(
     r"https://(?:(?:ptb|canary)\.)?discord(?:app)?\.com/channels/(?:[0-9]+|@me)/([0-9]+)/?")
 
 
-def discord_channel_id_from_link(value: str) -> Optional[str]:
+def discord_channel_id_from_link(value: str) -> str | None:
     """Channel id from a pasted Discord channel link (``https://discord.com/channels/<guild>/<channel>``),
     else None. Message links (a third path segment) and anything that is not a channel link are
     left alone so callers keep their own error path."""
@@ -343,10 +346,10 @@ class HomeChannel:
     platform: Platform
     chat_id: str
     name: str
-    thread_id: Optional[str] = None
+    thread_id: str | None = None
     # Authenticated logical-target provenance (relay egress re-attaches; connector stays the authz boundary).
-    user_id: Optional[str] = None
-    scope_id: Optional[str] = None
+    user_id: str | None = None
+    scope_id: str | None = None
 
     def __post_init__(self) -> None:
         # Copy Link is next to Copy Channel ID in Discord. Normalize at the
@@ -354,12 +357,12 @@ class HomeChannel:
         if self.platform == Platform.DISCORD and isinstance(self.chat_id, str):
             self.chat_id = discord_channel_id_from_link(self.chat_id.strip()) or self.chat_id
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         optional = {k: v for k in ("thread_id", "user_id", "scope_id") if (v := getattr(self, k))}
         return {"platform": self.platform.value, "chat_id": self.chat_id, "name": self.name, **optional}
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "HomeChannel":
+    def from_dict(cls, data: dict[str, Any]) -> HomeChannel:
         optional = {k: str(data[k]) if data.get(k) else None for k in ("thread_id", "user_id", "scope_id")}
         return cls(platform=Platform(data["platform"]), chat_id=str(data["chat_id"]), name=data.get("name", "Home"), **optional)
 
@@ -378,15 +381,15 @@ def persist_home_channel(home: HomeChannel, *, enabled_if_new: bool = False) -> 
 @dataclass
 class ChannelOverride:
     """Per-channel model/provider/system_prompt override (``platforms.<name>.channel_overrides[channel_id]``)."""
-    model: Optional[str] = None
-    provider: Optional[str] = None
-    system_prompt: Optional[str] = None
+    model: str | None = None
+    provider: str | None = None
+    system_prompt: str | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {k: v for k, v in asdict(self).items() if v is not None}
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "ChannelOverride":
+    def from_dict(cls, data: dict[str, Any]) -> ChannelOverride:
         return cls(**{f.name: data.get(f.name) for f in fields(cls)}) if data else cls()
 
 
@@ -395,7 +398,7 @@ class ChannelOverride:
 # authenticate another way and must never be skipped for a missing token.
 # Platforms absent from this map authenticate some other way (session files, port-bound webhooks,
 # api_key-only) and must never be skipped for a missing token. See #64674.
-PLATFORM_TOKEN_ENV_NAMES: dict["Platform", str] = {
+PLATFORM_TOKEN_ENV_NAMES: dict[Platform, str] = {
     Platform.TELEGRAM: "TELEGRAM_BOT_TOKEN",
     Platform.DISCORD: "DISCORD_BOT_TOKEN",
     Platform.SLACK: "SLACK_BOT_TOKEN",
@@ -409,18 +412,18 @@ PLATFORM_TOKEN_ENV_NAMES: dict["Platform", str] = {
 class PlatformConfig:
     """Configuration for a single messaging platform."""
     enabled: bool = False
-    token: Optional[str] = None
-    api_key: Optional[str] = None  # API key if different from token
-    home_channel: Optional[HomeChannel] = None
+    token: str | None = None
+    api_key: str | None = None  # API key if different from token
+    home_channel: HomeChannel | None = None
     reply_to_mode: str = "first"  # "off" never threads, "first" only the first chunk, "all" every chunk
     gateway_restart_notification: bool = True  # "♻️ Gateway online/restarted" pings; noise on end-user platforms
     typing_indicator: bool = True  # drives _keep_typing; False where unwanted (Slack setStatus blocks compose)
     # Working-state text for text-rendering indicators (Slack status, Google Chat marker); None = platform default.
-    typing_status_text: Optional[str] = None
-    channel_overrides: Dict[str, ChannelOverride] = field(default_factory=dict)
-    extra: Dict[str, Any] = field(default_factory=dict)  # Platform-specific settings
+    typing_status_text: str | None = None
+    channel_overrides: dict[str, ChannelOverride] = field(default_factory=dict)
+    extra: dict[str, Any] = field(default_factory=dict)  # Platform-specific settings
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         result = {
             "enabled": self.enabled, "extra": self.extra, "reply_to_mode": self.reply_to_mode,
             "gateway_restart_notification": self.gateway_restart_notification,
@@ -442,7 +445,7 @@ class PlatformConfig:
     })
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "PlatformConfig":
+    def from_dict(cls, data: dict[str, Any]) -> PlatformConfig:
         data = _coerce_dict(data)
         home = data.get("home_channel")
         # Adapters read their settings from ``extra`` (``config.extra.get("port")``), but users
@@ -514,11 +517,11 @@ class StreamingConfig:
         """
         return self.globally_enabled and (platform_override is None or bool(platform_override))
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "StreamingConfig":
+    def from_dict(cls, data: dict[str, Any]) -> StreamingConfig:
         if not isinstance(data, dict) or not data:
             return cls()
 
@@ -584,9 +587,9 @@ _TOPLEVEL_BOOL_DEFAULTS = {
 @dataclass
 class GatewayConfig:
     """Main gateway configuration: platform connections, session policies, delivery settings."""
-    platforms: Dict[Platform, PlatformConfig] = field(default_factory=dict)
-    reset_triggers: List[str] = field(default_factory=lambda: ["/new", "/reset"])
-    quick_commands: Dict[str, Any] = field(default_factory=dict)  # slash commands that bypass the agent loop
+    platforms: dict[Platform, PlatformConfig] = field(default_factory=dict)
+    reset_triggers: list[str] = field(default_factory=lambda: ["/new", "/reset"])
+    quick_commands: dict[str, Any] = field(default_factory=dict)  # slash commands that bypass the agent loop
     sessions_dir: Path = field(default_factory=lambda: get_hermes_home() / "sessions")
     # Legacy sessions.json mirror of the routing index (primary: state.db) for external tooling / downgrades.
     # The primary copy lives in state.db (gateway_routing table, #9006). Default True for backward
@@ -601,7 +604,7 @@ class GatewayConfig:
     stt_echo_transcripts: bool = True  # Echo raw STT transcripts back to the user
     group_sessions_per_user: bool = True  # Isolate group sessions per participant when user IDs exist
     thread_sessions_per_user: bool = False  # False = threads shared across participants
-    max_concurrent_sessions: Optional[int] = None  # Positive int caps simultaneous active sessions
+    max_concurrent_sessions: int | None = None  # Positive int caps simultaneous active sessions
     # The default profile's gateway serves every profile on the host (profiles stamped into session
     # keys, per-profile adapters/credentials). On by default (DEFAULT_CONFIG), but UNSET here is
     # ``None``: a request the gateway settles at boot, not a verdict. ``hermes_cli.gateway_multiplex_mode
@@ -609,10 +612,10 @@ class GatewayConfig:
     # secondary running its own gateway, no blocker, migratable host) and only then writes True/False.
     # An explicit value (config.yaml, GATEWAY_MULTIPLEX_PROFILES, a constructor argument) is honoured
     # verbatim. Every reader tests truthiness, so an unresolved ``None`` never multiplexes by accident.
-    multiplex_profiles: Optional[bool] = None
+    multiplex_profiles: bool | None = None
     # Public HTTPS endpoint for scoped RoomLink calls (an API key alone must never advertise a
     # route); HERMES_ROOM_LINK_URL overrides.
-    room_link_url: Optional[str] = None
+    room_link_url: str | None = None
     systemd_watchdog_seconds: int = 0  # opt-in; zero keeps Type=simple and disables sd_notify
     # In-process loop liveness watchdog: after consecutive missed probes it dumps all-thread stacks
     # and hard-exits with the service-restart code. The knobs tolerate transient self-recovering
@@ -656,7 +659,7 @@ class GatewayConfig:
     def __post_init__(self) -> None:
         self.systemd_watchdog_seconds = coerce_systemd_watchdog_seconds(self.systemd_watchdog_seconds)
 
-    def get_connected_platforms(self) -> List[Platform]:
+    def get_connected_platforms(self) -> list[Platform]:
         """Enabled + configured platforms, sorted by value so the rendered "Connected
         Platforms" prompt block is byte-stable (a reorder busts the prompt cache)."""
         connected = [p for p, c in self.platforms.items() if c.enabled and self._is_platform_connected(p, c)]
@@ -701,10 +704,10 @@ class GatewayConfig:
             pass  # Registry not yet initialised during early import
         return False
 
-    def get_home_channel(self, platform: Platform) -> Optional[HomeChannel]:
+    def get_home_channel(self, platform: Platform) -> HomeChannel | None:
         return self.platforms[platform].home_channel if self.platforms.get(platform) else None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "platforms": {p.value: c.to_dict() for p, c in self.platforms.items()},
             "reset_triggers": self.reset_triggers,
@@ -721,7 +724,7 @@ class GatewayConfig:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "GatewayConfig":
+    def from_dict(cls, data: dict[str, Any]) -> GatewayConfig:
         data = _coerce_dict(data)
         nested_gateway = _coerce_dict(data.get("gateway"))
 
@@ -815,14 +818,14 @@ class GatewayConfig:
             profile_routes=parse_profile_routes(data.get("profile_routes") or []),
         )
 
-    def _extra_choice(self, platform: Optional[Platform], key: str, choices: set, default: str) -> Optional[str]:
+    def _extra_choice(self, platform: Platform | None, key: str, choices: set, default: str) -> str | None:
         """Normalized ``platforms[platform].extra[key]`` when the key is present, else None."""
         platform_cfg = self.platforms.get(platform) if platform else None
         if platform_cfg and key in platform_cfg.extra:
             return _normalize_choice(platform_cfg.extra.get(key), choices, default)
         return None
 
-    def get_unauthorized_dm_behavior(self, platform: Optional[Platform] = None) -> str:
+    def get_unauthorized_dm_behavior(self, platform: Platform | None = None) -> str:
         """Effective unauthorized-DM behavior. Email is inbox-shaped so it defaults to ``"ignore"``
         unless its own ``unauthorized_dm_behavior`` opts in (a global default does not)."""
         choice = self._extra_choice(platform, "unauthorized_dm_behavior", UNAUTHORIZED_DM_BEHAVIORS, self.unauthorized_dm_behavior)
@@ -830,7 +833,7 @@ class GatewayConfig:
             return choice
         return "ignore" if platform == Platform.EMAIL else self.unauthorized_dm_behavior
 
-    def get_notice_delivery(self, platform: Optional[Platform] = None) -> str:
+    def get_notice_delivery(self, platform: Platform | None = None) -> str:
         """Effective notice-delivery mode ("public"/"private") for a platform."""
         choice = self._extra_choice(platform, "notice_delivery", {"public", "private"}, "public")
         return "public" if choice is None else choice
@@ -865,7 +868,7 @@ def load_gateway_config() -> GatewayConfig:
     return config
 
 
-def _validate_gateway_config(config: "GatewayConfig") -> None:
+def _validate_gateway_config(config: GatewayConfig) -> None:
     """Validate and sanitize a loaded GatewayConfig in place (after all sources are merged)."""
     try:
         # Reject known-weak placeholder tokens. Ported from openclaw/openclaw#64586: users who copy

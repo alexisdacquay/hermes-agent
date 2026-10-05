@@ -18,14 +18,14 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Optional
 
 from hermes_cli.browser_runtime import chromium_executable
 from hermes_constants import get_hermes_home
 
 from plugins.google_meet import process_manager as pm
 from plugins.google_meet.meet_bot import _is_safe_meet_url
-from plugins.google_meet.node.cli import node_command, register_cli as _register_node_cli
+from plugins.google_meet.node.cli import node_command
+from plugins.google_meet.node.cli import register_cli as _register_node_cli
 from plugins.google_meet.tools import resolve_node
 
 
@@ -244,8 +244,8 @@ def _remote(node: str, op: str, call) -> int:
     return _print_result({"node": name, **res})
 
 
-def _cmd_join(url: str, *, guest_name: str, duration: Optional[str], headed: bool,
-              mode: str = "transcribe", node: Optional[str] = None) -> int:
+def _cmd_join(url: str, *, guest_name: str, duration: str | None, headed: bool,
+              mode: str = "transcribe", node: str | None = None) -> int:
     if not _is_safe_meet_url(url):
         print(f"refusing: not a meet.google.com URL: {url}")
         return 2
@@ -257,7 +257,7 @@ def _cmd_join(url: str, *, guest_name: str, duration: Optional[str], headed: boo
                                   auth_state=str(auth) if auth.is_file() else None, mode=mode))
 
 
-def _cmd_say(text: str, node: Optional[str] = None) -> int:
+def _cmd_say(text: str, node: str | None = None) -> int:
     if not (text or "").strip():
         print("refusing: empty text")
         return 2
@@ -266,7 +266,7 @@ def _cmd_say(text: str, node: Optional[str] = None) -> int:
     return _print_result(pm.enqueue_say(text))
 
 
-def _cmd_transcript(last: Optional[int]) -> int:
+def _cmd_transcript(last: int | None) -> int:
     res = pm.transcript(last=last)
     if not res.get("ok"):
         return _print_result(res)

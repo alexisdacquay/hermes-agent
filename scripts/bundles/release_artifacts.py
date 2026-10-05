@@ -14,7 +14,11 @@ import xml.etree.ElementTree as ET
 import zipfile
 from pathlib import Path, PureWindowsPath
 
-from scripts.releases.stable import read_admitted_candidate, accepted_smoke_results, validate_candidates
+from scripts.releases.stable import (
+    accepted_smoke_results,
+    read_admitted_candidate,
+    validate_candidates,
+)
 
 
 def sha256_file(file: Path) -> str:
@@ -103,7 +107,7 @@ def record(platform: str, arch: str, root: Path, tag: str, commit: str, out: Pat
         app = single(root.glob("mac*/*.app"))
         subprocess.run(["codesign", "--verify", "--strict", str(app)], check=True)
         signature = subprocess.run(["codesign", "-dv", "--verbose=4", str(app)], check=True, capture_output=True, text=True, encoding="utf-8")
-        team = re.search(r"^TeamIdentifier=([A-Z0-9]{10})$", signature.stderr, re.M)
+        team = re.search(r"^TeamIdentifier=([A-Z0-9]{10})$", signature.stderr, re.MULTILINE)
         if not team:
             raise ValueError("Signed app has no Developer ID team")
         with zipfile.ZipFile(package) as archive:
@@ -280,8 +284,8 @@ def write_appinstaller(out: Path, *, identity: str, publisher: str, version: str
 def publish_canary_appinstaller(root: Path, *, tag: str, variant: str, bundle: Path,
                                identity: str, publisher: str, version: str, public_base: str) -> None:
     """Native SDK work is complete; verify its identity before writing a feed."""
-    from scripts.releases.r2 import put
     from hermes_cli.update_channel import is_canary_tag
+    from scripts.releases.r2 import put
 
     if not is_canary_tag(tag):
         raise ValueError("Only canary feeds publish directly; stable requires accepted candidates")
@@ -306,7 +310,7 @@ def publish_canary_appinstaller(root: Path, *, tag: str, variant: str, bundle: P
 
 
 def promote(manifest: dict, root: Path, public_base: str) -> None:
-    from scripts.releases.r2 import put, finalize
+    from scripts.releases.r2 import finalize, put
 
     materialize(manifest, root, public_base=public_base)
     windows = next(r for r in manifest["packages"] if r["platform"] == "windows")

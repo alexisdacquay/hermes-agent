@@ -14,21 +14,18 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from gateway.config import PlatformConfig
 from gateway.platforms.base import (
-    SendResult,
     SUPPORTED_VIDEO_TYPES,
+    SendResult,
 )
 from gateway.platforms.event import MessageEvent, MessageType
-
 
 # ---------------------------------------------------------------------------
 # Mock the telegram package if it's not installed
 # ---------------------------------------------------------------------------
 # Now we can safely import
-from plugins.platforms.telegram.adapter import TelegramAdapter  # noqa: E402
-
+from plugins.platforms.telegram.adapter import TelegramAdapter
 
 # ---------------------------------------------------------------------------
 # Helpers to build mock Telegram objects

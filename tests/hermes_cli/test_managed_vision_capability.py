@@ -74,7 +74,6 @@ def test_live_props_beats_catalog(hermes_home, monkeypatch):
     """A running child's modalities report wins over the catalog: the
     server that will receive the image is the authority."""
     import hermes_cli.local_runtime.capabilities as caps
-
     from hermes_cli.local_runtime.catalog import CATALOG
 
     entry = next(e for e in CATALOG if e.mmproj is not None)
@@ -117,11 +116,9 @@ def test_webp_transcodes_to_png_for_managed_provider(hermes_home, monkeypatch, t
     saw. Measured live: the same red square answered 'Red' as PNG and
     'Unseen' as WebP."""
     pytest.importorskip("PIL")
-    import io
-
-    from PIL import Image
 
     import agent.image_routing as ir
+    from PIL import Image
 
     webp_path = tmp_path / "shot.webp"
     img = Image.new("RGB", (32, 32), (255, 0, 0))
@@ -140,9 +137,8 @@ def test_webp_transcodes_to_png_for_managed_provider(hermes_home, monkeypatch, t
 def test_webp_passes_through_for_cloud_providers(hermes_home, monkeypatch, tmp_path):
     """Cloud providers accept WebP natively — no transcode tax for them."""
     pytest.importorskip("PIL")
-    from PIL import Image
-
     import agent.image_routing as ir
+    from PIL import Image
 
     webp_path = tmp_path / "shot.webp"
     Image.new("RGB", (32, 32), (255, 0, 0)).save(webp_path, format="WEBP")
@@ -162,9 +158,8 @@ def test_vision_analyze_normalization_narrows_for_managed(hermes_home, monkeypat
     WebP must convert to PNG THERE too, or the tool path re-introduces the
     silent-drop confabulation the attachment path just fixed."""
     pytest.importorskip("PIL")
-    from PIL import Image
-
     import tools.vision_tools as vt
+    from PIL import Image
 
     webp_path = tmp_path / "img.webp"
     Image.new("RGB", (32, 32), (255, 0, 0)).save(webp_path, format="WEBP")

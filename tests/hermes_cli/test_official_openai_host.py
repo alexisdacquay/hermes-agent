@@ -12,7 +12,6 @@ canonical host and must match; lookalike/spoof hosts must not (#32243).
 from __future__ import annotations
 
 import pytest
-
 from hermes_cli.providers import is_official_openai_host
 
 

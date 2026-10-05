@@ -8,18 +8,28 @@ seam so ``monkeypatch.setattr(<owning module>, ...)`` keeps working.
 """
 
 import asyncio
-from typing import Optional
 
 from fastapi import APIRouter, HTTPException
 
 from hermes_cli.web_deps import late
-from hermes_cli.web_server_profiles import _hub_action_name, _installed_hub_identifiers
 from hermes_cli.web_models import (
-    SkillContentUpdate, SkillCreate, SkillInstallRequest, SkillToggle, SkillUninstallRequest,
-    SkillsUpdateRequest)
+    SkillContentUpdate,
+    SkillCreate,
+    SkillInstallRequest,
+    SkillsUpdateRequest,
+    SkillToggle,
+    SkillUninstallRequest,
+)
 from hermes_cli.web_routers._common import (
-    _profile_scope, config_write_scope, http_failure, log as _log, require, scoped_to_thread,
-    spawn_profile_action)
+    _profile_scope,
+    config_write_scope,
+    http_failure,
+    require,
+    scoped_to_thread,
+    spawn_profile_action,
+)
+from hermes_cli.web_routers._common import log as _log
+from hermes_cli.web_server_profiles import _hub_action_name, _installed_hub_identifiers
 
 hub_router = APIRouter()
 router = APIRouter()
@@ -41,7 +51,7 @@ _SKILL_HUB_SOURCE_LABELS = {
 }
 
 
-def _hub_sources(profile: Optional[str]):
+def _hub_sources(profile: str | None):
     """Source router built under ``profile``'s config scope."""
     from tools.skills_hub_search import create_source_router
 
@@ -49,10 +59,11 @@ def _hub_sources(profile: Optional[str]):
         return create_source_router()
 
 
-def _resolve_hub_skill(ident: str, profile: Optional[str]):
+def _resolve_hub_skill(ident: str, profile: str | None):
     """``(meta, bundle)`` for a hub identifier, resolved under ``profile``'s scope."""
-    from hermes_cli.skills_hub import _resolve_source_meta_and_bundle
     from tools.skills_hub_search import create_source_router
+
+    from hermes_cli.skills_hub import _resolve_source_meta_and_bundle
 
     with _config_profile_scope(profile):
         sources = create_source_router()
@@ -95,7 +106,7 @@ def _clear_skills_prompt_cache() -> None:
 
 
 @hub_router.post("/api/skills/hub/install")
-async def install_skill_hub(body: SkillInstallRequest, profile: Optional[str] = None):
+async def install_skill_hub(body: SkillInstallRequest, profile: str | None = None):
     identifier = require(body.identifier, "identifier is required")
     return spawn_profile_action(
         body.profile or profile, ["skills", "install", identifier, "--yes"],
@@ -104,7 +115,7 @@ async def install_skill_hub(body: SkillInstallRequest, profile: Optional[str] = 
 
 
 @hub_router.post("/api/skills/hub/uninstall")
-async def uninstall_skill_hub(body: SkillUninstallRequest, profile: Optional[str] = None):
+async def uninstall_skill_hub(body: SkillUninstallRequest, profile: str | None = None):
     name = require(body.name, "name is required")
     return spawn_profile_action(
         body.profile or profile, ["skills", "uninstall", name, "--yes"],
@@ -114,14 +125,14 @@ async def uninstall_skill_hub(body: SkillUninstallRequest, profile: Optional[str
 
 @hub_router.post("/api/skills/hub/update")
 async def update_skills_hub(
-    body: Optional[SkillsUpdateRequest] = None, profile: Optional[str] = None):
+    body: SkillsUpdateRequest | None = None, profile: str | None = None):
     return spawn_profile_action(
         (body.profile if body else None) or profile, ["skills", "update"], "skills-update",
         log_msg="Failed to spawn skills update", prefix="Failed to update skills")
 
 
 @hub_router.get("/api/skills/hub/official")
-async def list_official_skills(profile: Optional[str] = None):
+async def list_official_skills(profile: str | None = None):
     """The ENTIRE optional-skills catalog (local scan), marked installed for ``profile``."""
 
     def _run():
@@ -145,7 +156,7 @@ async def list_official_skills(profile: Optional[str] = None):
 
 
 @hub_router.get("/api/skills/hub/sources")
-async def list_skills_hub_sources(profile: Optional[str] = None):
+async def list_skills_hub_sources(profile: str | None = None):
     """Configured skill-hub sources + installed-skill provenance (scoped to
     ``profile``), so the Browse-hub tab has something before a search runs."""
 
@@ -184,7 +195,7 @@ async def list_skills_hub_sources(profile: Optional[str] = None):
 
 @hub_router.get("/api/skills/hub/search")
 async def search_skills_hub(
-    q: str = "", source: str = "all", limit: int = 20, profile: Optional[str] = None):
+    q: str = "", source: str = "all", limit: int = 20, profile: str | None = None):
     """Search the skill hub across all configured sources (network-bound)."""
     query = (q or "").strip()
     if not query:
@@ -225,7 +236,7 @@ async def _hub_lookup(fn, ident: str, log_msg: str, prefix: str):
 
 
 @hub_router.get("/api/skills/hub/preview")
-async def preview_skill_hub(identifier: str = "", profile: Optional[str] = None):
+async def preview_skill_hub(identifier: str = "", profile: str | None = None):
     """A hub skill's SKILL.md + file manifest WITHOUT installing it; scoped to
     ``profile`` so different hub taps resolve against THAT source router."""
     ident = require(identifier, "identifier is required")
@@ -263,7 +274,7 @@ async def preview_skill_hub(identifier: str = "", profile: Optional[str] = None)
 
 
 @hub_router.get("/api/skills/hub/scan")
-async def scan_skill_hub(identifier: str = "", profile: Optional[str] = None):
+async def scan_skill_hub(identifier: str = "", profile: str | None = None):
     """Install-time security scan of a hub skill WITHOUT installing it (the CLI's
     ``scan_skill`` / ``should_allow_install`` pipeline on a quarantined bundle);
     scoped to ``profile`` so the bundle resolves where an install would."""
@@ -272,8 +283,8 @@ async def scan_skill_hub(identifier: str = "", profile: Optional[str] = None):
     def _run():
         import shutil as _shutil
 
-        from tools.skills_hub_install import quarantine_bundle
         from tools.skills_guard import scan_skill, should_allow_install
+        from tools.skills_hub_install import quarantine_bundle
 
         meta, bundle = _resolve_hub_skill(ident, profile)
         if not bundle:
@@ -292,7 +303,10 @@ async def scan_skill_hub(identifier: str = "", profile: Optional[str] = None):
             # Advisory SkillEvaluator Tier 1 second opinion: optional binary,
             # never blocks, errors degrade to no data (same as the CLI installer).
             try:
-                from tools.skillevaluator_scan import run_tier1_scan, tier1_advisory_enabled
+                from tools.skillevaluator_scan import (
+                    run_tier1_scan,
+                    tier1_advisory_enabled,
+                )
                 if tier1_advisory_enabled():
                     t1 = run_tier1_scan(q_path)
                     if t1.available:
@@ -341,11 +355,17 @@ async def scan_skill_hub(identifier: str = "", profile: Optional[str] = None):
 
 
 @router.get("/api/skills")
-async def get_skills(profile: Optional[str] = None):
-    from tools.skills_tool import _find_all_skills
-    from hermes_cli.skills_config import get_disabled_skills
+async def get_skills(profile: str | None = None):
     from tools.skill_usage import (
-        _external_skill_names, _read_bundled_names, _read_hub_installed_names, activity_count, load_usage)
+        _external_skill_names,
+        _read_bundled_names,
+        _read_hub_installed_names,
+        activity_count,
+        load_usage,
+    )
+    from tools.skills_tool import _find_all_skills
+
+    from hermes_cli.skills_config import get_disabled_skills
 
     def _run():
         with _profile_scope(profile):
@@ -377,7 +397,7 @@ async def get_skills(profile: Optional[str] = None):
 
 
 @router.put("/api/skills/toggle")
-async def toggle_skill(body: SkillToggle, profile: Optional[str] = None):
+async def toggle_skill(body: SkillToggle, profile: str | None = None):
     from hermes_cli.skills_config import get_disabled_skills, save_disabled_skills
 
     def _run():
@@ -395,7 +415,7 @@ async def toggle_skill(body: SkillToggle, profile: Optional[str] = None):
 
 
 @router.get("/api/skills/content")
-async def get_skill_content(name: str, profile: Optional[str] = None):
+async def get_skill_content(name: str, profile: str | None = None):
     """Raw SKILL.md text for the dashboard editor."""
     from tools.skill_manager_tool import _find_skill
 
@@ -416,7 +436,7 @@ async def get_skill_content(name: str, profile: Optional[str] = None):
 
 
 @router.post("/api/skills")
-async def create_skill(body: SkillCreate, profile: Optional[str] = None):
+async def create_skill(body: SkillCreate, profile: str | None = None):
     """Create a skill via the agent's ``skill_manage`` write path, minus the
     write-approval gate — an authenticated dashboard write IS the user.
     Profile from the body or ``?profile=``, like the rest of ``/api/skills``."""
@@ -431,7 +451,7 @@ async def create_skill(body: SkillCreate, profile: Optional[str] = None):
 
 
 @router.put("/api/skills/content")
-async def update_skill_content(body: SkillContentUpdate, profile: Optional[str] = None):
+async def update_skill_content(body: SkillContentUpdate, profile: str | None = None):
     """Replace the SKILL.md of an existing skill (full rewrite) from the editor."""
     from tools.skill_manager_tool import _edit_skill
 

@@ -8,7 +8,7 @@ MRO unchanged.
 import logging
 import uuid
 from contextlib import suppress
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from agent.lazy_forward import forward as _forward
 
@@ -21,15 +21,15 @@ class TurnFacadeMixin:
 
     def run_conversation(
         self, user_message: Any, system_message: str=None,
-        conversation_history: List[Dict[str, Any]]=None, task_id: str=None,
-        stream_callback: Optional[callable]=None, persist_user_message: Optional[Any]=None,
-        persist_user_timestamp: Optional[float]=None, persist_user_display_kind: Optional[str]=None,
-        persist_user_display_metadata: Optional[Dict[str, Any]]=None,
-        persist_user_platform_id: Optional[str]=None, moa_config: Optional[dict[str, Any]]=None,
-        turn_author: Optional[Dict[str, Any]] = None,
-        relay_metadata: Optional[Dict[str, Any]] = None,
-        title_user_message: Optional[str]=None,
-    ) -> Dict[str, Any]:
+        conversation_history: list[dict[str, Any]]=None, task_id: str=None,
+        stream_callback: callable | None=None, persist_user_message: Any | None=None,
+        persist_user_timestamp: float | None=None, persist_user_display_kind: str | None=None,
+        persist_user_display_metadata: dict[str, Any] | None=None,
+        persist_user_platform_id: str | None=None, moa_config: dict[str, Any] | None=None,
+        turn_author: dict[str, Any] | None = None,
+        relay_metadata: dict[str, Any] | None = None,
+        title_user_message: str | None=None,
+    ) -> dict[str, Any]:
         """Forwarder — see ``agent.conversation_loop.run_conversation``."""
         # A review shares this session_id for cache parity: fence review startup or interrupt
         # an admitted request and await its exit before opening live-turn instrumentation.
@@ -39,21 +39,33 @@ class TurnFacadeMixin:
 
         cancel_background_review_for_live_turn(self)
 
+        from hermes_cli.observability.relay_shared_metrics import (
+            finish_task_run,
+            start_task_run,
+        )
+
         from agent import relay_runtime
-        from agent.aux_accounting import reset_accounting_context, set_accounting_context
+        from agent.aux_accounting import (
+            reset_accounting_context,
+            set_accounting_context,
+        )
         from agent.auxiliary_client import scoped_runtime_main
         from agent.conversation_loop import run_conversation
+        from agent.interrupt_scope import track_in_interrupt_scope
         from agent.portal_tags import (
-            reset_affinity_scope, reset_conversation_context, set_affinity_scope,
+            reset_affinity_scope,
+            reset_conversation_context,
+            set_affinity_scope,
             set_conversation_context,
         )
         from agent.prompt_cache_scope import declared_conversation_scope_safe
         from agent.relay_cwd import resolve_relay_scope_cwds
         from agent.review_idle_queue import QUEUE as _review_queue
         from agent.subagent_lifecycle import bind_subagent_parent
-        from agent.interrupt_scope import track_in_interrupt_scope
-        from agent.turn_facade_lease import admit_durable_turn_lease, carry_unadmitted_user_message
-        from hermes_cli.observability.relay_shared_metrics import finish_task_run, start_task_run
+        from agent.turn_facade_lease import (
+            admit_durable_turn_lease,
+            carry_unadmitted_user_message,
+        )
 
         effective_task_id = task_id or str(uuid.uuid4())
         session_id = str(getattr(self, "session_id", None) or "")
@@ -110,7 +122,7 @@ class TurnFacadeMixin:
                 session_cwd=relay_session_cwd,
                 turn_cwd=relay_turn_cwd,
             )
-            relay_turn_kwargs: Dict[str, Any] = {
+            relay_turn_kwargs: dict[str, Any] = {
                 "turn_id": relay_turn_id,
                 "task_id": effective_task_id,
             }
@@ -215,7 +227,7 @@ class TurnFacadeMixin:
                     with suppress(Exception):
                         _review_queue.note_turn_finished()
 
-    def chat(self, message: str, stream_callback: Optional[callable] = None) -> str:
+    def chat(self, message: str, stream_callback: callable | None = None) -> str:
         """Final response string of one turn; ``stream_callback`` receives each text delta."""
         return self.run_conversation(message, stream_callback=stream_callback)["final_response"]
 

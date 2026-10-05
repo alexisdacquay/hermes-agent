@@ -1,10 +1,9 @@
 """SQLite completion and fleet verification remain independent update outcomes."""
 
-from contextlib import nullcontext
 import json
+from contextlib import nullcontext
 
 import pytest
-
 from hermes_cli import update_cmd, update_cmd_fleet, update_cmd_maint, update_receipt
 from hermes_constants import get_hermes_home
 

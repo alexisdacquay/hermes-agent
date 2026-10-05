@@ -9,20 +9,22 @@ import logging
 import threading
 import uuid
 from collections import OrderedDict, deque
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from time import monotonic_ns
-from typing import Any, Callable
+from typing import Any
 
 from agent import relay_runtime
 from agent.portal_tags import get_conversation_context
+
 from hermes_cli.version_info import get_version_info
 
-from .shared_metrics import SharedMetricsStore
 from . import shared_metrics_contract as contract
 from . import shared_metrics_efficiency as eff
 from . import shared_metrics_engagement as engagement_
 from . import shared_metrics_fields as fields_
 from . import shared_metrics_model as model_
+from .shared_metrics import SharedMetricsStore
 from .shared_metrics_contract import MODEL_CALL_SCOPE, SUBSCRIBER_NAME, TASK_SCOPE
 from .shared_metrics_subscriber import SharedMetricsSubscriber
 
@@ -1299,9 +1301,8 @@ def _reconcile_store_consent(store: SharedMetricsStore, send_enabled: bool) -> N
     from hermes_cli.observability.shared_metrics_sender import reconcile_send_consent
     from hermes_cli.sqlite_util import write_txn
 
-    with store._connection() as connection:
-        with write_txn(connection):
-            reconcile_send_consent(connection, send_enabled)
+    with store._connection() as connection, write_txn(connection):
+        reconcile_send_consent(connection, send_enabled)
 
 
 def enabled() -> bool:
@@ -1346,8 +1347,9 @@ def _reconcile_send_consent_once() -> None:
     _consent_reconcile_done = True
     try:
         # Lazy: tests patch ``shared_metrics.SharedMetricsStore`` at its origin.
-        from hermes_cli.observability.shared_metrics import SharedMetricsStore
         from hermes_constants import get_hermes_home
+
+        from hermes_cli.observability.shared_metrics import SharedMetricsStore
 
         resolved = _resolved_send_config()
         # Probe WITHOUT constructing a store: the constructor creates the directory and

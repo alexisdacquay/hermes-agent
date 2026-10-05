@@ -40,8 +40,10 @@ import pytest
 # ---------------------------------------------------------------------------
 
 try:  # pragma: no cover - exercised implicitly by every exception test
-    from botocore.exceptions import (  # noqa: F401
+    from botocore.exceptions import (
         ClientError as _RealClientError,
+    )
+    from botocore.exceptions import (
         ConnectionClosedError as _RealConnectionClosedError,
     )
 except Exception:  # botocore genuinely not installed / torn — tests skip
@@ -132,8 +134,15 @@ class TestScopedAwsSessionKwargs:
         ``boto3.Session()`` sign as A) and its bearer read is scoped, A again is unaffected.
         Control: a standalone run keeps the ambient chain (``{}`` + process-env bearer)."""
         from agent import bedrock_adapter, secret_scope
-        from agent.bedrock_adapter import _cached_client, resolve_bedrock_bearer_token, scoped_aws_session_kwargs
-        from hermes_constants import reset_hermes_home_override, set_hermes_home_override
+        from agent.bedrock_adapter import (
+            _cached_client,
+            resolve_bedrock_bearer_token,
+            scoped_aws_session_kwargs,
+        )
+        from hermes_constants import (
+            reset_hermes_home_override,
+            set_hermes_home_override,
+        )
 
         home_a, home_b = tmp_path / "home-A", tmp_path / "home-B"
         for home in (home_a, home_b):
@@ -181,8 +190,9 @@ class TestResolveBedrocRegion:
 
 
     def test_defaults_to_us_east_1(self):
-        from agent.bedrock_adapter import resolve_bedrock_region
         from unittest.mock import MagicMock
+
+        from agent.bedrock_adapter import resolve_bedrock_region
         mock_session = MagicMock()
         mock_session.get_config_variable.return_value = None
         with _mock_botocore_session(return_value=mock_session):
@@ -429,7 +439,10 @@ class TestNormalizeConverseResponse:
         }
 
     def test_interleaved_reasoning_and_tools_keep_exact_order(self):
-        from agent.bedrock_adapter import convert_messages_to_converse, normalize_converse_response
+        from agent.bedrock_adapter import (
+            convert_messages_to_converse,
+            normalize_converse_response,
+        )
 
         normalized = normalize_converse_response({
             "output": {"message": {"role": "assistant", "content": [
@@ -1069,7 +1082,10 @@ class TestBedrockContextLength:
 
 
     def test_unknown_model_gets_default(self):
-        from agent.bedrock_adapter import get_bedrock_context_length, BEDROCK_DEFAULT_CONTEXT_LENGTH
+        from agent.bedrock_adapter import (
+            BEDROCK_DEFAULT_CONTEXT_LENGTH,
+            get_bedrock_context_length,
+        )
         assert get_bedrock_context_length("unknown.model-v1:0") == BEDROCK_DEFAULT_CONTEXT_LENGTH
 
 
@@ -1156,7 +1172,10 @@ class TestInferenceProfileContextLength:
     def test_resolution_denied_falls_back_to_default_with_warning(self, caplog):
         # Without bedrock:GetInferenceProfile the default window applies and the silence is broken
         # with a WARNING naming the profile and the explicit-config escape hatch.
-        from agent.bedrock_adapter import get_bedrock_context_length, BEDROCK_DEFAULT_CONTEXT_LENGTH
+        from agent.bedrock_adapter import (
+            BEDROCK_DEFAULT_CONTEXT_LENGTH,
+            get_bedrock_context_length,
+        )
         client = MagicMock()
         client.get_inference_profile.side_effect = Exception("AccessDeniedException")
         with patch("agent.bedrock_adapter._get_bedrock_control_client", return_value=client), \
@@ -1258,7 +1277,10 @@ class TestEmptyTextBlockFix:
     whitespace and gets rejected by the same Bedrock validation rule)."""
 
     def test_none_content_gets_placeholder(self):
-        from agent.bedrock_adapter import _convert_content_to_converse, _EMPTY_TEXT_PLACEHOLDER
+        from agent.bedrock_adapter import (
+            _EMPTY_TEXT_PLACEHOLDER,
+            _convert_content_to_converse,
+        )
         blocks = _convert_content_to_converse(None)
         assert blocks[0]["text"] == _EMPTY_TEXT_PLACEHOLDER
         assert blocks[0]["text"].strip()
@@ -1415,7 +1437,11 @@ class TestAgentBedrockStreamRecovery:
     def test_streaming_denial_falls_back_to_converse_via_bedrock_stream(self):
         pytest.importorskip("botocore.exceptions", reason="botocore (with working exceptions module) required")
         from types import SimpleNamespace
-        from agent.bedrock_adapter import _bedrock_runtime_client_cache, reset_client_cache
+
+        from agent.bedrock_adapter import (
+            _bedrock_runtime_client_cache,
+            reset_client_cache,
+        )
         from agent.chat_completion_helpers import _BedrockStream
         from botocore.exceptions import ClientError
 
@@ -1447,7 +1473,10 @@ class TestAgentBedrockStreamRecovery:
 
     def test_stale_connection_evicts_client_on_agent_stream_path(self):
         pytest.importorskip("botocore.exceptions", reason="botocore (with working exceptions module) required")
-        from agent.bedrock_adapter import _bedrock_runtime_client_cache, reset_client_cache
+        from agent.bedrock_adapter import (
+            _bedrock_runtime_client_cache,
+            reset_client_cache,
+        )
         from agent.chat_completion_helpers import _bedrock_converse_call
         from botocore.exceptions import ConnectionClosedError
 
@@ -1511,8 +1540,9 @@ class TestImageBase64Decoding:
     """
 
     def test_data_url_decoded_to_bytes(self):
-        from agent.bedrock_adapter import _convert_content_to_converse
         import base64
+
+        from agent.bedrock_adapter import _convert_content_to_converse
 
         # A tiny 1x1 red PNG
         raw_png = base64.b64decode(
@@ -1634,8 +1664,8 @@ class TestReasoningReplaySchema:
     def test_call_converse_replays_thinking_botocore_accepts(self):
         pytest.importorskip("botocore.session", reason="botocore (bedrock extra) required")
         import botocore.session
-        from botocore.validate import validate_parameters
         from agent.bedrock_adapter import call_converse
+        from botocore.validate import validate_parameters
         shape = botocore.session.get_session().get_service_model("bedrock-runtime").operation_model("Converse").input_shape
         client = MagicMock()
 

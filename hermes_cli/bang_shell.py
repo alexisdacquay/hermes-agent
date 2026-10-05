@@ -11,7 +11,6 @@ from __future__ import annotations
 import os
 import subprocess
 from contextlib import suppress
-from typing import Optional
 
 USAGE_HINT = "Usage: !<command> — run a shell command without spending a model turn (e.g. !git status)"
 
@@ -20,7 +19,7 @@ USAGE_HINT = "Usage: !<command> — run a shell command without spending a model
 DEFAULT_TIMEOUT = 120
 
 
-def is_bang_command(text: Optional[str]) -> bool:
+def is_bang_command(text: str | None) -> bool:
     """True when *text* is a ``!`` shell-mode submission.
 
     Only a leading ``!`` (after surrounding whitespace) counts; ``fix the bug!`` is an ordinary
@@ -55,7 +54,7 @@ def bang_shell_enabled() -> bool:
                 or (os.getenv("HERMES_SESSION_PLATFORM") or "").strip())
 
 
-def resolve_bang_cwd(session_key: Optional[str] = None) -> Optional[str]:
+def resolve_bang_cwd(session_key: str | None = None) -> str | None:
     """The directory a bang command should run in.
 
     Mirrors the terminal tool's order so ``!pwd`` matches the agent's own commands: the session's
@@ -97,7 +96,7 @@ def _bang_env() -> dict:
     return build_subprocess_env()
 
 
-def run_bang_command(command: str, *, cwd: Optional[str] = None, timeout: int = DEFAULT_TIMEOUT, writer=None) -> int:
+def run_bang_command(command: str, *, cwd: str | None = None, timeout: int = DEFAULT_TIMEOUT, writer=None) -> int:
     """Execute *command*, streaming merged stdout/stderr through *writer* (default ``print``); return the exit code.
 
     Output exists only on the user's terminal — nothing is returned for insertion into history.

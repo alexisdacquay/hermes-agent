@@ -9,10 +9,8 @@ hermes_cli/profiles.py::_count_skills) plus the disabled-set, with a short
 TTL bounding in-place SKILL.md edit staleness.
 """
 
-import time
 
 import pytest
-
 import tools.skills_tool as st
 
 
@@ -23,7 +21,7 @@ def _fresh_cache(monkeypatch, tmp_path):
     st._SKILLS_CACHE.clear()
     monkeypatch.setattr(st, "_skills_dir", lambda: tmp_path / "skills")
     monkeypatch.setattr(
-        "agent.skill_utils.get_external_skills_dirs", lambda: []
+        "agent.skill_utils.get_external_skills_dirs", list
     )
     monkeypatch.setattr(st, "_get_disabled_skill_names", lambda: set())
     yield

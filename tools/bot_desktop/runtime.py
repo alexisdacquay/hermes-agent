@@ -24,9 +24,9 @@ import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Optional
 
 from hermes_constants import get_hermes_home
+
 from tools.bot_desktop import placement
 
 logger = logging.getLogger(__name__)
@@ -84,14 +84,14 @@ def missing_binaries() -> list[str]:
     return [b for b in REQUIRED_BINARIES if shutil.which(b) is None]
 
 
-def package_manager() -> Optional[str]:
+def package_manager() -> str | None:
     for pm in ("apt-get", "dnf", "pacman"):
         if shutil.which(pm):
             return "apt" if pm == "apt-get" else pm
     return None
 
 
-def install_command() -> Optional[str]:
+def install_command() -> str | None:
     """The distro command that installs the Bot Desktop packages, as the human would type it on THIS host:
     prefixed with ``sudo`` unless Hermes already runs as root, so it is both what the pane shows and what
     :mod:`tools.bot_desktop.install` runs. ``None`` when no package manager is present.
@@ -136,23 +136,23 @@ class DesktopStatus:
     installed: bool
     missing: list[str]
     running: bool
-    pid: Optional[int]
-    display: Optional[str]
-    socket: Optional[str]
+    pid: int | None
+    display: str | None
+    socket: str | None
     geometry: str
-    install_command: Optional[str]
-    browser: Optional[str]  # headed Chromium the dock's Browser icon and agent-browser share; None = no headed browser
-    blocker: Optional[str] = None  # why start() would refuse right now (memory); None = may start
-    memory_available_mb: Optional[int] = None
-    memory_limit_mb: Optional[int] = None
+    install_command: str | None
+    browser: str | None  # headed Chromium the dock's Browser icon and agent-browser share; None = no headed browser
+    blocker: str | None = None  # why start() would refuse right now (memory); None = may start
+    memory_available_mb: int | None = None
+    memory_limit_mb: int | None = None
     placement: str = "gateway"  # "gateway" | "terminal:<backend>" — where Xvnc runs
-    image_switch: Optional[Dict[str, object]] = None  # pending default-image switch the pane can approve
+    image_switch: dict[str, object] | None = None  # pending default-image switch the pane can approve
 
-    def as_dict(self) -> Dict[str, object]:
+    def as_dict(self) -> dict[str, object]:
         return dict(self.__dict__)
 
 
-def _read(path: Path) -> Optional[str]:
+def _read(path: Path) -> str | None:
     try:
         return path.read_text(encoding="utf-8-sig").strip() or None
     except OSError:
@@ -169,7 +169,7 @@ def _pid_alive(pid: int) -> bool:
         return False
 
 
-def _create_time(pid: int) -> Optional[float]:
+def _create_time(pid: int) -> float | None:
     import psutil
     try:
         return psutil.Process(pid).create_time()
@@ -177,7 +177,7 @@ def _create_time(pid: int) -> Optional[float]:
         return None
 
 
-def _launcher_pid() -> Optional[int]:
+def _launcher_pid() -> int | None:
     """The live launcher's pid, or None. ``launcher.pid`` holds ``"<pid> <create_time>"``: a recycled pid
     with a different start time is somebody else's process and must never be reported as ours nor
     killed by :func:`stop`. The pre-identity single-number format is treated as not running."""
@@ -193,7 +193,7 @@ def _launcher_pid() -> Optional[int]:
     return pid if actual is not None and abs(actual - born) < 0.01 and _pid_alive(pid) else None
 
 
-def _recorded_launcher_pid() -> Optional[int]:
+def _recorded_launcher_pid() -> int | None:
     """The pid ``launcher.pid`` names, alive or not (the orphan sweep matches process groups against it)."""
     pid_s, _, born_s = (_read(state_dir() / "launcher.pid") or "").partition(" ")
     return int(pid_s) if pid_s.isdigit() and born_s else None
@@ -203,7 +203,7 @@ _X_LOCK_DIR = Path("/tmp")  # no-tmp: ok — X servers write .X<n>-lock here by 
 _X_UNIX_TABLE = Path("/proc/net/unix")  # the kernel's list of bound Unix sockets (tests point it at a fixture)
 
 
-def _x_lock_pid(num: int) -> Optional[int]:
+def _x_lock_pid(num: int) -> int | None:
     try:
         return int((_X_LOCK_DIR / f".X{num}-lock").read_text(encoding="utf-8-sig").strip())
     except (OSError, ValueError):
@@ -267,7 +267,7 @@ def _reap_orphaned_server(sd: Path) -> bool:
     return True
 
 
-def _kill_group_then_wait(pgid: Optional[int], pid: int, grace: float = 2.0) -> None:
+def _kill_group_then_wait(pgid: int | None, pid: int, grace: float = 2.0) -> None:
     """SIGTERM the group (or the lone pid), SIGKILL whatever is still there after ``grace``."""
     def _signal(sig: int) -> None:
         with contextlib.suppress(ProcessLookupError, PermissionError):
@@ -341,7 +341,7 @@ def _allocate_display() -> int:
         return _pick_display()
 
 
-def desktop_env(base_env: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+def desktop_env(base_env: dict[str, str] | None = None) -> dict[str, str]:
     """``base_env`` (default ``os.environ``) with this profile's DISPLAY/XAUTHORITY/DBUS_SESSION_BUS_ADDRESS
     merged in when its desktop is running. Unchanged otherwise, so hosts with a real seat keep it.
     Pure: never starts anything (it is called from env builders, status probes and tests)."""
@@ -401,7 +401,7 @@ def tool_placement() -> str:
     return placement.TERMINAL
 
 
-def _should_auto_start(env: Dict[str, str]) -> bool:
+def _should_auto_start(env: dict[str, str]) -> bool:
     if not is_supported_host() or env.get("DISPLAY") or env.get("WAYLAND_DISPLAY"):
         return False
     if missing_binaries():
@@ -428,7 +428,7 @@ def touch_activity() -> None:
         pass
 
 
-def idle_seconds() -> Optional[float]:
+def idle_seconds() -> float | None:
     """Seconds since the last stamped use; None when the screen never recorded one (falls back to the
     env file's publish time so a screen started and then forgotten still ages)."""
     for name in ("activity", "env"):
@@ -465,7 +465,7 @@ def stop_if_idle() -> bool:
     return stop()
 
 
-def published_env() -> Dict[str, str]:
+def published_env() -> dict[str, str]:
     """Variables the launcher wrote once Xfce's private bus existed; empty when the desktop is down.
 
     Pure file reads on the common path: this is called from every browser / cua-driver env builder, so it
@@ -479,7 +479,7 @@ def published_env() -> Dict[str, str]:
     raw = _read(state_dir() / "env")
     if not raw:
         return {}
-    out: Dict[str, str] = {}
+    out: dict[str, str] = {}
     for line in raw.splitlines():
         key, sep, value = line.partition("=")
         if sep:
@@ -487,7 +487,7 @@ def published_env() -> Dict[str, str]:
     return out
 
 
-def rfb_socket_path() -> Optional[Path]:
+def rfb_socket_path() -> Path | None:
     """Host path of the RFB socket; None when down OR when the screen lives in a sandbox (use
     :func:`open_rfb_stream` there: the socket is not on this filesystem)."""
     from tools.bot_desktop import sandbox_host
@@ -541,7 +541,7 @@ def is_running() -> bool:
     return bool(published_env().get("DISPLAY"))
 
 
-def open_rfb_stream() -> "subprocess.Popen":
+def open_rfb_stream() -> subprocess.Popen:
     """Popen whose stdin/stdout carry RFB bytes for a sandbox-hosted screen (``in_sandbox()`` only)."""
     from tools.bot_desktop import sandbox_host
     env = _sandbox_env(create=False)
@@ -556,10 +556,9 @@ def geometry() -> str:
     return str(cfg.get("geometry") or "1440x900")
 
 
-def status(profile: Optional[str] = None) -> DesktopStatus:
+def status(profile: str | None = None) -> DesktopStatus:
     from tools.bot_desktop import browser as _bd_browser
-    from tools.bot_desktop import resources
-    from tools.bot_desktop import sandbox_host
+    from tools.bot_desktop import resources, sandbox_host
     where = placement.resolve()
     if where.where == placement.TERMINAL or sandbox_host._read_marker():
         # A screen already running inside a sandbox is reported (and stoppable) even after the placement
@@ -589,7 +588,7 @@ def status(profile: Optional[str] = None) -> DesktopStatus:
     )
 
 
-def _sandbox_status(profile: Optional[str], where) -> DesktopStatus:
+def _sandbox_status(profile: str | None, where) -> DesktopStatus:
     """Status of a sandbox-placed screen. Package presence is only known once the sandbox exists; before
     that the pane shows "installed" with the image hint carried in ``install_command`` so Start can explain."""
     from tools.bot_desktop import sandbox_host
@@ -799,7 +798,7 @@ def _start_in_sandbox(wait_seconds: float) -> DesktopStatus:
     return status()
 
 
-def _sandbox_published_env() -> Dict[str, str]:
+def _sandbox_published_env() -> dict[str, str]:
     """Published env of a sandbox-hosted screen (the caller saw the host-side marker written at start)."""
     from tools.bot_desktop import sandbox_host
     env = _sandbox_env(create=False)

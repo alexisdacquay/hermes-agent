@@ -10,15 +10,16 @@ import importlib.machinery
 import importlib.util
 import logging
 import sys
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, List, Optional, Tuple
+from typing import Any
 
 _log = logging.getLogger(__name__)
 
 _PLUGINS_ROOT = Path(__file__).parent
 
 
-def register_synthetic_package(name: str, search_locations: List[str]) -> None:
+def register_synthetic_package(name: str, search_locations: list[str]) -> None:
     """Register an empty package shell so ``<name>.<child>`` relative imports resolve."""
     if name in sys.modules:
         return
@@ -27,7 +28,7 @@ def register_synthetic_package(name: str, search_locations: List[str]) -> None:
     sys.modules[name] = importlib.util.module_from_spec(spec)
 
 
-def user_plugins_dir() -> Optional[Path]:
+def user_plugins_dir() -> Path | None:
     """Return ``$HERMES_HOME/plugins/`` or None if unavailable."""
     try:
         from hermes_constants import get_hermes_home
@@ -37,11 +38,11 @@ def user_plugins_dir() -> Optional[Path]:
         return None
 
 
-def iter_plugin_dirs(root: Path) -> List[Path]:
+def iter_plugin_dirs(root: Path) -> list[Path]:
     """Sorted child dirs of *root* that have an ``__init__.py`` (skips ``_``/``.`` names)."""
     if not root.is_dir():
         return []
-    dirs: List[Path] = []
+    dirs: list[Path] = []
     for child in sorted(root.iterdir()):
         if child.name.startswith(("_", ".")):
             continue
@@ -65,7 +66,7 @@ def read_plugin_description(plugin_dir: Path) -> str:
         return ""
 
 
-def _new_module(name: str, file: Path, search_locations: Optional[List[str]] = None) -> Optional[Any]:
+def _new_module(name: str, file: Path, search_locations: list[str] | None = None) -> Any | None:
     """spec -> module -> sys.modules[name] (NOT executed); None if no spec."""
     spec = importlib.util.spec_from_file_location(
         name, str(file), submodule_search_locations=search_locations)
@@ -76,7 +77,7 @@ def _new_module(name: str, file: Path, search_locations: Optional[List[str]] = N
     return mod
 
 
-def _exec(mod: Any, logger: Optional[logging.Logger] = None) -> bool:
+def _exec(mod: Any, logger: logging.Logger | None = None) -> bool:
     """Exec a ``_new_module`` module (None -> False); False + debug-log if it raised. The sys.modules
     entry stays on failure; callers needing a clean retry pop it themselves."""
     if mod is None:
@@ -90,8 +91,8 @@ def _exec(mod: Any, logger: Optional[logging.Logger] = None) -> bool:
         return False
 
 
-def load_plugin_module(module_name: str, plugin_dir: Path, *, parents: Tuple[str, ...],
-                       logger: logging.Logger, synthetic_namespace: Optional[str] = None) -> Optional[Any]:
+def load_plugin_module(module_name: str, plugin_dir: Path, *, parents: tuple[str, ...],
+                       logger: logging.Logger, synthetic_namespace: str | None = None) -> Any | None:
     """Import ``plugin_dir/__init__.py`` as *module_name* (reusing sys.modules when loaded).
     Order matters: parents first (relative imports need them), then siblings as ``module_name.<stem>``
     (so ``from ._x import Y`` resolves), then the module. Finally child is bound onto parent and
@@ -151,7 +152,7 @@ class NoopPluginContext:
 
 
 def instance_from_module(mod: Any, *, collector: Any, collected_attr: str, base_cls: type, name: str,
-                         logger: logging.Logger) -> Optional[Any]:
+                         logger: logging.Logger) -> Any | None:
     """Extract the provider instance: ``register(ctx)`` first, then any ``base_cls`` subclass."""
     if hasattr(mod, "register"):
         try:
@@ -169,8 +170,8 @@ def instance_from_module(mod: Any, *, collector: Any, collected_attr: str, base_
     return None
 
 
-def load_named(name: str, plugin_dir: Path, load_from_dir: Callable[[Path], Optional[Any]], *, kind: str,
-               noun: str, logger: logging.Logger) -> Optional[Any]:
+def load_named(name: str, plugin_dir: Path, load_from_dir: Callable[[Path], Any | None], *, kind: str,
+               noun: str, logger: logging.Logger) -> Any | None:
     """Shared body of ``load_<kind>(name)``: load from *plugin_dir*, warn + None on failure."""
     try:
         instance = load_from_dir(plugin_dir)
@@ -182,7 +183,7 @@ def load_named(name: str, plugin_dir: Path, load_from_dir: Callable[[Path], Opti
     return instance or None
 
 
-def probe_availability(load: Callable[[], Optional[Any]]) -> bool:
+def probe_availability(load: Callable[[], Any | None]) -> bool:
     """True iff *load()* returns an instance whose ``is_available()`` (if any) is truthy."""
     try:
         instance = load()

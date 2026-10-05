@@ -23,7 +23,6 @@ import time
 from pathlib import Path
 
 import pytest
-
 from hermes_cli.update_lock import (
     HANDOFF_PID_ENV,
     UPDATE_MARKER_MAX_AGE_SECONDS,
@@ -217,10 +216,9 @@ def test_absent_marker_reports_no_live_update(marker):
 
 
 def test_context_manager_releases_even_on_exception(marker):
-    with pytest.raises(RuntimeError):
-        with UpdateLock(path=marker) as lock:
-            assert lock.acquired is True
-            raise RuntimeError("update blew up mid-flight")
+    with pytest.raises(RuntimeError), UpdateLock(path=marker) as lock:
+        assert lock.acquired is True
+        raise RuntimeError("update blew up mid-flight")
 
     assert not marker.exists(), "a crashed update must not strand the lock"
 

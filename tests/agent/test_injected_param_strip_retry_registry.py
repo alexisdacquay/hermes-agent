@@ -28,13 +28,12 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
-
+from agent.auxiliary_client import call_llm
 from agent.error_classifier import (
-    FailoverReason,
     _SERVER_INJECTED_PARAM_SENDERS,
+    FailoverReason,
     classify_api_error,
 )
-from agent.auxiliary_client import call_llm
 
 
 class MockAPIError(Exception):
@@ -89,7 +88,7 @@ def _drive_conversation_retry(transport, *, provider, model, max_attempts=3):
     for _ in range(max_attempts):
         try:
             return transport()
-        except Exception as exc:  # noqa: BLE001 — contract mirror
+        except Exception as exc:
             verdict = classify_api_error(
                 exc, provider=provider, model=model,
                 approx_tokens=50, num_messages=3,

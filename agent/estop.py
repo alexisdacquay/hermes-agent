@@ -14,12 +14,12 @@ import json
 import logging
 import threading
 from contextlib import suppress
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Optional
 
 # Same profile-aware / fleet-root resolvers the file-safety guards use (fail-open to ~/.hermes).
-from agent.file_safety import _hermes_home_path as _hermes_home, _hermes_root_path as _canonical_root
+from agent.file_safety import _hermes_home_path as _hermes_home
+from agent.file_safety import _hermes_root_path as _canonical_root
 
 SENTINEL_NAME = "ESTOP"
 
@@ -61,10 +61,10 @@ def is_engaged() -> bool:
     return saw_stat_error
 
 
-def engage(reason: Optional[str] = None) -> Path:
+def engage(reason: str | None = None) -> Path:
     """Create the ESTOP sentinel. Idempotent; re-engaging updates the file."""
     path = sentinel_path()
-    payload = {"engaged_at": datetime.now(timezone.utc).isoformat(), "reason": reason or None}
+    payload = {"engaged_at": datetime.now(UTC).isoformat(), "reason": reason or None}
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
@@ -86,7 +86,7 @@ def disengage() -> bool:
     return lifted
 
 
-def get_state() -> Optional[dict]:
+def get_state() -> dict | None:
     """Return ``{"reason", "engaged_at"}`` or None when not engaged; an unreadable/corrupt
     body still reports engaged with both fields None."""
     if not is_engaged():
@@ -110,7 +110,7 @@ def get_state() -> Optional[dict]:
     return state if found else None
 
 
-def paused_reply() -> Optional[str]:
+def paused_reply() -> str | None:
     """Short user-facing notice for new gateway turns, or None if not paused."""
     state = get_state()
     if state is None:

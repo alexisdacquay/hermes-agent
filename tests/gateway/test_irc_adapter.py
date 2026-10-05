@@ -1,8 +1,9 @@
 """Tests for the IRC platform adapter plugin."""
 
 import asyncio
-import pytest
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 from tests.gateway._plugin_adapter_loader import load_plugin_adapter
 
@@ -220,7 +221,7 @@ class TestIRCAdapterSplitting:
         adapter._current_nick = "bot"
         lines = adapter._split_message(text, "#test")
         for line in lines:
-            overhead = len(f"PRIVMSG #test :{line}\r\n".encode("utf-8"))
+            overhead = len(f"PRIVMSG #test :{line}\r\n".encode())
             assert overhead <= 512, f"line over 512 bytes: {overhead}"
 
 
@@ -377,7 +378,7 @@ class TestIRCStandaloneSend:
             try:
                 return await coro
             except asyncio.IncompleteReadError:
-                raise asyncio.TimeoutError()
+                raise TimeoutError()
 
         monkeypatch.setattr(_irc_mod.asyncio, "wait_for", _fast_timeout)
 

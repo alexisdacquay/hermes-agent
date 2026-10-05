@@ -12,7 +12,6 @@ import sys
 from pathlib import Path
 
 import pytest
-
 from hermes_cli import venv_sync
 
 

@@ -6,20 +6,28 @@ import os
 import subprocess
 import sys
 import zipfile
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
-
-from tests.scripts.test_release_r2 import r2_server  # noqa: F401
 from scripts.releases.draft_warning import (
-    WARNING_CLOSE, WARNING_OPEN, strip_draft_warning,
+    WARNING_CLOSE,
+    WARNING_OPEN,
+    strip_draft_warning,
 )
 from scripts.releases.stable import (
-    check_claim, ensure_final_tag, plan_receipt_transitions, plan_transitions, read_manifest,
-    require_stable_identity, require_success, validate_candidates, validate_receipt,
+    check_claim,
+    ensure_final_tag,
+    plan_receipt_transitions,
+    plan_transitions,
+    read_manifest,
+    require_stable_identity,
+    require_success,
+    validate_candidates,
+    validate_receipt,
 )
 from scripts.releases.versioning import tag_record
+from tests.scripts.test_release_r2 import r2_server  # noqa: F401
 
 BASE = "https://releases.example"
 ROOT = Path(__file__).resolve().parents[2]
@@ -30,7 +38,7 @@ def candidates(tag, commit, digest, archive=None):
     manifest itself names; the payload `tag` stays plain vX.Y.Z."""
     packages = []
     second = 100 + int(tag.rsplit('.', 1)[1])
-    release_epoch = int((datetime(2026, 8, 29, 1, 0, tzinfo=timezone.utc)
+    release_epoch = int((datetime(2026, 8, 29, 1, 0, tzinfo=UTC)
                          + timedelta(seconds=second)).timestamp())
     native_version = f"2026.5761.{second}.0"
     ref = archive or tag
@@ -292,8 +300,8 @@ def https_origin(tmp_path, monkeypatch):
     name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "localhost")])
     cert = (x509.CertificateBuilder().subject_name(name).issuer_name(name)
             .public_key(key.public_key()).serial_number(x509.random_serial_number())
-            .not_valid_before(datetime.datetime(2020, 1, 1, tzinfo=datetime.timezone.utc))
-            .not_valid_after(datetime.datetime(2099, 1, 1, tzinfo=datetime.timezone.utc))
+            .not_valid_before(datetime.datetime(2020, 1, 1, tzinfo=datetime.UTC))
+            .not_valid_after(datetime.datetime(2099, 1, 1, tzinfo=datetime.UTC))
             .add_extension(x509.SubjectAlternativeName([
                 x509.DNSName("localhost"), x509.IPAddress(ipaddress.ip_address("127.0.0.1")),
             ]), critical=False).sign(key, hashes.SHA256()))

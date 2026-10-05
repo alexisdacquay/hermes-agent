@@ -5,12 +5,11 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
-
 from agent import title_generator
 from gateway.config import GatewayConfig, Platform
 from gateway.platforms.event import MessageEvent
 from gateway.run import GatewayRunner
-from gateway.session import SessionSource, SessionEntry
+from gateway.session import SessionEntry, SessionSource
 from gateway.turn_context import TurnContext
 from run_agent import AIAgent
 
@@ -28,8 +27,8 @@ async def test_gateway_titles_original_request_without_changing_model_input(tmp_
     monkeypatch.setattr("agent.skill_commands._load_skill_payload", lambda name, **kw: (
         {"name": name, "content": payloads[name]}, tmp_path / name, name,
     ))
-    monkeypatch.setattr("gateway.run._load_gateway_config", lambda: {})
-    monkeypatch.setattr("hermes_cli.config.load_config_readonly", lambda: {})
+    monkeypatch.setattr("gateway.run._load_gateway_config", dict)
+    monkeypatch.setattr("hermes_cli.config.load_config_readonly", dict)
     source = SessionSource(platform=Platform.DISCORD, chat_id="channel", user_id="user", user_name="Example")
     event = MessageEvent(text=question, source=source, auto_skill=skills,
                          channel_context="[Discord channel context: synthetic metadata]")
@@ -125,8 +124,9 @@ async def test_gateway_titles_original_request_without_changing_model_input(tmp_
         assert title_requests[-1] == "Explain transaction isolation"
         # Relay metadata belongs to upstream's facade, while title input belongs
         # to the conversation prologue. Both must survive the same admission.
-        from agent import relay_runtime
         from unittest.mock import Mock
+
+        from agent import relay_runtime
         begin_turn = Mock(wraps=relay_runtime.SESSION_COORDINATOR.begin_turn)
         monkeypatch.setattr(relay_runtime.SESSION_COORDINATOR, "begin_turn", begin_turn)
         metadata = {"source": "title-regression"}

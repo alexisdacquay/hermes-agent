@@ -7,9 +7,8 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Any, cast
 from urllib.parse import parse_qs, urlparse
 
-import pytest
-
 import plugins.memory.openviking as openviking_plugin
+import pytest
 from hermes_cli.version_info import get_version_info
 from plugins.memory.openviking import OpenVikingMemoryProvider
 
@@ -149,9 +148,8 @@ class TestOpenVikingSkillQuerySafety:
 
 
     def test_skill_markers_match_hermes_scaffolding(self, tmp_path, monkeypatch):
-        import agent.skill_bundles as skill_bundles
-        import agent.skill_commands as skill_commands
-        import tools.skills_tool as skills_tool
+        from agent import skill_bundles, skill_commands
+        from tools import skills_tool
 
         skills_dir = tmp_path / "skills"
         bundles_dir = tmp_path / "skill-bundles"

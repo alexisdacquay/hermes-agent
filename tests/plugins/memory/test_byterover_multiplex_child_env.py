@@ -9,7 +9,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from agent import secret_scope
 from hermes_constants import reset_hermes_home_override, set_hermes_home_override
 from plugins.memory import byterover

@@ -18,8 +18,10 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
-from typing import Any, NamedTuple, Optional
+from typing import Any, NamedTuple
+
 from agent.secret_scope import get_secret_str
+
 from hermes_cli.urllib_security import url_origin
 
 # Log-record parity with the origin module.
@@ -36,7 +38,7 @@ def _strip_suffixes(root: str, suffixes: tuple[str, ...]) -> str:
     return root
 
 
-def _normalize_openai_base_url(base_url: Optional[str]) -> str:
+def _normalize_openai_base_url(base_url: str | None) -> str:
     """Add a usable HTTP scheme without changing an OpenAI API path."""
     value = str(base_url or "").strip()
     if value.startswith(":"):
@@ -152,7 +154,7 @@ def _get_ollama_request_headers() -> dict[str, str]:
     return result
 
 
-def _get_ollama_native_headers(base_url: Optional[str], *, api_key: Optional[str] = None) -> dict[str, str]:
+def _get_ollama_native_headers(base_url: str | None, *, api_key: str | None = None) -> dict[str, str]:
     """Ollama credentials and headers for one endpoint origin. Configured headers apply only when
     *base_url* shares the configured Ollama root; an explicit *api_key* replaces any configured
     Authorization variant rather than inheriting it."""
@@ -194,7 +196,7 @@ def _remember_ollama_cache(cache: dict[str, Any], key: str, value: Any) -> None:
     cache[key] = value
 
 
-def _ollama_probe_cache_key(root: str, headers: Optional[dict[str, str]]) -> str:
+def _ollama_probe_cache_key(root: str, headers: dict[str, str] | None) -> str:
     if not headers:
         return root
     normalized_headers = sorted((str(key).lower(), str(value)) for key, value in headers.items())
@@ -202,7 +204,7 @@ def _ollama_probe_cache_key(root: str, headers: Optional[dict[str, str]]) -> str
     return f"{root}|headers:{hashlib.blake2b(header_blob, digest_size=8).hexdigest()}"
 
 
-def _parse_ollama_tags(payload: Any) -> Optional[list[str]]:
+def _parse_ollama_tags(payload: Any) -> list[str] | None:
     """Model ids from an ``/api/tags`` payload; None when the shape is not Ollama's."""
     raw_models = payload.get("models") if isinstance(payload, dict) else None
     if not isinstance(raw_models, list):
@@ -220,14 +222,18 @@ def _parse_ollama_tags(payload: Any) -> Optional[list[str]]:
 
 
 def probe_ollama_local_models(
-    base_url: Optional[str] = None,
+    base_url: str | None = None,
     timeout: float = 2.0,
-    headers: Optional[dict[str, str]] = None,
-) -> Optional[list[str]]:
+    headers: dict[str, str] | None = None,
+) -> list[str] | None:
     """Probe local Ollama-compatible models from native ``/api/tags`` (Ollama's authoritative local
     catalog; ``/v1/models`` is not required for local servers). ``None`` when the endpoint cannot be
     reached or returns malformed data; a list (possibly empty) when it was reachable."""
-    from hermes_cli.models import _HERMES_USER_AGENT, _get_ollama_base_url, _urlopen_model_catalog_request
+    from hermes_cli.models import (
+        _HERMES_USER_AGENT,
+        _get_ollama_base_url,
+        _urlopen_model_catalog_request,
+    )
     root = _root_for_ollama_native_api(base_url or _get_ollama_base_url())
     if not root:
         return None
@@ -260,10 +266,10 @@ def probe_ollama_local_models(
 
 
 def fetch_ollama_local_models(
-    base_url: Optional[str] = None,
+    base_url: str | None = None,
     timeout: float = 2.0,
-    headers: Optional[dict[str, str]] = None,
-) -> Optional[list[str]]:
+    headers: dict[str, str] | None = None,
+) -> list[str] | None:
     """Fetch local Ollama-compatible models, preserving probe failure as ``None``."""
     return probe_ollama_local_models(base_url, timeout, headers=headers)
 
@@ -290,9 +296,9 @@ _LOCAL_LIKE_PROVIDERS = frozenset({"", "custom", "local", "llamacpp", "llama.cpp
 
 
 def should_use_ollama_native_catalog(
-    provider: Optional[str],
-    base_url: Optional[str],
-    headers: Optional[dict[str, str]] = None,
+    provider: str | None,
+    base_url: str | None,
+    headers: dict[str, str] | None = None,
 ) -> bool:
     """True when model discovery should use local Ollama ``/api/tags``: the caller asked for Ollama
     explicitly, the base URL matches ``providers.ollama.base_url``, or an ambiguous custom URL on
@@ -364,25 +370,26 @@ def _ollama_local_catalog(force_refresh: bool) -> list[str]:
     return fetch_api_models(fallback_key, fallback_base, headers=fallback_headers or None) or []
 
 
-def _lmstudio_server_root(base_url: Optional[str]) -> Optional[str]:
+def _lmstudio_server_root(base_url: str | None) -> str | None:
     """LM Studio server root: users paste the OpenAI runtime URL (``.../v1``) or the native prefix
     (``.../api``, ``.../api/v1``); native probes append ``/api/v1/...`` themselves."""
     return _strip_suffixes((base_url or "").strip().rstrip("/"), ("/api/v1", "/api", "/v1")) or None
 
 
-def _lmstudio_request_headers(api_key: Optional[str] = None) -> dict:
+def _lmstudio_request_headers(api_key: str | None = None) -> dict:
     """HTTP headers for LM Studio native API requests."""
-    from hermes_cli.models import _HERMES_USER_AGENT
     from agent.command_token_source import materialize_probe_api_key
+
+    from hermes_cli.models import _HERMES_USER_AGENT
     token = materialize_probe_api_key(api_key)
     return {"User-Agent": _HERMES_USER_AGENT, **({"Authorization": f"Bearer {token}"} if token else {})}
 
 
 def _lmstudio_fetch_raw_models(
-    api_key: Optional[str] = None,
-    base_url: Optional[str] = None,
+    api_key: str | None = None,
+    base_url: str | None = None,
     timeout: float = 5.0,
-) -> Optional[list[dict]]:
+) -> list[dict] | None:
     """Raw model list from LM Studio's ``/api/v1/models``; None on network errors / malformed
     payloads; raises ``AuthError`` on HTTP 401/403."""
     from hermes_cli.models import _urlopen_model_catalog_request
@@ -415,7 +422,7 @@ def _lmstudio_fetch_raw_models(
     return raw_models
 
 
-def _lmstudio_raw_models_or_none(api_key, base_url, timeout) -> Optional[list[dict]]:
+def _lmstudio_raw_models_or_none(api_key, base_url, timeout) -> list[dict] | None:
     """``_lmstudio_fetch_raw_models`` with every failure (incl. AuthError) collapsed to None."""
     try:
         return _lmstudio_fetch_raw_models(api_key=api_key, base_url=base_url, timeout=timeout)
@@ -423,7 +430,7 @@ def _lmstudio_raw_models_or_none(api_key, base_url, timeout) -> Optional[list[di
         return None
 
 
-def _lmstudio_entry_for(raw_models: list, model: str) -> Optional[dict]:
+def _lmstudio_entry_for(raw_models: list, model: str) -> dict | None:
     for raw in raw_models:
         if isinstance(raw, dict) and (raw.get("key") == model or raw.get("id") == model):
             return raw
@@ -431,10 +438,10 @@ def _lmstudio_entry_for(raw_models: list, model: str) -> Optional[dict]:
 
 
 def probe_lmstudio_models(
-    api_key: Optional[str] = None,
-    base_url: Optional[str] = None,
+    api_key: str | None = None,
+    base_url: str | None = None,
     timeout: float = 5.0,
-) -> Optional[list[str]]:
+) -> list[str] | None:
     """Chat-capable LM Studio model keys — a valid empty list when the server is reachable but has
     no non-embedding models; ``None`` on network errors, malformed responses, or bad base URLs.
     Raises ``AuthError`` on HTTP 401/403 so token issues surface separately from reachability."""
@@ -453,8 +460,8 @@ def probe_lmstudio_models(
 
 
 def fetch_lmstudio_models(
-    api_key: Optional[str] = None,
-    base_url: Optional[str] = None,
+    api_key: str | None = None,
+    base_url: str | None = None,
     timeout: float = 5.0,
 ) -> list[str]:
     """LM Studio chat-capable model keys; ``[]`` when unreachable/malformed. Raises ``AuthError`` on
@@ -465,18 +472,18 @@ def fetch_lmstudio_models(
 class LMStudioLoadResult(NamedTuple):
     """Verified LM Studio runtime plus load-attempt provenance."""
 
-    context_length: Optional[int]
+    context_length: int | None
     load_attempted: bool = False
     rejected: bool = False
 
 
-def _positive_int(value: Any) -> Optional[int]:
+def _positive_int(value: Any) -> int | None:
     if isinstance(value, int) and not isinstance(value, bool) and value > 0:
         return value
     return None
 
 
-def _lmstudio_loaded_context(entry: Optional[dict]) -> Optional[int]:
+def _lmstudio_loaded_context(entry: dict | None) -> int | None:
     """First positive ``loaded_instances[*].config.context_length`` of a model entry."""
     instances = entry.get("loaded_instances") if entry is not None else None
     if not isinstance(instances, list):
@@ -491,13 +498,13 @@ def _lmstudio_loaded_context(entry: Optional[dict]) -> Optional[int]:
 
 def ensure_lmstudio_model_loaded(
     model: str,
-    base_url: Optional[str],
-    api_key: Optional[str],
-    target_context_length: Optional[int],
+    base_url: str | None,
+    api_key: str | None,
+    target_context_length: int | None,
     timeout: float = 120.0,
     *,
     return_load_result: bool = False,
-) -> Optional[int] | LMStudioLoadResult:
+) -> int | None | LMStudioLoadResult:
     """Ensure ``model`` is loaded and return verified runtime context.
 
     Existing loaded-instance context is authoritative. Cold loads omit ``context_length`` unless the
@@ -505,7 +512,7 @@ def ensure_lmstudio_model_loaded(
     refreshed state."""
     from hermes_cli.models import _urlopen_model_catalog_request
 
-    def _result(context_length: Optional[int], *, load_attempted: bool = False, rejected: bool = False):
+    def _result(context_length: int | None, *, load_attempted: bool = False, rejected: bool = False):
         result = LMStudioLoadResult(context_length, load_attempted, rejected)
         return result if return_load_result else context_length
 
@@ -564,8 +571,8 @@ def ensure_lmstudio_model_loaded(
 
 def lmstudio_model_reasoning_options(
     model: str,
-    base_url: Optional[str],
-    api_key: Optional[str] = None,
+    base_url: str | None,
+    api_key: str | None = None,
     timeout: float = 5.0,
 ) -> list[str]:
     """Reasoning ``allowed_options`` LM Studio publishes for ``model`` under
@@ -583,18 +590,17 @@ def lmstudio_model_reasoning_options(
 
 def ollama_model_supports_thinking(
     model: str,
-    base_url: Optional[str],
-    api_key: Optional[str] = None,
+    base_url: str | None,
+    api_key: str | None = None,
     timeout: float = 5.0,
-) -> Optional[bool]:
+) -> bool | None:
     """Tri-state: True if an Ollama (Cloud or local) model advertises ``thinking`` in native
     ``/api/show`` ``capabilities`` (authoritative; OpenAI-compat ``/v1/models`` omits it), False
     when the probe succeeded without it, None when it failed (caller treats as "don't emit")."""
     import httpx
 
     server_url = (base_url or "").strip().rstrip("/")
-    if server_url.endswith("/v1"):
-        server_url = server_url[:-3]
+    server_url = server_url.removesuffix("/v1")
     bare_model = _strip_ollama_cloud_suffix((model or "").strip())
     if not server_url or not bare_model:
         return None
@@ -631,7 +637,7 @@ def _ollama_cloud_cache_path() -> Path:
     return get_hermes_home() / "ollama_cloud_models_cache.json"
 
 
-def _load_ollama_cloud_cache(*, ignore_ttl: bool = False) -> Optional[dict]:
+def _load_ollama_cloud_cache(*, ignore_ttl: bool = False) -> dict | None:
     """Load cached Ollama Cloud models from disk (None when missing, empty, or stale)."""
     from hermes_cli.models import _read_json_cache
 
@@ -658,8 +664,8 @@ def _save_ollama_cloud_cache(models: list[str]) -> None:
 
 
 def fetch_ollama_cloud_models(
-    api_key: Optional[str] = None,
-    base_url: Optional[str] = None,
+    api_key: str | None = None,
+    base_url: str | None = None,
     *,
     force_refresh: bool = False,
     cache_only: bool = False,

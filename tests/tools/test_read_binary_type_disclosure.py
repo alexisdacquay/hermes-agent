@@ -9,7 +9,6 @@ import json
 import random
 
 import pytest
-
 from tools.file_operations import describe_binary_file, identify_binary_bytes
 from tools.file_tools import read_file_tool
 

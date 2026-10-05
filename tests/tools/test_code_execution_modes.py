@@ -1,6 +1,5 @@
 """Real interpreter, environment and RPC contracts for both execution modes."""
 
-import json
 import os
 import subprocess
 import sys
@@ -8,10 +7,14 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
-from tests.tools._child_env_fixtures import child_env, project_python, run_code  # noqa: F401
 from tools import code_execution_env as ce
 from tools.code_execution_tool import build_execute_code_schema
+
+from tests.tools._child_env_fixtures import (  # noqa: F401
+    child_env,
+    project_python,
+    run_code,
+)
 
 
 @pytest.mark.platforms("linux", "macos", "windows")

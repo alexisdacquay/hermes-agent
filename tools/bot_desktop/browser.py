@@ -15,7 +15,6 @@ import os
 import shutil
 import socket
 from pathlib import Path
-from typing import Optional, Tuple
 
 from tools.bot_desktop import runtime
 
@@ -34,7 +33,7 @@ def profile_dir() -> Path:
     return runtime.state_dir() / "browser-profile"
 
 
-def executable() -> Optional[str]:
+def executable() -> str | None:
     """The Chromium agent-browser launches: an explicit ``AGENT_BROWSER_EXECUTABLE_PATH``, else the newest
     Playwright Chromium it bundles, else a system Chrome/Chromium. ``None`` when there is none.
 
@@ -52,7 +51,7 @@ def executable() -> Optional[str]:
     return next((exe for find in finders if (exe := find())), None)
 
 
-def _managed_executable() -> Optional[str]:
+def _managed_executable() -> str | None:
     from hermes_cli.browser_runtime import chromium_executable
 
     exe = chromium_executable(allow_override=False)
@@ -67,7 +66,7 @@ def _is_headless_shell(exe: str) -> bool:
     return "headless" in os.path.basename(exe).lower() or "headless_shell" in exe
 
 
-def _system_executable() -> Optional[str]:
+def _system_executable() -> str | None:
     return next((shutil.which(name) for name in _SYSTEM_BROWSERS if shutil.which(name)), None)
 
 
@@ -80,13 +79,13 @@ def _userns_restricted() -> bool:
     return apparmor_restricts_unprivileged_userns()
 
 
-def dock_launch() -> Optional[Tuple[str, str]]:
+def dock_launch() -> tuple[str, str] | None:
     """``(executable, user_data_dir)`` for the dock's Browser icon, or ``None`` when no Chromium exists."""
     exe = executable()
     return (exe, str(profile_dir())) if exe else None
 
 
-def dock_argv(exe: str, user_data_dir: str, *, sandbox_bypass: Optional[bool] = None) -> list[str]:
+def dock_argv(exe: str, user_data_dir: str, *, sandbox_bypass: bool | None = None) -> list[str]:
     """Command the dock's Browser icon runs. ``--remote-debugging-port=0`` makes a human-started
     instance attachable (Chromium writes the chosen port to ``<user-data-dir>/DevToolsActivePort``);
     first-run / default-browser dialogs would sit between the human and the bot's tabs."""
@@ -95,7 +94,10 @@ def dock_argv(exe: str, user_data_dir: str, *, sandbox_bypass: Optional[bool] = 
     # The same sandbox policy agent-browser starts this binary with (root, Docker, AppArmor userns): the
     # human's Browser is the bot's browser, in the same container; a stricter rule here just made the dock
     # icon die with 'No usable sandbox!' in the official image while the agent's own Chromium ran fine.
-    from tools.browser_tool_session import CHROMIUM_SANDBOX_BYPASS_ARGS, _needs_chromium_sandbox_bypass
+    from tools.browser_tool_session import (
+        CHROMIUM_SANDBOX_BYPASS_ARGS,
+        _needs_chromium_sandbox_bypass,
+    )
     # The profile is persistent by design (logins survive handoffs); its HTTP cache is not worth a
     # gateway's disk: uncapped it grows for months toward a hosted instance's 6 GB.
     return [exe, f"--user-data-dir={user_data_dir}", "--remote-debugging-port=0", "--no-first-run",
@@ -104,7 +106,7 @@ def dock_argv(exe: str, user_data_dir: str, *, sandbox_bypass: Optional[bool] = 
                                               else sandbox_bypass) else ())]
 
 
-def dock_exec_line(exe: str, user_data_dir: str, *, sandbox_bypass: Optional[bool] = None) -> str:
+def dock_exec_line(exe: str, user_data_dir: str, *, sandbox_bypass: bool | None = None) -> str:
     """The ``Exec=`` line of the dock's ``.desktop`` entry. Every argument is double-quoted per the
     Desktop Entry spec (a browser under ``/opt/Google Chrome/`` or a profile under a spaced HERMES_HOME
     otherwise splits into garbage): inside the quotes ``" ` $ \\`` are backslash-escaped, and because the
@@ -115,7 +117,7 @@ def dock_exec_line(exe: str, user_data_dir: str, *, sandbox_bypass: Optional[boo
     return "Exec=" + " ".join(quote(arg) for arg in dock_argv(exe, user_data_dir, sandbox_bypass=sandbox_bypass))
 
 
-def running_instance_cdp_port(user_data_dir: str, *, exclude_session: Optional[str] = None) -> Optional[int]:
+def running_instance_cdp_port(user_data_dir: str, *, exclude_session: str | None = None) -> int | None:
     """DevTools port of a Chromium currently running on ``user_data_dir``, or ``None``.
 
     Both files outlive a crashed or closed Chromium: ``SingletonLock`` is a symlink to ``host-pid`` and
@@ -144,7 +146,7 @@ def running_instance_cdp_port(user_data_dir: str, *, exclude_session: Optional[s
     return port
 
 
-def _launched_by_session(chromium_pid: int) -> Optional[str]:
+def _launched_by_session(chromium_pid: int) -> str | None:
     """``AGENT_BROWSER_SESSION`` of the agent-browser daemon that spawned ``chromium_pid``, or ``None``
     for a human-started (dock) instance. Chromium itself gets a scrubbed environment, so the daemon's
     ``/proc/<ppid>/environ`` is the marker (Linux-only, same user)."""

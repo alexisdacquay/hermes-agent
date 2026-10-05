@@ -32,7 +32,6 @@ import os
 import time
 
 import pytest
-
 from agent import anthropic_credentials as AA
 from agent.anthropic_credentials import CredentialPersistError
 from agent.credential_pool import (

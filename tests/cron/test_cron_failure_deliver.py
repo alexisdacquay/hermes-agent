@@ -13,9 +13,8 @@ validation — reused, not duplicated.
 
 import json
 
-import pytest
-
 import cron.scheduler as s
+import pytest
 from cron import scheduler_delivery as sched_delivery
 from cron import scheduler_preflight as sched_preflight
 from cron.scheduler import _resolve_delivery_targets
@@ -95,7 +94,7 @@ def run_env(monkeypatch, tmp_path):
     monkeypatch.setattr(
         s, "_upsert_incident_for_failure", lambda *_a, **_kw: (False, None)
     )
-    monkeypatch.setattr(s, "load_config", lambda: {})
+    monkeypatch.setattr(s, "load_config", dict)
     return state
 
 
@@ -273,8 +272,8 @@ class TestToolSurface:
     validation — reusing the same normalize/validate helpers."""
 
     def test_create_stores_failure_deliver(self, cron_env):
-        from tools.cronjob_tools import cronjob
         from cron.jobs import get_job
+        from tools.cronjob_tools import cronjob
 
         result = json.loads(cronjob(
             action="create",
@@ -288,8 +287,8 @@ class TestToolSurface:
 
     def test_create_without_failure_deliver_does_not_persist_the_key(self, cron_env):
         """Existing-job byte-identity: the field only exists when set."""
-        from tools.cronjob_tools import cronjob
         from cron.jobs import get_job
+        from tools.cronjob_tools import cronjob
 
         result = json.loads(cronjob(
             action="create", prompt="scan", schedule="every 1h",
@@ -298,8 +297,8 @@ class TestToolSurface:
         assert "failure_deliver" not in get_job(result["job_id"])
 
     def test_create_flattens_list_value_like_deliver(self, cron_env):
-        from tools.cronjob_tools import cronjob
         from cron.jobs import get_job
+        from tools.cronjob_tools import cronjob
 
         result = json.loads(cronjob(
             action="create",

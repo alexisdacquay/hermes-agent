@@ -7,10 +7,10 @@ import logging
 import os
 import re
 import threading
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Iterator
 
 import pm
 from pm.downloader import ProgressFn

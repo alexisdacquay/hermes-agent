@@ -28,7 +28,7 @@ import time
 # session's batch deadline. State is process-global like the rest of this module's approval state; entries
 # are bounded by _HUMAN_WAIT_MAX_SESSIONS.
 class _HumanWaitState:
-    __slots__ = ("pending", "window_started", "completed_seconds")
+    __slots__ = ("completed_seconds", "pending", "window_started")
 
     def __init__(self) -> None:
         self.pending = 0
@@ -55,8 +55,9 @@ def human_wait_ceiling() -> float:
     holding ``_human_wait_lock`` — it reads the config cache.
     ``_get_approval_timeout`` caps at ``agent.deadline.MAX_SAFE_TIMEOUT_S`` so the
     value is always safe for ``Lock.acquire(timeout=...)`` / ``Thread.join(timeout=...)``."""
-    from tools import approval_context
     from agent.deadline import MAX_SAFE_TIMEOUT_S
+
+    from tools import approval_context
     return min(MAX_SAFE_TIMEOUT_S, float(approval_context._get_approval_timeout()) + HUMAN_WAIT_MARGIN_S)
 
 

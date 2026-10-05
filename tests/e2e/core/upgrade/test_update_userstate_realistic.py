@@ -27,8 +27,8 @@ import json
 import os
 import shutil
 
-import pytest
 import hermes_yaml as yaml
+import pytest
 
 from tests.e2e.core.upgrade import _helpers as H
 from tests.e2e.core.upgrade import _install_helpers as I

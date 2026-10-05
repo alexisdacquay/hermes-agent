@@ -7,10 +7,10 @@ process. Before the ``profile`` parameter existed, toggling a skill after
 These tests pin the new behavior: reads and writes land in the REQUESTED
 profile's HERMES_HOME, and the dashboard's own profile stays untouched.
 """
-import pytest
-import hermes_yaml as yaml
 import hermes_cli.web_server_gateway as _web_server_gateway
 import hermes_cli.web_server_profiles as _web_server_profiles
+import hermes_yaml as yaml
+import pytest
 
 
 def _write_skill(skills_dir, name, description="test skill"):
@@ -25,8 +25,8 @@ def _write_skill(skills_dir, name, description="test skill"):
 @pytest.fixture
 def isolated_profiles(tmp_path, monkeypatch, _isolate_hermes_home):
     """Isolated default home + one named profile, each with its own skills."""
-    from hermes_constants import get_hermes_home
     from hermes_cli import profiles
+    from hermes_constants import get_hermes_home
 
     default_home = get_hermes_home()
     profiles_root = default_home / "profiles"
@@ -51,8 +51,8 @@ def client(monkeypatch, isolated_profiles):
         pytest.skip("fastapi/starlette not installed")
 
     import hermes_state
+    from hermes_cli.web_server import _SESSION_HEADER_NAME, _SESSION_TOKEN, app
     from hermes_constants import get_hermes_home
-    from hermes_cli.web_server import app, _SESSION_HEADER_NAME, _SESSION_TOKEN
 
     monkeypatch.setattr(hermes_state, "DEFAULT_DB_PATH", get_hermes_home() / "state.db")
     c = TestClient(app)
@@ -86,7 +86,7 @@ class TestProfileScopedSkills:
     def test_scope_restores_module_globals(self, client, isolated_profiles):
         """The SKILLS_DIR swap is per-request; the module global must be
         restored even after a scoped call (cron-style locked swap)."""
-        import tools.skills_tool as skills_tool
+        from tools import skills_tool
 
         before = skills_tool.SKILLS_DIR
         client.get("/api/skills", params={"profile": "worker_alpha"})
@@ -131,7 +131,6 @@ class TestProfileScopedHubActions:
         """Hub installs must go through a fresh ``hermes -p <profile>``
         subprocess — the in-process scope can't reach skills_hub's
         import-time SKILLS_DIR binding."""
-        import hermes_cli.web_server as web_server
 
         calls = []
 

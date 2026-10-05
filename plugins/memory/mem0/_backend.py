@@ -116,7 +116,9 @@ class OSSBackend(Mem0Backend):
 
     def __init__(self, oss_config: dict):
         import os
+
         from mem0 import Memory
+
         from ._oss_providers import EMBEDDER_PROVIDERS, KNOWN_DIMS, LLM_PROVIDERS
 
         def _provider_block(name: str, registry: dict) -> dict:

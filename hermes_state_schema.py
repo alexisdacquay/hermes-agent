@@ -7,30 +7,41 @@ Must never import hermes_state (cycle); shared constants live in hermes_state_co
 import contextlib
 import datetime
 import hashlib
-import logging
 import json
+import logging
 import os
 import sqlite3
 import tempfile
 import time
 import uuid
-from typing import Dict, List, Optional, Sequence
-
+from collections.abc import Sequence
 
 from hermes_constants import get_hermes_home
 from hermes_startup_watchdog import report_startup_progress
-from utils import safe_json_loads
 from hermes_state_common import (
-    DEFERRED_INDEX_SQL, FTS_CJK_STALE_KEY, FTS_REBUILD_DEFERRAL_KEY, FTS_STALE_KEY, FTS_SQL,
-    FTS_STORAGE_VERSION, FTS_TOOL_CONTENT_PREFIX_CHARS, FTS_TRIGRAM_SQL, LEGACY_FTS_SQL,
-    LEGACY_FTS_TRIGRAM_SQL, SCHEMA_SQL,
-    SCHEMA_VERSION, _FTS_CJK_TRIGGERS, _FTS_TRIGGERS, _ephemeral_child_sql, _sql_json_extract, fts_rebuild_admission,
+    _FTS_CJK_TRIGGERS,
+    _FTS_TRIGGERS,
+    DEFERRED_INDEX_SQL,
+    FTS_CJK_STALE_KEY,
+    FTS_REBUILD_DEFERRAL_KEY,
+    FTS_SQL,
+    FTS_STALE_KEY,
+    FTS_STORAGE_VERSION,
+    FTS_TRIGRAM_SQL,
+    LEGACY_FTS_SQL,
+    LEGACY_FTS_TRIGRAM_SQL,
+    SCHEMA_SQL,
+    SCHEMA_VERSION,
+    _ephemeral_child_sql,
+    _sql_json_extract,
+    fts_rebuild_admission,
 )
+from hermes_state_errors import is_sqlite_lock_error
 from hermes_state_fts import _drop_orphan_fts_shadow_tables
 from hermes_state_holders import _read_proc_argv
 from hermes_state_search import _delete_meta, _meta_row
-from hermes_state_errors import is_sqlite_lock_error
 from hermes_state_titles import next_title_in_lineage
+from utils import safe_json_loads
 
 # Pre-split logger identity so log filtering/capture is unchanged.
 logger = logging.getLogger("hermes_state")
@@ -57,7 +68,7 @@ def _holder_cmdline(pid: int) -> str:
     return " ".join(argv)[:120] if argv else "<cmdline unavailable>"
 
 # schema_read_probe_statements() cache (parses SCHEMA_SQL in an in-memory DB; once per process).
-_READ_PROBE_STATEMENTS: Optional[tuple] = None
+_READ_PROBE_STATEMENTS: tuple | None = None
 
 # Trigram triggers need the trigram tokenizer (SQLite >= 3.34); without it _ensure_fts_schema
 # soft-fails that DDL and "all six present" is unsatisfiable, so a trigger's absence is
@@ -236,7 +247,7 @@ class SessionSchemaMixin:
         return int(cursor.execute(sql, tuple(names)).fetchone()[0]) < len(names)
 
     @staticmethod
-    def _fts_update_trigger_needs_narrowing(sql: Optional[str]) -> bool:
+    def _fts_update_trigger_needs_narrowing(sql: str | None) -> bool:
         """True when trigger SQL is a broad AFTER UPDATE (missing ``OF``)."""
         if not sql:
             return False
@@ -312,7 +323,7 @@ class SessionSchemaMixin:
         verbatim minus ``IF NOT EXISTS`` and the ``;``, so an exact comparison decides.
         """
         stored = dict(cursor.execute("SELECT name, sql FROM sqlite_master WHERE type = 'trigger'").fetchall())
-        pending_drop: Optional[str] = None
+        pending_drop: str | None = None
         statement = ""
         for line in ddl.splitlines():
             statement += line + "\n"
@@ -450,7 +461,7 @@ class SessionSchemaMixin:
         if not legacy:
             cursor.execute(_CLEAR_REBUILD_MARKERS_SQL)
 
-    def _fts_table_probe(self, cursor: sqlite3.Cursor, table_name: str) -> Optional[bool]:
+    def _fts_table_probe(self, cursor: sqlite3.Cursor, table_name: str) -> bool | None:
         """True = queryable, False = absent, None = FTS module/tokenizer missing or content
         undecodable (index degraded, store accessible). Invalid UTF-8 surfaces as a bare
         UnicodeDecodeError on some builds and OperationalError("Could not decode to UTF-8")
@@ -632,7 +643,7 @@ class SessionSchemaMixin:
                 with contextlib.suppress(sqlite3.Error):
                     self._conn.commit()
                 return recovered
-        except Exception:  # noqa: BLE001 - background retry must never raise
+        except Exception:
             logger.warning(
                 "In-process retry of the deferred stale state.db FTS rebuild failed; will retry later.", exc_info=True,
             )
@@ -705,7 +716,7 @@ class SessionSchemaMixin:
     # ── Declarative column reconciliation ──────────────────────────────────
 
     @staticmethod
-    def _parse_schema_columns(schema_sql: str) -> Dict[str, Dict[str, str]]:
+    def _parse_schema_columns(schema_sql: str) -> dict[str, dict[str, str]]:
         """Expected columns per table: execute SCHEMA_SQL in an in-memory database and read
         PRAGMA table_info (no regex). Memoized on disk keyed by a DDL hash (~85ms per
         startup otherwise); only the reference-side parse is cached — diffing the LIVE
@@ -726,11 +737,11 @@ class SessionSchemaMixin:
         ref = sqlite3.connect(":memory:")
         try:
             ref.executescript(schema_sql)
-            table_columns: Dict[str, Dict[str, str]] = {}
+            table_columns: dict[str, dict[str, str]] = {}
             for (tbl,) in ref.execute(
                 "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
             ).fetchall():
-                cols: Dict[str, str] = {}
+                cols: dict[str, str] = {}
                 info = ref.execute(f'PRAGMA table_info("{tbl}")').fetchall()
                 for _cid, col_name, col_type, notnull, default, pk in info:
                     # Reconstruct the type expression for ALTER TABLE ADD COLUMN
@@ -785,7 +796,7 @@ class SessionSchemaMixin:
                     )
 
     @staticmethod
-    def _live_pk_columns(cursor: sqlite3.Cursor, table: str) -> Optional[List[str]]:
+    def _live_pk_columns(cursor: sqlite3.Cursor, table: str) -> list[str] | None:
         """PRIMARY KEY column names of *table* in key order; None when the table is
         missing or has no columns (SCHEMA_SQL creates it correctly)."""
         try:
@@ -990,7 +1001,7 @@ class SessionSchemaMixin:
             cursor.execute("INSERT INTO schema_version (version) VALUES (?)", (SCHEMA_VERSION,))
             # Store provenance so fresh vs wiped stores are distinguishable.
             # See #97568.
-            now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+            now_iso = datetime.datetime.now(datetime.UTC).isoformat()
             cursor.executemany(
                 "INSERT OR IGNORE INTO state_meta (key, value) VALUES (?, ?)",
                 [("store_instance_id", str(uuid.uuid4())), ("store_created_at_utc", now_iso),
@@ -1187,7 +1198,7 @@ class SessionSchemaMixin:
                     "SELECT rowid, title, title_source, started_at FROM sessions WHERE title IN "
                     "(SELECT title FROM sessions WHERE title IS NOT NULL GROUP BY title HAVING COUNT(*) > 1)"
                 ).fetchall()
-                groups: Dict[str, list] = {}
+                groups: dict[str, list] = {}
                 for row in sorted(rows, key=lambda r: (self._title_rank(r[2]), r[3], r[0]), reverse=True):
                     groups.setdefault(row[1], []).append(row)
                 user_rank = self._TITLE_SOURCE_RANK[self.TITLE_SOURCE_USER]

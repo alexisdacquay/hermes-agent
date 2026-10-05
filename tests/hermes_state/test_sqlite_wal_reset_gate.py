@@ -14,10 +14,10 @@ import subprocess
 import sys
 import time
 
-import pytest
-
 import hermes_state_wal
+import pytest
 from hermes_state_wal import apply_wal_with_fallback, is_sqlite_wal_reset_vulnerable
+
 
 @pytest.fixture(autouse=True)
 def _reset_wal_reset_bug_warnings():

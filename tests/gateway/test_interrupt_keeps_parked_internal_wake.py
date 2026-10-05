@@ -7,7 +7,6 @@ Real ``BasePlatformAdapter`` pending slot + post-command drain, real
 import asyncio
 
 import pytest
-
 from gateway.config import GatewayConfig, Platform, PlatformConfig
 from gateway.platforms.base import BasePlatformAdapter, SendResult
 from gateway.platforms.event import MessageEvent, MessageType

@@ -10,7 +10,6 @@ from datetime import datetime
 from unittest.mock import MagicMock
 
 import pytest
-
 from gateway.config import GatewayConfig, Platform, PlatformConfig
 from gateway.platforms.event import MessageEvent
 from gateway.session import SessionEntry, SessionSource, build_session_key

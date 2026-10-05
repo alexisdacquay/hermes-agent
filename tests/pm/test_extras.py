@@ -7,12 +7,9 @@ from __future__ import annotations
 import sys
 from types import SimpleNamespace
 
-import pytest
-
 import pm
-import pm.client as client
-import pm.extras as extras
-
+import pytest
+from pm import client, extras
 
 # ---- per-extra platform gates ([tool.hermes.extras-platforms]) ----
 
@@ -38,6 +35,7 @@ def test_ensure_import_raises_on_gated_off_extra(monkeypatch, synced):
 def test_sync_refuses_python_gated_extra_before_touching_environment(monkeypatch, tmp_path):
     import importlib
     from pathlib import Path
+
     from packaging.markers import default_environment
 
     engine = importlib.import_module("pm.install")
@@ -62,6 +60,7 @@ def test_sync_refuses_python_gated_extra_before_touching_environment(monkeypatch
 def test_declared_extra_gates_match_dependency_selection():
     import tomllib
     from pathlib import Path
+
     from packaging.markers import default_environment
     from packaging.requirements import Requirement
 

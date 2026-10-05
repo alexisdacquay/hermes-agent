@@ -1,15 +1,17 @@
 """Endpoint identity for auxiliary custom-provider health checks."""
 import contextlib
-from typing import Any, Optional
+from typing import Any
 
 from hermes_cli.route_identity import normalize_route_base_url
 
-def _unhealthy_cache_key(provider: str, base_url: Optional[str] = None) -> Any:
+
+def _unhealthy_cache_key(provider: str, base_url: str | None = None) -> Any:
     """Provider-wide key, or endpoint-specific key for an explicit custom endpoint — prefixed with the
     active profile home: a 402 on profile A's account must not hide the provider from profile B's
     (differently funded) account in the same multiplexed process."""
-    from agent.auxiliary_client import _normalize_chain_label
     from hermes_constants import hermes_home_key
+
+    from agent.auxiliary_client import _normalize_chain_label
     label = _normalize_chain_label(provider)
     endpoint = normalize_route_base_url(_custom_health_base_url(provider, base_url))
     home_key = hermes_home_key()
@@ -18,7 +20,7 @@ def _unhealthy_cache_key(provider: str, base_url: Optional[str] = None) -> Any:
     return home_key, label
 
 
-def _custom_health_base_url(provider: str, explicit_base_url: Optional[str] = None) -> str:
+def _custom_health_base_url(provider: str, explicit_base_url: str | None = None) -> str:
     """Return the concrete custom endpoint used to scope health and failed-route checks."""
     from agent.auxiliary_client import _current_custom_base_url
     explicit = str(explicit_base_url or "").strip()
@@ -29,7 +31,10 @@ def _custom_health_base_url(provider: str, explicit_base_url: Optional[str] = No
     if label.startswith("custom:") and explicit:
         return explicit
     with contextlib.suppress(ImportError):
-        from hermes_cli.runtime_provider import _get_named_custom_provider, _resolves_to_custom
+        from hermes_cli.runtime_provider import (
+            _get_named_custom_provider,
+            _resolves_to_custom,
+        )
         if _resolves_to_custom(label):
             return explicit or _current_custom_base_url()
         entry = _get_named_custom_provider(provider)
@@ -40,7 +45,7 @@ def _custom_health_base_url(provider: str, explicit_base_url: Optional[str] = No
 
 
 
-def fallback_candidate_unavailable_reason(exc: Exception) -> Optional[str]:
+def fallback_candidate_unavailable_reason(exc: Exception) -> str | None:
     """Why a fallback candidate cannot serve this walk (``_FALLBACK_REASONS`` label), or None.
 
     The same capacity classes that admitted the primary failure into the chain (payment/quota,
@@ -60,14 +65,14 @@ def fallback_candidate_unavailable_reason(exc: Exception) -> Optional[str]:
 # a garbled body clears in seconds — holding the lane for 10 minutes process-wide would hide a
 # healthy fallback from every aux task over one transient blip.
 _TRANSIENT_CANDIDATE_QUARANTINE_SECONDS = 60.0
-_CANDIDATE_QUARANTINE_TTL: dict[str, Optional[float]] = {
+_CANDIDATE_QUARANTINE_TTL: dict[str, float | None] = {
     "rate limit": _TRANSIENT_CANDIDATE_QUARANTINE_SECONDS,
     "connection error": _TRANSIENT_CANDIDATE_QUARANTINE_SECONDS,
     "invalid provider response": _TRANSIENT_CANDIDATE_QUARANTINE_SECONDS,
 }
 
 
-def fallback_candidate_quarantine_ttl(reason: Optional[str]) -> Optional[float]:
+def fallback_candidate_quarantine_ttl(reason: str | None) -> float | None:
     """Seconds to hide a fallback candidate for ``reason`` (a ``_FALLBACK_REASONS`` label, or None
     for a stale credential); None means the long default TTL."""
     return _CANDIDATE_QUARANTINE_TTL.get(reason or "")

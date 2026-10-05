@@ -8,7 +8,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
 from hermes_cli.models_validate import validate_requested_model
 
 

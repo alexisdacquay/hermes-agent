@@ -7,7 +7,7 @@ discord.py's sender thread while children change on the asyncio loop, hence the 
 
 import logging
 import threading
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING
 
 import discord
 
@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 def _require_numpy():
     """Lazy numpy import: the adapter imports this module unconditionally, so a missing
     ``voice`` extra must fail at mix time, not at import time."""
-    import numpy as np  # noqa: PLC0415 — intentional lazy import
+    import numpy as np
     return np
 
 # Discord-native frame geometry (matches discord.opus.Encoder): 48 kHz, stereo, s16, 20 ms frames.
@@ -40,7 +40,7 @@ class MixerChild:
     """One 48 kHz / stereo / s16le PCM stream feeding :class:`VoiceMixer`; ``read_frame``
     yields 20 ms frames, optionally looping, with per-child gain and linear fade-in."""
 
-    __slots__ = ("_pcm", "_pos", "loop", "gain", "fade_frames", "_fade_done", "_finished")
+    __slots__ = ("_fade_done", "_finished", "_pcm", "_pos", "fade_frames", "gain", "loop")
 
     def __init__(self, pcm: bytes, *, loop: bool = False, gain: float = 1.0, fade_in_ms: int = 0):
         # Pad to whole frames so looping is seamless and the final partial frame doesn't click.
@@ -50,7 +50,7 @@ class MixerChild:
         self.fade_frames = max(0, fade_in_ms // FRAME_LENGTH_MS)
         self._finished = False
 
-    def read_frame(self) -> "Optional[np.ndarray]":
+    def read_frame(self) -> np.ndarray | None:
         """Next 20 ms frame as a float32 ndarray, or None when done."""
         if self._finished:
             return None
@@ -86,15 +86,15 @@ class VoiceMixer(discord.AudioSource):
     def __init__(self, *, ambient_gain: float = 0.18, duck_gain: float = 0.06, speech_gain: float = 1.0,
                  duck_release_ms: int = 400):
         self._lock = threading.Lock()
-        self._ambient: Optional[MixerChild] = None
-        self._speech: List[MixerChild] = []
+        self._ambient: MixerChild | None = None
+        self._speech: list[MixerChild] = []
         self._ambient_gain, self._duck_gain, self._speech_gain = float(ambient_gain), float(duck_gain), float(speech_gain)
         # When speech ends, ramp the ambient back up over this many frames instead of jumping.
         self._duck_release_frames = max(1, duck_release_ms // FRAME_LENGTH_MS)
         self._duck_release_left = 0
         self._closed = self._speech_active = False
 
-    def set_ambient(self, pcm: Optional[bytes], *, gain: Optional[float] = None) -> None:
+    def set_ambient(self, pcm: bytes | None, *, gain: float | None = None) -> None:
         """Install (or clear, with ``pcm=None``) the looping ambient bed."""
         with self._lock:
             if gain is not None:
@@ -105,7 +105,7 @@ class VoiceMixer(discord.AudioSource):
             gain_now = self._duck_gain if self._speech_active else self._ambient_gain
             self._ambient = MixerChild(pcm, loop=True, gain=gain_now, fade_in_ms=200)
 
-    def play_speech(self, pcm: bytes, *, gain: Optional[float] = None, fade_in_ms: int = 40) -> None:
+    def play_speech(self, pcm: bytes, *, gain: float | None = None, fade_in_ms: int = 40) -> None:
         """Layer a one-shot speech clip over the ambient bed (ducks ambient)."""
         if not pcm:
             return
@@ -140,10 +140,10 @@ class VoiceMixer(discord.AudioSource):
             if self._closed:
                 return SILENCE_FRAME
             np = _require_numpy()
-            acc: "Optional[np.ndarray]" = None
+            acc: np.ndarray | None = None
             # Speech children (drop exhausted ones; release duck when last ends)
             if self._speech:
-                still_live: List[MixerChild] = []
+                still_live: list[MixerChild] = []
                 for child in self._speech:
                     frame = child.read_frame()
                     if frame is None:
@@ -176,7 +176,7 @@ class VoiceMixer(discord.AudioSource):
             self._speech.clear()
 
 
-def decode_to_pcm(path: str, *, timeout: float = 30.0) -> Optional[bytes]:
+def decode_to_pcm(path: str, *, timeout: float = 30.0) -> bytes | None:
     """Decode any audio file to 48 kHz / stereo / s16le PCM via ffmpeg; None on failure."""
     import subprocess
     try:

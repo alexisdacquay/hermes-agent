@@ -10,7 +10,6 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
-
 from tools import tts_tool, tts_tool_openai
 
 

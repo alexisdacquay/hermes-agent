@@ -14,8 +14,8 @@ import urllib.request
 from pathlib import Path
 
 import pytest
-
 from agent import anthropic_credentials as ac
+
 
 def test_dead_grant_is_classified_and_not_replayed_at_other_endpoints(monkeypatch):
     calls: list = []

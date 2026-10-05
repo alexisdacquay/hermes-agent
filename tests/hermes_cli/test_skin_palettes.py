@@ -10,7 +10,6 @@ app's paired colors/darkColors contract.
 """
 
 import pytest
-
 from hermes_cli.skin_engine import _BUILTIN_SKINS
 
 # Union of the color keys consumed by the TUI (fromSkin) and the classic CLI

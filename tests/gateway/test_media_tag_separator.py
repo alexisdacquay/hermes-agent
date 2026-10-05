@@ -1,7 +1,7 @@
 """Regression tests for #68773 — MEDIA tags without a separator merge paths.
 
 Before the fix, ``MEDIA_EXTENSIONLESS_TAG_RE`` used a greedy character class
-``[^\s\n`\"']+`` that would silently absorb the next ``MEDIA:`` keyword when
+``[^\\s\n`\"']+`` that would silently absorb the next ``MEDIA:`` keyword when
 two tags were emitted back-to-back (``MEDIA:/a.pngMEDIA:/b.png``), producing
 an invalid merged path that was then rejected by
 ``validate_media_delivery_path`` and dropped silently.
@@ -13,8 +13,6 @@ fallback would treat the trailing text as part of the path.
 from gateway.platforms.base import (
     _strip_media_tag_directives,
 )
-
-
 
 
 def test_strip_media_directives_handles_glued_known_extension_tags(tmp_path):

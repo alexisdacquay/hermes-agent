@@ -26,9 +26,8 @@ rewrite or reorder older events, real stores were shaped by them.
 
 from __future__ import annotations
 
+from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
-from typing import Callable, Iterator, Optional, Sequence
-
 
 Edit = tuple  # ("+", column, previous_column_or_None) | ("-", column)
 
@@ -70,7 +69,7 @@ def current_declared_columns(table: str) -> tuple[str, ...]:
 
 def reachable_physical_layouts(
     table: str,
-    accept: Optional[Callable[[tuple[str, ...], int], bool]] = None,
+    accept: Callable[[tuple[str, ...], int], bool] | None = None,
 ) -> Iterator[tuple[str, ...]]:
     """Yield every physical layout an upgraded store of ``table`` can have.
 

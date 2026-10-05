@@ -10,10 +10,10 @@ import threading
 from types import SimpleNamespace
 
 import pytest
-
 from agent.interrupt_control import InterruptControlMixin
 from gateway import session_context as sc
-from tools import async_delegation, delegate_tool as dt
+from tools import async_delegation
+from tools import delegate_tool as dt
 from tools.delegate_tool_child_run import _attach_child
 from tools.process_registry import process_registry
 
@@ -96,7 +96,7 @@ def harness(monkeypatch, tmp_path):
         return child
 
     monkeypatch.setattr(dt, "_build_child_agent", build_child)
-    monkeypatch.setattr(dt, "_load_config", lambda: {})
+    monkeypatch.setattr(dt, "_load_config", dict)
     monkeypatch.setattr(dt, "_get_max_concurrent_children", lambda: 2)
     monkeypatch.setattr(dt, "_get_worktree_isolation", lambda: False)
     monkeypatch.setattr(dt, "_get_child_timeout", lambda: 4)

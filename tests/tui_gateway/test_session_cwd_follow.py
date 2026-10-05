@@ -12,9 +12,8 @@ import os
 import subprocess
 
 import pytest
-
-import tools.terminal_tool as terminal_tool
-import tui_gateway.server as server
+from tools import terminal_tool
+from tui_gateway import server
 
 
 def _git(cwd, *args):

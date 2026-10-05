@@ -12,7 +12,6 @@ connection is missing.
 import threading
 
 import pytest
-
 from hermes_state import SessionDB
 
 

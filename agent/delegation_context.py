@@ -8,9 +8,10 @@ closed for them without mutating the process-global environment.
 from __future__ import annotations
 
 import os
+from collections.abc import Iterator, Mapping, MutableMapping
 from contextlib import contextmanager
 from contextvars import ContextVar, Token
-from typing import Iterator, Mapping, MutableMapping, overload
+from typing import overload
 
 _DELEGATED_CHILD_CONTEXT: ContextVar[bool] = ContextVar("hermes_delegated_child_context", default=False)
 # Any in-process execution that is NOT the dispatcher-owned worker (cron jobs). Kept separate
@@ -32,7 +33,9 @@ def delegated_child_context(session_id: str | None = None) -> Iterator[None]:
     construction calls ``set_current_session_id``)."""
     token = _DELEGATED_CHILD_CONTEXT.set(True)
     try:
-        from gateway.session_context import scoped_current_session_id  # lazy: it calls is_delegated_child_context()
+        from gateway.session_context import (
+            scoped_current_session_id,  # lazy: it calls is_delegated_child_context()
+        )
 
         with scoped_current_session_id(session_id):
             yield
@@ -138,7 +141,7 @@ def scrub_kanban_env(env: Mapping[str, str] | MutableMapping[str, str]) -> dict[
     return cleaned
 
 
-def kanban_path_is_fenced(path: "os.PathLike[str] | str") -> bool:
+def kanban_path_is_fenced(path: os.PathLike[str] | str) -> bool:
     """Whether Kanban mutations at *path* (a board DB or board-metadata root) are denied for this
     process: always for an in-process delegate child (the parent's own board); for a spawned
     descendant only when *path* is the dispatcher-pinned ``HERMES_KANBAN_DB`` or lies under the

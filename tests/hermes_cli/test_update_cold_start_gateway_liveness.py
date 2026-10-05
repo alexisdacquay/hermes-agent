@@ -11,12 +11,9 @@ same as every other ``_spawn_detached`` caller.
 from __future__ import annotations
 
 import pytest
-
 from hermes_cli import gateway as hermes_gateway
-from hermes_cli import gateway_windows
+from hermes_cli import gateway_windows, main_install_repair, update_cmd
 from hermes_cli import main as cli_main
-import hermes_cli.main_install_repair as main_install_repair
-from hermes_cli import update_cmd
 
 
 def _run_cold_start(monkeypatch, capsys, *, surviving_pids):

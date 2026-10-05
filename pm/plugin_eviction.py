@@ -48,6 +48,7 @@ def _interpreter_version() -> str:
 def static_verdicts(entries: list[Entry], python_version: str) -> tuple[dict[Path, str], dict[Path, str]]:
     """``(disable, sit out)`` reasons found without a resolver, keyed by resolved dir."""
     from hermes_cli.plugins_manifest import requires_hermes_error
+
     from pm.plugin_declarations import manifest_version_error, read_python_declaration
 
     reasons: dict[Path, str] = {}
@@ -79,6 +80,7 @@ class PluginEviction:
 
     def __init__(self, entries: list[Entry], reasons: dict[Path, str]):
         from hermes_yaml import roundtrip_yaml
+
         from pm.publication import selection_snapshot
 
         self.configs = selection_snapshot()

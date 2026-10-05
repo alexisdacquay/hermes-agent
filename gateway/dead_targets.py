@@ -13,7 +13,6 @@ import logging
 import threading
 import time
 from pathlib import Path
-from typing import Dict, Optional
 
 from hermes_cli.config import get_hermes_home
 
@@ -28,7 +27,7 @@ def _normalize(platform: str, chat_id: str) -> str:
     return f"{str(platform).strip().lower()}:{str(chat_id).strip()}"
 
 
-def classify_dead_error(error_text: Optional[str]) -> Optional[str]:
+def classify_dead_error(error_text: str | None) -> str | None:
     """Best-effort dead-target error_kind from a raised error's text, else None. ``_deliver_to_platform``
     raises on hard failure (no SendResult), so ``deliver()`` only has the exception string. ``not_found``
     collapses chat-level and thread/topic/message-level failures: only a whole-chat not_found means the
@@ -48,9 +47,9 @@ class DeadTargetRegistry:
     """Thread-safe, persistent set of confirmed-dead targets keyed ``platform:chat_id``. Each entry stores
     reason + timestamp for observability; :meth:`clear` (called on a successful send) removes the flag."""
 
-    def __init__(self, path: Optional[Path] = None) -> None:
+    def __init__(self, path: Path | None = None) -> None:
         self._lock = threading.RLock()
-        self._dead: Dict[str, Dict[str, object]] = {}
+        self._dead: dict[str, dict[str, object]] = {}
         self._path = path if path is not None else get_hermes_home() / "gateway" / "dead_targets.json"
         try:
             if self._path.exists():
@@ -72,11 +71,11 @@ class DeadTargetRegistry:
         except OSError as exc:  # best-effort: keep in-memory state, never break delivery
             logger.debug("dead_targets: could not persist %s (%s)", self._path, exc)
 
-    def is_dead(self, platform: str, chat_id: Optional[str]) -> bool:
+    def is_dead(self, platform: str, chat_id: str | None) -> bool:
         with self._lock:
             return bool(chat_id) and _normalize(platform, chat_id) in self._dead
 
-    def mark_dead(self, platform: str, chat_id: Optional[str], reason: str = "") -> bool:
+    def mark_dead(self, platform: str, chat_id: str | None, reason: str = "") -> bool:
         """Record a target as confirmed-dead. Returns True if newly added."""
         if not chat_id:
             return False
@@ -91,7 +90,7 @@ class DeadTargetRegistry:
                         "to this target will be skipped until a send succeeds", key, reason or "no reason given")
         return not existed
 
-    def clear(self, platform: str, chat_id: Optional[str]) -> bool:
+    def clear(self, platform: str, chat_id: str | None) -> bool:
         """Remove a target's dead flag (self-healing). Returns True if it was set."""
         if not chat_id:
             return False

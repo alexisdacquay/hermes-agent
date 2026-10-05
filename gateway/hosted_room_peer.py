@@ -16,14 +16,24 @@ import os
 import re
 import stat
 import urllib.parse
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import asdict, dataclass
 from functools import lru_cache, partial
 from pathlib import Path
-from typing import Any, Callable, Iterable, Literal, Mapping
+from typing import Any, Literal
 
-from gateway.hosted_room_execution_policy import RoomExecutionPolicy, execution_policy_mapping
-from gateway.hosted_rooms_common import bounded_int, clock, compact_json, exact_fields, identifier, text
-
+from gateway.hosted_room_execution_policy import (
+    RoomExecutionPolicy,
+    execution_policy_mapping,
+)
+from gateway.hosted_rooms_common import (
+    bounded_int,
+    clock,
+    compact_json,
+    exact_fields,
+    identifier,
+    text,
+)
 
 # v2 adds authority/member lineage to scoped grants and is deliberately not wire-compatible with the
 # unpublished v1 draft; mixed gateways fall back to Desktop-driven rooms rather than accept a weaker token.
@@ -206,7 +216,7 @@ class GatewayRoomCatalog:
     transport_security: TransportSecurity | None = None
 
     @classmethod
-    def from_mapping(cls, value: Mapping[str, Any]) -> "GatewayRoomCatalog":
+    def from_mapping(cls, value: Mapping[str, Any]) -> GatewayRoomCatalog:
         _exact_fields(value, required=_CATALOG_FIELDS, optional={"endpoint"}, label="capability catalog")
         installation_id = _identifier(value["installation_id"], field="installation_id")
         versions = tuple(_protocol_versions(_non_empty_list(value["protocol_versions"], field="protocol_versions")))
@@ -292,8 +302,13 @@ def local_room_link_endpoint(value: Any | None = None) -> dict[str, Any]:
 @lru_cache(maxsize=16)
 def _room_link_url_from_config(home: str) -> str | None:
     """Read the restart-scoped user setting without polling config on probes."""
+    from hermes_constants import (
+        get_hermes_home,
+        reset_hermes_home_override,
+        set_hermes_home_override,
+    )
+
     from gateway.config import load_gateway_config
-    from hermes_constants import get_hermes_home, reset_hermes_home_override, set_hermes_home_override
     if str(get_hermes_home()) == home:
         value = load_gateway_config().room_link_url
     else:
@@ -379,7 +394,7 @@ class HostedMemberDispatch:
         return asdict(self)
 
     @classmethod
-    def from_mapping(cls, value: Mapping[str, Any]) -> "HostedMemberDispatch":
+    def from_mapping(cls, value: Mapping[str, Any]) -> HostedMemberDispatch:
         _exact_fields(value, required=set(_DISPATCH_FIELDS) | {"prompt", "prompt_digest"}, label="dispatch")
         if not isinstance(prompt := value["prompt"], str) or not prompt.strip():
             raise HostedRoomPeerError("prompt must be a non-empty string")

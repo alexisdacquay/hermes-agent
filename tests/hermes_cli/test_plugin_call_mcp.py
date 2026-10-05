@@ -11,7 +11,6 @@ import json
 from unittest.mock import MagicMock
 
 import pytest
-
 from hermes_cli.plugins import PluginContext, PluginManifest
 
 

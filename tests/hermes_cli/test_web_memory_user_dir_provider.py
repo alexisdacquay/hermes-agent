@@ -69,9 +69,8 @@ def user_dir_honcho(monkeypatch, tmp_path, _isolate_hermes_home):
 
 
 def test_user_dir_host_block_provider_serves_its_declared_config(user_dir_honcho):
-    from starlette.testclient import TestClient
-
     from hermes_cli.web_server import _SESSION_HEADER_NAME, _SESSION_TOKEN, app
+    from starlette.testclient import TestClient
 
     client = TestClient(app, headers={_SESSION_HEADER_NAME: _SESSION_TOKEN})
     resp = client.get("/api/memory/providers/honcho/config", params={"surface": "declared"})

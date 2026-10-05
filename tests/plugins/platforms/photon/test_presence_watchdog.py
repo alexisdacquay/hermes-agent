@@ -12,14 +12,13 @@ spawning Node, binding ports, or hitting the network.
 """
 from __future__ import annotations
 
-import time
-from typing import Any
 import asyncio
+import time
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
-
 from gateway.config import PlatformConfig
 from plugins.platforms.photon.adapter import PhotonAdapter
 

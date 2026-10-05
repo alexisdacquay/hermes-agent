@@ -10,7 +10,6 @@ import time
 from types import SimpleNamespace
 
 import pytest
-
 from hermes_cli.observability import relay_shared_metrics
 from hermes_cli.observability import shared_metrics_contract as contract
 from hermes_cli.observability import shared_metrics_setup as setup_metrics
@@ -330,7 +329,9 @@ def test_web_forms_count_only_a_new_provider_key_or_endpoint(marks, monkeypatch)
 
 # ---- feature disabled ----
 
-from hermes_cli.observability import shared_metrics_disabled as disabled_metrics  # noqa: E402
+from hermes_cli.observability import (
+    shared_metrics_disabled as disabled_metrics,
+)
 
 
 def _settle_disabled() -> None:
@@ -439,7 +440,11 @@ def test_migrations_and_env_templates_are_not_user_disables(marks, monkeypatch):
 def test_diff_and_record_run_off_the_callers_lock_in_the_owning_profile(marks, monkeypatch, tmp_path):
     import threading
 
-    from hermes_constants import get_hermes_home, reset_hermes_home_override, set_hermes_home_override
+    from hermes_constants import (
+        get_hermes_home,
+        reset_hermes_home_override,
+        set_hermes_home_override,
+    )
 
     monkeypatch.setattr(disabled_metrics, "_process_surface", "cli_config")
     gate, seen = threading.Event(), []

@@ -19,12 +19,14 @@ import subprocess
 import sys
 import threading
 import time
-from cron.env_settings import cron_env_setting
-from cron.jobs import _ensure_cron_dir
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from hermes_cli._subprocess_compat import windows_hide_flags
+
+from cron.env_settings import cron_env_setting
+from cron.jobs import _ensure_cron_dir
 
 if TYPE_CHECKING:
     from cron.scheduler import _CancelEventLike
@@ -33,7 +35,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger("cron.scheduler")
 
 
-def _positive_int(raw) -> Optional[int]:
+def _positive_int(raw) -> int | None:
     """``int(float(raw))`` when > 0, else None; raises on unparsable input."""
     timeout = int(float(raw))
     return timeout if timeout > 0 else None
@@ -180,7 +182,8 @@ def _windows_cron_python_invocation(python_exe: str) -> tuple[str, dict[str, str
             interpreter = sibling
 
     from hermes_cli._launchers import resolve_store_python
-    from pm.environments import committed_venv, site_packages as dependency_site
+    from pm.environments import committed_venv
+    from pm.environments import site_packages as dependency_site
 
     repo = Path(__file__).resolve().parents[1]
     managed_python = resolve_store_python(repo)
@@ -320,7 +323,7 @@ def _windows_cron_bootstrap_argv(
     return [python_exe, "-c", bootstrap, script_path]
 
 
-def _resolve_script_path(script_path: str) -> tuple[Optional[Path], Optional[str]]:
+def _resolve_script_path(script_path: str) -> tuple[Path | None, str | None]:
     """Validate a job script path; ``(path, None)`` or ``(None, error)``. Scripts MUST resolve
     inside HERMES_HOME/scripts/ (relative, absolute and ``~`` paths are all validated — path
     traversal / absolute-path injection); contract of lifecycle_guard._expand_candidate_path."""
@@ -366,7 +369,7 @@ def _resolve_script_path(script_path: str) -> tuple[Optional[Path], Optional[str
     return path, None
 
 
-def _resolve_cron_interpreter(interpreter: str) -> tuple[Optional[str], Optional[str]]:
+def _resolve_cron_interpreter(interpreter: str) -> tuple[str | None, str | None]:
     """``(python_exe, error)`` for a job's ``interpreter`` field. Checked at run time, not create
     time: a user venv can be rebuilt or moved while the job lives. Bare names are refused — they
     silently change meaning with PATH. The name (and the symlink target's name) must look like a
@@ -398,8 +401,8 @@ def _resolve_cron_interpreter(interpreter: str) -> tuple[Optional[str], Optional
 
 
 def _script_argv(
-    path: Path, interpreter: Optional[str] = None,
-) -> tuple[Optional[list[str]], dict[str, str], Optional[str]]:
+    path: Path, interpreter: str | None = None,
+) -> tuple[list[str] | None, dict[str, str], str | None]:
     """``(argv, env_overlay, error)`` for a validated script. Interpreter by extension — the
     shebang is deliberately NOT honoured (small, auditable surface): ``.sh``/``.bash`` → bash,
     else the job's ``interpreter`` when set, else a Python chosen by ``_posix_cron_script_argv``
@@ -430,8 +433,8 @@ def _script_argv(
 
 
 def _run_job_script(
-    script_path: str, workdir: Optional[str] = None,
-    cancel_event: Optional[_CancelEventLike] = None, interpreter: Optional[str] = None,
+    script_path: str, workdir: str | None = None,
+    cancel_event: _CancelEventLike | None = None, interpreter: str | None = None,
 ) -> tuple[bool, str]:
     """Execute a cron job's script and return ``(success, output)``; on failure *output* is the
     error message for the LLM to report. Env goes through ``build_subprocess_env`` (SECURITY.md
@@ -536,7 +539,7 @@ def _run_job_script(
         return False, f"Script execution failed: {exc}"
 
 
-def _start_heartbeat_thread(loop_fn, name: str, fail_log) -> Optional[threading.Thread]:
+def _start_heartbeat_thread(loop_fn, name: str, fail_log) -> threading.Thread | None:
     """Start ``loop_fn`` on a daemon thread inside a copy of the current context (multiplexed
     profile ContextVars). On failure calls ``fail_log()`` inside the except (traceback intact) and
     returns None."""
@@ -551,8 +554,8 @@ def _start_heartbeat_thread(loop_fn, name: str, fail_log) -> Optional[threading.
 
 
 def _run_job_script_with_claim_heartbeat(
-    job: dict, script_path: str, workdir: Optional[str] = None,
-    cancel_event: Optional[_CancelEventLike] = None,
+    job: dict, script_path: str, workdir: str | None = None,
+    cancel_event: _CancelEventLike | None = None,
 ) -> tuple[bool, str]:
     """Run a cron script while heartbeating its owned one-shot claim. A long script can outlive
     the stale-claim TTL; without a heartbeat another scheduler would re-dispatch the one-shot.
@@ -596,4 +599,4 @@ def _run_job_script_with_claim_heartbeat(
 
 # Late-bound origin namespace (see module docstring). Imported LAST so this module is fully
 # populated before ``scheduler`` re-exports from it.
-from cron import scheduler as _sched  # noqa: E402
+from cron import scheduler as _sched

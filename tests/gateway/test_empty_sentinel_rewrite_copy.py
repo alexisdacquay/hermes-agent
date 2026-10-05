@@ -5,9 +5,9 @@ text for "the model produced nothing after retries"."""
 from types import SimpleNamespace
 
 import pytest
-
 from agent.turn_explainers import EMPTY_RESPONSE_EXPLANATION
 from gateway.run_turn import GatewayTurnMixin
+
 
 class _Runner(GatewayTurnMixin):
     def __init__(self):

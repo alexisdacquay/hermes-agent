@@ -3,7 +3,6 @@ DeepSeek-style chat_completions profiles (all route through
 ``agent.reasoning_effort.thinking_toggle_extras``)."""
 
 import pytest
-
 from agent.reasoning_effort import DEEPSEEK_V4_EFFORTS
 from providers import get_provider_profile
 

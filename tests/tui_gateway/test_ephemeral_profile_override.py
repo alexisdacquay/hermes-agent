@@ -23,7 +23,6 @@ target inline, then asserts on the recorded override set/reset calls and the age
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from tui_gateway import server as srv
 
 PROFILE_HOME = "/home/user/.hermes/profiles/work"

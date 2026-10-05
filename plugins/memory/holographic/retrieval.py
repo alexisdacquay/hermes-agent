@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -19,13 +19,7 @@ _PUNCT = ".,;:!?\"'()[]{}#@<>"
 _FTS_OPERATORS = str.maketrans("", "", '"()*^:-+')
 # Stopwords dropped before FTS5 OR-expansion: short English function words that
 # carry no retrieval signal and force false-negative AND matches.
-_FTS_STOPWORDS = frozenset("""
-    a about above after again all am an and any are as at be because been before being between both but by can could
-    did do does doing don down during each few for from further had has have having he her here hers herself him himself
-    his how i if in into is it its itself just me more most my myself no nor not now of off on once only or other our
-    ours ourselves out over own same she should so some such than that the their theirs them themselves then there these
-    they this those through to too under until up very was we were what when where which while who whom why will with
-    would you your yours yourself yourselves""".split())
+_FTS_STOPWORDS = frozenset(["a", "about", "above", "after", "again", "all", "am", "an", "and", "any", "are", "as", "at", "be", "because", "been", "before", "being", "between", "both", "but", "by", "can", "could", "did", "do", "does", "doing", "don", "down", "during", "each", "few", "for", "from", "further", "had", "has", "have", "having", "he", "her", "here", "hers", "herself", "him", "himself", "his", "how", "i", "if", "in", "into", "is", "it", "its", "itself", "just", "me", "more", "most", "my", "myself", "no", "nor", "not", "now", "of", "off", "on", "once", "only", "or", "other", "our", "ours", "ourselves", "out", "over", "own", "same", "she", "should", "so", "some", "such", "than", "that", "the", "their", "theirs", "them", "themselves", "then", "there", "these", "they", "this", "those", "through", "to", "too", "under", "until", "up", "very", "was", "we", "were", "what", "when", "where", "which", "while", "who", "whom", "why", "will", "with", "would", "you", "your", "yours", "yourself", "yourselves"])
 
 
 def _shift(sim: float) -> float:
@@ -209,7 +203,7 @@ class FactRetriever:
             return 1.0
         try:
             ts = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00")) if isinstance(timestamp_str, str) else timestamp_str
-            age_days = (datetime.now(timezone.utc) - (ts if ts.tzinfo else ts.replace(tzinfo=timezone.utc))).total_seconds() / 86400
+            age_days = (datetime.now(UTC) - (ts if ts.tzinfo else ts.replace(tzinfo=UTC))).total_seconds() / 86400
             return 1.0 if age_days < 0 else math.pow(0.5, age_days / self.half_life)
         except (ValueError, TypeError):
             return 1.0

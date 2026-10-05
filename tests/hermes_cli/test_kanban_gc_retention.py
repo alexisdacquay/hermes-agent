@@ -7,10 +7,10 @@ import shutil
 from pathlib import Path
 
 import pytest
-
 from hermes_cli import kanban_db as kb
 from hermes_cli import kanban_db_connect as kbc
 from hermes_cli import kanban_ops
+
 
 @pytest.fixture
 def board(tmp_path, monkeypatch):

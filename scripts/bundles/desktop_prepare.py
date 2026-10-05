@@ -2,17 +2,17 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
 import hashlib
 import json
-import re
-from copy import deepcopy
 import os
-from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
+from copy import deepcopy
+from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
@@ -150,7 +150,7 @@ class BuildRequest:
             canary = re.fullmatch(r"v\d+\.\d+\.\d+\+canary\.(20\d{6}T\d{6}Z)", tag)
             if canary:
                 release_epoch = int(datetime.strptime(canary.group(1), "%Y%m%dT%H%M%SZ")
-                                    .replace(tzinfo=timezone.utc).timestamp())
+                                    .replace(tzinfo=UTC).timestamp())
             else:
                 claim_tag = os.environ.get("RELEASE_CLAIM_TAG", "")
                 # The payload version stays plain; the claim must name the same
@@ -278,9 +278,9 @@ def prepare(request: BuildRequest) -> Path:
 
 
 def _prepare(request: BuildRequest) -> Path:
-    from scripts.bundles.desktop_toolchain import run_preparation
-    from pm.lock import _write
     from hermes_cli.runtime_state import _lock
+    from pm.lock import _write
+    from scripts.bundles.desktop_toolchain import run_preparation
 
     require_source(request.source, request.commit)
     owner = request.work / ".desktop-preparation"
@@ -306,9 +306,9 @@ def _prepare(request: BuildRequest) -> Path:
 
 
 def prepare_in_worker(request: BuildRequest) -> Path:
+    from scripts.build.icon_environment import prepare_icon_environment
     from scripts.bundles.desktop import run
     from scripts.bundles.desktop_toolchain import prepare_tools
-    from scripts.build.icon_environment import prepare_icon_environment
     from scripts.bundles.native import prepare_native
 
     require_source(request.source, request.commit)

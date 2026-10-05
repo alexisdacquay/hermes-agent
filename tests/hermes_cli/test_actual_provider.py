@@ -8,7 +8,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
 from agent.auxiliary_client import _normalize_aux_provider
 from hermes_cli import runtime_provider as rp
 from hermes_cli.auth import (
@@ -25,6 +24,7 @@ from hermes_cli.models import provider_model_ids
 from hermes_cli.providers import determine_api_mode
 from hermes_cli.providers import normalize_provider as normalize_overlay_provider
 from providers import get_provider_profile
+
 
 def _clear_actual_env(monkeypatch):
     monkeypatch.delenv("ACTUAL_API_KEY", raising=False)
@@ -500,7 +500,7 @@ def test_actual_oneshot_reasoning_override_reaches_agent(monkeypatch):
         def close(self):
             return None
 
-    monkeypatch.setattr("hermes_cli.config.load_config", lambda: {})
+    monkeypatch.setattr("hermes_cli.config.load_config", dict)
     monkeypatch.setattr(
         "hermes_cli.runtime_provider.resolve_runtime_provider",
         lambda **_kwargs: {
@@ -567,9 +567,8 @@ def test_actual_chat_completions_wire_replays_reasoning_through_tool_turn(
     import http.server
     import threading
 
-    from openai import OpenAI
-
     from agent.transports.chat_completions import ChatCompletionsTransport
+    from openai import OpenAI
 
     requests: list[tuple[str, dict]] = []
 

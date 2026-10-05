@@ -11,7 +11,6 @@ empty — silent data loss on the gateway + CLI concurrent-open path.
 import sqlite3
 
 import pytest
-
 from hermes_state_schema import SessionSchemaMixin
 
 DDL = "CREATE TABLE t (a INTEGER, b TEXT, c INTEGER NOT NULL DEFAULT 0)"

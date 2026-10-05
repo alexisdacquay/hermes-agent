@@ -7,7 +7,6 @@ accepted as base_url, and unknown keys go unreported.
 import logging
 
 import pytest
-
 from hermes_cli.config import (
     _PROVIDER_NORMALIZE_WARNED,
     _normalize_custom_provider_entry,

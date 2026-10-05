@@ -1,9 +1,8 @@
 from types import SimpleNamespace
 from typing import Any
 
-import pytest
-
 import cli
+import pytest
 
 
 @pytest.fixture(autouse=True)

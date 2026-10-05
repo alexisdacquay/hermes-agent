@@ -10,11 +10,10 @@ persist + waiter surfaces.
 from __future__ import annotations
 
 import json
-import subprocess
 import os
+import subprocess
 
 import pytest
-
 from tools import bot_failure_reasons as bfr
 from tools import bot_relay
 

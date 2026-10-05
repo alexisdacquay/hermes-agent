@@ -4,9 +4,8 @@ import copy
 from types import SimpleNamespace
 
 import pytest
-from openai import AsyncOpenAI, OpenAI
-
 from agent.auxiliary_client import _relay_async_completion, _relay_sync_completion
+from openai import AsyncOpenAI, OpenAI
 
 
 @pytest.mark.parametrize("async_mode", [False, True])

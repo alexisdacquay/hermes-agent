@@ -14,7 +14,6 @@ import os
 from unittest.mock import MagicMock
 
 import pytest
-
 from agent.proxy_sources import iron_proxy as ip
 from hermes_cli import proxy_cli
 

@@ -8,8 +8,6 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Optional
-
 
 _USAGE_EXIT = 2
 _FAILURE_EXIT = 1
@@ -24,7 +22,7 @@ def _fail(msg: str, exit_code: int | None = None) -> int:
     return _FAILURE_EXIT
 
 
-def _read_message_body(positional: Optional[str], file_path: Optional[str]) -> Optional[str]:
+def _read_message_body(positional: str | None, file_path: str | None) -> str | None:
     """Resolve the message body: positional arg, then ``--file PATH`` / ``--file -`` (stdin), then
     piped stdin when not attached to a TTY. ``None`` when nothing is available (a usage error)."""
     if positional:
@@ -81,11 +79,14 @@ def _emit_result(result_json: str, *, json_mode: bool, quiet: bool) -> int:
     return _FAILURE_EXIT
 
 
-def _list_targets(platform_filter: Optional[str], *, json_mode: bool) -> int:
+def _list_targets(platform_filter: str | None, *, json_mode: bool) -> int:
     """Print the channel directory (all configured targets across platforms), reusing the
     ``format_directory_for_display`` rendering the send_message tool shows the model."""
     try:
-        from gateway.channel_directory import format_directory_for_display, load_directory
+        from gateway.channel_directory import (
+            format_directory_for_display,
+            load_directory,
+        )
     except Exception as exc:
         return _fail(f"hermes send: failed to load channel directory: {exc}")
     try:
@@ -118,7 +119,11 @@ def _list_targets(platform_filter: Optional[str], *, json_mode: bool) -> int:
     if not platforms:
         print("No messaging platforms configured or no channels discovered yet.")
         print("Set one up with `hermes gateway setup`, or run the gateway once so")
-        from hermes_constants import get_default_hermes_root, get_hermes_home, hermes_home_key
+        from hermes_constants import (
+            get_default_hermes_root,
+            get_hermes_home,
+            hermes_home_key,
+        )
         home, root = get_hermes_home(), get_default_hermes_root()
         print(f"channel discovery can populate {home / 'channel_directory.json'}.")
         # A gateway started from the default root writes that root's directory, never this profile's.

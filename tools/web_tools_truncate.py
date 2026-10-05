@@ -8,7 +8,7 @@ origin (tools.web_tools) logger.
 
 import logging
 import re
-from typing import Any, List, Optional
+from typing import Any
 
 logger = logging.getLogger("tools.web_tools")
 
@@ -40,7 +40,9 @@ def _clamp_or_default(value: Any) -> int:
 
 def _get_extract_char_limit() -> int:
     """``web.extract_char_limit`` clamped to a sane range, else the default."""
-    from tools.web_tools import _load_web_config  # lazy: tests patch tools.web_tools._load_web_config
+    from tools.web_tools import (
+        _load_web_config,  # lazy: tests patch tools.web_tools._load_web_config
+    )
     return _clamp_or_default(_load_web_config().get("extract_char_limit"))
 
 
@@ -48,7 +50,7 @@ def convert_base64_images_to_links(text: str) -> str:
     """Replace inline base64 image blobs (token bombs) with ``[IMAGE: alt]`` placeholders: markdown images
     (alt kept), parenthesised blobs, and bare ``data:image/...;base64,`` payloads. Real http(s) markdown
     image links are left untouched so the agent can ``web_extract`` / ``vision_analyze`` them."""
-    def _md_repl(m: "re.Match[str]") -> str:
+    def _md_repl(m: re.Match[str]) -> str:
         return f"[IMAGE: {alt}]" if (alt := (m.group("alt") or "").strip()) else "[IMAGE]"
 
     out = re.sub(r"!\[(?P<alt>[^\]]*)\]\(\s*data:image/[^;]+;base64,[A-Za-z0-9+/=\s]+\)", _md_repl, text)
@@ -56,13 +58,15 @@ def convert_base64_images_to_links(text: str) -> str:
     return re.sub(r"data:image/[^;]+;base64,[A-Za-z0-9+/=]+", "[IMAGE]", out)
 
 
-def _store_full_text(url: str, content: str) -> Optional[str]:
+def _store_full_text(url: str, content: str) -> str | None:
     """Write the full page to cache/web; absolute path or None (best-effort: the truncated content is still
     returned). cache/web is mounted read-only into remote backends (credential_files _CACHE_DIRS) so
     read_file can page the complete text on any backend."""
     try:
         import hashlib
+
         from hermes_constants import get_hermes_dir
+
         from tools.web_result_cache import _host_slug
         cache_dir = get_hermes_dir("cache/web", "web_cache")
         cache_dir.mkdir(parents=True, exist_ok=True)
@@ -128,7 +132,7 @@ def _truncate_with_footer(content: str, url: str, char_limit: int) -> tuple[str,
     return model_text + "\n" + "\n".join(footer_lines), True
 
 
-def _effective_char_limit(char_limit: Optional[int]) -> int:
+def _effective_char_limit(char_limit: int | None) -> int:
     """Caller's ``char_limit`` (else config) clamped; non-numeric input falls back to the default."""
     return _clamp_or_default(char_limit) if char_limit is not None else _get_extract_char_limit()
 
@@ -150,7 +154,7 @@ def _binary_payload_kind(text: str) -> str:
     return ""
 
 
-def _truncate_results(results: List[dict], char_limit: int, debug_call_data: dict) -> None:
+def _truncate_results(results: list[dict], char_limit: int, debug_call_data: dict) -> None:
     """In place: replace each successful entry's content with its base64-cleaned, budgeted text;
     per-page truncation metrics go into ``debug_call_data``."""
     for result in results:
@@ -181,7 +185,7 @@ def _truncate_results(results: List[dict], char_limit: int, debug_call_data: dic
             logger.info("%s (%d chars, whole)", url, len(clean))
 
 
-def _trim_results(results: List[dict]) -> List[dict]:
+def _trim_results(results: list[dict]) -> list[dict]:
     """Keep only url/title/content/error per entry (+ blocked_by_policy when present)."""
     return [
         {

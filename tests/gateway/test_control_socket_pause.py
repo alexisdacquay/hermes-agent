@@ -10,16 +10,11 @@ from __future__ import annotations
 
 import asyncio
 import json
-import sys
-from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
-
 from gateway.control_socket import (
     GatewayControlServer,
     pause_gateway_for_update,
-    query_gateway_control,
 )
 
 
@@ -49,7 +44,7 @@ def test_pause_verb_dispatches_and_returns_ack(tmp_path):
 
 
 def test_unknown_verb_still_lists_pause(tmp_path):
-    server = _make_server(tmp_path, lambda: {})
+    server = _make_server(tmp_path, dict)
     raw = json.dumps({"verb": "nope"}).encode()
     response = json.loads(server.handle_request_line(raw).decode())
     assert response["ok"] is False

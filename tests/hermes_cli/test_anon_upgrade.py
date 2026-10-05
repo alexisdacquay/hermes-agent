@@ -15,7 +15,6 @@ from urllib.parse import parse_qs
 
 import httpx
 import pytest
-
 from hermes_cli import anon_auth
 from hermes_cli.auth import _auth_file_path, _load_auth_store
 

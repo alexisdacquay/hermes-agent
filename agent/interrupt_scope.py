@@ -12,13 +12,14 @@ turn that has not started yet (#106179).
 from __future__ import annotations
 
 import threading
+from collections.abc import Iterator
 from contextlib import contextmanager, nullcontext
 from contextvars import ContextVar
-from typing import Any, Iterator, Optional
+from typing import Any
 
 from agent.interrupt_compat import request_hard_interrupt
 
-_ACTIVE_SCOPE: ContextVar[Optional["InterruptScope"]] = ContextVar("hermes_interrupt_scope", default=None)
+_ACTIVE_SCOPE: ContextVar[InterruptScope | None] = ContextVar("hermes_interrupt_scope", default=None)
 
 
 _TOOL_REASON_HOST_CANCELLED = "host cancelled the command"
@@ -28,10 +29,10 @@ class InterruptScope:
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._agents: list[Any] = []
-        self.reason: Optional[str] = None
-        self._tool_reason: Optional[str] = _TOOL_REASON_HOST_CANCELLED
+        self.reason: str | None = None
+        self._tool_reason: str | None = _TOOL_REASON_HOST_CANCELLED
 
-    def cancel(self, reason: str, *, tool_reason: Optional[str] = _TOOL_REASON_HOST_CANCELLED) -> None:
+    def cancel(self, reason: str, *, tool_reason: str | None = _TOOL_REASON_HOST_CANCELLED) -> None:
         """Latch ``reason`` and hard-interrupt every agent running under this scope.
 
         ``tool_reason`` names the system issuer; pass ``None`` for a human stop so the turn is
@@ -58,7 +59,7 @@ class InterruptScope:
 
 
 @contextmanager
-def bind_interrupt_scope(scope: Optional[InterruptScope]) -> Iterator[None]:
+def bind_interrupt_scope(scope: InterruptScope | None) -> Iterator[None]:
     """Make ``scope`` the owner of every agent turn started in this context."""
     token = _ACTIVE_SCOPE.set(scope)
     try:

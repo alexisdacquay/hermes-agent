@@ -7,8 +7,7 @@ explicit choice — e.g. a user OAuth-logged-into Anthropic but with
 OPENAI_API_KEY exported (or model.provider set) got routed to Anthropic.
 """
 import pytest
-
-from hermes_cli.auth import resolve_provider, AuthError
+from hermes_cli.auth import AuthError, resolve_provider
 
 
 def _login(monkeypatch, provider_id):
@@ -82,7 +81,7 @@ class TestProviderPrecedence:
 
 
 def _logged_out(monkeypatch):
-    monkeypatch.setattr("hermes_cli.auth._load_auth_store", lambda: {})
+    monkeypatch.setattr("hermes_cli.auth._load_auth_store", dict)
     monkeypatch.setattr("hermes_cli.auth.get_auth_status", lambda p: {"logged_in": False})
 
 

@@ -99,6 +99,7 @@ class CLIInfoMixin:
     def show_banner(self):
         """Display the welcome banner in Claude Code style."""
         from cli import _build_compact_banner, get_tool_definitions, logger
+
         from hermes_cli.banner import build_welcome_banner
         self.console.clear()
         ctx_len = None
@@ -117,7 +118,10 @@ class CLIInfoMixin:
             # cold get_tool_definitions walk. The agent's REAL tool list is still computed fresh at
             # first message; a background refresh re-verifies the snapshot so drift self-heals.
             from hermes_cli.banner import (
-                compute_toolset_availability, load_banner_snapshot, save_banner_snapshot)
+                compute_toolset_availability,
+                load_banner_snapshot,
+                save_banner_snapshot,
+            )
             try:
                 snapshot = load_banner_snapshot(self.enabled_toolsets)
             except Exception:
@@ -212,7 +216,10 @@ class CLIInfoMixin:
         # `hermes skills trust`. Never raises.
         try:
             from agent.skill_utils import (
-                get_project_skills_dirs, get_untrusted_project_skills_root, iter_skill_index_files)
+                get_project_skills_dirs,
+                get_untrusted_project_skills_root,
+                iter_skill_index_files,
+            )
             _proj_dirs = get_project_skills_dirs()
             if _proj_dirs:
                 _n = sum(sum(1 for _ in iter_skill_index_files(d, "SKILL.md")) for d in _proj_dirs)
@@ -246,8 +253,17 @@ class CLIInfoMixin:
         """Display help. Bare /help shows categorized core commands with the skill list collapsed
         to one line; /help skills lists all skill commands; /help <query> filters by substring."""
         from cli import (
-            ChatConsole, _BOLD, _DIM, _RST, _accent_hex, _cprint, _ensure_skill_commands,
-            _termux_example_image_path, get_skill_bundles)
+            _BOLD,
+            _DIM,
+            _RST,
+            ChatConsole,
+            _accent_hex,
+            _cprint,
+            _ensure_skill_commands,
+            _termux_example_image_path,
+            get_skill_bundles,
+        )
+
         from hermes_cli.commands import COMMAND_REGISTRY, HELP_SESSION_SUBGROUPS
 
         arg = (arg or "").strip()
@@ -491,9 +507,16 @@ class CLIInfoMixin:
         bang mode is disabled for this context (gateway/cron), so the caller routes normally.
         """
         from cli import _rich_text_from_ansi
+
         from hermes_cli.bang_shell import (
-            USAGE_HINT, bang_shell_enabled, check_bang_approval, is_bang_command,
-            parse_bang_command, resolve_bang_cwd, run_bang_command)
+            USAGE_HINT,
+            bang_shell_enabled,
+            check_bang_approval,
+            is_bang_command,
+            parse_bang_command,
+            resolve_bang_cwd,
+            run_bang_command,
+        )
 
         if not is_bang_command(text):
             return False
@@ -525,8 +548,8 @@ class CLIInfoMixin:
 
     def _show_gateway_status(self):
         """Show status of the gateway and connected messaging platforms."""
+        from gateway.config import Platform, load_gateway_config
         from hermes_constants import display_hermes_home
-        from gateway.config import load_gateway_config, Platform
 
         print()
         _ascii_box(t("cli.gateway_status.header"), 60)
@@ -666,8 +689,10 @@ class CLIInfoMixin:
         expanded = args in {"all", "full", "details"}
 
         from agent.context_breakdown import (
-            compute_context_details, compute_session_context_breakdown,
-            render_context_breakdown_lines)
+            compute_context_details,
+            compute_session_context_breakdown,
+            render_context_breakdown_lines,
+        )
         try:
             payload = compute_session_context_breakdown(self.agent, self.conversation_history)
         except Exception as e:
@@ -681,7 +706,10 @@ class CLIInfoMixin:
             except Exception:
                 details = {"skills": [], "toolsets": []}
 
-        from agent.context_file_sources import context_file_sources_for_agent, render_context_file_lines
+        from agent.context_file_sources import (
+            context_file_sources_for_agent,
+            render_context_file_lines,
+        )
         try:
             file_lines = render_context_file_lines(context_file_sources_for_agent(self.agent))
         except Exception:
@@ -731,7 +759,7 @@ class CLIInfoMixin:
         output_tokens = getattr(agent, "session_output_tokens", 0) or 0
         reasoning_tokens = getattr(agent, "session_reasoning_tokens", 0) or 0
         compressor = agent.context_compressor
-        last_prompt = compressor.last_prompt_tokens if compressor.last_prompt_tokens > 0 else 0
+        last_prompt = max(0, compressor.last_prompt_tokens)
         ctx_len = compressor.context_length
         pct = min(100, (last_prompt / ctx_len * 100)) if ctx_len else 0
         elapsed = format_duration_compact((datetime.now() - self.session_start).total_seconds())
@@ -825,8 +853,8 @@ class CLIInfoMixin:
                 i += 1
 
         try:
-            from hermes_state import SessionDB, _default_db_path
             from agent.insights import InsightsEngine
+            from hermes_state import SessionDB, _default_db_path
             if not _default_db_path().exists():
                 print(f"  {t('cli.insights.no_session_data')}")
                 return
@@ -927,10 +955,10 @@ class CLIInfoMixin:
         """Reload MCP servers: disconnect all, re-read config.yaml, reconnect, then refresh the
         agent's tool list so the model sees the updated tools on the next turn."""
         try:
-            from tools.mcp_tool_lifecycle import shutdown_mcp_servers
-            from tools.mcp_tool_discovery import discover_mcp_tools
+            from tools.mcp_tool import _lock, _servers
             from tools.mcp_tool_agent import reprobe_tool_availability
-            from tools.mcp_tool import _servers, _lock
+            from tools.mcp_tool_discovery import discover_mcp_tools
+            from tools.mcp_tool_lifecycle import shutdown_mcp_servers
             with _lock:
                 old_servers = set(_servers.keys())
             if not self._command_running:

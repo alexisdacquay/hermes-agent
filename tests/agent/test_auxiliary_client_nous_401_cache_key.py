@@ -9,10 +9,8 @@ cache; only the client factories are patched.
 
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
-
 import agent.auxiliary_client as ac
-
+import pytest
 
 NOUS_BASE_URL = "https://inference-api.nousresearch.com/v1"
 

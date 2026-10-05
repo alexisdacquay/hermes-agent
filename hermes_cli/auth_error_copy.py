@@ -8,7 +8,7 @@ line by line.
 
 from __future__ import annotations
 
-from typing import Callable, Sequence, Tuple
+from collections.abc import Callable, Sequence
 
 # httpx class names and stdlib bases that mean "the request never got a usable answer".
 _NETWORK_ERROR_TYPES = frozenset({
@@ -70,7 +70,7 @@ def _details_line(exc: BaseException) -> str:
     return f"  Details: {text}"
 
 
-_Rule = Tuple[Callable[[BaseException], bool], str]
+_Rule = tuple[Callable[[BaseException], bool], str]
 
 
 def _classify(exc: BaseException, rules: Sequence[_Rule], other: str) -> str:

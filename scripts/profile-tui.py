@@ -364,7 +364,7 @@ def format_diff(before: dict[str, float], after: dict[str, float]) -> str:
         b = before.get(k, 0.0)
         a = after.get(k, 0.0)
         d = a - b
-        pct_change = ((a / b) - 1) * 100 if b not in {0, 0.0} else float("inf") if a else 0
+        pct_change = ((a / b) - 1) * 100 if b not in {0} else float("inf") if a else 0
 
         # Flag improvements vs regressions. For _p99 / _max / _total / gaps_over /
         # patches / writeBytes / backpressure, LOWER is better.  For fps / gaps_under,
@@ -439,7 +439,9 @@ def run_once(args: argparse.Namespace) -> dict[str, Any]:
         os.execvpe(node, node_args, env)
 
     try:
-        import fcntl, struct, termios
+        import fcntl
+        import struct
+        import termios
         winsize = struct.pack("HHHH", args.rows, args.cols, 0, 0)
         fcntl.ioctl(fd, termios.TIOCSWINSZ, winsize)
 

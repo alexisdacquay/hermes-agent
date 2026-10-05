@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import threading
 import time
-from typing import Optional
 
 # conn 层消息类型（ConnMsg.Head.cmd_type）
 PB_MSG_TYPES = {
@@ -356,7 +355,7 @@ _INBOUND_PUSH_SPEC = [
 ]
 
 
-def decode_inbound_push(data: bytes) -> Optional[dict]:
+def decode_inbound_push(data: bytes) -> dict | None:
     """解析 InboundMessagePush biz payload；空值已过滤（msg_body / msg_seq 始终保留），解析失败返回 None。"""
     try:
         fdict = _parse_dict(data)
@@ -396,7 +395,7 @@ def _decode_forward_msg(fd: dict) -> dict:
             "msgContent": [_decode_forward_msg_content(b) for b in _get_repeated_bytes(fd, 4)]}
 
 
-def decode_forward_msg_data(data: bytes) -> Optional[dict]:
+def decode_forward_msg_data(data: bytes) -> dict | None:
     """Parse ForwardMsgData bytes (base64-decoded ext_map value) into the {sub_type, nick_name, msg, ...}
     structure consumed by ForwardedRecordsParseMiddleware.build_forward_text; None on parse failure."""
     try:
@@ -412,7 +411,7 @@ def decode_forward_msg_data(data: bytes) -> Optional[dict]:
 # ---- Outbound message encoding
 def encode_send_c2c_message(
     to_account: str, msg_body: list, from_account: str, msg_id: str = "", msg_random: int = 0,
-    msg_seq: Optional[int] = None, group_code: str = "", trace_id: str = "",
+    msg_seq: int | None = None, group_code: str = "", trace_id: str = "",
 ) -> bytes:
     """SendC2CMessageReq → 完整 ConnMsg bytes（可直接发送）。
 
@@ -427,7 +426,7 @@ def encode_send_c2c_message(
 
 def encode_send_group_message(
     group_code: str, msg_body: list, from_account: str, msg_id: str = "", to_account: str = "", random: str = "",
-    msg_seq: Optional[int] = None, ref_msg_id: str = "", trace_id: str = "",
+    msg_seq: int | None = None, ref_msg_id: str = "", trace_id: str = "",
 ) -> bytes:
     """SendGroupMessageReq → 完整 ConnMsg bytes。to_account usually empty; ref_msg_id = quoted message."""
     return _biz_request("send_group_message", "grp", _encode_parts([
@@ -493,7 +492,7 @@ def encode_query_group_info(group_code: str) -> bytes:
     return _biz_request("query_group_info", "qgi", _s(1, group_code))
 
 
-def decode_query_group_info_rsp(data: bytes) -> Optional[dict]:
+def decode_query_group_info_rsp(data: bytes) -> dict | None:
     """QueryGroupInfoRsp{1 code, 2 message, 3 GroupInfo{1 group_name, 2 group_owner_user_id,
     3 group_owner_nickname, 4 group_size}} → {code, message?, group_name, owner_id, owner_nickname,
     member_count}（对齐 TS member.ts queryGroupInfo）；解析失败返回 None。"""
@@ -520,7 +519,7 @@ def encode_get_group_member_list(group_code: str, offset: int = 0, limit: int = 
     return _biz_request("get_group_member_list", "gml", _s(1, group_code) + (_v(2, offset) if offset else b"") + _v(3, limit))
 
 
-def decode_get_group_member_list_rsp(data: bytes) -> Optional[dict]:
+def decode_get_group_member_list_rsp(data: bytes) -> dict | None:
     """GetGroupMemberListRsp{1 code, 2 message, 3 members (repeated MemberInfo), 4 next_offset, 5 is_complete}；
     MemberInfo{1 user_id, 2 nickname, 3 role (0=member,1=admin,2=owner), 4 join_time, 5 name_card (群昵称)}。
     member dict 过滤空值但保留 role；解析失败返回 None。"""

@@ -7,11 +7,16 @@ import asyncio
 import logging
 import time
 from dataclasses import dataclass
-from typing import Optional
-from tools.mcp_tool_common import _core, _get_lifecycle_seconds, _jittered, _resolve_tool_timeout
+
 from tools import mcp_tool_errors as _errors
 from tools import mcp_tool_registration as _registration
 from tools import mcp_tool_sampling as _sampling
+from tools.mcp_tool_common import (
+    _core,
+    _get_lifecycle_seconds,
+    _jittered,
+    _resolve_tool_timeout,
+)
 
 logger = logging.getLogger("tools.mcp_tool")
 
@@ -155,7 +160,7 @@ class MCPServerRunMixin:
         self._reconnect_event.clear()
         return "reconnect"
 
-    async def _wait_for_reconnect_or_shutdown(self, timeout: Optional[float] = None) -> str:
+    async def _wait_for_reconnect_or_shutdown(self, timeout: float | None = None) -> str:
         """Parked wait: ``"shutdown"``, ``"reconnect"`` (explicit request; event cleared first) or
         ``"self-probe"`` (``timeout`` elapsed with neither). Shutdown wins a tie."""
         shutdown_task, reconnect_task = self._event_waiters()
@@ -374,7 +379,7 @@ class MCPServerRunMixin:
                 # Stale PIDs must never fast-fail the NEXT transport's calls.
                 self._stdio_child_pids = set()
 
-    async def _on_clean_return(self, lifecycle_reason: str, budget: "_RetryBudget") -> bool:
+    async def _on_clean_return(self, lifecycle_reason: str, budget: _RetryBudget) -> bool:
         """Clean transport return: shutdown, stdio recycle, or a requested rebuild (not a failure
         for the retry counters)."""
         if self._shutdown_event.is_set():
@@ -415,7 +420,7 @@ class MCPServerRunMixin:
         self.session = None
         return True
 
-    async def _park_and_rearm(self, revival_reason: str, budget: "_RetryBudget") -> bool:
+    async def _park_and_rearm(self, revival_reason: str, budget: _RetryBudget) -> bool:
         """Park; on revival leave ONE probe per wake so a still-dead server re-parks instead of
         burning 5 rapid retries. False on shutdown."""
         if await self._park(revival_reason):
@@ -423,7 +428,7 @@ class MCPServerRunMixin:
         self._reconnect_retries, budget.backoff = _core._MAX_RECONNECT_RETRIES, 1.0
         return True
 
-    async def _park_initial_failure(self, exc: Exception, revival_reason: str, budget: "_RetryBudget") -> bool:
+    async def _park_initial_failure(self, exc: Exception, revival_reason: str, budget: _RetryBudget) -> bool:
         """Publish ``exc`` to ``start()``, park, and on revival reset every counter. False on shutdown."""
         self._publish_error(exc)
         if await self._park(revival_reason):
@@ -434,11 +439,11 @@ class MCPServerRunMixin:
         self._ready.clear()
         return True
 
-    async def _backoff_sleep(self, budget: "_RetryBudget") -> None:
+    async def _backoff_sleep(self, budget: _RetryBudget) -> None:
         await asyncio.sleep(_jittered(budget.backoff))
         budget.backoff = min(budget.backoff * 2, _core._MAX_BACKOFF_SECONDS)
 
-    async def _on_transport_error(self, exc: Exception, budget: "_RetryBudget") -> bool:
+    async def _on_transport_error(self, exc: Exception, budget: _RetryBudget) -> bool:
         """Transport raised: classify, then run the initial-connect or reconnect ladder. False = exit."""
         # Unwrap anyio TaskGroup wrappers: the group's str() hides the root cause.
         root = _errors._unwrap_exception_group(exc)
@@ -477,7 +482,7 @@ class MCPServerRunMixin:
         return not self._shutdown_event.is_set()
 
     async def _on_initial_connect_error(self, exc: Exception, root: BaseException,
-                                        failure_class: str, budget: "_RetryBudget") -> bool:
+                                        failure_class: str, budget: _RetryBudget) -> bool:
         if failure_class == "permanent":
             # Deterministic failure (bad command, non-MCP URL, 401/403): park at once; auth
             # failures park (not return) so the task can pick up fresh tokens later.
@@ -503,7 +508,7 @@ class MCPServerRunMixin:
             self._publish_error(exc)
         return not self._shutdown_event.is_set()
 
-    async def _on_permanent_error(self, root: BaseException, budget: "_RetryBudget") -> bool:
+    async def _on_permanent_error(self, root: BaseException, budget: _RetryBudget) -> bool:
         # Auth failure on a PROVEN session is often a raced-teardown OAuth lock, not revoked
         # credentials: grant ONE suspect+reconnect cycle first.
         if _errors._is_auth_error(root) and self._session_proven and not self._permanent_grace_used:
@@ -546,7 +551,7 @@ class MCPServerRunMixin:
         if self._task and not self._task.done():
             try:
                 await asyncio.wait_for(self._task, timeout=10)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.warning("MCP server '%s' shutdown timed out, cancelling task", self.name)
                 self._task.cancel()
                 try:

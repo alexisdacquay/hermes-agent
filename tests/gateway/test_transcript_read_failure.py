@@ -24,10 +24,10 @@ Offline: SQLite on tmp_path only, no network.
 import sqlite3
 
 import pytest
-
 from gateway.config import GatewayConfig
 from gateway.session import SessionStore
 from gateway.session_transcript import TranscriptReadError
+
 
 @pytest.fixture
 def store(tmp_path):
@@ -87,6 +87,7 @@ class TestSlashCommandsOnUnreadableTranscript:
         from unittest.mock import AsyncMock, MagicMock
 
         from gateway.slash_commands_status import history_unreadable
+
         from tests.gateway.test_background_command import _make_event, _make_runner
 
         runner = _make_runner()

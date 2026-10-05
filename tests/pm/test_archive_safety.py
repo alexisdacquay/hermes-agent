@@ -26,7 +26,6 @@ import zipfile
 from pathlib import Path
 
 import pytest
-
 from pm.store import extract, flatten_single_dir
 
 posix_only = pytest.mark.platforms("posix")  # POSIX symlink/mode semantics

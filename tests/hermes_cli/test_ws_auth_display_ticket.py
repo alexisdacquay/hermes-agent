@@ -5,10 +5,9 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-import pytest
-
-from hermes_cli import web_server
 import hermes_cli.web_server_chat as _web_server_chat
+import pytest
+from hermes_cli import web_server
 from hermes_cli.dashboard_auth.ws_tickets import _reset_for_tests, mint_ticket
 
 

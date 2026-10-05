@@ -11,9 +11,7 @@ import threading
 import time
 
 import pytest
-
 from acp.schema import TextContentBlock
-
 from acp_adapter.server import HermesACPAgent
 from acp_adapter.session import SessionManager
 
@@ -64,7 +62,6 @@ async def test_handlers_restore_unknown_sessions_off_the_loop(call):
 
     def slow_restore(session_id):
         time.sleep(BUILD_SECONDS)
-        return None
 
     manager._restore = slow_restore
     server = HermesACPAgent(session_manager=manager)

@@ -28,17 +28,15 @@ No real names. Uses a throwaway HERMES_HOME.
 
 import asyncio
 import os
-import sys
 import tempfile
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 os.environ["HERMES_HOME"] = tempfile.mkdtemp(prefix="cron_dm_e2e_")
 
-import cron.scheduler as sched  # noqa: E402
-from gateway.config import PlatformConfig, Platform  # noqa: E402
-from gateway.session import build_session_key, SessionSource  # noqa: E402
-from plugins.platforms.slack.adapter import SlackAdapter  # noqa: E402
+import cron.scheduler as sched
+from gateway.config import Platform, PlatformConfig
+from gateway.session import SessionSource, build_session_key
+from plugins.platforms.slack.adapter import SlackAdapter
 
 DM_CHAT = "D_TESTDM"
 BOT = "U_TESTBOT"

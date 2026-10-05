@@ -21,7 +21,7 @@ import logging
 import threading
 import time
 from collections import defaultdict, deque
-from typing import Any, Deque, Dict
+from typing import Any
 from urllib.parse import quote, unquote, urlencode, urlparse, urlunparse
 
 from fastapi import APIRouter, HTTPException, Request
@@ -30,20 +30,40 @@ from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
 from hermes_cli.dashboard_auth import (
-    get_provider, list_providers, list_session_providers, native_flow)
+    get_provider,
+    list_providers,
+    list_session_providers,
+    native_flow,
+)
 from hermes_cli.dashboard_auth import prefix as _prefix_mod
 from hermes_cli.dashboard_auth.audit import AuditEvent, audit_log
 from hermes_cli.dashboard_auth.base import (
-    InvalidCodeError, InvalidCredentialsError, ProviderError, Session)
+    InvalidCodeError,
+    InvalidCredentialsError,
+    ProviderError,
+    Session,
+)
 from hermes_cli.dashboard_auth.cookies import (
-    clear_pkce_cookie, clear_session_cookies, clear_sso_attempt_cookie, detect_https,
-    parse_pkce_payload, read_pkce_cookie, read_session_cookies, set_pkce_cookie,
-    set_session_cookies)
+    clear_pkce_cookie,
+    clear_session_cookies,
+    clear_sso_attempt_cookie,
+    detect_https,
+    parse_pkce_payload,
+    read_pkce_cookie,
+    read_session_cookies,
+    set_pkce_cookie,
+    set_session_cookies,
+)
 from hermes_cli.dashboard_auth.login_page import (
-    render_login_html, render_native_provider_choice_html)
+    render_login_html,
+    render_native_provider_choice_html,
+)
 from hermes_cli.dashboard_auth.refresh_singleflight import refresh_session_coalesced
 from hermes_cli.dashboard_auth.request_utils import (
-    access_token_max_age, client_ip as _client_ip, is_safe_next_path)
+    access_token_max_age,
+    is_safe_next_path,
+)
+from hermes_cli.dashboard_auth.request_utils import client_ip as _client_ip
 
 _log = logging.getLogger(__name__)
 
@@ -364,7 +384,7 @@ async def auth_callback(
 # Uses the ASGI peer; trusted proxy normalization must happen upstream.
 _PW_RATE_MAX_ATTEMPTS = 10
 _PW_RATE_WINDOW_SEC = 60.0
-_pw_attempts: Dict[str, Deque[float]] = defaultdict(deque)
+_pw_attempts: dict[str, deque[float]] = defaultdict(deque)
 _pw_attempts_lock = threading.Lock()
 
 

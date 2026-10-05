@@ -11,9 +11,8 @@ the terminal physically repainted.
 
 from unittest.mock import MagicMock
 
-import pytest
-
 import cli as cli_mod
+import pytest
 from cli import HermesCLI
 
 

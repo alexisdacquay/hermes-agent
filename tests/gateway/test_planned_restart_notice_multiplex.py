@@ -10,10 +10,9 @@ import json
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
-import pytest
-
 import gateway.delivery as gateway_delivery
 import gateway.run as gateway_run
+import pytest
 from gateway.config import GatewayConfig, HomeChannel, Platform, PlatformConfig
 from gateway.platforms.base import SendResult
 

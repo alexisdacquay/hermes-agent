@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +39,7 @@ class WakeNotAccepted(RuntimeError):
     """No adapter admission: retry without treating a healthy chat as dead."""
 
 
-def session_owned_by_profile(config: Any, profile: Optional[str], session_id: Any) -> bool:
+def session_owned_by_profile(config: Any, profile: str | None, session_id: Any) -> bool:
     """True when a stateless (``api_server``) destination's raw session id is canonically owned by
     served *profile*'s own session store.
 
@@ -89,7 +89,7 @@ async def admit_internal_event(adapter: Any, event: Any) -> None:
 
 
 async def deliver_wake(adapter: Any, *, text: str, session_id: str = "", source: Any = None,
-                       notification_category: str = "result", profile: Optional[str] = None) -> None:
+                       notification_category: str = "result", profile: str | None = None) -> None:
     """Deliver a wake turn to the session behind ``adapter``. ``session_id`` is the RAW session id
     (``X-Hermes-Session-Id`` / state.db key) — required for non-push adapters. ``source`` is the
     ``SessionSource`` for the synthetic event — required for push-capable adapters. ``profile``
@@ -139,7 +139,7 @@ def _delegation_display_metadata(evt: dict) -> dict:
     return metadata
 
 
-async def persist_delegation_delivery(adapter: Any, *, text: str, session_id: str, evt: Optional[dict] = None) -> None:
+async def persist_delegation_delivery(adapter: Any, *, text: str, session_id: str, evt: dict | None = None) -> None:
     """Persist an async-delegation completion as a durable DELIVERY row (see module docstring)
     WITHOUT running any agent turn. Raises on failure so the caller can release the durable claim
     and retry.
@@ -184,7 +184,7 @@ async def persist_delegation_delivery(adapter: Any, *, text: str, session_id: st
 
 async def _self_post_chat_completion(adapter: Any, *, text: str, session_id: str,
                                       notification_category: str = "result",
-                                      profile: Optional[str] = None) -> None:
+                                      profile: str | None = None) -> None:
     """POST the wake text to the in-pod API server as a normal session turn, using the adapter's
     own bind host/port/key. Session continuation via ``X-Hermes-Session-Id`` is 403-gated on
     ``API_SERVER_KEY``, so a missing key is a hard error rather than a wake in a fresh session
@@ -224,7 +224,7 @@ async def _self_post_chat_completion(adapter: Any, *, text: str, session_id: str
                "messages": [{"role": "user", "content": text}], "stream": False}
     if notification_category == "diagnostic":
         payload["hermes_notification_category"] = "diagnostic"
-    last_err: Optional[BaseException] = None
+    last_err: BaseException | None = None
     attempts = 1 + len(_RETRY_DELAYS_SECONDS)
     for attempt in range(attempts):
         if attempt:
@@ -247,7 +247,7 @@ async def _self_post_chat_completion(adapter: Any, *, text: str, session_id: str
                     await resp.read()
                     logger.info("wake self-post delivered for session %s (attempt %d)", session_id, attempt + 1)
                     return
-        except (aiohttp.ClientError, asyncio.TimeoutError, OSError) as exc:
+        except (TimeoutError, aiohttp.ClientError, OSError) as exc:
             last_err = exc
             logger.warning("wake self-post transient failure for session %s (attempt %d/%d): %s",
                            session_id, attempt + 1, attempts, exc)

@@ -7,13 +7,11 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
 from agent.secret_scope import (
     reset_secret_scope,
     set_multiplex_active,
     set_secret_scope,
 )
-from hermes_constants import reset_hermes_home_override, set_hermes_home_override
 from gateway.config import (
     ChannelOverride,
     GatewayConfig,
@@ -24,6 +22,7 @@ from gateway.config import (
     _apply_env_overrides,
     load_gateway_config,
 )
+from hermes_constants import reset_hermes_home_override, set_hermes_home_override
 
 
 @pytest.mark.parametrize("encoding", ["utf-8", "utf-8-sig"])
@@ -1642,6 +1641,7 @@ class TestTopLevelBlockVsAuthoredExtra:
     def test_yaml_owner_reaches_adapter(self, platform, block, authored, global_value,
                                        operator_env, tmp_path, monkeypatch, caplog):
         import json
+
         from gateway.config_loader import load_yaml_layer
 
         home = tmp_path / "home"

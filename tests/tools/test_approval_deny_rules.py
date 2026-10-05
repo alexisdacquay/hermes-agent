@@ -8,10 +8,9 @@ making it the user-editable counterpart to the code-shipped hardline floor.
 import shlex
 
 import pytest
-
 from tools import approval as mod
-import tools.approval_floors as approval_floors
-from tools import approval_context
+from tools import approval_context, approval_floors
+
 
 @pytest.fixture
 def deny_config(monkeypatch):

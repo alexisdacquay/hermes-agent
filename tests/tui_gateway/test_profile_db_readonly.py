@@ -14,8 +14,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import tui_gateway.server as server
 from hermes_state import SessionDB
+from tui_gateway import server
 
 
 def _seed_store(home: Path) -> Path:

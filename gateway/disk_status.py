@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import shutil
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 from gateway.memory_status import _nonneg_int
 
@@ -40,10 +40,10 @@ def classify_disk_pressure(free_mb: Any, total_mb: Any) -> str:
     return "ok"
 
 
-def collect_disk_status(home: Optional[Path] = None) -> Dict[str, Any]:
+def collect_disk_status(home: Path | None = None) -> dict[str, Any]:
     """``disk`` block for ``/api/status`` (same ``home`` contract as ``memory``).
     Never raises — an unreadable/unmounted filesystem yields ``pressure="unknown"``."""
-    status: Dict[str, Any] = {"pressure": "unknown", "total_mb": None, "free_mb": None, "used_percent": None}
+    status: dict[str, Any] = {"pressure": "unknown", "total_mb": None, "free_mb": None, "used_percent": None}
     try:
         if home is None:
             from hermes_constants import get_hermes_home

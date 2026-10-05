@@ -1,32 +1,31 @@
 """Tests for cron/jobs.py — schedule parsing, job CRUD, and due-job detection."""
 
 import threading
-import pytest
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 
+import pytest
 from cron.jobs import (
-    parse_duration,
-    parse_schedule,
-    compute_next_run,
-    create_job,
-    load_jobs,
-    save_jobs,
-    get_job,
-    list_jobs,
-    update_job,
-    pause_job,
-    resume_job,
-    remove_job,
-    mark_job_run,
+    _hermes_now,
     advance_next_run,
     claim_dispatch,
     claim_job_for_fire,
-    heartbeat_run_claim,
+    compute_next_run,
+    create_job,
     get_due_jobs,
+    get_job,
+    heartbeat_run_claim,
+    list_jobs,
+    load_jobs,
+    mark_job_run,
+    parse_duration,
+    parse_schedule,
+    pause_job,
+    remove_job,
+    resume_job,
     save_job_output,
-    _hermes_now,
+    save_jobs,
+    update_job,
 )
-
 
 # =========================================================================
 # parse_duration
@@ -303,7 +302,7 @@ class TestComputeNextRun:
         assert compute_next_run(schedule) == future
 
     def test_once_recent_past_within_grace_returns_time(self, monkeypatch):
-        now = datetime(2026, 3, 18, 4, 22, 3, tzinfo=timezone.utc)
+        now = datetime(2026, 3, 18, 4, 22, 3, tzinfo=UTC)
         run_at = "2026-03-18T04:22:00+00:00"
         monkeypatch.setattr("cron.jobs._hermes_now", lambda: now)
 
@@ -313,7 +312,7 @@ class TestComputeNextRun:
 
 
     def test_once_with_last_run_returns_none_even_within_grace(self, monkeypatch):
-        now = datetime(2026, 3, 18, 4, 22, 3, tzinfo=timezone.utc)
+        now = datetime(2026, 3, 18, 4, 22, 3, tzinfo=UTC)
         run_at = "2026-03-18T04:22:00+00:00"
         monkeypatch.setattr("cron.jobs._hermes_now", lambda: now)
 
@@ -442,6 +441,7 @@ class TestJobCRUD:
         """A hand-edited "completed" (null, string, float, negative, Infinity) must not kill
         mark_job_run or the whole store, and must not be carried forward by update_job."""
         import json
+
         from cron.jobs import JOBS_FILE, get_job, mark_job_run, update_job
 
         job = create_job(prompt="t", schedule="every 1h", repeat=3)
@@ -497,7 +497,7 @@ class TestJobCRUD:
         assert updated["repeat"]["times"] == 1
 
     def test_rejects_stale_past_one_shot_at_creation(self, tmp_cron_dir, monkeypatch):
-        now = datetime(2026, 3, 18, 4, 30, 0, tzinfo=timezone.utc)
+        now = datetime(2026, 3, 18, 4, 30, 0, tzinfo=UTC)
         monkeypatch.setattr("cron.jobs._hermes_now", lambda: now)
         stale = (now - timedelta(minutes=5)).isoformat()
 
@@ -623,7 +623,7 @@ class TestPauseResumeJob:
     def test_resume_rejects_past_oneshot(self, tmp_cron_dir, monkeypatch):
         """Resuming a paused one-shot whose time is now in the past must raise
         ValueError — the revived job would silently never fire."""
-        now = datetime(2026, 7, 6, 12, 0, 0, tzinfo=timezone.utc)
+        now = datetime(2026, 7, 6, 12, 0, 0, tzinfo=UTC)
         monkeypatch.setattr("cron.jobs._hermes_now", lambda: now)
         # Create directly — bypass create_job's past-oneshot guard so we can
         # test the resume path independently.
@@ -653,12 +653,12 @@ class TestPauseResumeJob:
         """A recurring job paused before its slot and resumed after it comes back with that slot
         still due — the due scan then fires it (late/catch-up) or logs the skip. Re-anchoring
         from now consumed the occurrence with no run, no ledger row and no log line (#113603)."""
-        now = datetime(2026, 9, 16, 17, 0, 0, tzinfo=timezone.utc)
+        now = datetime(2026, 9, 16, 17, 0, 0, tzinfo=UTC)
         monkeypatch.setattr("cron.jobs._hermes_now", lambda: now)
         job = create_job(prompt="daily pipeline", schedule="30 1 * * *", deliver="local")
         stored = load_jobs()
         row = next(r for r in stored if r["id"] == job["id"])
-        slot = datetime(2026, 9, 16, 1, 30, 0, tzinfo=timezone.utc).isoformat()
+        slot = datetime(2026, 9, 16, 1, 30, 0, tzinfo=UTC).isoformat()
         row["next_run_at"] = slot
         save_jobs(stored)
 
@@ -672,7 +672,7 @@ class TestPauseResumeJob:
     def test_resume_recomputes_future_or_missing_slot_from_now(self, tmp_cron_dir, monkeypatch):
         """Control: a paused job whose stored slot is still ahead, or created ``--paused`` with no
         slot, resumes onto the next future occurrence as before."""
-        now = datetime(2026, 9, 16, 17, 0, 0, tzinfo=timezone.utc)
+        now = datetime(2026, 9, 16, 17, 0, 0, tzinfo=UTC)
         monkeypatch.setattr("cron.jobs._hermes_now", lambda: now)
         ahead = create_job(prompt="daily", schedule="30 1 * * *", deliver="local")
         pause_job(ahead["id"])
@@ -1086,7 +1086,7 @@ class TestGetDueJobs:
 
 
     def test_broken_recent_one_shot_without_next_run_is_recovered(self, tmp_cron_dir, monkeypatch):
-        now = datetime(2026, 3, 18, 4, 22, 30, tzinfo=timezone.utc)
+        now = datetime(2026, 3, 18, 4, 22, 30, tzinfo=UTC)
         monkeypatch.setattr("cron.jobs._hermes_now", lambda: now)
 
         run_at = "2026-03-18T04:22:00+00:00"
@@ -1205,8 +1205,8 @@ class TestGetDueJobs:
 
     def test_heartbeat_run_claim_rejects_replaced_owner(self, tmp_cron_dir):
         """A resumed stale runner must not keep a newer owner's claim alive."""
-        future = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
-        original_at = datetime.now(timezone.utc).isoformat()
+        future = (datetime.now(UTC) + timedelta(hours=1)).isoformat()
+        original_at = datetime.now(UTC).isoformat()
         save_jobs([{
             "id": "reclaimed", "name": "R", "prompt": "x",
             "schedule": {"kind": "once", "run_at": future},
@@ -1296,8 +1296,8 @@ class TestBadNextRunAtRecovery:
         get_due_jobs must succeed and return the healthy job; the bad record
         must be repaired (next_run_at cleared so recovery can set a sane value).
         """
-        from datetime import timezone, timedelta as td
-        now = datetime.now(timezone.utc)
+        from datetime import timedelta as td
+        now = datetime.now(UTC)
         past = (now - td(seconds=30)).isoformat()
         future = (now + td(days=1)).isoformat()
 
@@ -1350,10 +1350,10 @@ class TestPerJobScanContainment:
         """Simulate a FUTURE malformed-field variant none of the shape
         normalizers repair, by making grace computation raise for one job
         only. The per-job guard must skip it and still return the sibling."""
-        from datetime import timezone, timedelta as td
+        from datetime import timedelta as td
         from unittest.mock import patch as mock_patch
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         past = (now - td(seconds=30)).isoformat()
 
         poison = {
@@ -1472,7 +1472,7 @@ class TestClaimDispatch:
         # A claimed one-shot whose tick died leaves completed>=times with
         # last_run_at still unset, so the recovery helper re-arms it as due.
         # get_due_jobs must drop it instead of returning it for another fire.
-        past = (datetime.now(timezone.utc) - timedelta(seconds=5)).isoformat()
+        past = (datetime.now(UTC) - timedelta(seconds=5)).isoformat()
         save_jobs([{
             "id": "os1",
             "name": "one-shot",
@@ -1492,7 +1492,7 @@ class TestLateEnvRepointScopesStore:
     previously read/wrote the import-time jobs.json — the user's real file."""
 
     def test_late_env_repoint_scopes_store(self, tmp_path, monkeypatch):
-        import cron.jobs as jobs
+        from cron import jobs
 
         monkeypatch.setenv("HERMES_HOME", str(tmp_path))
         store = jobs._current_cron_store()
@@ -1505,7 +1505,7 @@ class TestLateEnvRepointScopesStore:
 
 
     def test_use_cron_store_override_still_wins(self, tmp_path, monkeypatch):
-        import cron.jobs as jobs
+        from cron import jobs
 
         monkeypatch.setenv("HERMES_HOME", str(tmp_path / "env-home"))
         with jobs.use_cron_store(tmp_path / "override-home"):
@@ -1513,7 +1513,7 @@ class TestLateEnvRepointScopesStore:
             assert store.jobs_file == (tmp_path / "override-home").resolve() / "cron" / "jobs.json"
 
     def test_heartbeat_does_not_recreate_deleted_named_profile(self, tmp_path):
-        import cron.jobs as jobs
+        from cron import jobs
 
         profiles_dir = tmp_path / "profiles"
         profiles_dir.mkdir()
@@ -1525,7 +1525,7 @@ class TestLateEnvRepointScopesStore:
         assert not deleted_home.exists()
 
     def test_heartbeat_initializes_existing_named_profile(self, tmp_path):
-        import cron.jobs as jobs
+        from cron import jobs
 
         profile_home = tmp_path / "profiles" / "active"
         profile_home.mkdir(parents=True)
@@ -1550,7 +1550,7 @@ class TestLateEnvRepointScopesStore:
         was first imported before the suite's env isolation applied, that
         path IS the developer's live file — writing a sentinel there is
         exactly the incident this PR exists to prevent."""
-        import cron.jobs as jobs
+        from cron import jobs
 
         sim_old_home = tmp_path / "import-time-home"
         sim_cron = sim_old_home / "cron"
@@ -1608,6 +1608,7 @@ class TestJobsJsonUtf8Bom:
     def test_load_jobs_accepts_utf8_bom(self, tmp_cron_dir):
         """BOM'd jobs.json loads — the pre-fix crash repro."""
         import json
+
         from cron.jobs import JOBS_FILE, load_jobs
 
         payload = {
@@ -1674,6 +1675,7 @@ class TestJobsJsonIdKeyedMap:
     def test_load_jobs_flattens_id_keyed_map(self, tmp_cron_dir):
         """The pre-fix repro: load_jobs() returns a list, not the raw dict."""
         import json
+
         from cron.jobs import JOBS_FILE, load_jobs
 
         JOBS_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -1687,6 +1689,7 @@ class TestJobsJsonIdKeyedMap:
     def test_list_jobs_survives_id_keyed_map(self, tmp_cron_dir):
         """The reported traceback path (hermes cron list / cronjob list tool)."""
         import json
+
         from cron.jobs import JOBS_FILE, list_jobs
 
         JOBS_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -1699,6 +1702,7 @@ class TestJobsJsonIdKeyedMap:
     def test_id_keyed_map_repaired_to_list_on_disk(self, tmp_cron_dir):
         """Loading rewrites the store into the canonical {"jobs": [...]} form."""
         import json
+
         from cron.jobs import JOBS_FILE, load_jobs
 
         JOBS_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -1717,6 +1721,7 @@ class TestJobsJsonIdKeyedMap:
     def test_empty_id_keyed_map_returns_empty_list(self, tmp_cron_dir):
         """An empty ``jobs`` map must not crash and yields no jobs."""
         import json
+
         from cron.jobs import JOBS_FILE, load_jobs
 
         JOBS_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -1727,6 +1732,7 @@ class TestJobsJsonIdKeyedMap:
     def test_map_value_without_inline_id_adopts_key(self, tmp_cron_dir):
         """A value lacking an inline "id" gets the map key as its id."""
         import json
+
         from cron.jobs import JOBS_FILE, load_jobs
 
         payload = {
@@ -1766,6 +1772,7 @@ class TestJobsJsonIdKeyedMap:
         """Junk (non-dict) values in the map are skipped, never crash."""
         import json
         import logging
+
         from cron.jobs import JOBS_FILE, list_jobs, load_jobs
 
         payload = {
@@ -1807,6 +1814,7 @@ class TestJobsJsonIdKeyedMap:
         parsed the file; an all-junk list or a scalar jobs field must be repaired on disk too,
         without logging raw values."""
         import json
+
         import cron.jobs as jobs_mod
         from cron.jobs import JOBS_FILE, load_jobs, update_job
 
@@ -1907,7 +1915,7 @@ class TestCompletedOneshotRetentionSweep:
         job = create_job(prompt="Once", schedule="in 30m", repeat=1)
         mark_job_run(job["id"], success=True, delivery_error="boom")
         stamp = (
-            datetime.now(timezone.utc) - timedelta(days=age_days)
+            datetime.now(UTC) - timedelta(days=age_days)
         ).isoformat()
         jobs = load_jobs()
         for j in jobs:
@@ -1933,7 +1941,7 @@ class TestCompletedOneshotRetentionSweep:
         """Old recurring jobs are never candidates, whatever their history."""
         job = create_job(prompt="Recurring", schedule="every 1h")
         stamp = (
-            datetime.now(timezone.utc) - timedelta(days=365)
+            datetime.now(UTC) - timedelta(days=365)
         ).isoformat()
         jobs = load_jobs()
         for j in jobs:
@@ -1967,7 +1975,7 @@ class TestEnsureCronDirWidened:
 
     def test_ensure_cron_dir_named_profile_subdir_fails_closed(self, tmp_path):
         """A subdir under a deleted named profile's cron/ must not recreate it."""
-        import cron.jobs as jobs
+        from cron import jobs
 
         profiles_dir = tmp_path / "profiles"
         profiles_dir.mkdir()
@@ -1982,7 +1990,7 @@ class TestEnsureCronDirWidened:
 
     def test_ensure_cron_dir_default_home_creates_subdir(self, tmp_path):
         """A subdir under a default home's cron/ should be created normally."""
-        import cron.jobs as jobs
+        from cron import jobs
 
         default_home = tmp_path / "default_home"
         default_home.mkdir()
@@ -1993,7 +2001,7 @@ class TestEnsureCronDirWidened:
 
     def test_ensure_cron_dir_named_profile_cron_dir_fails_closed(self, tmp_path):
         """The cron dir of a deleted named profile must not be recreated."""
-        import cron.jobs as jobs
+        from cron import jobs
 
         profiles_dir = tmp_path / "profiles"
         profiles_dir.mkdir()
@@ -2007,7 +2015,7 @@ class TestEnsureCronDirWidened:
 
     def test_ensure_cron_dir_existing_named_profile_cron_dir_works(self, tmp_path):
         """An existing named profile's cron dir should be created normally."""
-        import cron.jobs as jobs
+        from cron import jobs
 
         profiles_dir = tmp_path / "profiles"
         active_home = profiles_dir / "active"
@@ -2019,7 +2027,7 @@ class TestEnsureCronDirWidened:
 
     def test_ensure_cron_dir_scripts_dir_under_named_profile_fails_closed(self, tmp_path):
         """A scripts dir under a deleted named profile must not be recreated."""
-        import cron.jobs as jobs
+        from cron import jobs
 
         profiles_dir = tmp_path / "profiles"
         profiles_dir.mkdir()

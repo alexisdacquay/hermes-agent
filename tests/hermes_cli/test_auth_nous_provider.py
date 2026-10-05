@@ -5,14 +5,12 @@ import json
 import logging
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import httpx
 import pytest
-
 from hermes_cli.auth import AuthError
-
 
 # =============================================================================
 # _resolve_verify: CA bundle path validation
@@ -25,6 +23,7 @@ class TestResolveVerifyFallback:
 
     def test_missing_ca_bundle_in_auth_state_falls_back(self):
         import ssl
+
         from hermes_cli.auth import _resolve_verify
 
         result = _resolve_verify(auth_state={
@@ -43,9 +42,8 @@ class TestResolveVerifyFallback:
         import ssl
 
         import certifi
-        from truststore._ssl_constants import _original_SSLContext
-
         from hermes_cli.auth import _resolve_verify
+        from truststore._ssl_constants import _original_SSLContext
 
         result = _resolve_verify(auth_state={
             "tls": {"insecure": False, "ca_bundle": certifi.where()},
@@ -71,6 +69,7 @@ class TestResolveVerifyFallback:
 
     def test_string_false_in_auth_state_does_not_disable_tls_verify(self):
         import ssl
+
         from hermes_cli.auth import _resolve_verify
 
         result = _resolve_verify(auth_state={"tls": {"insecure": "false"}})
@@ -130,7 +129,7 @@ def _jwt_with_claims(claims: dict) -> str:
     return f"{_part({'alg': 'none', 'typ': 'JWT'})}.{_part(claims)}.sig"
 
 def _future_iso(seconds: int = 3600) -> str:
-    return datetime.fromtimestamp(time.time() + seconds, tz=timezone.utc).isoformat()
+    return datetime.fromtimestamp(time.time() + seconds, tz=UTC).isoformat()
 
 def _invoke_jwt(*, seconds: int = 3600, scope: object = "inference:invoke") -> str:
     return _jwt_with_claims({
@@ -177,12 +176,12 @@ def test_resolve_nous_runtime_credentials_invoke_jwt_is_idempotent(
     monkeypatch,
 ):
     import hermes_cli.auth as auth_mod
-    import hermes_cli.auth_nous as auth_nous
+    from hermes_cli import auth_nous
 
     hermes_home = tmp_path / "hermes"
     hermes_home.mkdir(parents=True, exist_ok=True)
     exp = int(time.time() + 3600)
-    expires_at = datetime.fromtimestamp(exp, tz=timezone.utc).isoformat()
+    expires_at = datetime.fromtimestamp(exp, tz=UTC).isoformat()
     token = _jwt_with_claims({
         "sub": "test-user",
         "scope": auth_mod.DEFAULT_NOUS_SCOPE,
@@ -290,7 +289,7 @@ def test_nous_inference_auth_logs_do_not_include_secret_values(
     caplog,
 ):
     import hermes_cli.auth as auth_mod
-    import hermes_cli.auth_nous as auth_nous
+    from hermes_cli import auth_nous
 
     hermes_home = tmp_path / "hermes"
     token = _invoke_jwt(seconds=3600)
@@ -432,10 +431,9 @@ class TestLoginNousSkipKeepsCurrent:
     def _patch_login_internals(self, monkeypatch, *, prompt_returns):
         """Patch OAuth + model-list + prompt so _login_nous doesn't hit network."""
         import hermes_cli.auth as auth_mod
-        import hermes_cli.auth_nous as auth_nous
         import hermes_cli.models as models_mod
-        from hermes_cli import models_pricing
         import hermes_cli.nous_subscription as ns
+        from hermes_cli import auth_nous, models_pricing
 
         fake_auth_state = {
             "access_token": "fake-nous-token",
@@ -462,7 +460,6 @@ class TestLoginNousSkipKeepsCurrent:
 
         def _check_nous_free_tier(**kwargs):
             free_tier_calls.append(kwargs)
-            return None
 
         monkeypatch.setattr(models_mod, "check_nous_free_tier", _check_nous_free_tier)
         monkeypatch.setattr(
@@ -475,6 +472,7 @@ class TestLoginNousSkipKeepsCurrent:
     def test_skip_keep_current_preserves_provider_and_model(self, tmp_path, monkeypatch):
         """User picks Skip → config.yaml untouched, Nous creds still saved."""
         import argparse
+
         import hermes_yaml as yaml
         from hermes_cli.auth import PROVIDER_REGISTRY, _login_nous
 
@@ -506,6 +504,7 @@ class TestLoginNousSkipKeepsCurrent:
     def test_picking_model_switches_to_nous(self, tmp_path, monkeypatch):
         """User picks a Nous model → provider flips to nous with that model."""
         import argparse
+
         import hermes_yaml as yaml
         from hermes_cli.auth import PROVIDER_REGISTRY, _login_nous
 
@@ -533,6 +532,7 @@ class TestLoginNousSkipKeepsCurrent:
         """Fresh install (no prior active_provider) → Skip clears active_provider
         instead of leaving it as nous."""
         import argparse
+
         import hermes_yaml as yaml
         from hermes_cli.auth import PROVIDER_REGISTRY, _login_nous
 
@@ -600,7 +600,7 @@ def test_persist_nous_credentials_idempotent_no_duplicate_pool_entries(tmp_path,
     materialise the pool entry under the canonical ``device_code`` source, so
     two persists still leave the pool with exactly one row.
     """
-    from hermes_cli.auth import persist_nous_credentials, NOUS_DEVICE_CODE_SOURCE
+    from hermes_cli.auth import NOUS_DEVICE_CODE_SOURCE, persist_nous_credentials
 
     hermes_home = tmp_path / "hermes"
     hermes_home.mkdir(parents=True, exist_ok=True)
@@ -754,7 +754,7 @@ def test_runtime_refresh_503_preserves_nous_oauth_credentials(
     re-login during a Portal outage (#120976) or a Vercel Security Checkpoint deny/challenge on
     the token endpoint (#120602)."""
     import hermes_cli.auth as auth_mod
-    import hermes_cli.auth_nous as auth_nous
+    from hermes_cli import auth_nous
 
     hermes_home = tmp_path / "hermes"
     access_token = _invoke_jwt(seconds=3600)
@@ -944,7 +944,7 @@ def test_try_import_shared_rehydrates_on_success(shared_store_env, monkeypatch):
     every field persist_nous_credentials() needs.
     """
     from hermes_cli import auth as auth_mod
-    import hermes_cli.auth_nous as auth_nous
+    from hermes_cli import auth_nous
 
     auth_mod._write_shared_nous_state(_full_state_fixture())
     fresh_jwt = _invoke_jwt(seconds=7200)
@@ -977,7 +977,7 @@ class TestStalePortalBaseUrlMigration:
     """_migrate_stale_nous_portal_url auto-corrects stale portal_base_url on load."""
 
     def test_migrates_stale_portal_url_on_load(self, tmp_path, monkeypatch):
-        from hermes_cli.auth import _load_auth_store, DEFAULT_NOUS_PORTAL_URL
+        from hermes_cli.auth import DEFAULT_NOUS_PORTAL_URL, _load_auth_store
 
         monkeypatch.setenv("HERMES_HOME", str(tmp_path))
         auth_file = tmp_path / "auth.json"
@@ -1002,7 +1002,7 @@ class TestStalePortalBaseUrlMigration:
     ):
         """An allowlisted production host is still unsafe over plain HTTP."""
         from hermes_cli import auth as auth_mod
-        import hermes_cli.auth_nous as auth_nous
+        from hermes_cli import auth_nous
 
         hermes_home = tmp_path / "hermes"
         monkeypatch.setenv("HERMES_HOME", str(hermes_home))
@@ -1054,9 +1054,8 @@ def test_poll_for_token_timeout_raises_actionable_message():
     """The poll deadline must raise the CAPTCHA-aware guidance at the SOURCE,
     so both the CLI login and the dashboard poller (web_server_oauth._nous_poller,
     which surfaces str(e) to the UI) inherit it."""
-    import pytest
-
     import hermes_cli.auth as auth_mod
+    import pytest
 
     class _PendingClient:
         def post(self, url, data=None):

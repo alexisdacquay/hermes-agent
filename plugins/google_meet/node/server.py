@@ -14,11 +14,12 @@ import json
 import secrets
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 from hermes_constants import get_hermes_home
-from plugins.google_meet._jsonfile import read_json
 from utils import atomic_json_write
+
+from plugins.google_meet._jsonfile import read_json
 from plugins.google_meet.node import protocol as _proto
 
 _START_BOT_KEYS = ("url", "guest_name", "duration", "headed", "auth_state", "session_id", "out_dir")
@@ -28,7 +29,7 @@ class _RpcError(Exception):
     """Handler-level protocol error; sent verbatim as an error envelope."""
 
 
-def _rpc_start_bot(payload: Dict[str, Any], pm) -> Dict[str, Any]:
+def _rpc_start_bot(payload: dict[str, Any], pm) -> dict[str, Any]:
     # Whitelist kwargs we pass through to pm.start.
     kwargs = {k: payload[k] for k in _START_BOT_KEYS if k in payload}
     if "url" not in kwargs:
@@ -36,7 +37,7 @@ def _rpc_start_bot(payload: Dict[str, Any], pm) -> Dict[str, Any]:
     return pm.start(**kwargs)
 
 
-def _rpc_say(payload: Dict[str, Any], pm) -> Dict[str, Any]:
+def _rpc_say(payload: dict[str, Any], pm) -> dict[str, Any]:
     # The bot-side consumer only exists in realtime mode: ok=True means "enqueued", not "spoken".
     text = payload.get("text", "")
     active = pm._read_active()
@@ -63,14 +64,14 @@ _RPC = {
 class NodeServer:
     """WebSocket server that executes meet bot RPCs locally."""
 
-    def __init__(self, host: str = "127.0.0.1", port: int = 18789, token_path: Optional[Path] = None,
+    def __init__(self, host: str = "127.0.0.1", port: int = 18789, token_path: Path | None = None,
                  display_name: str = "hermes-meet-node") -> None:
         self.host = host
         self.port = port
         self.display_name = display_name
         self.token_path = Path(token_path) if token_path is not None else (
             Path(get_hermes_home()) / "workspace" / "meetings" / "node_token.json")
-        self._token: Optional[str] = None
+        self._token: str | None = None
 
     def ensure_token(self) -> str:
         """Return the persisted shared secret, generating one on first use."""
@@ -85,7 +86,7 @@ class NodeServer:
         self._token = tok
         return tok
 
-    async def _handle_request(self, msg: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_request(self, msg: dict[str, Any]) -> dict[str, Any]:
         """Validate + dispatch one decoded request; always returns an envelope, never raises.
         Envelope ``error`` is for auth/protocol failures and pm crashes; pm's own ``ok``/``error``
         results travel inside a normal response payload."""

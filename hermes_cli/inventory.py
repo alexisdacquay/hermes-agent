@@ -5,8 +5,9 @@ from __future__ import annotations
 
 from contextvars import copy_context
 from dataclasses import dataclass, replace
+from datetime import UTC
 from threading import Lock, Thread, current_thread
-from typing import Any, Optional
+from typing import Any
 
 _pricing_prewarm_lock = Lock()
 _pricing_prewarm_threads: dict[tuple[str, tuple[tuple[str, str], ...]], Thread] = {}
@@ -25,9 +26,9 @@ class ConfigContext:
     excluded_providers: list = None
 
     def with_overrides(
-        self, *, current_provider: Optional[str] = None, current_model: Optional[str] = None,
-        current_base_url: Optional[str] = None,
-    ) -> "ConfigContext":
+        self, *, current_provider: str | None = None, current_model: str | None = None,
+        current_base_url: str | None = None,
+    ) -> ConfigContext:
         """Copy with TRUTHY overrides applied: the TUI reads agent attributes that may be empty strings
         before an agent is spawned — empties must not clobber the disk-config values."""
         overrides = (("current_provider", current_provider), ("current_model", current_model),
@@ -39,7 +40,10 @@ class ConfigContext:
 def load_picker_context() -> ConfigContext:
     """Load the disk-config snapshot every consumer needs."""
     from hermes_cli.config import (
-        coerce_provider_id, get_compatible_custom_providers, load_config, stringify_provider_map,
+        coerce_provider_id,
+        get_compatible_custom_providers,
+        load_config,
+        stringify_provider_map,
     )
     cfg = load_config()
     model_cfg = cfg.get("model", {})
@@ -259,13 +263,14 @@ def _apply_limits(rows: list[dict]) -> None:
     when instead of the row just looking broken. Only providers with a persisted pool are read (no
     seeding), and a pool that fails to load says nothing rather than failing the whole catalog."""
     import logging
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from agent.credential_pool import load_pool
+
     from hermes_cli.auth import read_credential_pool
 
     def iso(epoch: float) -> str:
-        return datetime.fromtimestamp(epoch, timezone.utc).isoformat()
+        return datetime.fromtimestamp(epoch, UTC).isoformat()
 
     pooled = {slug for slug, entries in read_credential_pool().items() if entries}
     for row in rows:
@@ -289,7 +294,11 @@ def _apply_usage(rows: list[dict]) -> None:
     """Attach ``usage`` (subscription windows: % spent + reset) to signed-in rows that can report it,
     from the cache only, and ask for a background refresh, so the picker never waits on a usage API
     and a chip can warn before the wall instead of at it."""
-    from agent.account_usage_cache import cached_account_usage, has_account_usage, refresh_account_usage_async
+    from agent.account_usage_cache import (
+        cached_account_usage,
+        has_account_usage,
+        refresh_account_usage_async,
+    )
 
     wanted: list[str] = []
     for row in rows:
@@ -573,7 +582,10 @@ def _anthropic_oauth_credentials_present() -> bool:
     """True when the user explicitly authenticated Anthropic via OAuth (Hermes device flow or Claude Code
     login) — those leave no trace in active_provider / model.provider / API-key env vars."""
     try:
-        from agent.anthropic_credentials import read_claude_code_credentials, read_hermes_oauth_credentials
+        from agent.anthropic_credentials import (
+            read_claude_code_credentials,
+            read_hermes_oauth_credentials,
+        )
 
         readers = (read_hermes_oauth_credentials, read_claude_code_credentials)
         if any((read() or {}).get("accessToken") for read in readers):
@@ -585,6 +597,7 @@ def _anthropic_oauth_credentials_present() -> bool:
     # silently dropped. Read-only (no load_pool) so a picker open never mutates auth.json.
     try:
         from agent.credential_pool import AUTH_TYPE_OAUTH
+
         from hermes_cli.auth import read_credential_pool
 
         for entry in read_credential_pool("anthropic"):
@@ -629,7 +642,10 @@ def _filter_explicit_provider_rows(rows: list[dict], ctx: ConfigContext) -> list
 def _external_process_signed_in(slug: str) -> bool:
     """True when an external-process provider has verified CLI credentials."""
     try:
-        from hermes_cli.auth import PROVIDER_REGISTRY, get_external_process_provider_status
+        from hermes_cli.auth import (
+            PROVIDER_REGISTRY,
+            get_external_process_provider_status,
+        )
         pconfig = PROVIDER_REGISTRY.get(slug)
         return bool(pconfig and pconfig.auth_type == "external_process"
                     and get_external_process_provider_status(slug).get("auth_verified"))
@@ -696,18 +712,18 @@ def _apply_pricing(rows: list[dict], *, force_fresh_nous_tier: bool = False, cac
     ``free_tier`` (account is free-tier) and ``unavailable_models`` (paid models a free user can't pick).
     ``cached_only`` never hits the network: unknown Nous entitlement fails closed (``free_tier_pending``,
     all models locked) and missing pricing is marked ``pricing_pending``."""
-    from hermes_cli.models_pricing import (
-        _format_price_per_mtok,
-        compute_sale_discount,
-        get_pricing_for_provider,
-    )
     from hermes_cli.models import (
         check_nous_free_tier,
         get_cached_nous_free_tier,
         partition_nous_models_by_tier,
     )
+    from hermes_cli.models_pricing import (
+        _format_price_per_mtok,
+        compute_sale_discount,
+        get_pricing_for_provider,
+    )
 
-    nous_free_tier: Optional[bool] = None  # resolved once (cached in models.py for the TTL window)
+    nous_free_tier: bool | None = None  # resolved once (cached in models.py for the TTL window)
 
     for row in rows:
         slug = str(row.get("slug", "")).lower()
@@ -725,7 +741,7 @@ def _apply_pricing(rows: list[dict], *, force_fresh_nous_tier: bool = False, cac
             raw_pricing = get_pricing_for_provider(slug, **pricing_kwargs) or {}
         except Exception:
             raw_pricing = {}
-        cached_nous_tier: Optional[bool] = None
+        cached_nous_tier: bool | None = None
         if slug == "nous" and cached_only:
             cached_nous_tier = get_cached_nous_free_tier()
             if cached_nous_tier is None:
@@ -787,7 +803,7 @@ def _apply_pricing(rows: list[dict], *, force_fresh_nous_tier: bool = False, cac
                 row["unavailable_models"] = []
 
 
-def _local_runtime_row(ctx: "ConfigContext") -> dict | None:
+def _local_runtime_row(ctx: ConfigContext) -> dict | None:
     """The ``llamacpp`` row from staged GGUFs (``None`` when none) — downloaded models must be selectable
     before the server runs (selection starts it via the runtime_provider seam). The row's id comes from
     the provider registry's own definition, never a local literal: a row the resolver can't resolve is
@@ -820,10 +836,11 @@ def _local_runtime_row(ctx: "ConfigContext") -> dict | None:
 
 def _prewarm_pricing_async(
     rows: list[dict], *, current_provider: str = "", current_base_url: str = "",
-) -> Optional[Thread]:
+) -> Thread | None:
     """Warm picker pricing caches without delaying the current payload (one worker per
     profile + endpoint scope; a live worker is reused)."""
     from hermes_constants import hermes_home_key
+
     from hermes_cli.models_pricing import pricing_cache_scope
 
     slugs = {

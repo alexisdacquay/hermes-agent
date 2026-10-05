@@ -4,11 +4,11 @@ import json
 import time
 
 import pytest
-
 from tools.skills_tool import (
     _skill_view_with_bump,
     reset_skill_view_dedup,
 )
+
 
 @pytest.fixture
 def skills_home(tmp_path, monkeypatch):

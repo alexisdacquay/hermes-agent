@@ -1,8 +1,8 @@
 """#117275: a stale-code ticker that yields every tick must never read as healthy, and the
 updater must hand a proven-stale survivor to the request_restart path."""
 
-import io
 import contextlib
+import io
 import os
 import signal
 import subprocess
@@ -36,7 +36,12 @@ def _status_block(pids):
 @pytest.mark.parametrize("had_success_before_update", [False, True])
 def test_cron_status_reports_stale_code_yield_as_unhealthy(cron_home, had_success_before_update):
     """Fresh heartbeat + persisted CronTickYielded == outage, whatever the success marker says."""
-    from cron.jobs import _current_cron_store, ensure_dirs, record_ticker_error, record_ticker_heartbeat
+    from cron.jobs import (
+        _current_cron_store,
+        ensure_dirs,
+        record_ticker_error,
+        record_ticker_heartbeat,
+    )
     from cron.scheduler import CronTickYielded
 
     ensure_dirs()
@@ -106,7 +111,7 @@ def test_verify_fleet_hands_stale_rows_to_survivor_signalling(monkeypatch):
     """The wiring: a stale fleet matrix reaches signal_stale_fleet_survivors before exit 1."""
     import hermes_cli.update_cmd_fleet as fleet_mod
     import hermes_cli.update_cmd_stale_survivors as surv
-    import hermes_cli.update_cmd as update_cmd
+    from hermes_cli import update_cmd
     from hermes_cli.update_cmd_fleet import _GatewayRestartOutcome
 
     stale_fleet = [{"profile": "default", "pid": 4242, "state": "stale", "code_sha": "a" * 40}]

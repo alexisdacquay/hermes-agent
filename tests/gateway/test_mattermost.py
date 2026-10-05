@@ -2,9 +2,9 @@
 import json
 import os
 import time
-import pytest
-from unittest.mock import MagicMock, patch, AsyncMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from gateway.config import Platform, PlatformConfig
 from gateway.platforms.event import MessageType
 from gateway.run import (
@@ -656,7 +656,6 @@ class TestMultiplexProfileScope:
             set_multiplex_active,
             set_secret_scope,
         )
-        from plugins.platforms.mattermost.adapter import MattermostAdapter
 
         monkeypatch.setenv("MATTERMOST_REQUIRE_MENTION", "true")
         monkeypatch.delenv("MATTERMOST_FREE_RESPONSE_CHANNELS", raising=False)

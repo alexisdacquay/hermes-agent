@@ -13,7 +13,6 @@ import random
 import re
 import unicodedata
 from collections import Counter
-from typing import Optional
 
 # Sticker catalogue – ported from builtin-stickers.json. Every builtin sticker is in
 # package 1003, 128x128 png, with name == key; only (name, sticker_id, description) vary.
@@ -88,7 +87,7 @@ STICKER_MAP: dict[str, dict] = {
 }
 
 
-def get_sticker_by_name(name: str) -> Optional[dict]:
+def get_sticker_by_name(name: str) -> dict | None:
     """完全相等 → name 与查询词互为子串 → description 包含查询词 → search_stickers 最高分；找不到返回 None。"""
     if not name:
         return None
@@ -111,7 +110,7 @@ def get_random_sticker(category: str = None) -> dict:
     return random.choice(candidates or list(STICKER_MAP.values()))
 
 
-def get_sticker_by_id(sticker_id: str) -> Optional[dict]:
+def get_sticker_by_id(sticker_id: str) -> dict | None:
     if not sticker_id:
         return None
     sid = str(sticker_id).strip()
@@ -196,7 +195,7 @@ def search_stickers(query: str, limit: int = 10) -> list[dict]:
     return [s for _, s in (filtered or scored)[:safe_limit]]
 
 
-def build_face_msg_body(face_index: int, face_type: int = 1, data: Optional[str] = None) -> list:
+def build_face_msg_body(face_index: int, face_type: int = 1, data: str | None = None) -> list:
     """TIMFaceElem 消息体。Yuanbao 约定 index 固定 0（服务端通过 data 字段识别表情）；face_index > 0 视为旧版 QQ
     表情 ID。face_type 为兼容旧接口保留，不影响 wire format。data 为 None 时仅传 index。"""
     msg_content: dict = {"index": face_index}

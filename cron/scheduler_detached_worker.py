@@ -11,11 +11,10 @@ from __future__ import annotations
 import concurrent.futures
 import subprocess
 import threading
-from typing import Optional
 
 
 def defer_teardown_to_running_worker(
-    future: Optional[concurrent.futures.Future], session_db, agent, job_id: str, job_name: str,
+    future: concurrent.futures.Future | None, session_db, agent, job_id: str, job_name: str,
     cron_session_id: str,
 ) -> bool:
     """Return True when the worker is still running and its Future will finalize the session

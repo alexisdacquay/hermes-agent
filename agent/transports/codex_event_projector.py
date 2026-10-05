@@ -11,8 +11,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Optional
+from typing import Any
 
 
 def _deterministic_call_id(item_type: str, item_id: str) -> str:
@@ -36,7 +37,7 @@ class ProjectionResult:
 
     messages: list[dict] = field(default_factory=list)
     is_tool_iteration: bool = False
-    final_text: Optional[str] = None  # Set when an agentMessage completes
+    final_text: str | None = None  # Set when an agentMessage completes
 
 
 class CodexEventProjector:
@@ -66,7 +67,7 @@ class CodexEventProjector:
         # Unknown / rare items (plan, hookPrompt, ...): opaque note, no fabricated tool_call structure.
         return self._project_opaque(item, item_type)
 
-    def _assistant_message(self, content: Optional[str], **extra: Any) -> dict[str, Any]:
+    def _assistant_message(self, content: str | None, **extra: Any) -> dict[str, Any]:
         msg: dict[str, Any] = {"role": "assistant", "content": content, **extra}
         if self._pending_reasoning:
             msg["reasoning"] = "\n".join(self._pending_reasoning)

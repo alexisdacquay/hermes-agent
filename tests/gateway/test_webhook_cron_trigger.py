@@ -23,9 +23,8 @@ from unittest.mock import patch
 import pytest
 from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
-
 from gateway.config import PlatformConfig
-from gateway.platforms.webhook import WebhookAdapter, _INSECURE_NO_AUTH
+from gateway.platforms.webhook import _INSECURE_NO_AUTH, WebhookAdapter
 
 # ---------------------------------------------------------------------------
 # Helpers

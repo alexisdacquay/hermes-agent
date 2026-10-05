@@ -16,9 +16,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
 import pytest
-
 from agent import outbound_webhooks
-
 
 # ── helpers ───────────────────────────────────────────────────────────────
 
@@ -52,7 +50,7 @@ def _strip_outbound_callbacks():
 class _CapturingHandler(BaseHTTPRequestHandler):
     """Records every POST (path, headers, body) on the server instance."""
 
-    def do_POST(self):  # noqa: N802 — http.server naming
+    def do_POST(self):
         length = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(length)
         self.server.captured.append(  # type: ignore[attr-defined]
@@ -70,7 +68,7 @@ class _CapturingHandler(BaseHTTPRequestHandler):
             self.send_header("Location", location)
         self.end_headers()
 
-    def do_GET(self):  # noqa: N802 — records redirect follow-ups
+    def do_GET(self):
         self.server.captured.append(  # type: ignore[attr-defined]
             {"path": self.path, "method": "GET", "headers": dict(self.headers),
              "body": b""}
@@ -78,7 +76,7 @@ class _CapturingHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.end_headers()
 
-    def log_message(self, format, *args):  # noqa: A002 — http.server naming
+    def log_message(self, format, *args):
         pass
 
 
@@ -322,7 +320,10 @@ class TestPayload:
     def test_profile_field_reflects_bound_profile_home(self, tmp_path, monkeypatch):
         """Receivers behind a multiplexed gateway need to know which profile
         fired (#92674): ``profile`` follows the bound home at fire time."""
-        from hermes_constants import reset_hermes_home_override, set_hermes_home_override
+        from hermes_constants import (
+            reset_hermes_home_override,
+            set_hermes_home_override,
+        )
 
         monkeypatch.setenv("HERMES_HOME", str(tmp_path))
         profile_home = tmp_path / "profiles" / "b"
@@ -585,10 +586,10 @@ class TestDelivery:
         script = tmp_path / "fire_and_exit.py"
         script.write_text(
             "import sys\n"
-            f"sys.path.insert(0, {repr(str(Path(outbound_webhooks.__file__).resolve().parents[1]))})\n"
+            f"sys.path.insert(0, {str(Path(outbound_webhooks.__file__).resolve().parents[1])!r})\n"
             "from agent import outbound_webhooks\n"
             "from hermes_cli.plugins import get_plugin_manager\n"
-            f"cfg = {repr(cfg)}\n"
+            f"cfg = {cfg!r}\n"
             "outbound_webhooks.register_from_config(cfg)\n"
             "get_plugin_manager().invoke_hook('on_session_end', session_id='exit_test')\n"
             "# exit immediately — no explicit flush\n"

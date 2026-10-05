@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from argparse import ArgumentTypeError
-from typing import Callable
+from collections.abc import Callable
 
 
 def _non_negative_keep(value: str) -> int:

@@ -8,14 +8,19 @@ loop-internal helpers resolve lazily so ``patch("agent.conversation_loop.X")`` k
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import logging
 import time
-from typing import Any, Dict, Optional
+from dataclasses import dataclass
+from typing import Any
 
 from agent.error_classifier import FailoverReason
 from agent.turn_api_call import stop_thinking_spinner
-from agent.turn_failure_copy import invalid_response_failure_reason, provider_label_for, site_copy, stamp_failure
+from agent.turn_failure_copy import (
+    invalid_response_failure_reason,
+    provider_label_for,
+    site_copy,
+    stamp_failure,
+)
 from agent.turn_truncation import handle_content_policy_refusal, recover_from_truncation
 from agent.turn_usage import record_response_usage
 
@@ -41,7 +46,7 @@ class ResponseCheckVerdict:
     _preflight_compression_blocked: Any
     _last_preflight_pressure: Any
     api_duration: Any
-    result: Optional[Dict[str, Any]] = None
+    result: dict[str, Any] | None = None
 
 
 def _codex_finish_reason(response: Any) -> str:
@@ -103,7 +108,7 @@ def check_api_response(
     reset only when the usage fold re-arms the compression budget."""
     from agent.turn_recovery import validate_response_shape
 
-    def _verdict(action: str, result: Optional[Dict[str, Any]] = None) -> ResponseCheckVerdict:
+    def _verdict(action: str, result: dict[str, Any] | None = None) -> ResponseCheckVerdict:
         return ResponseCheckVerdict(
             action=action, thinking_spinner=thinking_spinner, messages=messages,
             active_system_prompt=active_system_prompt, finish_reason=finish_reason,
@@ -206,8 +211,9 @@ def check_api_response(
     # Clearing Nous rate-limit state proves the limit reset so other sessions may resume.
     if agent.provider == "nous":
         try:
-            from agent.nous_rate_guard import clear_nous_rate_limit
             from hermes_cli.anon_auth import is_anonymous_agent
+
+            from agent.nous_rate_guard import clear_nous_rate_limit
             clear_nous_rate_limit(anonymous=is_anonymous_agent(agent))
         except Exception:
             pass
@@ -230,7 +236,7 @@ class InvalidResponseVerdict:
     active_system_prompt: Any
     retry_count: Any
     compression_attempts: Any
-    result: Optional[Dict[str, Any]] = None
+    result: dict[str, Any] | None = None
 
 
 def retry_invalid_response(
@@ -246,10 +252,12 @@ def retry_invalid_response(
     from agent.conversation_loop import _arm_fallback_restart
     from agent.retry_utils import jittered_backoff
     from agent.turn_recovery import (
-        classify_codex_soft_failure, describe_invalid_response, interruptible_backoff_sleep,
+        classify_codex_soft_failure,
+        describe_invalid_response,
+        interruptible_backoff_sleep,
     )
 
-    def _verdict(action: str, result: Optional[Dict[str, Any]] = None) -> InvalidResponseVerdict:
+    def _verdict(action: str, result: dict[str, Any] | None = None) -> InvalidResponseVerdict:
         return InvalidResponseVerdict(
             action=action, thinking_spinner=thinking_spinner,
             active_system_prompt=active_system_prompt, retry_count=retry_count,

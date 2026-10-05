@@ -14,7 +14,6 @@ import os
 import pathlib
 
 import pytest
-
 from hermes_cli import doctor_platform
 from hermes_cli.setup_quick import _print_macos_fda_tip
 

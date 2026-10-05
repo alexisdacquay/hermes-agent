@@ -15,7 +15,6 @@ from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from gateway.config import ChannelOverride, GatewayConfig, Platform, PlatformConfig
 from gateway.platforms.base import MessageEvent
 from gateway.run_turn_runner import TurnRunner

@@ -5,10 +5,8 @@ match what boot_bootstrap gates them with, a failing step must not stop the
 rest, and step_migrate_config must restore its backups when a migration
 fails or does not advance the version.
 """
-from pathlib import Path
 
 import pytest
-
 from hermes_cli import post_update
 from hermes_cli.post_update import (
     HOME_STEPS,
@@ -17,7 +15,6 @@ from hermes_cli.post_update import (
     step_migrate_config,
     step_state_db_guard,
 )
-
 
 # ── registry invariants ──────────────────────────────────────────────
 
@@ -160,8 +157,9 @@ def test_provisioning_is_the_machine_scope_driver_path():
 
 
 def test_provisioning_does_not_use_human_diagnostics(tmp_path, monkeypatch):
-    import json
     import importlib
+    import json
+
     import pm
     from pm import paths
 
@@ -186,7 +184,7 @@ def test_provisioning_does_not_use_human_diagnostics(tmp_path, monkeypatch):
 def test_provision_runtimes_is_a_noop_when_pm_is_current(monkeypatch):
     import pm
 
-    monkeypatch.setattr(pm, "drift", lambda: {})
+    monkeypatch.setattr(pm, "drift", dict)
     assert post_update.step_provision_runtimes() == {"ok": True, "skipped": "current"}
 
 

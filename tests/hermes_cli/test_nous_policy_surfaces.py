@@ -8,9 +8,8 @@ from __future__ import annotations
 
 import argparse
 
-import pytest
-
 import hermes_cli.models as models_mod
+import pytest
 from hermes_cli import models_pricing
 
 CURATED = ["vendor/allowed", "vendor/blocked"]
@@ -31,8 +30,8 @@ class TestLoginNous:
 
     def _run(self, monkeypatch, tmp_path):
         import hermes_cli.auth as auth_mod
-        import hermes_cli.auth_nous as auth_nous
         import hermes_cli.nous_subscription as ns
+        from hermes_cli import auth_nous
 
         seen: dict = {}
         monkeypatch.setenv("HERMES_HOME", str(tmp_path))
@@ -72,7 +71,6 @@ class TestLoginNous:
 
         def _capture(model_ids, **kwargs):
             seen["model_ids"] = list(model_ids)
-            return None
 
         monkeypatch.setattr(auth_mod, "_prompt_model_selection", _capture)
 

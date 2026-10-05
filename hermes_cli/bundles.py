@@ -3,16 +3,20 @@
 from __future__ import annotations
 
 import sys
-from typing import List
 
+from agent.skill_bundles import (
+    _bundles_dir,
+    delete_bundle,
+    get_bundle,
+    list_bundles,
+    reload_bundles,
+    save_bundle,
+    scan_bundles,
+)
 from rich.console import Console
 from rich.table import Table
 
 from hermes_cli.cli_output import line_input
-
-from agent.skill_bundles import (
-    _bundles_dir, delete_bundle, get_bundle, list_bundles, reload_bundles, save_bundle, scan_bundles
-)
 
 
 def _console() -> Console:
@@ -69,7 +73,7 @@ def _cmd_show(args) -> None:
 def _cmd_create(args) -> None:
     c = _console()
     name = args.name
-    skills: List[str] = list(args.skill or [])
+    skills: list[str] = list(args.skill or [])
     if not skills:
         # Interactive prompt for skills if none were passed on the CLI.
         c.print(

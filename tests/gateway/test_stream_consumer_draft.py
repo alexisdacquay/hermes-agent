@@ -17,7 +17,6 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
-
 from gateway.stream_consumer import (
     GatewayStreamConsumer,
     StreamConsumerConfig,

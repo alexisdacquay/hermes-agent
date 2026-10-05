@@ -8,7 +8,6 @@ Real ``GatewayRunner`` + real ``BasePlatformAdapter`` subclass; the background u
 from unittest.mock import MagicMock
 
 import pytest
-
 import tools.async_delegation as ad
 from gateway.config import GatewayConfig, Platform, PlatformConfig
 from gateway.platforms.base import BasePlatformAdapter, SendResult

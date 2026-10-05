@@ -71,7 +71,7 @@ def run(tmp_path_factory: pytest.TempPathFactory) -> Run:
     home = nh.make_home(root, hermes_model(context_length=64_000), env_file=HERMES_ENV,
                         extra_config={"compression": {"threshold_tokens": 12_000, "protect_last_n": 4}})
     rng = random.Random(7)
-    words = "alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima mike oscar".split()
+    words = ["alpha", "bravo", "charlie", "delta", "echo", "foxtrot", "golf", "hotel", "india", "juliet", "kilo", "lima", "mike", "oscar"]
     paths = []
     for i in range(1, 4):
         path = home.project / f"big{i}.txt"

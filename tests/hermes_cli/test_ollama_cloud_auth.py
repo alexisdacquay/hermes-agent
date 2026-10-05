@@ -77,8 +77,8 @@ class TestDirectAliases:
 
     def test_direct_alias_resolved_before_catalog(self, monkeypatch):
         """Direct aliases take priority over models.dev catalog lookup."""
-        from hermes_cli.model_switch import DirectAlias, resolve_alias
         import hermes_cli.model_switch as ms
+        from hermes_cli.model_switch import DirectAlias, resolve_alias
 
         test_aliases = {
             "glm": DirectAlias("glm-4.7", "custom", "https://ollama.com/v1"),
@@ -130,8 +130,8 @@ class TestResolveAliasEdgeCases:
 
     def test_whitespace_input_handled(self, monkeypatch):
         """Input with whitespace is stripped before lookup."""
-        from hermes_cli.model_switch import DirectAlias
         import hermes_cli.model_switch as ms
+        from hermes_cli.model_switch import DirectAlias
 
         test_aliases = {
             "myalias": DirectAlias("my-model", "custom", "https://example.com"),
@@ -155,9 +155,8 @@ class TestResolveAliasSorting:
     def test_anthropic_opus_ambiguous_lists_candidates(self, monkeypatch):
         """Multiple family matches surface a choice instead of auto-picking;
         the display ordering demotes date-stamped snapshots."""
-        import pytest
-
         import hermes_cli.model_switch as ms
+        import pytest
 
         monkeypatch.setattr("hermes_cli.models._PROVIDER_MODELS", {})
         monkeypatch.setattr(ms, "_ensure_direct_aliases", lambda: None)
@@ -177,9 +176,8 @@ class TestResolveAliasSorting:
     def test_unsynced_new_model_sorts_first(self, monkeypatch):
         """A just-released model missing from models.dev still ranks above
         older, dated siblings in the candidate ordering."""
-        import pytest
-
         import hermes_cli.model_switch as ms
+        import pytest
 
         monkeypatch.setattr("hermes_cli.models._PROVIDER_MODELS", {})
         monkeypatch.setattr(ms, "_ensure_direct_aliases", lambda: None)
@@ -234,8 +232,8 @@ class TestSwitchModelDirectAliasOverride:
 
     def test_switch_model_uses_alias_base_url(self, monkeypatch):
         """When resolved alias has base_url, switch_model should use it."""
-        from hermes_cli.model_switch import DirectAlias
         import hermes_cli.model_switch as ms
+        from hermes_cli.model_switch import DirectAlias
 
         test_aliases = {
             "qwen": DirectAlias("qwen3.5:397b", "custom", "https://ollama.com/v1"),
@@ -262,8 +260,8 @@ class TestSwitchModelDirectAliasOverride:
 
     def test_switch_model_alias_no_api_key_gets_default(self, monkeypatch):
         """When alias has base_url but no api_key, 'no-key-required' is set."""
-        from hermes_cli.model_switch import DirectAlias
         import hermes_cli.model_switch as ms
+        from hermes_cli.model_switch import DirectAlias
 
         test_aliases = {
             "local": DirectAlias("local-model", "custom", "http://localhost:11434/v1"),

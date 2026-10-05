@@ -10,12 +10,16 @@ those variables into ``<profile home>/relay-plugins.toml`` (built from the
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Mapping, Optional
+from typing import Any
 
 from hermes_cli.relay_plugin_cutover import (
-    LEGACY_RELAY_EXPORT_ENV_VARS, RELAY_PLUGINS_CONFIG_ENV, configured_legacy_relay_env_vars)
+    LEGACY_RELAY_EXPORT_ENV_VARS,
+    RELAY_PLUGINS_CONFIG_ENV,
+    configured_legacy_relay_env_vars,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -27,10 +31,10 @@ _TRUE = {"1", "true", "yes", "on"}
 @dataclass
 class RelayMigrationResult:
     home: Path
-    toml_path: Optional[Path] = None
+    toml_path: Path | None = None
     migrated_vars: tuple[str, ...] = ()
-    skipped_reason: Optional[str] = None
-    validation_error: Optional[str] = None
+    skipped_reason: str | None = None
+    validation_error: str | None = None
     diagnostics: list = field(default_factory=list)
 
     @property
@@ -149,7 +153,12 @@ def _comment_out_legacy_lines(lines: list[str], names: set[str]) -> list[str]:
 def migrate_profile_relay_env(home: Path, *, validate: bool = True) -> RelayMigrationResult:
     """Migrate ONE profile home's ``.env``. Never raises for a no-op; a Relay import/validation failure
     leaves ``.env`` untouched and is reported in ``validation_error``."""
-    from hermes_cli.config import _env_line_defines_key, _quote_env_value, _read_env_lines, _write_env_lines
+    from hermes_cli.config import (
+        _env_line_defines_key,
+        _quote_env_value,
+        _read_env_lines,
+        _write_env_lines,
+    )
     result = RelayMigrationResult(home=home)
     env_path = home / ".env"
     if not env_path.is_file():

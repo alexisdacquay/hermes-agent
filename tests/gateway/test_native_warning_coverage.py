@@ -7,7 +7,6 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
-
 from gateway.config import PlatformConfig
 from gateway.platforms.base import SendResult
 from plugins.platforms.buzz.adapter import BuzzAdapter

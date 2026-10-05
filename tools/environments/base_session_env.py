@@ -7,7 +7,7 @@ No module state lives here; ``BaseEnvironment`` supplies quoting hooks.
 
 import re
 import shlex
-from typing import Iterable
+from collections.abc import Iterable
 
 # Bridged per-session vars (gateway.session_context._VAR_MAP) are injected fresh onto every
 # command's process env and must NEVER persist in the shared bash snapshot: one long-lived

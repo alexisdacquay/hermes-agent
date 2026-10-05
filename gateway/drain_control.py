@@ -16,13 +16,14 @@ import contextlib
 import functools
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
-from gateway.memory_status import _parse_iso
 from hermes_constants import get_hermes_home
 from utils import atomic_json_write
+
+from gateway.memory_status import _parse_iso
 
 _log = logging.getLogger(__name__)
 
@@ -34,7 +35,7 @@ _DRAIN_REQUEST_FILENAME = ".drain_request.json"
 DRAIN_REQUEST_MAX_AGE_SECONDS = 3600.0
 # Dedup for the expired-marker warning (the watcher re-reads every second); keyed by
 # ``requested_at`` so a keep-alive re-write that later expires logs again.
-_expiry_logged_for: Optional[str] = None
+_expiry_logged_for: str | None = None
 
 
 @functools.lru_cache(maxsize=1)
@@ -56,13 +57,13 @@ def current_instantiation_epoch() -> str:
     return f"{boot_id}:{pid1_start}" if (boot_id or pid1_start) else ""
 
 
-def drain_request_path(home: Optional[Path] = None) -> Path:
+def drain_request_path(home: Path | None = None) -> Path:
     """Absolute path to the drain-request marker, respecting HERMES_HOME."""
     return Path(home if home is not None else get_hermes_home()) / _DRAIN_REQUEST_FILENAME
 
 
 def write_drain_request(
-    *, principal: str = "drain-control", suppress_notification: bool = False, home: Optional[Path] = None
+    *, principal: str = "drain-control", suppress_notification: bool = False, home: Path | None = None
 ) -> dict[str, Any]:
     """Write the begin-drain marker atomically; returns the payload.
 
@@ -73,14 +74,14 @@ def write_drain_request(
     copy surviving a machine restart on the durable volume reads as stale.
     """
     payload = {
-        "action": "drain", "requested_at": datetime.now(timezone.utc).isoformat(), "principal": principal,
+        "action": "drain", "requested_at": datetime.now(UTC).isoformat(), "principal": principal,
         "epoch": current_instantiation_epoch(), "suppress_notification": bool(suppress_notification),
     }
     atomic_json_write(drain_request_path(home), payload)
     return payload
 
 
-def clear_drain_request(*, home: Optional[Path] = None) -> bool:
+def clear_drain_request(*, home: Path | None = None) -> bool:
     """Remove the drain marker (cancel-drain, idempotent). Returns True if one existed."""
     path = drain_request_path(home)
     try:
@@ -105,7 +106,7 @@ def _marker_is_expired(body: dict[str, Any]) -> bool:
     requested_at = _parse_iso(raw)
     if requested_at is None:
         return False
-    age = (datetime.now(timezone.utc) - requested_at).total_seconds()
+    age = (datetime.now(UTC) - requested_at).total_seconds()
     if age <= DRAIN_REQUEST_MAX_AGE_SECONDS:
         return False
     if _expiry_logged_for != raw:
@@ -118,7 +119,7 @@ def _marker_is_expired(body: dict[str, Any]) -> bool:
     return True
 
 
-def _active_drain_body(home: Optional[Path]) -> Optional[dict[str, Any]]:
+def _active_drain_body(home: Path | None) -> dict[str, Any] | None:
     """Marker body if present AND not stale (definite epoch mismatch or expired), else None."""
     body = read_drain_request(home=home)
     if body is None:
@@ -129,7 +130,7 @@ def _active_drain_body(home: Optional[Path]) -> Optional[dict[str, Any]]:
     return body
 
 
-def drain_requested(*, home: Optional[Path] = None) -> bool:
+def drain_requested(*, home: Path | None = None) -> bool:
     """True iff an active (present, same-epoch, unexpired) begin-drain marker exists.
 
     A marker whose ``epoch`` does not match the current instantiation epoch is treated as absent: it
@@ -144,7 +145,7 @@ def drain_requested(*, home: Optional[Path] = None) -> bool:
     return _active_drain_body(home) is not None
 
 
-def drain_notification_suppressed(*, home: Optional[Path] = None) -> bool:
+def drain_notification_suppressed(*, home: Path | None = None) -> bool:
     """True iff an ACTIVE marker asks to suppress the shutdown broadcast.
 
     Same activeness rule as :func:`drain_requested`, so an orphan can never silence
@@ -160,7 +161,7 @@ def drain_notification_suppressed(*, home: Optional[Path] = None) -> bool:
     return bool(body and body.get("suppress_notification"))
 
 
-def read_drain_request(*, home: Optional[Path] = None) -> Optional[dict[str, Any]]:
+def read_drain_request(*, home: Path | None = None) -> dict[str, Any] | None:
     """Return the marker payload, ``{}`` if present but unparseable, ``None`` if absent. Never raises."""
     path = drain_request_path(home)
     try:

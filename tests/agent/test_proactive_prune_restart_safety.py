@@ -8,7 +8,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
 from agent.context_compressor import _estimate_msg_budget_tokens
 from hermes_state import SessionDB
 
@@ -188,13 +187,12 @@ def test_archive_model_config_patch_rolls_back_with_transcript(tmp_path: Path) -
 
     with patch.object(
         db, "_insert_message_rows", side_effect=RuntimeError("insert failed"),
-    ):
-        with pytest.raises(RuntimeError, match="insert failed"):
-            db.archive_and_compact(
-                session_id,
-                [{"role": "user", "content": "replacement"}],
-                model_config_patch={_REARM_KEY: None},
-            )
+    ), pytest.raises(RuntimeError, match="insert failed"):
+        db.archive_and_compact(
+            session_id,
+            [{"role": "user", "content": "replacement"}],
+            model_config_patch={_REARM_KEY: None},
+        )
 
     assert db.get_messages_as_conversation(session_id)[0]["content"] == "original"
     assert _model_config(db, session_id) == {"keep": "value", _REARM_KEY: 120_000}

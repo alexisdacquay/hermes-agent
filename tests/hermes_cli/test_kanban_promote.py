@@ -12,7 +12,6 @@ import argparse
 from pathlib import Path
 
 import pytest
-
 from hermes_cli import kanban as kb_cli
 from hermes_cli import kanban_db as kb
 from hermes_cli import kanban_db_connect as kbc

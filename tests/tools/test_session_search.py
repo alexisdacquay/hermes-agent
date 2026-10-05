@@ -10,10 +10,9 @@ All run zero LLM calls.
 """
 import json
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
-
 from hermes_state import SessionDB
 from tools.session_search_tool import (
     _format_timestamp,
@@ -504,6 +503,7 @@ class TestCrossProfileRead:
         other._conn.commit()
 
         from collections import namedtuple
+
         from hermes_cli import profiles as profiles_mod
         Info = namedtuple("Info", "name path")
         monkeypatch.setattr(profiles_mod, "get_profile_dir", lambda n: tmp_path / "default_home")
@@ -1120,7 +1120,7 @@ class TestNewResetLineageBrowse:
 
 
 def _unix(year, month, day):
-    return int(datetime(year, month, day, tzinfo=timezone.utc).timestamp())
+    return int(datetime(year, month, day, tzinfo=UTC).timestamp())
 
 
 def _set_started(db, **started_at_by_sid):

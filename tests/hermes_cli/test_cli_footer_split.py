@@ -10,7 +10,7 @@ from prompt_toolkit.application import Application
 from prompt_toolkit.data_structures import Size
 from prompt_toolkit.input import create_pipe_input
 from prompt_toolkit.key_binding import KeyBindings
-from prompt_toolkit.layout import HSplit, Layout, Window
+from prompt_toolkit.layout import HSplit, Window
 from prompt_toolkit.layout.dimension import Dimension
 from prompt_toolkit.layout.screen import WritePosition
 from prompt_toolkit.output.vt100 import Vt100_Output
@@ -86,9 +86,8 @@ def test_footer_survives_a_row_appearing_between_measure_and_paint(monkeypatch):
 
 
 def test_footer_split_clips_from_the_top_when_minimums_overflow():
-    from prompt_toolkit.application import DummyApplication, set_app
-
     from hermes_cli.cli_footer_split import FooterSplit
+    from prompt_toolkit.application import DummyApplication, set_app
 
     top, middle, bottom = (Window(height=Dimension.exact(1)) for _ in range(3))
     split = FooterSplit([top, middle, bottom])

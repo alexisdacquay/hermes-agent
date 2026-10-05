@@ -18,6 +18,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+
 class TestCompressionBoundaryHook:
     def _make_agent(self, session_db):
         with patch.dict(os.environ, {"OPENROUTER_API_KEY": "test-key"}):
@@ -231,7 +232,6 @@ class TestCompressionBoundaryHook:
             def _raise_on_compression(*args, **kwargs):
                 if kwargs.get("boundary_reason") == "compression":
                     raise RuntimeError("plugin exploded")
-                return None
             compressor.on_session_start.side_effect = _raise_on_compression
             agent.context_compressor = compressor
 

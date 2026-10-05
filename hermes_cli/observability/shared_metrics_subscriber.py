@@ -8,13 +8,13 @@ import threading
 from typing import Any
 
 from agent.relay_runtime import RUNTIME_INSTANCE_KEY
-from hermes_cli.config import detect_install_method
 from hermes_constants import get_hermes_home
+
+from hermes_cli.config import detect_install_method
 
 from . import shared_metrics_engagement as engagement
 from . import shared_metrics_signals as signals
 from .shared_metrics import SharedMetricsStore
-from .shared_metrics_fields import milestones_for
 from .shared_metrics_contract import (
     CLIENT_ACTIVE_METRIC,
     COMMIT_TICKET_KEY,
@@ -39,6 +39,7 @@ from .shared_metrics_contract import (
     tool_latency_dimensions,
     tool_usage_dimensions,
 )
+from .shared_metrics_fields import milestones_for
 
 logger = logging.getLogger(__name__)
 

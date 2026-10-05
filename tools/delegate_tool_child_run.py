@@ -3,24 +3,32 @@ timeout/failure handling, result-entry assembly and cleanup (``_ChildRun``)."""
 
 from __future__ import annotations
 
-import logging
 import contextvars
 import json
+import logging
 import os
 import threading
 import time
 from concurrent.futures import TimeoutError as FuturesTimeoutError
-from typing import Any, Dict, List, Optional
+from dataclasses import dataclass, field
+from typing import Any
+
 from agent.compression_marker import elide
 from agent.interrupt_compat import request_hard_interrupt
-from dataclasses import dataclass, field
+
 from tools import file_state
 from tools.delegate_tool_progress import _quiet, _safe_progress
 from tools.delegate_tool_registry import (
-    _capture_gateway_steer_authority, _close_subagent_steering, _register_subagent, _unregister_subagent,
+    _capture_gateway_steer_authority,
+    _close_subagent_steering,
+    _register_subagent,
+    _unregister_subagent,
 )
 from tools.delegate_tool_results import (
-    _extract_output_tail, _looks_like_error_output, _stringify_tool_content, _summarize_tool_arguments,
+    _extract_output_tail,
+    _looks_like_error_output,
+    _stringify_tool_content,
+    _summarize_tool_arguments,
 )
 
 logger = logging.getLogger("tools.delegate_tool")  # log-record parity with the origin module
@@ -29,17 +37,17 @@ def _num(value: Any, default: int = 0) -> int:
     """int() for counters that may be mocks/None on test doubles."""
     return int(value) if isinstance(value, (int, float)) else default
 
-def _str_or_none(value: Any) -> Optional[str]:
+def _str_or_none(value: Any) -> str | None:
     return value if isinstance(value, str) else None
 
-def _fabricated_entry(idx: int, status: str, error: str, child: Any, duration: float = 0) -> Dict[str, Any]:
+def _fabricated_entry(idx: int, status: str, error: str, child: Any, duration: float = 0) -> dict[str, Any]:
     """Result entry for a child that raised, never finished, or was abandoned."""
     return {
         "task_index": idx, "status": status, "summary": None, "error": error, "api_calls": 0,
         "duration_seconds": duration, "_child_role": getattr(child, "_delegate_role", None),
     }
 
-def _append_missed_steer(entry: Dict[str, Any], late_steer: Optional[str]) -> None:
+def _append_missed_steer(entry: dict[str, Any], late_steer: str | None) -> None:
     """Record steer text that won the race with the child's failure/timeout."""
     if late_steer:
         entry["missed_steer"] = late_steer
@@ -101,7 +109,7 @@ def _signal_child_stop(child: Any, *reason: str, tool_reason: str = "parent dele
 
 # ── 0-API-call timeout diagnostic ────────────────────────────────────────────
 
-def _format_thread_stack(frame: Any, indent: str) -> List[str]:
+def _format_thread_stack(frame: Any, indent: str) -> list[str]:
     import traceback as _traceback
     return [f"{indent}{sub}" for frame_line in _traceback.format_stack(frame) for sub in frame_line.rstrip().split("\n")]
 
@@ -110,14 +118,14 @@ _DIAG_CHILD_ATTRS = (
     "platform", "_delegate_role", "_delegate_depth",
 )
 
-def _diag_section(label: str, produce) -> List[str]:
+def _diag_section(label: str, produce) -> list[str]:
     """Lines from ``produce()``, or one ``<label: ...exc>`` line so a broken attribute never aborts the dump."""
     try:
         return list(produce())
     except Exception as exc:
         return [f"  {label}{exc}>"]
 
-def _diag_sizes(child: Any) -> List[str]:
+def _diag_sizes(child: Any) -> list[str]:
     def _prompt():
         sys_prompt = getattr(child, "ephemeral_system_prompt", None) or getattr(child, "system_prompt", None) or ""
         is_str = isinstance(sys_prompt, str)
@@ -137,7 +145,7 @@ def _diag_sizes(child: Any) -> List[str]:
 
     return ["## Prompt / schema sizes"] + _diag_section("system_prompt: <error: ", _prompt) + _diag_section("tool_schema: <error: ", _tools)
 
-def _diag_threads(worker_thread: Optional[threading.Thread]) -> List[str]:
+def _diag_threads(worker_thread: threading.Thread | None) -> list[str]:
     """Worker stack plus all other live threads (bounded to 40): the worker is often parked on a helper thread, so a
     pre-HTTP wedge is indistinguishable from a slow provider without the full picture."""
     import sys as _sys
@@ -153,7 +161,7 @@ def _diag_threads(worker_thread: Optional[threading.Thread]) -> List[str]:
         frames = _sys._current_frames()
         by_ident = {th.ident: th for th in threading.enumerate() if th.ident}
         worker_ident = worker_thread.ident if worker_thread else None
-        out: List[str] = []
+        out: list[str] = []
         for dumped, (ident, frame) in enumerate(f for f in frames.items() if f[0] != worker_ident):  # worker dumped above
             if dumped >= 40:
                 out.append(f"  <{len(frames) - dumped - 1} more threads omitted>")
@@ -167,14 +175,15 @@ def _diag_threads(worker_thread: Optional[threading.Thread]) -> List[str]:
 
 def _dump_subagent_timeout_diagnostic(
     *, child: Any, task_index: int, timeout_seconds: float, duration_seconds: float,
-    worker_thread: Optional[threading.Thread], goal: str,
-) -> Optional[str]:
+    worker_thread: threading.Thread | None, goal: str,
+) -> str | None:
     """Structured diagnostic for a subagent that timed out before any API call (otherwise "timed out with no
     response", 0 API calls, nothing to inspect): ``~/.hermes/logs/subagent-timeout-<sid>-<ts>.log`` with the
     child's config, prompt/schema sizes, activity snapshot and worker stack. Path, or None on failure."""
     try:
-        from hermes_constants import get_hermes_home
         import datetime as _dt
+
+        from hermes_constants import get_hermes_home
         logs_dir = get_hermes_home() / "logs"
         try:
             logs_dir.mkdir(parents=True, exist_ok=True)
@@ -191,7 +200,7 @@ def _dump_subagent_timeout_diagnostic(
                 return f"  {attr}: <unreadable>"
 
         tool_names = getattr(child, "valid_tool_names", None)
-        lines: List[str] = [
+        lines: list[str] = [
             "# Subagent timeout diagnostic — issue #14726", f"# Generated: {_dt.datetime.now().isoformat()}", "",
             "## Timeout", f"  task_index:        {task_index}", f"  subagent_id:       {subagent_id}",
             f"  configured_timeout: {timeout_seconds}s", f"  actual_duration:   {duration_seconds:.2f}s", "", "## Goal",
@@ -255,7 +264,7 @@ def _child_activity_fingerprint(child: Any) -> tuple:
         return (None, None, None)
     return (summary.get("api_call_count"), summary.get("current_tool"), summary.get("last_activity_ts"))
 
-def _child_last_event_age(child: Any) -> Optional[float]:
+def _child_last_event_age(child: Any) -> float | None:
     """Seconds since the child's activity clock last ticked, or None when the child exposes no clock. Reported on a
     timeout so an operator can tell a slow-but-live provider from a runaway without transcript forensics."""
     try:
@@ -281,10 +290,11 @@ class _Heartbeat:
         self.settled = threading.Event()
         # Threshold (seconds of frozen activity) the stale verdict fired at; None until it does.
         # ``await_child`` reads it to name the real cause when a configured cap was still pending.
-        self.stale_threshold_seconds: Optional[float] = None
+        self.stale_threshold_seconds: float | None = None
 
     def start(self) -> None:
         from agent.periodic_scheduler import schedule
+
         from tools.delegate_tool import _HEARTBEAT_INTERVAL
         self.handle = schedule(self.tick, _HEARTBEAT_INTERVAL)
 
@@ -295,7 +305,11 @@ class _Heartbeat:
 
     def tick(self):
         """Returning False stops the periodic callback."""
-        from tools.delegate_tool import _HEARTBEAT_INTERVAL, _HEARTBEAT_STALE_CYCLES_IDLE, _HEARTBEAT_STALE_CYCLES_IN_TOOL
+        from tools.delegate_tool import (
+            _HEARTBEAT_INTERVAL,
+            _HEARTBEAT_STALE_CYCLES_IDLE,
+            _HEARTBEAT_STALE_CYCLES_IN_TOOL,
+        )
         child, parent_agent, task_index, last_seen = self.child, self.parent_agent, self.task_index, self.last_seen
         touch = getattr(parent_agent, "_touch_activity", None) if parent_agent is not None else None
         if not touch:
@@ -344,9 +358,9 @@ def _start_heartbeat(child: Any, parent_agent: Any, task_index: int) -> _Heartbe
     return _Heartbeat(child, parent_agent, task_index)
 
 def _register_child(
-    child: Any, parent_agent: Any, goal: str, *, owner_session_id: Optional[str], owner_transport: Any,
+    child: Any, parent_agent: Any, goal: str, *, owner_session_id: str | None, owner_transport: Any,
     owner_session_record: Any,
-) -> Optional[str]:
+) -> str | None:
     """Register the live child in the module registry; return its subagent_id. Test doubles without a stable string
     ``_subagent_id`` are not registered (None) and the caller skips every registry interaction for them."""
     _subagent_id = getattr(child, "_subagent_id", None)
@@ -381,7 +395,7 @@ def _register_child(
     })
     return _subagent_id
 
-def _create_isolated_worktree(parent_agent: Any, parent_task_id: Any, subagent_id: Optional[str]):
+def _create_isolated_worktree(parent_agent: Any, parent_task_id: Any, subagent_id: str | None):
     """Opt-in worktree isolation: own git worktree off the parent's HEAD (the
     child's terminal starts there). Git-only, local-backend-only; failures
     degrade silently to the shared workspace. Returns the worktree info or None."""
@@ -432,14 +446,16 @@ def _defer_close_after_timeout(child: Any, child_future: Any) -> None:
     _resweep_timer.daemon = True
     _resweep_timer.start()
 
-def _lease_child_credential(child: Any) -> tuple[Any, Optional[str]]:
+def _lease_child_credential(child: Any) -> tuple[Any, str | None]:
     """Lease a credential from the child's pool (if any) and bind it; ``(pool, lease_id)``. The bound entry must
     serve the child's endpoint: on a mixed same-provider pool the least-leased pick may target another host, so it is
     released and an endpoint-matching entry is leased by id instead (#68237)."""
     child_pool = getattr(child, "_credential_pool", None)
     if child_pool is None:
         return None, None
-    from agent.credential_pool import credential_pool_entry_serves_endpoint as _entry_serves_endpoint
+    from agent.credential_pool import (
+        credential_pool_entry_serves_endpoint as _entry_serves_endpoint,
+    )
     base_url = getattr(child, "base_url", None)
     leased_cred_id = child_pool.acquire_lease()
     if leased_cred_id is not None:
@@ -458,7 +474,7 @@ def _lease_child_credential(child: Any) -> tuple[Any, Optional[str]]:
                 child._swap_credential(leased_entry)
     return child_pool, leased_cred_id
 
-def _merge_late_steer(result: Dict[str, Any], subagent_id: Optional[str], child: Any) -> None:
+def _merge_late_steer(result: dict[str, Any], subagent_id: str | None, child: Any) -> None:
     """Linearization boundary for registry steering: from here the child cannot consume another steer. Closing under
     the registry lock either rejects a concurrent caller or drains every accepted exact text into the result before
     callbacks/result assembly run."""
@@ -470,13 +486,13 @@ def _merge_late_steer(result: Dict[str, Any], subagent_id: Optional[str], child:
 
 @dataclass
 class _SchemaOutcome:
-    schema: Optional[Dict[str, Any]]
-    valid: Optional[bool]
-    errors: List[str]
+    schema: dict[str, Any] | None
+    valid: bool | None
+    errors: list[str]
     retries: int
 
 def _validate_child_output_schema(
-    child: Any, result: Dict[str, Any], task_index: int, child_task_id: str, relay_child_text: Any
+    child: Any, result: dict[str, Any], task_index: int, child_task_id: str, relay_child_text: Any
 ) -> _SchemaOutcome:
     """Validate the final answer against the attached output_schema with ONE bounded retry. Schema-less children (no
     dict on ``child._delegate_output_schema``) take no branch here so their result entry stays byte-identical."""
@@ -517,11 +533,11 @@ def _validate_child_output_schema(
         _schema_valid, _schema_errors = validate_output(_retry_text, _output_schema)
     return _SchemaOutcome(_output_schema, _schema_valid, _schema_errors, 1)
 
-def _build_tool_trace(messages: Any) -> list[Dict[str, Any]]:
+def _build_tool_trace(messages: Any) -> list[dict[str, Any]]:
     """Tool trace from the child's conversation messages, pairing parallel
     tool calls with their results by tool_call_id."""
-    tool_trace: list[Dict[str, Any]] = []
-    trace_by_id: Dict[str, Dict[str, Any]] = {}
+    tool_trace: list[dict[str, Any]] = []
+    trace_by_id: dict[str, dict[str, Any]] = {}
     if not isinstance(messages, list):
         return tool_trace
     for msg in messages:
@@ -550,8 +566,8 @@ def _build_tool_trace(messages: Any) -> list[Dict[str, Any]]:
     return tool_trace
 
 def _build_result_entry(
-    child: Any, result: Dict[str, Any], task_index: int, duration: float, schema: _SchemaOutcome,
-) -> Dict[str, Any]:
+    child: Any, result: dict[str, Any], task_index: int, duration: float, schema: _SchemaOutcome,
+) -> dict[str, Any]:
     """Parent-visible result entry (status, exit_reason, tool trace, tokens, cost).
     ``status``/``exit_reason``/``truncated`` follow the ``_run_single_child`` contract; a structured failure always
     wins over the summary-presence heuristic (a fallback for legacy/mock results only)."""
@@ -588,7 +604,7 @@ def _build_result_entry(
     _cost = getattr(child, "session_estimated_cost_usd", 0.0)
     _cost_status = getattr(child, "session_cost_status", None)
     # Result entry contract: see the _run_single_child docstring.
-    entry: Dict[str, Any] = {
+    entry: dict[str, Any] = {
         "task_index": task_index,
         "status": status,
         "summary": summary,
@@ -653,7 +669,7 @@ def _is_image_url(ref: str) -> bool:
     return ref.startswith(("http://", "https://", "data:image/"))
 
 
-def _build_child_goal_message(goal: str, images: List[str], child) -> Any:
+def _build_child_goal_message(goal: str, images: list[str], child) -> Any:
     """The child's first user message when a task forwards ``images``.
 
     Routing reuses the inbound-image policy (``agent.image_routing``, honouring ``agent.image_input_mode``): a
@@ -667,7 +683,10 @@ def _build_child_goal_message(goal: str, images: List[str], child) -> Any:
         data_urls = [s for s in images if s.startswith("data:image/")]
         urls = [s for s in images if _is_image_url(s) and s not in data_urls]
         paths = [s for s in images if not _is_image_url(s)]
-        from agent.image_routing import build_native_content_parts, decide_image_input_mode
+        from agent.image_routing import (
+            build_native_content_parts,
+            decide_image_input_mode,
+        )
         cfg = None
         with _quiet(None):
             from hermes_cli.config import load_config_readonly
@@ -685,7 +704,7 @@ def _build_child_goal_message(goal: str, images: List[str], child) -> Any:
             return parts if any(p.get("type") == "image_url" for p in parts) else goal
         if data_urls:
             logger.warning("delegate_task: %d inline data-URL image(s) dropped for a non-vision subagent", len(data_urls))
-        hints: List[str] = []
+        hints: list[str] = []
         for p in paths:
             if os.path.isfile(p):
                 hints.append(f"[Image attached at: {p}]")
@@ -710,13 +729,13 @@ class _ChildRun:
     parent_agent: Any
     task_index: int
     goal: str
-    subagent_id: Optional[str]
+    subagent_id: str | None
     child_progress_cb: Any
     heartbeat: Any = None
     child_start: float = field(default_factory=time.monotonic)
-    worktree_info: Optional[Dict[str, str]] = None
+    worktree_info: dict[str, str] | None = None
     child_task_id: str = ""
-    parent_task_id: Optional[str] = None
+    parent_task_id: str | None = None
     wall_start: float = 0.0
     parent_reads_snapshot: list = field(default_factory=list)
 
@@ -729,7 +748,7 @@ class _ChildRun:
         if delta:
             _safe_progress(self.child_progress_cb, "subagent.text", preview=delta)
 
-    def attach_worktree(self, entry_dict: Dict[str, Any]) -> Dict[str, Any]:
+    def attach_worktree(self, entry_dict: dict[str, Any]) -> dict[str, Any]:
         """Inspect + prune the child worktree, reporting into the entry (no-op without isolation)."""
         info = self.worktree_info
         if info is None:
@@ -754,7 +773,11 @@ class _ChildRun:
         # but the child's later `cd`s stay in its own record. Per-session container
         # isolation keys containers by task_id; the child must share the PARENT's.
         with _quiet("Child cwd seed failed: %s"):
-            from tools.terminal_tool import get_session_cwd, record_session_cwd, register_container_alias
+            from tools.terminal_tool import (
+                get_session_cwd,
+                record_session_cwd,
+                register_container_alias,
+            )
             record_session_cwd(self.child_task_id, get_session_cwd(self.parent_task_id))
             register_container_alias(self.child_task_id, self.parent_task_id)
 
@@ -771,8 +794,8 @@ class _ChildRun:
         self.parent_reads_snapshot = list(file_state.known_reads(self.parent_task_id)) if self.parent_task_id else []
 
     def finish_failed(
-        self, entry: Dict[str, Any], late_steer: Optional[str], *, preview: str, summary: str = "", status: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        self, entry: dict[str, Any], late_steer: str | None, *, preview: str, summary: str = "", status: str | None = None,
+    ) -> dict[str, Any]:
         """Shared tail of every failure path: emit ``subagent.complete`` (``status`` defaults to the entry's), note
         the steer text that won the race with the failure, report the worktree."""
         _safe_progress(
@@ -782,11 +805,11 @@ class _ChildRun:
         _append_missed_steer(entry, late_steer)
         return self.attach_worktree(entry)
 
-    def close_steering(self) -> Optional[str]:
+    def close_steering(self) -> str | None:
         """Close steer acceptance (see ``_merge_late_steer``); returns late steer text, if any."""
         return _close_subagent_steering(self.subagent_id, self.child) if self.subagent_id else None
 
-    def wait_liveness_aware(self, settled: threading.Event, child_future: Any, child_timeout: Optional[float]) -> None:
+    def wait_liveness_aware(self, settled: threading.Event, child_future: Any, child_timeout: float | None) -> None:
         """Wait for the worker or the stale verdict, where ``child_timeout`` bounds INACTIVITY, not total runtime.
 
         A configured cap used to be a dispatch-to-death stopwatch, so it only ever killed children the runtime had
@@ -824,7 +847,7 @@ class _ChildRun:
                 warned = True
                 _warn_child_budget(self.child, child_timeout - (deadline - time.monotonic()), child_timeout)
 
-    def await_child(self) -> tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]], bool]:
+    def await_child(self) -> tuple[dict[str, Any] | None, dict[str, Any] | None, bool]:
         """Run the child's conversation on a daemon worker: ``(result, None, False)`` or ``(None, error_entry,
         close_deferred)`` on timeout/exception.
 
@@ -837,15 +860,19 @@ class _ChildRun:
         via a Future done-callback (``close_deferred=True``) — closing here would race its still-unwinding finally
         path.
         """
-        from tools.delegate_tool import (_get_child_timeout, _get_subagent_approval_callback, _set_subagent_approval_cb)
         from tools.daemon_pool import DaemonThreadPoolExecutor
+        from tools.delegate_tool import (
+            _get_child_timeout,
+            _get_subagent_approval_callback,
+            _set_subagent_approval_cb,
+        )
         child, task_index = self.child, self.task_index
         child_timeout = _get_child_timeout()
         executor = DaemonThreadPoolExecutor(
             max_workers=1, initializer=_set_subagent_approval_cb, initargs=(_get_subagent_approval_callback(),),
         )
         # Worker thread handle so the timeout diagnostic can dump its stack.
-        worker_thread_holder: Dict[str, Optional[threading.Thread]] = {"t": None}
+        worker_thread_holder: dict[str, threading.Thread | None] = {"t": None}
         # Resolved after seed_workspace so a multimodal goal's text part carries the worktree note too.
         _images = list(getattr(child, "_delegate_images", None) or [])
         user_message: Any = _build_child_goal_message(self.goal, _images, child) if _images else self.goal
@@ -866,7 +893,7 @@ class _ChildRun:
         settled = self.heartbeat.settled if self.heartbeat is not None else threading.Event()
         future.add_done_callback(lambda _f: settled.set())
         # Set when the stale verdict — not the configured cap — ended the wait; the entry must name that cause.
-        stale_after: Optional[float] = None
+        stale_after: float | None = None
         try:
             self.wait_liveness_aware(settled, future, child_timeout)
             if not future.done():
@@ -891,7 +918,7 @@ class _ChildRun:
             child_api_calls = int(child.get_activity_summary().get("api_call_count", 0) or 0)
         # A timeout BEFORE any API call is a black box without a diagnostic dump.
         before_first_call = is_timeout and child_api_calls == 0
-        diagnostic_path: Optional[str] = None
+        diagnostic_path: str | None = None
         if before_first_call:
             diagnostic_path = _dump_subagent_timeout_diagnostic(
                 child=child, task_index=task_index,
@@ -940,7 +967,7 @@ class _ChildRun:
             _defer_close_after_timeout(child, future)
         return None, _error_entry, close_deferred
 
-    def append_sibling_write_reminder(self, entry: Dict[str, Any]) -> None:
+    def append_sibling_write_reminder(self, entry: dict[str, Any]) -> None:
         """Warn the parent when this child wrote files the parent had already read. Checks writes by ANY non-parent
         task_id (not just this child's) so nested orchestrator→worker chains are covered too."""
         if not (self.parent_task_id and self.parent_reads_snapshot):
@@ -961,7 +988,7 @@ class _ChildRun:
             else:
                 entry["stale_paths"] = mod_paths
 
-    def account_background_processes(self, entry: Dict[str, Any]) -> None:
+    def account_background_processes(self, entry: dict[str, Any]) -> None:
         """Name the child's background processes on the result BEFORE ``cleanup`` kills them: handed-off ones now
         belong to the parent (their completion lands in the parent's chat); anything else still running is about to be
         terminated, and the parent must hear that from the runtime rather than trust a child's "watcher running"."""
@@ -969,7 +996,7 @@ class _ChildRun:
         if handed:
             entry["handed_off_processes"] = handed
         with _quiet(None):
-            from tools.process_registry import process_registry, _output_tail
+            from tools.process_registry import _output_tail, process_registry
             leftover = process_registry.running_owned_by(self.child_task_id)
             if leftover:
                 entry["orphaned_processes"] = [
@@ -981,7 +1008,7 @@ class _ChildRun:
                     {"session_id": s.id, "command": s.command[:200], "exit_code": s.exit_code,
                      "output_tail": _output_tail(s, 600)} for s in unread]
 
-    def emit_complete(self, result: Dict[str, Any], entry: Dict[str, Any], duration: float) -> None:
+    def emit_complete(self, result: dict[str, Any], entry: dict[str, Any], duration: float) -> None:
         """Fire ``subagent.complete`` with the per-branch observability payload (tokens, cost, files touched,
         tool-output tail); every field is optional and degrades gracefully on the client."""
         if not self.child_progress_cb:
@@ -994,7 +1021,7 @@ class _ChildRun:
         _files_written_map: dict = {}
         with _quiet(None):
             _files_written_map = file_state.writes_since("", self.wall_start, [])  # all writes since wall_start
-        complete_kwargs: Dict[str, Any] = {
+        complete_kwargs: dict[str, Any] = {
             "preview": summary[:160] if summary else entry.get("error", ""),
             "status": entry["status"],
             "duration_seconds": duration,

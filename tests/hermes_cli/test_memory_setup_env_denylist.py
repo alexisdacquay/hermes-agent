@@ -17,10 +17,8 @@ before ``main()``.
 The fix routes through ``save_env_value`` so the same gates fire.
 """
 
-import os
 
 import pytest
-
 from hermes_cli.config import ensure_hermes_home, get_env_path, load_env
 from hermes_cli.memory_setup import _write_env_vars
 

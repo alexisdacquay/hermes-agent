@@ -10,7 +10,6 @@ scripted boundary outcomes.
 import sqlite3
 
 import pytest
-
 from hermes_cli import kanban_db as kb
 from hermes_cli import kanban_db_connect as kbc
 
@@ -34,7 +33,6 @@ class _FakeConn:
             outcome = outcomes.pop(0)
             if isinstance(outcome, Exception):
                 raise outcome
-        return None
 
     def count(self, prefix):
         prefix = prefix.upper()

@@ -11,9 +11,8 @@ to standalone exactly as before and queues nothing.
 import asyncio
 import threading
 
-import pytest
-
 import cron.scheduler_delivery as sd
+import pytest
 from gateway import delivery_ledger as dl
 from gateway.config import GatewayConfig, Platform
 from gateway.platforms.base import SendResult

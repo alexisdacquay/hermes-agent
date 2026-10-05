@@ -9,7 +9,6 @@ profile's scope installed by run_one_job for the whole execute→deliver span.
 """
 
 import pytest
-
 from agent import secret_scope
 
 

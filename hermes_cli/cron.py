@@ -4,9 +4,10 @@ import contextlib
 import json
 import re
 import sys
-from datetime import timezone
+from collections.abc import Iterable
+from datetime import UTC
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any
 
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -14,11 +15,11 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from hermes_cli.colors import Colors, color
 
 
-def _normalize_skills(single_skill=None, skills: Optional[Iterable[str]] = None) -> Optional[List[str]]:
+def _normalize_skills(single_skill=None, skills: Iterable[str] | None = None) -> list[str] | None:
     """Deduped, stripped skill names; None when neither argument was given."""
     if skills is None and single_skill is None:
         return None
-    normalized: List[str] = []
+    normalized: list[str] = []
     for item in list(skills) if skills is not None else [single_skill]:
         text = str(item or "").strip()
         if text and text not in normalized:
@@ -40,7 +41,7 @@ def _active_cron_provider_name() -> str:
         return "builtin"
 
 
-def _builtin_gateway_liveness() -> Optional[bool]:
+def _builtin_gateway_liveness() -> bool | None:
     """Tri-state readiness of a scheduler serving THIS home (None = probe failed).
 
     A gateway launched from this home proves itself by process liveness. Any other scheduler that
@@ -58,7 +59,10 @@ def _builtin_gateway_liveness() -> Optional[bool]:
             from gateway.status import is_gateway_runtime_lock_active
             if is_gateway_runtime_lock_active():
                 return True
-        from hermes_cli.gateway import find_gateway_pids, named_profile_served_by_running_multiplexer
+        from hermes_cli.gateway import (
+            find_gateway_pids,
+            named_profile_served_by_running_multiplexer,
+        )
         if find_gateway_pids():
             return True
         from cron.jobs import get_ticker_heartbeat_age, ticker_heartbeat_writer_alive
@@ -102,11 +106,11 @@ def _format_lateness(seconds: float) -> str:
     return " ".join(f"{n}{unit}" for n, unit in parts if n) or "0m"
 
 
-def _dispatch_kind_label(kind) -> Optional[str]:
+def _dispatch_kind_label(kind) -> str | None:
     return {"catch_up": "catch-up after missed fire", "late": "late"}.get(kind)
 
 
-def _next_run_overdue_seconds(next_run_at: Any) -> Optional[float]:
+def _next_run_overdue_seconds(next_run_at: Any) -> float | None:
     """Seconds the stored ``next_run_at`` is already in the past (negative while still
     upcoming); None when it is not a parseable ISO timestamp.
 
@@ -119,10 +123,10 @@ def _next_run_overdue_seconds(next_run_at: Any) -> Optional[float]:
     if dt is None:
         return None
     # Same-tzinfo subtraction is wall-clock arithmetic in Python; compare instants.
-    return (now().astimezone(timezone.utc) - dt.astimezone(timezone.utc)).total_seconds()
+    return (now().astimezone(UTC) - dt.astimezone(UTC)).total_seconds()
 
 
-def _next_run_row(job: Dict[str, Any]) -> tuple[str, str]:
+def _next_run_row(job: dict[str, Any]) -> tuple[str, str]:
     """``("Next run" | "Overdue", value)`` for one job.
 
     A stamp parked past `cron doctor`'s grace on a job that is supposed to fire is the only
@@ -137,7 +141,7 @@ def _next_run_row(job: Dict[str, Any]) -> tuple[str, str]:
                                    "is the scheduler running?)", Colors.YELLOW))
 
 
-def _dispatch_display(dispatch: dict) -> Optional[str]:
+def _dispatch_display(dispatch: dict) -> str | None:
     """One-line scheduled-vs-actual dispatch summary; None when the stamp is malformed.
 
     On-time dispatches render dim; late/catch-up dispatches render loudly so a run fired long
@@ -206,7 +210,7 @@ def cron_list(show_all: bool = False):
     _warn_if_gateway_not_running()
 
 
-def _last_run_display(job: Dict[str, Any]) -> str:
+def _last_run_display(job: dict[str, Any]) -> str:
     last_status = job["last_status"]
     if last_status == "ok":
         return color("ok", Colors.GREEN)
@@ -223,7 +227,7 @@ def _last_run_display(job: Dict[str, Any]) -> str:
     return display
 
 
-def _job_rows(job: Dict[str, Any]) -> List[tuple[str, str]]:
+def _job_rows(job: dict[str, Any]) -> list[tuple[str, str]]:
     """``(label, value)`` detail rows for one job in ``cron list``."""
     # `repeat` / `deliver` may be present-but-null (dict-default only covers a missing key).
     repeat_info = job.get("repeat") or {}
@@ -267,18 +271,18 @@ def _short_reason(text: Any, limit: int = 120) -> str:
     return (reason[: limit - 1] + "…") if len(reason) > limit else (reason or "no details")
 
 
-def _delivery_fix_hint(job: Dict[str, Any]) -> str:
+def _delivery_fix_hint(job: dict[str, Any]) -> str:
     return (f"Check the target with `hermes cron status` or change it with "
             f"`hermes cron edit {job.get('id', '<id>')} --deliver <target>`.")
 
 
-def _missed_fire_issue(job: Dict[str, Any], fire_err: Dict[str, Any]) -> str:
+def _missed_fire_issue(job: dict[str, Any], fire_err: dict[str, Any]) -> str:
     return (f"missed scheduled fire at {fire_err.get('at', '?')}: {_short_reason(fire_err['detail'])}. "
             "The messaging gateway was unreachable. Run `hermes gateway restart`, then "
             f"`hermes cron run {job.get('id', '<id>')}` to run it now.")
 
 
-def _job_warnings(job: Dict[str, Any]) -> List[str]:
+def _job_warnings(job: dict[str, Any]) -> list[str]:
     """Delivery / fire warning lines for one job in ``cron list``."""
     lines = []
     if queued := job.get("last_delivery_queued"):
@@ -311,6 +315,7 @@ def _job_warnings(job: Dict[str, Any]) -> List[str]:
 def cron_tick():
     """Run due jobs once and exit."""
     from cron.scheduler import CronTickYielded, tick
+
     from hermes_cli.observability.shared_metrics_process import begin_process
 
     begin_process("cron")
@@ -332,7 +337,7 @@ def cron_tick():
     return 0
 
 
-def cron_runs(job_id: Optional[str] = None, limit: int = 20):
+def cron_runs(job_id: str | None = None, limit: int = 20):
     """Show indexed durable cron execution history."""
     from cron.executions import list_executions
     records = list_executions(job_id=job_id, limit=limit)
@@ -405,7 +410,7 @@ _FD_EXHAUSTION_HINT = ("  Hint: the ticker hit file-descriptor exhaustion (EMFIL
                        "persists, restart the gateway to recover scheduling.")
 
 
-def _ticker_age_is_fresh(age: Optional[float]) -> bool:
+def _ticker_age_is_fresh(age: float | None) -> bool:
     from cron.jobs import TICKER_INTERVAL_SECONDS
     return age is not None and age <= TICKER_INTERVAL_SECONDS * 3 + 20
 
@@ -418,7 +423,10 @@ def _print_ticker_health(pids: list, restart_command: str = "hermes gateway rest
     """
     # See #32612, #32895.
     from cron.jobs import (
-        get_ticker_heartbeat_age, get_ticker_last_error, get_ticker_success_age)
+        get_ticker_heartbeat_age,
+        get_ticker_last_error,
+        get_ticker_success_age,
+    )
     from cron.scheduler import _is_fd_exhaustion_text as _cron_is_fd_exhaustion_text
     from cron.scheduler import stale_code_yield_labels
     hb_age = get_ticker_heartbeat_age()
@@ -476,7 +484,11 @@ def _print_ticker_health(pids: list, restart_command: str = "hermes gateway rest
 def cron_status():
     """Show cron execution status."""
     from cron.jobs import list_jobs
-    from hermes_cli.gateway import find_gateway_pids, named_profile_served_by_running_multiplexer
+
+    from hermes_cli.gateway import (
+        find_gateway_pids,
+        named_profile_served_by_running_multiplexer,
+    )
     from hermes_cli.profiles import get_active_profile_name
     print()
 
@@ -508,7 +520,10 @@ def cron_status():
                 # Same false-alarm class the cronjob tool fixed (#95947): the pid scan can transiently miss
                 # a live gateway (just after a restart) while the runtime lock — held for exactly the
                 # gateway's lifetime — proves the ticker's process is alive.
-                from gateway.status import get_running_pid, is_gateway_runtime_lock_active
+                from gateway.status import (
+                    get_running_pid,
+                    is_gateway_runtime_lock_active,
+                )
                 gateway_alive_via_lock = is_gateway_runtime_lock_active()
                 lock_pid = get_running_pid() if gateway_alive_via_lock else None
                 pids = [lock_pid] if lock_pid else pids
@@ -519,7 +534,10 @@ def cron_status():
                 # `hermes serve` / the Desktop backend ticks every local profile in-process: no
                 # gateway argv, lock or host record — only the heartbeat it writes here (#121881).
                 with contextlib.suppress(Exception):
-                    from cron.jobs import get_ticker_heartbeat_age, ticker_heartbeat_writer_alive
+                    from cron.jobs import (
+                        get_ticker_heartbeat_age,
+                        ticker_heartbeat_writer_alive,
+                    )
                     in_process_ticker = (_ticker_age_is_fresh(get_ticker_heartbeat_age())
                                          and ticker_heartbeat_writer_alive())
         if host is not None:
@@ -582,7 +600,7 @@ def _print_active_jobs_summary(jobs) -> None:
     # job its configured zone), so order by instant, never by ISO text; display the stored stamp.
     # `_parse_aware` hands back one shared ZoneInfo, and Python compares same-tzinfo datetimes
     # by wall clock (wrong across a DST fold) — normalise to UTC before ordering.
-    next_runs = [(parsed.astimezone(timezone.utc), j["next_run_at"]) for j in jobs
+    next_runs = [(parsed.astimezone(UTC), j["next_run_at"]) for j in jobs
                  if (parsed := _parse_aware(j.get("next_run_at"))) is not None]
     print(f"  {len(jobs)} active job(s)")
     if next_runs:
@@ -618,7 +636,7 @@ def _scripts_dir_for_cron() -> Path:
     return CRON_DIR.parent / "scripts"
 
 
-def _script_health_issue(script: str) -> Optional[str]:
+def _script_health_issue(script: str) -> str | None:
     """Human-readable script issue, or ``None`` when the path is OK."""
     scripts_dir = _scripts_dir_for_cron().resolve()
     raw = Path(script).expanduser()
@@ -641,7 +659,7 @@ def _script_health_issue(script: str) -> Optional[str]:
 _OVERDUE_GRACE_SECONDS = 15 * 60
 
 
-def _next_run_overdue_issue(next_run: str) -> Optional[str]:
+def _next_run_overdue_issue(next_run: str) -> str | None:
     """Issue string when ``next_run_at`` is parked in the past."""
     overdue_s = _next_run_overdue_seconds(next_run)
     if overdue_s is None:
@@ -652,8 +670,8 @@ def _next_run_overdue_issue(next_run: str) -> Optional[str]:
     return f"next_run_at is {amount} overdue — job is not firing (is the scheduler running?)"
 
 
-def _cron_doctor_issues_for_job(job: Dict[str, Any]) -> List[str]:
-    issues: List[str] = []
+def _cron_doctor_issues_for_job(job: dict[str, Any]) -> list[str]:
+    issues: list[str] = []
     last_status = str(job.get("last_status") or "").strip().lower()
     # "delivery_failed" = the agent run succeeded; the delivery issue below reports it.
     if last_status and last_status not in {"ok", "delivery_failed", "delivery_queued"}:
@@ -719,7 +737,7 @@ _JOB_ARG_FIELDS = (("name", "name"), ("deliver", "deliver"), ("failure_deliver",
                    ("interpreter", "interpreter"))
 
 
-def _job_api_kwargs(args) -> Dict[str, Any]:
+def _job_api_kwargs(args) -> dict[str, Any]:
     """Collect the create/update kwargs shared by ``cron create`` and ``cron edit``."""
     return {api_key: getattr(args, attr, None) for api_key, attr in _JOB_ARG_FIELDS}
 
@@ -734,7 +752,7 @@ _JOB_DETAIL_LINES = (
     ("interpreter", "  Python: {}"))
 
 
-def _print_job_details(job_data: Dict[str, Any]) -> None:
+def _print_job_details(job_data: dict[str, Any]) -> None:
     """Print the optional Script/Monitor/Mode/Continuity/Workdir lines of a job record."""
     for key, template in _JOB_DETAIL_LINES:
         if job_data.get(key):
@@ -840,7 +858,7 @@ def _job_action(action: str, job_id: str, success_verb: str) -> int:
     return 0
 
 
-def _run_outcome(job: Dict[str, Any]) -> str:
+def _run_outcome(job: dict[str, Any]) -> str:
     """One-line verdict for a manual run.
 
     A background-dispatched run (execution_mode="background" / delegation_id) keeps running

@@ -18,7 +18,6 @@ import hashlib
 import json
 import logging
 import os
-from pathlib import Path
 import secrets
 import subprocess
 import sys
@@ -26,6 +25,7 @@ import tempfile
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from urllib.parse import parse_qs, urlencode, urlsplit
 
 
@@ -56,7 +56,7 @@ class ProviderHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def do_GET(self):  # noqa: N802
+    def do_GET(self):
         path = urlsplit(self.path).path
         self.server.events.append(["GET", path])
         if path.startswith("/.well-known/oauth-protected-resource"):
@@ -87,7 +87,7 @@ class ProviderHandler(BaseHTTPRequestHandler):
             return self.reply(302, headers={"Location": target})
         self.reply(405 if path == "/mcp" else 404)
 
-    def do_POST(self):  # noqa: N802
+    def do_POST(self):
         path = urlsplit(self.path).path
         self.server.events.append(["POST", path])
         body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
@@ -135,7 +135,7 @@ class ProviderHandler(BaseHTTPRequestHandler):
                                     "error": {"code": -32601, "message": "Method not found"}})
         self.reply(200, {"jsonrpc": "2.0", "id": request["id"], "result": results[method]})
 
-    def do_DELETE(self):  # noqa: N802
+    def do_DELETE(self):
         self.reply(200)
 
 
@@ -149,7 +149,7 @@ class CallbackHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         pass
 
-    def do_GET(self):  # noqa: N802
+    def do_GET(self):
         self.server.callback = {k: v[0] for k, v in parse_qs(urlsplit(self.path).query).items()}
         self.send_response(200)
         self.end_headers()
@@ -182,9 +182,9 @@ def run_probe(repo, receipt):
     sys.path.insert(0, str(repo))
     logging.disable(logging.CRITICAL)
     import httpx
-    from hermes_constants import set_hermes_home_override, reset_hermes_home_override
-    from tui_gateway import mcp_oauth_sessions as sessions
+    from hermes_constants import reset_hermes_home_override, set_hermes_home_override
     from tools.mcp_oauth import HermesTokenStorage
+    from tui_gateway import mcp_oauth_sessions as sessions
 
     owner = Path(os.environ["HERMES_HOME"])
     other = owner.parent / "other-profile"

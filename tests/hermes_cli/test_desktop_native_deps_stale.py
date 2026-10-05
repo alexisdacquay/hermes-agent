@@ -6,7 +6,6 @@ launched a package that crashed on ``require('node-pty')``.
 import sys
 
 import pytest
-
 from hermes_cli import main_desktop, source_build
 
 

@@ -7,12 +7,10 @@ clone needs the retry.  Regression coverage for #117170, #117176, #117179 and #1
 
 from __future__ import annotations
 
-import os
 import stat
 from pathlib import Path
 
 import pytest
-
 import utils
 from utils import rmtree_readonly
 

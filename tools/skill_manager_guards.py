@@ -8,12 +8,12 @@ import logging
 import threading
 from contextlib import suppress
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 logger = logging.getLogger("tools.skill_manager_tool")
 
 
-def _refusal(message: str, **extra: Any) -> Dict[str, Any]:
+def _refusal(message: str, **extra: Any) -> dict[str, Any]:
     return {"success": False, "error": message, **extra}
 
 
@@ -48,7 +48,7 @@ class _BackgroundReviewReadMarks:
             return path in self._paths
 
 
-_background_review_read_paths: "_ctxvars.ContextVar[Optional[_BackgroundReviewReadMarks]]" = (
+_background_review_read_paths: _ctxvars.ContextVar[_BackgroundReviewReadMarks | None] = (
     _ctxvars.ContextVar("background_review_read_paths", default=None))
 
 
@@ -102,7 +102,7 @@ def _is_path_redirect(path: Path) -> bool:
         return False
 
 
-def _validate_delete_target(skill_dir: Path) -> Optional[str]:
+def _validate_delete_target(skill_dir: Path) -> str | None:
     """Last-line guard before rmtree: even a poisoned tree must never delete (1) a path outside
     every known skills root, (2) a skills root itself, (3) a symlink/junction (rmtree follows it).
 
@@ -130,7 +130,7 @@ def _validate_delete_target(skill_dir: Path) -> Optional[str]:
     return f"Refusing to delete '{skill_dir}': path does not resolve inside any known skills root."
 
 
-def _is_pinned(name: str, what: str) -> Optional[bool]:
+def _is_pinned(name: str, what: str) -> bool | None:
     """skill_usage pinned flag; None (logged at debug) when the record is unreadable."""
     try:
         from tools import skill_usage
@@ -140,7 +140,7 @@ def _is_pinned(name: str, what: str) -> Optional[bool]:
         return None
 
 
-def _pinned_guard(name: str) -> Optional[str]:
+def _pinned_guard(name: str) -> str | None:
     """Refusal message if *name* is pinned or essential, else None. Pin only guards DELETION;
     patches/edits stay allowed. ESSENTIAL_SKILLS are permanently pinned (the system prompt
     references them). Best-effort: an unreadable sidecar lets the delete through."""
@@ -162,7 +162,7 @@ def _pinned_guard(name: str) -> Optional[str]:
 
 
 def _background_review_write_guard(
-    name: str, skill_dir: Path, action: str) -> Optional[Dict[str, Any]]:
+    name: str, skill_dir: Path, action: str) -> dict[str, Any] | None:
     """Refuse autonomous curator writes to anything but curator-owned sediment. The review fork
     has no user in the loop, so it is also blocked on pinned/external/bundled/hub skills."""
     if not _is_background_review():
@@ -218,7 +218,7 @@ def _background_review_write_guard(
 
 
 def _background_review_read_before_write_guard(
-    name: str, target: Path, action: str, file_label: str) -> Optional[Dict[str, Any]]:
+    name: str, target: Path, action: str, file_label: str) -> dict[str, Any] | None:
     """Require review forks to load the exact target before mutating it."""
     if not _is_background_review() or _background_review_has_read(target):
         return None
@@ -230,7 +230,7 @@ def _background_review_read_before_write_guard(
         _read_before_write_required=True)
 
 
-def _background_review_preflight(action: str, name: str) -> Optional[Dict[str, Any]]:
+def _background_review_preflight(action: str, name: str) -> dict[str, Any] | None:
     if action not in {"edit", "patch", "delete", "write_file", "remove_file"}:
         return None
     from tools import skill_manager_tool as _smt
@@ -239,7 +239,7 @@ def _background_review_preflight(action: str, name: str) -> Optional[Dict[str, A
 
 
 def _curator_consolidation_delete_guard(
-    name: str, absorbed_into: Optional[str]) -> Optional[Dict[str, Any]]:
+    name: str, absorbed_into: str | None) -> dict[str, Any] | None:
     """Fail closed on unverified deletes during the curator consolidation pass. The fork's only
     legitimate delete is a consolidation declared via ``absorbed_into=<umbrella>`` (existence
     validated in ``_delete_skill``); the deterministic inactivity prune never calls skill_manage,

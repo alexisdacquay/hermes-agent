@@ -196,7 +196,7 @@ def main() -> int:
         verdict = "no (pooled)" if pooled else ("YES" if mean > 1.0 else "no")
 
         print(
-            f"{method:<22} {str(pooled):<19} {mean:>7.2f}s {worst:>7.2f}s   {verdict}"
+            f"{method:<22} {pooled!s:<19} {mean:>7.2f}s {worst:>7.2f}s   {verdict}"
         )
 
     print(
@@ -254,7 +254,6 @@ def _report_surfaces() -> None:
         "  while a fresh session's agent is still building. A TUI user launches\n"
         "  once and the build finishes while they type."
     )
-    return None
 
 
 if __name__ == "__main__":

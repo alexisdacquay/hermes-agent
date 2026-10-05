@@ -8,7 +8,6 @@ import types
 
 import pytest
 
-
 _VARS = ("HERMES_SAFE_MODE", "HERMES_IGNORE_USER_CONFIG", "HERMES_IGNORE_RULES")
 
 
@@ -43,7 +42,7 @@ def test_cmd_chat_safe_mode_sets_env_before_startup(monkeypatch):
     monkeypatch.setattr(main_mod, "_has_any_provider_configured", fake_has_provider)
     monkeypatch.setattr(main_mod, "_pin_kanban_board_env", lambda: None)
     monkeypatch.setattr(main_mod, "_sync_bundled_skills_for_startup", lambda: None)
-    setattr(fake_cli, "main", fake_main)
+    fake_cli.main = fake_main
     monkeypatch.setitem(sys.modules, "cli", fake_cli)
 
     main_mod.cmd_chat(args)

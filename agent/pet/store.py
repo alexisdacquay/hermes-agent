@@ -190,7 +190,7 @@ def register_local_pet(spritesheet, *, slug: str, display_name: str = "", descri
             from agent.pet.generate.atlas import _load_rgba
 
             _load_rgba(spritesheet).save(sprite_path, format="WEBP", lossless=True, quality=100, method=6, exact=True)
-    except Exception as exc:  # noqa: BLE001 - normalize to one error type
+    except Exception as exc:
         raise PetStoreError(f"could not write spritesheet for '{slug}': {exc}") from exc
     meta = {"id": slug, "displayName": display_name or slug, "description": description or "", "spritesheetPath": sprite_path.name}
     _write_pet_json(directory, {**meta, "createdBy": "generator"})
@@ -318,7 +318,6 @@ def _http_get(url: str, timeout: float):
 
 def _download(url: str, dest: Path, *, timeout: float) -> None:
     """Stream *url* to *dest* via a ``.part`` temp file so a failed download never leaves a truncated sheet."""
-    import httpx
 
     try:
         from tools.url_safety import create_ssrf_safe_client, is_safe_url
@@ -333,5 +332,5 @@ def _download(url: str, dest: Path, *, timeout: float) -> None:
                 for chunk in resp.iter_bytes():
                     fh.write(chunk)
             tmp.replace(dest)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         raise PetStoreError(f"download failed for {url}: {exc}") from exc

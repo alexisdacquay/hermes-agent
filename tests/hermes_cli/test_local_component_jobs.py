@@ -5,12 +5,12 @@ from __future__ import annotations
 import hashlib
 import threading
 
-import pytest
-
 import pm
+import pytest
 from pm import paths, registry
 from pm.lock import Facts, Lockfile
 from pm.packages import LlamaCppCpu
+
 from tests.hermes_cli.test_local_download_jobs import client, poll  # noqa: F401
 from tests.pm._range_server import RangeHandler, dl_server, url  # noqa: F401
 from tests.pm.test_install_download_control import archive

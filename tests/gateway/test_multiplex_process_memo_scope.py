@@ -8,9 +8,8 @@ import os
 from pathlib import Path
 from types import SimpleNamespace
 
-import pytest
 import hermes_yaml as yaml
-
+import pytest
 from hermes_constants import reset_hermes_home_override, set_hermes_home_override
 
 

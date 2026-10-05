@@ -16,7 +16,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from agent.secret_sources import registry
 from agent.secret_sources.base import FetchResult, SecretSource
 

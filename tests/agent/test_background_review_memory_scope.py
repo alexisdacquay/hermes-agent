@@ -12,15 +12,16 @@ from __future__ import annotations
 
 import os
 import sys
-import pytest
 from types import SimpleNamespace
 from unittest.mock import patch
+
+import pytest
 
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
-import agent.background_review as bg  # noqa: E402
+import agent.background_review as bg
 
 
 def _review_agent(memory_enabled=True, user_profile_enabled=False) -> SimpleNamespace:
@@ -121,7 +122,6 @@ class TestConsolidationProposalSurfaces:
     near-limit denial path drops both the requested update and the proposal, silently (#105921)."""
 
     def _store(self, tmp_path, monkeypatch):
-        import json as _json
         from tools.memory_tool_store import MemoryStore
 
         monkeypatch.setenv("HERMES_HOME", str(tmp_path / "home"))
@@ -134,7 +134,10 @@ class TestConsolidationProposalSurfaces:
         import json
 
         from tools.memory_tool import memory_tool
-        from tools.skill_provenance import set_current_write_origin, reset_current_write_origin
+        from tools.skill_provenance import (
+            reset_current_write_origin,
+            set_current_write_origin,
+        )
 
         store = self._store(tmp_path, monkeypatch)
         assert store.add("memory", "standing rule entry")["success"] is True
@@ -163,7 +166,10 @@ class TestConsolidationProposalSurfaces:
         import json
 
         from tools.memory_tool import memory_tool
-        from tools.skill_provenance import set_current_write_origin, reset_current_write_origin
+        from tools.skill_provenance import (
+            reset_current_write_origin,
+            set_current_write_origin,
+        )
 
         store = self._store(tmp_path, monkeypatch)
         assert store.add("memory", "seed entry one")["success"] is True

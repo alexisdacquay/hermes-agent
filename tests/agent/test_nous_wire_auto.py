@@ -13,7 +13,6 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
-
 from agent import nous_wire
 from hermes_cli import providers as _providers
 
@@ -120,8 +119,8 @@ def test_real_agent_usage_recorder_calls_the_hook_once(tmp_path, monkeypatch):
     """The wiring: record_response_usage on a real AIAgent invokes the hook on call 1 only."""
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
     (tmp_path / "config.yaml").write_text("nous:\n  anthropic_wire: auto\n", encoding="utf-8")
-    from run_agent import AIAgent
     from agent import turn_usage
+    from run_agent import AIAgent
     calls = []
     monkeypatch.setattr(nous_wire, "maybe_switch_wire_after_first_response",
                         lambda agent, response, n: calls.append((n, nous_wire.classify_upstream(response))) or False)

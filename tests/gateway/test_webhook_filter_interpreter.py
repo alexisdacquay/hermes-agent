@@ -3,7 +3,6 @@ import logging
 import stat
 
 import pytest
-
 from gateway.platforms.webhook_filters import WebhookRouteProcessor
 from tools.environments import local
 

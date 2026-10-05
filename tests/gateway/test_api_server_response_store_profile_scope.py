@@ -9,7 +9,6 @@ the agent run is faked.
 from __future__ import annotations
 
 import pytest
-
 from agent import secret_scope as ss
 
 ALICE, BOB, DEFAULT = "a" * 40, "b" * 40, "d" * 40

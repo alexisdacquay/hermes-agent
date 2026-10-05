@@ -8,15 +8,17 @@ import logging
 import shutil
 import tempfile
 import uuid
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Optional
+from typing import Any
 
 import httpx
-
 from agent.auxiliary_client import async_call_llm, extract_content_or_reasoning
 from agent.secret_scope import get_secret
 from hermes_constants import get_hermes_home
+from tools.transcription_tools import transcribe_audio
+
 from plugins.teams_pipeline.meetings import (
     download_recording_artifact,
     enrich_meeting_with_call_record,
@@ -24,11 +26,15 @@ from plugins.teams_pipeline.meetings import (
     list_recording_artifacts,
     looks_like_transcript_id,
     parse_graph_meeting_resource,
-    resolve_meeting_reference)
+    resolve_meeting_reference,
+)
 from plugins.teams_pipeline.models import (
-    MeetingArtifact, TeamsMeetingPipelineJob, TeamsMeetingRef, TeamsMeetingSummaryPayload)
+    MeetingArtifact,
+    TeamsMeetingPipelineJob,
+    TeamsMeetingRef,
+    TeamsMeetingSummaryPayload,
+)
 from plugins.teams_pipeline.store import TeamsPipelineStore
-from tools.transcription_tools import transcribe_audio
 
 logger = logging.getLogger(__name__)
 
@@ -48,9 +54,9 @@ class TeamsPipelineSinkError(TeamsPipelineError): """Raised when an output sink 
 class TeamsPipelineArtifactNotFoundError(TeamsPipelineRetryableError): """Raised when meeting artifacts are not yet available."""
 
 
-TranscribeFn = Callable[[str, Optional[str]], dict[str, Any]]
+TranscribeFn = Callable[[str, str | None], dict[str, Any]]
 SummarizeFn = Callable[..., Awaitable[dict[str, Any] | TeamsMeetingSummaryPayload]]
-SinkFn = Callable[[TeamsMeetingSummaryPayload, dict[str, Any], Optional[dict[str, Any]]], Awaitable[dict[str, Any]]]
+SinkFn = Callable[[TeamsMeetingSummaryPayload, dict[str, Any], dict[str, Any] | None], Awaitable[dict[str, Any]]]
 
 
 @dataclass
@@ -67,7 +73,7 @@ class TeamsPipelineConfig:
     teams_delivery: dict[str, Any] | None = None
 
     @classmethod
-    def from_dict(cls, payload: Optional[dict[str, Any]]) -> "TeamsPipelineConfig":
+    def from_dict(cls, payload: dict[str, Any] | None) -> TeamsPipelineConfig:
         data = dict(payload or {})
         tmp_dir = data.get("tmp_dir") or data.get("tmpDir")
         flags = {"transcript_preferred": True, "transcript_required": False, "transcription_fallback": True, "ffmpeg_extract_audio": True}
@@ -117,7 +123,7 @@ class NotionWriter(_HttpSinkWriter):
     SECRET_NAME = "NOTION_API_KEY"
 
     async def write_summary(
-        self, payload: TeamsMeetingSummaryPayload, config: dict[str, Any], existing_record: Optional[dict[str, Any]] = None,
+        self, payload: TeamsMeetingSummaryPayload, config: dict[str, Any], existing_record: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         self._require_api_key()
         database_id = str(config.get("database_id") or config.get("databaseId") or "").strip()
@@ -156,7 +162,7 @@ class LinearWriter(_HttpSinkWriter):
     _CREATE_MUTATION = "mutation($input: IssueCreateInput!) { issueCreate(input: $input) { success issue { id identifier url } } }"
 
     async def write_summary(
-        self, payload: TeamsMeetingSummaryPayload, config: dict[str, Any], existing_record: Optional[dict[str, Any]] = None,
+        self, payload: TeamsMeetingSummaryPayload, config: dict[str, Any], existing_record: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         self._require_api_key()
         headers = {"Authorization": self.api_key, "Content-Type": "application/json"}
@@ -182,8 +188,8 @@ class TeamsMeetingPipeline:
     def __init__(
         self, *, graph_client: Any, store: TeamsPipelineStore,
         config: TeamsPipelineConfig | dict[str, Any] | None = None, transcribe_fn: TranscribeFn = transcribe_audio,
-        summarize_fn: Optional[SummarizeFn] = None, notion_writer: Optional[NotionWriter] = None,
-        linear_writer: Optional[LinearWriter] = None, teams_sender: Optional[SinkFn] = None) -> None:
+        summarize_fn: SummarizeFn | None = None, notion_writer: NotionWriter | None = None,
+        linear_writer: LinearWriter | None = None, teams_sender: SinkFn | None = None) -> None:
         self.graph_client, self.store, self.transcribe_fn = graph_client, store, transcribe_fn
         self.config = config if isinstance(config, TeamsPipelineConfig) else TeamsPipelineConfig.from_dict(config)
         self.summarize_fn = summarize_fn or self._generate_summary_payload

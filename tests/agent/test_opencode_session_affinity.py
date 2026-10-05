@@ -6,7 +6,6 @@ import asyncio
 from types import SimpleNamespace
 
 import pytest
-
 from agent import auxiliary_client as aux
 from agent.chat_completion_helpers import build_api_kwargs
 from run_agent import AIAgent

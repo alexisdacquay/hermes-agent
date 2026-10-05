@@ -20,7 +20,6 @@ import asyncio
 from types import SimpleNamespace
 
 import pytest
-
 from gateway.config import Platform
 from gateway.restart import (
     CRON_DRAIN_CLEANUP_RESERVE_S,
@@ -29,6 +28,7 @@ from gateway.restart import (
     resolve_cron_drain_budget,
     resolve_systemd_timeout_stop_sec,
 )
+
 from tests.gateway.restart_test_helpers import make_restart_runner
 
 

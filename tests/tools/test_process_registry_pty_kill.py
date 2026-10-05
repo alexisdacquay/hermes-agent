@@ -13,7 +13,6 @@ import threading
 import time
 
 import pytest
-
 import tools.process_registry as module
 from tools.process_registry import ProcessRegistry
 

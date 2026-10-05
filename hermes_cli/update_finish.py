@@ -2,8 +2,8 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import sys
+from pathlib import Path
 
 
 def finish_update(*, root, assume_yes, gateway_mode, pre_update_snapshot_id,
@@ -11,9 +11,11 @@ def finish_update(*, root, assume_yes, gateway_mode, pre_update_snapshot_id,
                   plan, windows_resume) -> None:
     """Finish the selected checkout; never fetch, switch branches or restore a stash."""
     from hermes_cli.update_cmd import (
+        _restart_gateway_fleet_after_update,
+        _resume_windows_gateways_and_merge_outcome,
         _run_post_update_maintenance,
-        _restart_gateway_fleet_after_update, _verify_fleet_after_update,
-        _write_gateway_update_exit_code, _resume_windows_gateways_and_merge_outcome,
+        _verify_fleet_after_update,
+        _write_gateway_update_exit_code,
     )
 
     complete = _run_post_update_maintenance(
@@ -39,6 +41,7 @@ def _restore_plan(data):
     if not data:
         return None
     from dataclasses import fields
+
     from hermes_cli.update_inventory import RuntimeRecord, UpdatePlan
 
     values = {field.name: data[field.name] for field in fields(UpdatePlan) if field.name in data}
@@ -74,12 +77,13 @@ def main(context: Path, result: Path) -> int:
         # its ordinary currency check is now a no-op, not another update.
         sys.argv = list(request["argv"]) if restarting else [str(root / "hermes"), "update"]
         import hermes_bootstrap  # noqa: F401
+
         # Import failures are update failures too: keep the original receipt
         # open before importing the application graph from the new checkout.
         from hermes_cli import main as cli
         from hermes_cli.source_build import build_update_products
-        from hermes_cli.update_lock import UpdateLock, describe_holder
         from hermes_cli.update_cmd_windows import _resume_windows_gateways_after_update
+        from hermes_cli.update_lock import UpdateLock, describe_holder
 
         cli.PROJECT_ROOT = root
         if restarting:
@@ -100,7 +104,10 @@ def main(context: Path, result: Path) -> int:
                 if desktop is None:
                     # Historical hooks can precede Desktop detection. Resolve
                     # only that unknown state, in the freshly bootstrapped app.
-                    from hermes_cli.main_desktop import _desktop_dist_exists, _desktop_packaged_executable
+                    from hermes_cli.main_desktop import (
+                        _desktop_dist_exists,
+                        _desktop_packaged_executable,
+                    )
 
                     desktop_dir = root / "apps" / "desktop"
                     desktop = (_desktop_packaged_executable(desktop_dir) is not None
@@ -123,6 +130,7 @@ def main(context: Path, result: Path) -> int:
         if code and request.get("gateway_mode"):
             # Even an application import failure must wake the gateway watcher.
             from hermes_constants import get_hermes_home
+
             from hermes_cli.runtime_state import _atomic_bytes
 
             _atomic_bytes(get_hermes_home() / ".update_exit_code", b"1")

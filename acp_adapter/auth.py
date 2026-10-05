@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional
-
+from typing import Any
 
 TERMINAL_SETUP_AUTH_METHOD_ID = "hermes-setup"
 
 
-def detect_provider() -> Optional[str]:
+def detect_provider() -> str | None:
     """Resolve the active Hermes runtime provider, or None if unavailable.
 
     A callable ``api_key`` (Azure Foundry Entra ID bearer-token provider, see

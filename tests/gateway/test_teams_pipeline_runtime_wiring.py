@@ -3,16 +3,13 @@
 from __future__ import annotations
 
 import sys
-from types import ModuleType
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 from unittest.mock import MagicMock
 
 from gateway.config import Platform, PlatformConfig
 from gateway.run import GatewayRunner
 from plugins.teams_pipeline.runtime import (
-    bind_gateway_runtime,
     build_pipeline_runtime,
-    build_pipeline_runtime_config,
 )
 
 

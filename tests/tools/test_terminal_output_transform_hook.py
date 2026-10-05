@@ -3,12 +3,10 @@ import os
 from pathlib import Path
 from unittest.mock import MagicMock
 
-import pytest
-
 import hermes_cli.plugins as plugins_mod
+import pytest
 import tools.terminal_tool as terminal_tool_module
 from tools.environments.local import LocalEnvironment
-
 
 _UNSET = object()
 

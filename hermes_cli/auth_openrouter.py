@@ -12,14 +12,25 @@ from __future__ import annotations
 
 import secrets
 import webbrowser
-from typing import Any, Dict
+from typing import Any
 from urllib.parse import urlencode
 
 from hermes_cli.auth_constants import (
-    OPENROUTER_AUTH_KEYS_URL, OPENROUTER_AUTH_URL, OPENROUTER_OAUTH_DOCS_URL, _openrouter_err, httpx)
+    OPENROUTER_AUTH_KEYS_URL,
+    OPENROUTER_AUTH_URL,
+    OPENROUTER_OAUTH_DOCS_URL,
+    _openrouter_err,
+    httpx,
+)
 from hermes_cli.auth_device_flow import (
-    _bind_loopback_callback_server, _can_open_graphical_browser, _is_remote_session,
-    _make_loopback_callback_handler, _pkce_code_challenge, _pkce_code_verifier, _serve_loopback_callback)
+    _bind_loopback_callback_server,
+    _can_open_graphical_browser,
+    _is_remote_session,
+    _make_loopback_callback_handler,
+    _pkce_code_challenge,
+    _pkce_code_verifier,
+    _serve_loopback_callback,
+)
 
 _ERROR_BODY_LIMIT = 2048
 
@@ -67,7 +78,7 @@ def _openrouter_headless_code(auth_url: str) -> str:
     return code
 
 
-def _openrouter_loopback_code(auth_url_params: Dict[str, str], *, open_browser: bool, timeout_seconds: float) -> str:
+def _openrouter_loopback_code(auth_url_params: dict[str, str], *, open_browser: bool, timeout_seconds: float) -> str:
     nonce = secrets.token_urlsafe(16)
     path = f"/callback/{nonce}"
     handler_cls, result = _make_loopback_callback_handler(path, display_name="OpenRouter")
@@ -98,7 +109,7 @@ def _openrouter_loopback_code(auth_url_params: Dict[str, str], *, open_browser: 
     return code
 
 
-def _openrouter_pkce_login(*, open_browser: bool = True, timeout_seconds: float = 300.0) -> Dict[str, Any]:
+def _openrouter_pkce_login(*, open_browser: bool = True, timeout_seconds: float = 300.0) -> dict[str, Any]:
     """Run the PKCE flow and return ``{"api_key": ...}`` for the credential-pool add path."""
     code_verifier = _pkce_code_verifier()
     params = {"code_challenge": _pkce_code_challenge(code_verifier), "code_challenge_method": "S256"}

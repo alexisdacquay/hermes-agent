@@ -11,7 +11,6 @@ import queue
 import sqlite3
 
 import pytest
-
 from tools import async_delegation as ad
 
 
@@ -110,9 +109,8 @@ def test_schema_init_failure_still_closes_connection(monkeypatch, tmp_path):
 
     _FailingSchemaConnection.executescript = _fail_large_schema_replay
 
-    with pytest.raises(sqlite3.OperationalError):
-        with ad._transaction():
-            pass
+    with pytest.raises(sqlite3.OperationalError), ad._transaction():
+        pass
 
     assert len(opened) == 1
     assert len(closed) == 1

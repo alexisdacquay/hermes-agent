@@ -13,10 +13,10 @@ import contextlib
 import logging
 import time
 from collections import Counter
+from collections.abc import Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Iterator
 
 from agent.pet.generate import atlas, imagegen, prompts
 from agent.pet.generate.imagegen import GenerationError, SpriteProvider

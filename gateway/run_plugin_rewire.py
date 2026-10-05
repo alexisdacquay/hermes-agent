@@ -15,8 +15,9 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -24,10 +25,10 @@ logger = logging.getLogger(__name__)
 class GatewayPluginRewireMixin:
     """Subscribe once per plugin manager; re-wire that profile's adapters on every loaded event."""
 
-    _plugin_rewire_unsubscribe: Optional[Dict[str, Callable[[], None]]] = None
+    _plugin_rewire_unsubscribe: dict[str, Callable[[], None]] | None = None
 
-    def _subscribe_plugin_rewire(self, manager: Any, profile_name: Optional[str] = None,
-                                 profile_home: Optional[Path] = None) -> None:
+    def _subscribe_plugin_rewire(self, manager: Any, profile_name: str | None = None,
+                                 profile_home: Path | None = None) -> None:
         """Idempotent per manager scope: a served-profile rescan re-enters ``_load_secondary_profile_config``
         and must not stack a second listener (two listeners = two re-wire passes, still deduped, but noise)."""
         subs = self._plugin_rewire_unsubscribe
@@ -50,8 +51,8 @@ class GatewayPluginRewireMixin:
 
         subs[scope] = manager.on_plugin_loaded(_on_loaded)
 
-    def _rewire_plugin_handlers(self, profile_name: Optional[str] = None,
-                                profile_home: Optional[Path] = None) -> int:
+    def _rewire_plugin_handlers(self, profile_name: str | None = None,
+                                profile_home: Path | None = None) -> int:
         """Call ``rewire_plugin_handlers()`` on every live adapter of one profile (``None`` = the launch
         profile's ``self.adapters``); a secondary's adapters read their own manager, so bind its scope.
         Returns the number of adapters re-wired."""
@@ -86,16 +87,17 @@ def reload_plugins_verb(runner: Any, loop: asyncio.AbstractEventLoop) -> Callabl
     (discovery is blocking); the count is read on the loop AFTER the re-wire callback (FIFO), so a
     truthful "active now" reaches the caller."""
 
-    def _handler(params: Optional[dict] = None) -> dict:
-        from hermes_constants import get_hermes_home, hermes_home_key
+    def _handler(params: dict | None = None) -> dict:
         from hermes_cli.plugins import discover_plugins, get_plugin_manager
         from hermes_cli.plugins_activation import activation_summaries
+        from hermes_constants import get_hermes_home, hermes_home_key
+
         from gateway.run import _profile_runtime_scope
         params = params or {}
         gateway_home = Path(get_hermes_home())
         requested = Path(str(params.get("home") or gateway_home)).expanduser()
         req_key = hermes_home_key(requested)
-        profile_name: Optional[str] = None
+        profile_name: str | None = None
         if req_key != hermes_home_key(gateway_home):
             served = (getattr(runner, "_served_profile_homes", None) or {}).items()
             profile_name = next((str(n) for n, h in served if hermes_home_key(h) == req_key), None)
@@ -119,7 +121,7 @@ def reload_plugins_verb(runner: Any, loop: asyncio.AbstractEventLoop) -> Callabl
     return _handler
 
 
-async def _count_adapters(runner: Any, profile_name: Optional[str]) -> int:
+async def _count_adapters(runner: Any, profile_name: str | None) -> int:
     """Live adapters for the profile; scheduled after the loaded-event callback, so they are re-wired."""
     if profile_name is None:
         return len(getattr(runner, "adapters", None) or {})

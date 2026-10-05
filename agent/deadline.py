@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import asyncio
 import contextvars
-from contextlib import contextmanager
 import faulthandler
 import logging
 import os
@@ -24,14 +23,22 @@ import subprocess
 import sys
 import threading
 import time
+from collections.abc import Awaitable, Callable
+from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Any, Awaitable, Callable, Optional, Protocol
+from typing import Any, Protocol
 
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    "MAX_SAFE_TIMEOUT_S", "BoundedResult", "DeadlineExpired", "clamp_timeout", "resolve_timeout",
-    "run_bounded_async", "run_bounded_sync", "kill_process_tree",
+    "MAX_SAFE_TIMEOUT_S",
+    "BoundedResult",
+    "DeadlineExpired",
+    "clamp_timeout",
+    "kill_process_tree",
+    "resolve_timeout",
+    "run_bounded_async",
+    "run_bounded_sync",
 ]
 
 # Upper bound for any timeout handed to platform wait primitives.
@@ -101,17 +108,17 @@ class BoundedResult:
     timed_out: bool
     value: Any
     elapsed_s: float
-    timeout_s: Optional[float]
+    timeout_s: float | None
     label: str
 
 
-def _result(start: float, timeout_s: Optional[float], label: str, *, value: Any = None, timed_out: bool = False) -> BoundedResult:
+def _result(start: float, timeout_s: float | None, label: str, *, value: Any = None, timed_out: bool = False) -> BoundedResult:
     return BoundedResult(
         timed_out=timed_out, value=value, elapsed_s=time.monotonic() - start, timeout_s=timeout_s, label=label
     )
 
 
-def clamp_timeout(timeout: Optional[float]) -> Optional[float]:
+def clamp_timeout(timeout: float | None) -> float | None:
     """Normalize a timeout: None/non-positive/non-numeric/NaN -> None (unbounded), else capped."""
     if timeout is None:
         return None
@@ -150,7 +157,7 @@ def _lookup_dotted(section: dict, key: str) -> Any:
     return node
 
 
-def resolve_timeout(key: str, *, default: Optional[float], env_var: Optional[str] = None) -> Optional[float]:
+def resolve_timeout(key: str, *, default: float | None, env_var: str | None = None) -> float | None:
     """Resolve a timeout (seconds): dotted ``timeouts.<key>`` > ``env_var`` > ``default``; the winner
     goes through :func:`clamp_timeout`, invalid config/env values fall through with a warning."""
     raw = _lookup_dotted(_timeouts_section(), key)
@@ -189,7 +196,7 @@ def resolve_timeout(key: str, *, default: Optional[float], env_var: Optional[str
 # timer dumps all thread stacks when the loop provably failed to process the expiry — the one piece of
 # information loop-blocked hangs otherwise never surface.
 # ---------------------------------------------------------------------------
-def _consume_abandoned(task: "asyncio.Future[Any]") -> None:
+def _consume_abandoned(task: asyncio.Future[Any]) -> None:
     """Observe an abandoned task's outcome so it never logs 'never retrieved'."""
     try:
         if not task.cancelled():
@@ -198,7 +205,7 @@ def _consume_abandoned(task: "asyncio.Future[Any]") -> None:
         pass
 
 
-def _abandon(task: "asyncio.Future[Any]") -> None:
+def _abandon(task: asyncio.Future[Any]) -> None:
     """Cancel ``task`` and never await it; its outcome is consumed so it stays unobserved-safe."""
     task.cancel()
     task.add_done_callback(_consume_abandoned)
@@ -228,10 +235,10 @@ def _dump_blocked_loop_diagnostics(label: str, timeout_s: float) -> None:
 
 async def run_bounded_async(
     awaitable: Awaitable[Any],
-    timeout: Optional[float],
+    timeout: float | None,
     *,
     label: str = "operation",
-    on_abandon: Optional[Callable[[], Awaitable[Any]]] = None,
+    on_abandon: Callable[[], Awaitable[Any]] | None = None,
     dump_on_blocked_loop: bool = True,
     backend: object | None = None,
 ) -> BoundedResult:
@@ -247,7 +254,7 @@ async def run_bounded_async(
 
     task = asyncio.ensure_future(awaitable)
     loop = asyncio.get_running_loop()
-    deadline: "asyncio.Future[None]" = loop.create_future()
+    deadline: asyncio.Future[None] = loop.create_future()
     loop_processed_expiry = threading.Event()
 
     def _mark_expired() -> None:
@@ -297,10 +304,10 @@ async def run_bounded_async(
 
 def run_bounded_sync(
     fn: Callable[[], Any],
-    timeout: Optional[float],
+    timeout: float | None,
     *,
     label: str = "operation",
-    on_timeout: Optional[Callable[[], None]] = None,
+    on_timeout: Callable[[], None] | None = None,
     backend: object | None = None,
 ) -> BoundedResult:
     """Run ``fn`` in a daemon worker thread under a wall-clock deadline; exceptions re-raise in
@@ -413,7 +420,7 @@ def _process_tree_snapshot(pid: int, *, hard_kill: bool):
                 logger.debug("kill_process_tree: target already gone or resume refused", exc_info=True)
 
 
-def kill_process_tree(pid: int, *, sig: Optional[int] = None) -> bool:
+def kill_process_tree(pid: int, *, sig: int | None = None) -> bool:
     """Terminate ``pid`` and all its descendants, portably; True when anything was signalled.
 
     Windows: ``taskkill /F /T`` (``sig`` ignored). POSIX: snapshot descendants via

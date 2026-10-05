@@ -3,13 +3,13 @@
 import asyncio
 
 import pytest
-pytest.importorskip("telegram", reason="python-telegram-bot not installed")
-from telegram.error import Conflict, TelegramError
-from telegram.request import BaseRequest
 
+pytest.importorskip("telegram", reason="python-telegram-bot not installed")
 from gateway.config import PlatformConfig
 from plugins.platforms.telegram import adapter as tg_adapter
 from plugins.platforms.telegram.adapter import TelegramAdapter
+from telegram.error import Conflict, TelegramError
+from telegram.request import BaseRequest
 
 
 class _GeneralRequest(BaseRequest):

@@ -13,8 +13,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
-import hermes_cli.profiles as profiles
+from hermes_cli import profiles
 
 
 @pytest.fixture(autouse=True)

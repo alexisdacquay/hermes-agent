@@ -2,15 +2,13 @@
 
 from unittest.mock import patch
 
-import pytest
-
 from gateway.config import (
     ChannelOverride,
     GatewayConfig,
     Platform,
     PlatformConfig,
 )
-from gateway.run import _get_channel_override, GatewayRunner
+from gateway.run import GatewayRunner, _get_channel_override
 from gateway.session import SessionSource
 
 

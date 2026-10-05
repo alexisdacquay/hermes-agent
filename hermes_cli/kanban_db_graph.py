@@ -3,10 +3,11 @@ from __future__ import annotations
 
 import sqlite3
 import time
-from typing import Any, Optional
+from typing import Any
+
 
 def inherit_creator_origin(
-    conn: sqlite3.Connection, task_id: str, creator_task_id: Optional[str], *,
+    conn: sqlite3.Connection, task_id: str, creator_task_id: str | None, *,
     created_at: int,
 ) -> None:
     """Copy durable origin inside creation's transaction, never adding dependencies."""
@@ -24,8 +25,8 @@ def inherit_creator_origin(
 
 def initial_task_state(
     conn: sqlite3.Connection, parents: tuple[str, ...], initial_status: str,
-    triage: bool, tenant: Optional[str],
-) -> tuple[str, Optional[str]]:
+    triage: bool, tenant: str | None,
+) -> tuple[str, str | None]:
     """Resolve state and tenant under the creator's write transaction.
 
     Parent order breaks ties in this soft namespace; explicit tenant wins.
@@ -88,9 +89,9 @@ def _validate_children_graph(children: list) -> None:
 
 
 def decompose_triage_task(
-    conn: sqlite3.Connection, task_id: str, *, root_assignee: Optional[str], children: list[dict],
-    author: Optional[str] = None, auto_promote: bool = True,
-) -> Optional[list[str]]:
+    conn: sqlite3.Connection, task_id: str, *, root_assignee: str | None, children: list[dict],
+    author: str | None = None, auto_promote: bool = True,
+) -> list[str] | None:
     """Fan a triage task out into children and move the root to ``todo``; the root
     waits on every child and wakes (``ready``) when all are done.
 
@@ -100,8 +101,12 @@ def decompose_triage_task(
     in triage, or has already decomposed. Atomic: malformed entries abort fan-out.
     """
     from hermes_cli.kanban_db import (
-        _canonical_assignee, _link, _append_event, _insert_comment,
-        write_txn, recompute_ready,
+        _append_event,
+        _canonical_assignee,
+        _insert_comment,
+        _link,
+        recompute_ready,
+        write_txn,
     )
 
     if not children:
@@ -168,7 +173,7 @@ def decompose_triage_task(
 
 def _insert_decomposed_child(
     conn: sqlite3.Connection, root_id: str, root_row: sqlite3.Row, child: dict,
-    author: Optional[str], now: int,
+    author: str | None, now: int,
 ) -> str:
     """Insert one decomposed child as ``todo`` (linked under the root later so
     the dispatcher only ever sees a coherent graph); returns its id.
@@ -181,7 +186,9 @@ def _insert_decomposed_child(
     ``<repo>/.worktrees/<child-id>`` per child from the board anchor.
     """
     from hermes_cli.kanban_db import (
-        _new_task_id, _canonical_assignee, _append_event,
+        _append_event,
+        _canonical_assignee,
+        _new_task_id,
     )
 
     root_ws_kind = root_row["workspace_kind"] or "scratch"

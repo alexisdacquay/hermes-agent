@@ -157,10 +157,10 @@ def _diag(server, label, extra=""):
 
 async def test_drain_recovers_after_server_half_close_live(monkeypatch):
     """Drain must retire a real CLOSE-WAIT pooled connection within bound."""
-    from telegram.request import HTTPXRequest
     from unittest.mock import MagicMock
 
     import plugins.platforms.telegram.adapter as tg_adapter
+    from telegram.request import HTTPXRequest
 
     server = _LiveBotApiServer()
     await server.start()
@@ -222,10 +222,10 @@ async def test_drain_bounded_and_functional_when_close_wedges_live(monkeypatch):
     because initialize() would otherwise no-op on is_closed=False, and
     (c) leave the polling request able to complete a REAL round-trip.
     """
-    from telegram.request import HTTPXRequest
     from unittest.mock import MagicMock
 
     import plugins.platforms.telegram.adapter as tg_adapter
+    from telegram.request import HTTPXRequest
 
     server = _LiveBotApiServer()
     await server.start()
@@ -239,7 +239,7 @@ async def test_drain_bounded_and_functional_when_close_wedges_live(monkeypatch):
         await polling_req.initialize()
         code, _ = await polling_req.do_request(server.url, "POST")
         assert code == 200
-        old_client = polling_req._client  # noqa: SLF001
+        old_client = polling_req._client
         _diag(server, "wedge-probe: after first round-trip")
 
         async def _wedged_shutdown(_request):
@@ -263,7 +263,7 @@ async def test_drain_bounded_and_functional_when_close_wedges_live(monkeypatch):
             f"drain with a wedged shutdown must stay bounded, took {elapsed:.2f}s"
         )
 
-        new_client = polling_req._client  # noqa: SLF001
+        new_client = polling_req._client
         assert new_client is not old_client, (
             "drain must swap in a fresh HTTP client when shutdown wedges "
             "(initialize() no-ops while is_closed is False)"

@@ -14,7 +14,6 @@ import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 # Raw-bytes INGEST budget: deliberately the 50MB download cap, NOT the 20MB provider
 # payload cap — that one is enforced post-resize at the call sites.
@@ -36,7 +35,7 @@ class NotAnImage(ImageResolutionError): ...
 
 @dataclass
 class ResolveContext:
-    task_id: Optional[str] = None
+    task_id: str | None = None
 
 
 @dataclass
@@ -116,7 +115,7 @@ def _resolve_data_url(s: str) -> tuple[bytes, str]:
     return data, declared  # real mime verified in _finalize via magic bytes
 
 
-def _http_block_reason(url: str) -> Optional[str]:
+def _http_block_reason(url: str) -> str | None:
     """Block reason, or None when allowed. Refuses policy-blocked URLs BEFORE any network I/O;
     ``_download_image`` re-checks per attempt and against the final redirect target (intentional)."""
     from tools.url_safety import is_safe_url
@@ -130,6 +129,7 @@ def _http_block_reason(url: str) -> Optional[str]:
 
 async def _download_to_bytes(url: str) -> bytes:
     import tempfile
+
     from tools.vision_tools import _download_image
     with tempfile.NamedTemporaryFile(suffix=".img", delete=False) as tf:
         tmp = Path(tf.name)
@@ -164,7 +164,7 @@ def _media_cache_roots() -> list:
     return [home / sub for sub in _MEDIA_CACHE_SUBDIRS]
 
 
-def _permitted_host_read_target(p: Path, ctx: ResolveContext) -> Optional[Path]:
+def _permitted_host_read_target(p: Path, ctx: ResolveContext) -> Path | None:
     """Host path to read, or ``None`` (caller exec-reads inside the sandbox instead).
 
     Local backend: any path. Non-local: only paths inside a media cache root (a
@@ -185,7 +185,7 @@ def _permitted_host_read_target(p: Path, ctx: ResolveContext) -> Optional[Path]:
     return None
 
 
-def _get_active_env(task_id: Optional[str]):
+def _get_active_env(task_id: str | None):
     if not task_id:
         return None
     try:
@@ -195,7 +195,7 @@ def _get_active_env(task_id: Optional[str]):
         return None
 
 
-def _ensure_container_env(task_id: Optional[str]) -> None:
+def _ensure_container_env(task_id: str | None) -> None:
     """Lazily bring up the sandbox before an in-sandbox read (vision may be a session's first
     action). Best-effort: failure leaves the env absent and the caller hits the fail-closed error.
 
@@ -291,10 +291,11 @@ def _finalize(
     raise NotAnImage("source is not a recognized image", src=src, origin=origin)
 
 
-def _detect_video_mime(data: bytes, src: str) -> Optional[str]:
+def _detect_video_mime(data: bytes, src: str) -> str | None:
     """Video MIME from the extension table, else the ISO base-media ``ftyp`` magic at
     offset 4 (covers extensionless data: URLs / query-string URLs)."""
     from urllib.parse import urlsplit
+
     from tools.vision_tools import _detect_video_mime_type
     path_part = urlsplit(src).path if _SCHEME_RE.match(src) else src
     by_extension = _detect_video_mime_type(Path(path_part))
@@ -306,7 +307,7 @@ def _detect_video_mime(data: bytes, src: str) -> Optional[str]:
 
 
 async def resolve_local_source_to_data_url(
-    src: str, task_id: Optional[str], *, permitted: tuple = ("image",)) -> str:
+    src: str, task_id: str | None, *, permitted: tuple = ("image",)) -> str:
     """Convert a path-like media source into a ``data:`` URL via the resolver.
 
     Dispatch-layer chokepoint for generation tools so providers never read model-supplied paths

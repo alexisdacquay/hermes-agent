@@ -11,7 +11,7 @@ import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -34,9 +34,9 @@ class PackPluginEntry:
     """One pinned plugin in a pack."""
 
     ref: str                          # exact 40-char commit SHA (lowercased)
-    name: Optional[str] = None        # bare community-index name…
-    repo: Optional[str] = None        # …or owner/repo shorthand / git URL
-    subdir: Optional[str] = None      # path within the repo
+    name: str | None = None        # bare community-index name…
+    repo: str | None = None        # …or owner/repo shorthand / git URL
+    subdir: str | None = None      # path within the repo
 
     @property
     def display(self) -> str:
@@ -44,7 +44,7 @@ class PackPluginEntry:
         return f"{base}/{self.subdir}" if (self.repo and self.subdir) else base
 
     @property
-    def install_identifier(self) -> Optional[str]:
+    def install_identifier(self) -> str | None:
         """Identifier for the install path; None for bare names (resolved via the plugin catalog)."""
         if self.repo:
             return f"{self.repo}/{self.subdir}" if self.subdir else self.repo
@@ -59,11 +59,11 @@ class PluginPack:
     description: str = ""
     author: str = ""
     version: str = ""
-    plugins: List[PackPluginEntry] = field(default_factory=list)
+    plugins: list[PackPluginEntry] = field(default_factory=list)
     # plugin id → {entry-key: seed-value}; validated non-secret, non-reserved.
     config: dict[str, dict[str, Any]] = field(default_factory=dict)
     # Skill-hub ids. Parsed + displayed, NOT installed (documented seam).
-    skills: List[str] = field(default_factory=list)
+    skills: list[str] = field(default_factory=list)
 
 
 # ── Parse + validate ────────────────────────────────────────────────────────────────────────
@@ -76,7 +76,7 @@ def _entry_label(item: Any, index: int) -> str:
     return f"#{index + 1}"
 
 
-def _forbidden_key_reason(key: str) -> Optional[str]:
+def _forbidden_key_reason(key: str) -> str | None:
     """``"reserved"`` / ``"secret"`` when a config key may never travel in a pack, else None."""
     if key in _RESERVED_ENTRY_KEYS or key.startswith("allow_"):
         return "reserved"
@@ -85,7 +85,7 @@ def _forbidden_key_reason(key: str) -> Optional[str]:
     return None
 
 
-def _first_forbidden_key(value: Any, path: str = "") -> Optional[tuple[str, str]]:
+def _first_forbidden_key(value: Any, path: str = "") -> tuple[str, str] | None:
     """``(dotted key, reason)`` of the first forbidden key at ANY depth of *value*, else None.
     A nested mapping (or a mapping inside a list) is the same contract as the top level (#85050)."""
     if isinstance(value, dict):
@@ -233,15 +233,15 @@ class ResolvedPackPlugin:
     """A pack entry resolved to an installable identifier."""
 
     entry: PackPluginEntry
-    identifier: Optional[str]        # None when index resolution failed
-    index_capabilities: List[str] = field(default_factory=list)
-    resolve_error: Optional[str] = None
+    identifier: str | None        # None when index resolution failed
+    index_capabilities: list[str] = field(default_factory=list)
+    resolve_error: str | None = None
 
 
-def resolve_pack_plugins(pack: PluginPack) -> List[ResolvedPackPlugin]:
+def resolve_pack_plugins(pack: PluginPack) -> list[ResolvedPackPlugin]:
     """Resolve every entry; bare names go through the curated plugin catalog. Failures do not raise —
     they are carried per-entry so the review screen shows them and install reports partial failure."""
-    resolved: List[ResolvedPackPlugin] = []
+    resolved: list[ResolvedPackPlugin] = []
     catalog_entries = None
     for entry in pack.plugins:
         if entry.install_identifier is not None:
@@ -267,7 +267,7 @@ def resolve_pack_plugins(pack: PluginPack) -> List[ResolvedPackPlugin]:
     return resolved
 
 
-def render_pack_review(console, pack: PluginPack, resolved: List[ResolvedPackPlugin]) -> None:
+def render_pack_review(console, pack: PluginPack, resolved: list[ResolvedPackPlugin]) -> None:
     """Print the full pack review screen (mandatory before install)."""
     from rich.table import Table
     header = f"[bold]{pack.name}[/bold]" + (f" v{pack.version}" if pack.version else "")
@@ -311,8 +311,8 @@ class PackInstallResult:
 
     display: str
     ok: bool
-    installed_name: Optional[str] = None
-    error: Optional[str] = None
+    installed_name: str | None = None
+    error: str | None = None
 
 
 def _seed_plugin_config(plugin_id: str, seed: dict[str, Any], console) -> None:
@@ -340,17 +340,18 @@ def _seed_plugin_config(plugin_id: str, seed: dict[str, Any], console) -> None:
 
 def install_pack_plugins(
     pack: PluginPack,
-    resolved: List[ResolvedPackPlugin],
+    resolved: list[ResolvedPackPlugin],
     console,
     *,
     force: bool = False,
-) -> List[PackInstallResult]:
+) -> list[PackInstallResult]:
     """Fan a pack out to N ordinary pinned installs; never raises per-plugin.
 
     Each plugin goes through the exact-ref install path, then the SAME per-plugin capability
     consent flow as a single install (a pack never bulk-grants). Successful installs are enabled
     (the user consented via the review screen) and their config seed applied.
     """
+    from hermes_cli.plugins_admission import AdmissionRefused
     from hermes_cli.plugins_cmd import (
         PluginOperationError,
         _declared_capabilities_from_manifest,
@@ -359,9 +360,8 @@ def install_pack_plugins(
         _run_capability_consent,
         _set_plugin_enabled,
     )
-    from hermes_cli.plugins_admission import AdmissionRefused
     from hermes_cli.plugins_cmd_install import recorded_install
-    results: List[PackInstallResult] = []
+    results: list[PackInstallResult] = []
 
     def _fail(display: str, error: str) -> None:
         results.append(PackInstallResult(display=display, ok=False, error=error))
@@ -423,7 +423,7 @@ def install_pack_plugins(
 _GITHUB_HTTPS_RE = re.compile(r"^https://github\.com/(?P<owner>[^/\s]+)/(?P<repo>[^/\s#]+?)(?:\.git)?$")
 
 
-def _source_to_repo_subdir(source: str) -> tuple[Optional[str], Optional[str]]:
+def _source_to_repo_subdir(source: str) -> tuple[str | None, str | None]:
     """Turn recorded install-metadata source into (repo-or-url, subdir)."""
     if not source:
         return None, None
@@ -450,20 +450,25 @@ def _sanitized_entry_config(plugin_id: str) -> dict[str, Any]:
     return _strip_forbidden_keys(entry)
 
 
-def export_pack(*, enabled_only: bool = False, pack_name: str = "my-hermes-pack") -> tuple[str, List[str]]:
+def export_pack(*, enabled_only: bool = False, pack_name: str = "my-hermes-pack") -> tuple[str, list[str]]:
     """Build pack YAML from the current install; returns ``(yaml_text, warnings)``. Plugins with
     unknown Git provenance (no install metadata) become warnings + YAML comments, never entries."""
     import hermes_yaml as yaml
-    from hermes_cli.plugins_cmd import _get_enabled_set, _plugins_dir, _read_install_metadata
+
+    from hermes_cli.plugins_cmd import (
+        _get_enabled_set,
+        _plugins_dir,
+        _read_install_metadata,
+    )
     metadata = _read_install_metadata()
     enabled = _get_enabled_set()
     installed = sorted(d.name for d in _plugins_dir().iterdir() if d.is_dir() and not d.name.startswith("."))
     if enabled_only:
         installed = [n for n in installed if n in enabled]
 
-    entries: List[dict[str, Any]] = []
+    entries: list[dict[str, Any]] = []
     config: dict[str, dict[str, Any]] = {}
-    warnings: List[str] = []
+    warnings: list[str] = []
     for plugin_id in installed:
         record = metadata.get(plugin_id) or {}
         source = record.get("source")

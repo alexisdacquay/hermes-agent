@@ -19,7 +19,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ USAGE_ANCHOR_MODEL_CONFIG_KEY = "_usage_anchor"
 _FINGERPRINT_KEYS = ("role", "content", "api_content", "tool_call_id", "tool_calls")
 
 
-def message_fingerprint(msg: Any) -> Optional[str]:
+def message_fingerprint(msg: Any) -> str | None:
     """Stable digest of one transcript message over its provider-visible, persisted fields."""
     if not isinstance(msg, dict):
         return None
@@ -43,7 +43,7 @@ def message_fingerprint(msg: Any) -> Optional[str]:
     return hashlib.sha256(raw.encode("utf-8", "replace")).hexdigest()
 
 
-def _priced_prefix_fingerprint(messages: List[Dict[str, Any]], base_count: int) -> Optional[str]:
+def _priced_prefix_fingerprint(messages: list[dict[str, Any]], base_count: int) -> str | None:
     """Stable digest of the whole provider-priced prefix.
 
     The last priced message fingerprint proves only that one row survived at
@@ -64,7 +64,7 @@ def _priced_prefix_fingerprint(messages: List[Dict[str, Any]], base_count: int) 
     return hashlib.sha256(raw.encode("utf-8", "replace")).hexdigest()
 
 
-def capture_usage_anchor(prompt_tokens: Any, completion_tokens: Any, messages: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+def capture_usage_anchor(prompt_tokens: Any, completion_tokens: Any, messages: list[dict[str, Any]]) -> dict[str, Any] | None:
     """Build a usage anchor from provider-reported usage, or None when usage is unusable."""
     try:
         pt = int(prompt_tokens or 0)
@@ -84,7 +84,7 @@ def capture_usage_anchor(prompt_tokens: Any, completion_tokens: Any, messages: L
     }
 
 
-def _anchor_matches(messages: List[Dict[str, Any]], anchor: Dict[str, Any]) -> bool:
+def _anchor_matches(messages: list[dict[str, Any]], anchor: dict[str, Any]) -> bool:
     try:
         base_count = int(anchor.get("base_count") or 0)
     except (TypeError, ValueError):
@@ -105,7 +105,7 @@ def _anchor_matches(messages: List[Dict[str, Any]], anchor: Dict[str, Any]) -> b
     )
 
 
-def anchored_context_tokens(messages: List[Dict[str, Any]], anchor: Optional[Dict[str, Any]], *, charge_stale_thinking: bool = True) -> Optional[int]:
+def anchored_context_tokens(messages: list[dict[str, Any]], anchor: dict[str, Any] | None, *, charge_stale_thinking: bool = True) -> int | None:
     """Anchored prompt+completion tokens plus a rough estimate of ONLY the messages appended since;
     None when the anchor is missing or stale. The anchored response's own reply is skipped (already
     in completion_tokens). ``charge_stale_thinking`` is forwarded to the delta estimate."""
@@ -122,7 +122,7 @@ def anchored_context_tokens(messages: List[Dict[str, Any]], anchor: Optional[Dic
     return total
 
 
-def _serialize(anchor: Any) -> Optional[Dict[str, Any]]:
+def _serialize(anchor: Any) -> dict[str, Any] | None:
     if not isinstance(anchor, dict):
         return None
     try:
@@ -145,7 +145,7 @@ def _serialize(anchor: Any) -> Optional[Dict[str, Any]]:
             "base_prefix_fp": prefix_fp}
 
 
-def persist_usage_anchor(agent: Any, anchor: Optional[Dict[str, Any]]) -> None:
+def persist_usage_anchor(agent: Any, anchor: dict[str, Any] | None) -> None:
     """Write (or clear, ``None``) the session row's anchor blob. Best-effort: the row may not exist yet."""
     if getattr(agent, "_persist_disabled", False):
         return
@@ -159,7 +159,7 @@ def persist_usage_anchor(agent: Any, anchor: Optional[Dict[str, Any]]) -> None:
         logger.debug("usage anchor persist failed", exc_info=True)
 
 
-def set_usage_anchor(agent: Any, anchor: Optional[Dict[str, Any]], *, turn_base: bool = False) -> None:
+def set_usage_anchor(agent: Any, anchor: dict[str, Any] | None, *, turn_base: bool = False) -> None:
     """Install ``anchor`` on the agent (``None`` clears) and mirror it to the session row."""
     agent._usage_anchor = anchor
     if turn_base or anchor is None:
@@ -167,7 +167,7 @@ def set_usage_anchor(agent: Any, anchor: Optional[Dict[str, Any]], *, turn_base:
     persist_usage_anchor(agent, anchor)
 
 
-def restore_usage_anchor(agent: Any, conversation_history: Optional[List[Dict[str, Any]]]) -> None:
+def restore_usage_anchor(agent: Any, conversation_history: list[dict[str, Any]] | None) -> None:
     """On a resumed session, adopt the persisted anchor when ``conversation_history`` still carries
     the priced prefix; otherwise clear the stale blob so it can never suppress compression."""
     if getattr(agent, "_usage_anchor", None) is not None or getattr(agent, "_persist_disabled", False):
@@ -189,7 +189,7 @@ def restore_usage_anchor(agent: Any, conversation_history: Optional[List[Dict[st
         persist_usage_anchor(agent, None)
 
 
-def persisted_anchor_tokens(session_db: Any, session_id: Any, messages: Any) -> Optional[int]:
+def persisted_anchor_tokens(session_db: Any, session_id: Any, messages: Any) -> int | None:
     """Anchored token figure from the session row's persisted anchor, for callers without a live
     agent (gateway hygiene); None when absent, unreadable, or stale against ``messages``."""
     getter = getattr(session_db, "get_session_model_config_value", None)

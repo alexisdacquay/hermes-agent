@@ -9,7 +9,6 @@ import json
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 from hermes_cli.config import get_hermes_home
 
@@ -34,8 +33,8 @@ def _origin_user_id(entry: dict) -> str:
 
 
 def mirror_to_session(
-    platform: str, chat_id: str, message_text: str, source_label: str = "cli", thread_id: Optional[str] = None,
-    user_id: Optional[str] = None, role: str = "assistant", session_id: Optional[str] = None,
+    platform: str, chat_id: str, message_text: str, source_label: str = "cli", thread_id: str | None = None,
+    user_id: str | None = None, role: str = "assistant", session_id: str | None = None,
 ) -> bool:
     """Append a delivery-mirror message to the target session's SQLite transcript.
 
@@ -73,7 +72,7 @@ def mirror_to_session(
         return False
 
 
-def _find_session_id(platform: str, chat_id: str, thread_id: Optional[str] = None, user_id: Optional[str] = None) -> Optional[str]:
+def _find_session_id(platform: str, chat_id: str, thread_id: str | None = None, user_id: str | None = None) -> str | None:
     """Active session_id for a platform + chat_id pair.
 
     state.db is primary; sessions.json is the pre-migration fallback.  DM keys

@@ -10,8 +10,9 @@ from __future__ import annotations
 
 import threading
 import time
+from collections.abc import Iterable
 from contextvars import copy_context
-from typing import TYPE_CHECKING, Iterable, Optional
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from agent.account_usage import AccountUsageSnapshot
@@ -20,7 +21,7 @@ if TYPE_CHECKING:
 REFRESH_AFTER_S = 120.0
 
 _lock = threading.Lock()
-_snapshots: dict[tuple[str, str], "AccountUsageSnapshot"] = {}
+_snapshots: dict[tuple[str, str], AccountUsageSnapshot] = {}
 _last_try: dict[tuple[str, str], float] = {}
 _inflight: set[tuple[str, str]] = set()
 
@@ -33,9 +34,10 @@ def _key(provider: str) -> tuple[str, str]:
 
 def has_account_usage(provider: str) -> bool:
     """Whether *provider* can report usage windows at all (a built-in fetcher or a plugin hook)."""
-    from agent.account_usage import _USAGE_FETCHERS
     from providers import get_provider_profile
     from providers.base import ProviderProfile
+
+    from agent.account_usage import _USAGE_FETCHERS
 
     slug = str(provider or "").strip().lower()
     if slug in _USAGE_FETCHERS:
@@ -44,13 +46,13 @@ def has_account_usage(provider: str) -> bool:
     return profile is not None and type(profile).fetch_account_usage is not ProviderProfile.fetch_account_usage
 
 
-def remember_account_usage(provider: Optional[str], snapshot: Optional["AccountUsageSnapshot"]) -> None:
+def remember_account_usage(provider: str | None, snapshot: AccountUsageSnapshot | None) -> None:
     if provider and snapshot is not None and snapshot.windows:
         with _lock:
             _snapshots[_key(provider)] = snapshot
 
 
-def cached_account_usage(provider: str) -> Optional["AccountUsageSnapshot"]:
+def cached_account_usage(provider: str) -> AccountUsageSnapshot | None:
     with _lock:
         return _snapshots.get(_key(provider))
 

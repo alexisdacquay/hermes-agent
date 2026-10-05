@@ -158,6 +158,7 @@ class TestDroppedToolCallRecovery:
         internal "issue the actual tool call now" instruction as user-authored
         context (#69630 review follow-up)."""
         from agent.session_persistence import _is_ephemeral_scaffolding
+
         from tests.agent.test_run_agent import _mock_response
 
         loop_agent.client.chat.completions.create.side_effect = [

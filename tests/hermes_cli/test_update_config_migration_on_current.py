@@ -2,7 +2,6 @@
 import sys
 
 import pytest
-
 from hermes_cli import config, update_cmd
 
 
@@ -43,7 +42,7 @@ def test_migration_policy(monkeypatch, capsys, case, expected):
 
     monkeypatch.setattr(config, 'check_config_version', version)
     monkeypatch.setattr(config, 'migrate_config', migrate)
-    monkeypatch.setattr(update_cmd, '_migrate_sibling_profile_configs', lambda: [])
+    monkeypatch.setattr(update_cmd, '_migrate_sibling_profile_configs', list)
     monkeypatch.setattr(sys.stdin, 'isatty', lambda: case != 'noninteractive')
     monkeypatch.setattr(sys.stdout, 'isatty', lambda: case != 'noninteractive')
     monkeypatch.setattr('builtins.input', prompt)
@@ -76,6 +75,7 @@ def test_migration_policy(monkeypatch, capsys, case, expected):
 @pytest.mark.parametrize('named', [False, True])
 def test_update_copies_bundled_skill_bytes_to_default_active_and_sibling(tmp_path, monkeypatch, named):
     from pathlib import Path
+
     from hermes_cli import update_cmd_maint
 
     home = tmp_path / '.hermes'

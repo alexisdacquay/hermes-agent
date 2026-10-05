@@ -2,6 +2,7 @@
 (schema/context bloat avoided); `cronjob()` stays callable for direct Python callers."""
 
 import contextlib
+import copy
 import json
 import logging
 import sys
@@ -9,9 +10,7 @@ import threading
 import time
 from concurrent.futures import Future
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
-
-import copy
+from typing import Any
 
 from hermes_constants import display_hermes_home
 
@@ -44,8 +43,9 @@ from cron.jobs import (
     resolve_job_ref,
     resume_job,
     trigger_job,
-    update_job)
-from tools.cronjob_prompt_scan import _scan_cron_prompt
+    update_job,
+)
+
 from tools.cronjob_job_args import (
     _apply_continuity,
     _canonical_skills,
@@ -63,11 +63,13 @@ from tools.cronjob_job_args import (
     _validate_bot_chat_deliver,
     _validate_context_from_refs,
     _validate_cron_base_url,
-    _validate_cron_script_path)
+    _validate_cron_script_path,
+)
+from tools.cronjob_prompt_scan import _scan_cron_prompt
 from tools.registry import registry, tool_error
 
 
-def _dumps(payload: Dict[str, Any]) -> str:
+def _dumps(payload: dict[str, Any]) -> str:
     return json.dumps(payload, indent=2)
 
 
@@ -84,7 +86,7 @@ def _notify_provider_jobs_changed_safe() -> None:
 # Manual run execution (claim -> run_one_job -> report)
 # ---------------------------------------------------------------------------
 
-def _relay_fronted_delivery_platforms(job: Dict[str, Any]) -> set:
+def _relay_fronted_delivery_platforms(job: dict[str, Any]) -> set:
     """Delivery-platform names for this job that the relay connector fronts."""
     try:
         from gateway.relay import relay_fronted_platforms
@@ -123,7 +125,7 @@ def _api_server_base_url() -> str:
     return f"http://{host}:{port}"
 
 
-def _forward_relay_fronted_run(job: Dict[str, Any], extra_prompt: Optional[str] = None) -> Optional[str]:
+def _forward_relay_fronted_run(job: dict[str, Any], extra_prompt: str | None = None) -> str | None:
     """Forward a manual run to the gateway when it targets a relay-fronted platform: such delivery
     has no standalone sender — the gateway's live relay adapter is the only path, reached via
     ``POST /api/jobs/{id}/run`` (marks the job due; ``extra_prompt`` rides in the body). Returns a
@@ -157,12 +159,14 @@ def _forward_relay_fronted_run(job: Dict[str, Any], extra_prompt: Optional[str] 
     })
 
 
-def _primary_routed_delivery_platforms(job: Dict[str, Any]) -> set:
+def _primary_routed_delivery_platforms(job: dict[str, Any]) -> set:
     """Delivery-platform names this satellite profile reaches only through the primary gateway's
     ``profile_routes``: routed here, with no credential of its own to send standalone."""
     try:
         from cron.scheduler import _resolve_delivery_targets
-        from cron.scheduler_preflight import _delivery_platform_routed_from_primary_gateway
+        from cron.scheduler_preflight import (
+            _delivery_platform_routed_from_primary_gateway,
+        )
         routed = {t["platform"] for t in _resolve_delivery_targets(job) or []
                   if t.get("platform") and _delivery_platform_routed_from_primary_gateway(t["platform"])}
         if not routed:
@@ -173,7 +177,7 @@ def _primary_routed_delivery_platforms(job: Dict[str, Any]) -> set:
         return set()
 
 
-def _hand_off_primary_routed_run(job: Dict[str, Any], extra_prompt: Optional[str] = None) -> Optional[str]:
+def _hand_off_primary_routed_run(job: dict[str, Any], extra_prompt: str | None = None) -> str | None:
     """Queue a manual run for the gateway ticker when the job delivers through the primary gateway's
     profile route: only the gateway process holding the primary's bot can send it, so an in-process
     run would spend the whole turn and then record ``delivery_failed`` (#120330). Returns a JSON
@@ -211,7 +215,7 @@ def _hand_off_primary_routed_run(job: Dict[str, Any], extra_prompt: Optional[str
     })
 
 
-def _manual_run_delivery_note(deliver: str, refreshed: Dict[str, Any]) -> str:
+def _manual_run_delivery_note(deliver: str, refreshed: dict[str, Any]) -> str:
     """Parenthetical delivery note for a manual run's summary; follows the refreshed record's
     ``last_delivery_error`` so the summary never claims success over a failed delivery.
 
@@ -260,7 +264,7 @@ def _claim_for_manual_run(job_id: str, log_label: str):
         return None, {"claimed": True, "success": False, "error": str(e)}
 
 
-def _execute_job_now(job: Dict[str, Any], extra_prompt: Optional[str] = None) -> Dict[str, Any]:
+def _execute_job_now(job: dict[str, Any], extra_prompt: str | None = None) -> dict[str, Any]:
     """Run a job now, outside the scheduler tick: claim via ``claim_job_for_fire`` (the ticker's
     CAS, so a concurrent tick cannot double-fire and next_run_at advances), then fire through
     the shared ``run_one_job`` body. Returns {"claimed", "success", "error"}."""
@@ -320,7 +324,7 @@ def _run_heartbeat(job_name: str):
             thread.join(timeout=_CRON_RUN_HEARTBEAT_INTERVAL + 1)
 
 
-def _run_claimed_job(job: Dict[str, Any], extra_prompt: Optional[str] = None) -> Dict[str, Any]:
+def _run_claimed_job(job: dict[str, Any], extra_prompt: str | None = None) -> dict[str, Any]:
     """Fire an already-claimed job through the shared ``run_one_job`` body (split from
     ``_execute_job_now`` so the background path can claim synchronously and hand the run
     to a worker). Returns {"claimed": True, "success": bool, "error": ...}."""
@@ -332,7 +336,11 @@ def _run_claimed_job(job: Dict[str, Any], extra_prompt: Optional[str] = None) ->
     running_future = Future()
     running_future.set_running_or_notify_cancel()
     try:
-        from cron.scheduler import release_running_job, run_one_job, try_register_running_job
+        from cron.scheduler import (
+            release_running_job,
+            run_one_job,
+            try_register_running_job,
+        )
 
         # In-flight dedupe: the fire claim's TTL is routinely outlived by real jobs, so
         # register in the scheduler's shared running set (same guard the ticker uses;
@@ -371,7 +379,9 @@ def _run_claimed_job(job: Dict[str, Any], extra_prompt: Optional[str] = None) ->
             # only — the same grant the ticker's ``tick_adapters_for`` makes, never the full map.
             if getattr(runner, "_is_shared_bot_satellite", lambda _p: False)(profile):
                 from cron.scheduler_preflight import (
-                    SharedRouteAdapters, _primary_profile_routes_for_current_home)
+                    SharedRouteAdapters,
+                    _primary_profile_routes_for_current_home,
+                )
 
                 adapters = SharedRouteAdapters(adapters, _primary_profile_routes_for_current_home())
         gateway_loop = getattr(runner, "_gateway_loop", None) if runner is not None else None
@@ -417,8 +427,8 @@ def _run_claimed_job(job: Dict[str, Any], extra_prompt: Optional[str] = None) ->
 
 
 def execute_job_for_event(
-    job_ref: str, extra_prompt: Optional[str] = None
-) -> Dict[str, Any]:
+    job_ref: str, extra_prompt: str | None = None
+) -> dict[str, Any]:
     """Fire an existing cron job in response to an external event.
 
     Public entry point for event-driven triggers (the webhook adapter's
@@ -448,7 +458,7 @@ def execute_job_for_event(
     return _execute_job_now(job, extra_prompt=extra_prompt)
 
 
-def _latest_job_output_excerpt(job_id: str, max_chars: int = 2000) -> Optional[str]:
+def _latest_job_output_excerpt(job_id: str, max_chars: int = 2000) -> str | None:
     """Excerpt of the job's most recent saved output file for the background completion
     block (parent sees what the job produced). Never raises."""
     try:
@@ -489,7 +499,7 @@ def _reap_stale_executions(job_name: str) -> None:
         logger.debug("Stale execution reclaim failed: %s", _reap_exc)
 
 
-def _background_session_key(session_id: Optional[str]) -> str:
+def _background_session_key(session_id: str | None) -> str:
     """Routing key for a detached completion, captured on THIS thread (contextvars don't
     cross the pool). Empty string = no durable consumer."""
     try:
@@ -504,7 +514,7 @@ def _background_session_key(session_id: Optional[str]) -> str:
 
 
 def _manual_run_completion(
-    res: Dict[str, Any], job_id: str, job_name: str, deliver: str, started_at: float) -> Dict[str, Any]:
+    res: dict[str, Any], job_id: str, job_name: str, deliver: str, started_at: float) -> dict[str, Any]:
     """Async-delegation completion block for a finished background manual run."""
     duration = round(time.time() - started_at, 2)
     refreshed = get_job(job_id) or {}
@@ -526,8 +536,8 @@ def _manual_run_completion(
 
 
 def _try_dispatch_background_run(
-    job: Dict[str, Any], session_id: Optional[str] = None, extra_prompt: Optional[str] = None,
-) -> Optional[Dict[str, Any]]:
+    job: dict[str, Any], session_id: str | None = None, extra_prompt: str | None = None,
+) -> dict[str, Any] | None:
     """Claim ``job`` now (SYNCHRONOUSLY, so unrunnable jobs report immediately), then fire it
     on the async-delegation executor like ``delegate_task``'s background mode: the tool returns
     a handle and a ``type="async_delegation"`` completion re-enters as a fresh turn (role
@@ -582,7 +592,10 @@ def _try_dispatch_background_run(
         pass
 
     try:
-        from tools.async_delegation import _current_origin_session_id, dispatch_async_delegation
+        from tools.async_delegation import (
+            _current_origin_session_id,
+            dispatch_async_delegation,
+        )
         origin_session_id = _current_origin_session_id()
     except Exception as e:
         logger.warning(
@@ -602,7 +615,7 @@ def _try_dispatch_background_run(
     from cron.scheduler import _normalize_deliver_value
     deliver = _normalize_deliver_value(claimed_job.get("deliver", "local"))
 
-    def _runner() -> Dict[str, Any]:
+    def _runner() -> dict[str, Any]:
         res = _run_claimed_job(claimed_job, extra_prompt=extra_prompt)
         return _manual_run_completion(res, job_id, job_name, deliver, started_at)
 
@@ -631,7 +644,7 @@ def _try_dispatch_background_run(
 # job record for job-bound actions) and returns the JSON result string.
 # ---------------------------------------------------------------------------
 
-def _with_guidance(result: Dict[str, Any], job: Dict[str, Any], deliver: Optional[str]) -> Dict[str, Any]:
+def _with_guidance(result: dict[str, Any], job: dict[str, Any], deliver: str | None) -> dict[str, Any]:
     """Attach mode/delivery guidance (create and update echo the same notes)."""
     _notes = _mode_guidance_notes(job, deliver)
     if _notes:
@@ -639,7 +652,7 @@ def _with_guidance(result: Dict[str, Any], job: Dict[str, Any], deliver: Optiona
     return result
 
 
-def _action_create(a: Dict[str, Any]) -> str:
+def _action_create(a: dict[str, Any]) -> str:
     prompt, script = a["prompt"], a["script"]
     deliver = _normalize_deliver_param(a["deliver"])
     if not a["schedule"]:
@@ -678,7 +691,10 @@ def _action_create(a: Dict[str, Any]) -> str:
     if a["continuity"] is not None:
         context_from = _apply_continuity(context_from, a["continuity"])
 
-    from cron.scheduler import CronSchedulerRegistrationError, create_job_with_scheduler_registration
+    from cron.scheduler import (
+        CronSchedulerRegistrationError,
+        create_job_with_scheduler_registration,
+    )
     try:
         job = create_job_with_scheduler_registration(
             prompt=prompt or "", schedule=a["schedule"], name=a["name"], repeat=a["repeat"],
@@ -715,7 +731,7 @@ def _action_create(a: Dict[str, Any]) -> str:
     return _dumps(_with_guidance(_result, job, deliver))
 
 
-def _action_list(a: Dict[str, Any]) -> str:
+def _action_list(a: dict[str, Any]) -> str:
     jobs = [_format_job(job) for job in list_jobs(include_disabled=a["include_disabled"])]
     _result = {"success": True, "count": len(jobs), "jobs": jobs}
     # Same inert-job class as create; an empty list has nothing inert.
@@ -726,7 +742,7 @@ def _action_list(a: Dict[str, Any]) -> str:
     return _dumps(_result)
 
 
-def _action_remove(job: Dict[str, Any], a: Dict[str, Any]) -> str:
+def _action_remove(job: dict[str, Any], a: dict[str, Any]) -> str:
     job_id = job["id"]
     if not remove_job(job_id):
         return tool_error(f"Failed to remove job '{job_id}'", success=False)
@@ -738,17 +754,17 @@ def _action_remove(job: Dict[str, Any], a: Dict[str, Any]) -> str:
     })
 
 
-def _job_state_result(updated: Dict[str, Any]) -> str:
+def _job_state_result(updated: dict[str, Any]) -> str:
     _notify_provider_jobs_changed_safe()
     return _dumps({"success": True, "job": _format_job(updated)})
 
 
-def _refreshed_job_view(job_id: str) -> Dict[str, Any]:
+def _refreshed_job_view(job_id: str) -> dict[str, Any]:
     """Re-read so the response reflects the post-run last_run_at/last_status."""
     return _format_job(get_job(job_id) or {"id": job_id})
 
 
-def _action_run(job: Dict[str, Any], a: Dict[str, Any]) -> str:
+def _action_run(job: dict[str, Any], a: dict[str, Any]) -> str:
     job_id = job["id"]
     # `prompt` on run is transient per-fire context appended to the stored prompt, never
     # persisted; same strict scan as stored prompts.
@@ -805,12 +821,12 @@ def _action_run(job: Dict[str, Any], a: Dict[str, Any]) -> str:
     return _dumps({"success": True, "job": result})
 
 
-def _pick(updates: Dict[str, Any], job: Dict[str, Any], key: str) -> Any:
+def _pick(updates: dict[str, Any], job: dict[str, Any], key: str) -> Any:
     """Effective value of ``key`` after this update: pending update wins over the stored job."""
     return updates[key] if key in updates else job.get(key)
 
 
-def _update_core_fields(job: Dict[str, Any], a: Dict[str, Any], updates: Dict[str, Any]) -> Optional[str]:
+def _update_core_fields(job: dict[str, Any], a: dict[str, Any], updates: dict[str, Any]) -> str | None:
     """prompt / name / deliver / skills / model pins; returns an error string or None."""
     prompt, deliver, skill, skills = a["prompt"], a["deliver"], a["skill"], a["skills"]
     if prompt is not None:
@@ -862,7 +878,7 @@ def _update_core_fields(job: Dict[str, Any], a: Dict[str, Any], updates: Dict[st
     return _validate_cron_base_url(_pick(updates, job, "provider"), _pick(updates, job, "base_url"))
 
 
-def _update_script_fields(job: Dict[str, Any], a: Dict[str, Any], updates: Dict[str, Any]) -> Optional[str]:
+def _update_script_fields(job: dict[str, Any], a: dict[str, Any], updates: dict[str, Any]) -> str | None:
     """script / monitor_script / monitor_url (empty string clears); returns an error string or None."""
     monitor_script, monitor_url = a["monitor_script"], a["monitor_url"]
     for field, value in (("script", a["script"]), ("monitor_script", monitor_script)):
@@ -880,7 +896,7 @@ def _update_script_fields(job: Dict[str, Any], a: Dict[str, Any], updates: Dict[
     return None
 
 
-def _update_context_from(job: Dict[str, Any], a: Dict[str, Any], updates: Dict[str, Any]) -> Optional[str]:
+def _update_context_from(job: dict[str, Any], a: dict[str, Any], updates: dict[str, Any]) -> str | None:
     """context_from / continuity: empty string / list clears; otherwise every ref must
     exist. Stored as a list (or None) to match create_job()."""
     context_from, continuity = a["context_from"], a["continuity"]
@@ -899,7 +915,7 @@ def _update_context_from(job: Dict[str, Any], a: Dict[str, Any], updates: Dict[s
     return None
 
 
-def _update_run_fields(job: Dict[str, Any], a: Dict[str, Any], updates: Dict[str, Any]) -> Optional[str]:
+def _update_run_fields(job: dict[str, Any], a: dict[str, Any], updates: dict[str, Any]) -> str | None:
     """enabled_toolsets / attach_to_session / workdir / no_agent / repeat / schedule."""
     if a["enabled_toolsets"] is not None:
         updates["enabled_toolsets"] = a["enabled_toolsets"] or None
@@ -936,8 +952,8 @@ def _update_run_fields(job: Dict[str, Any], a: Dict[str, Any], updates: Dict[str
 _UPDATE_STEPS = (_update_core_fields, _update_script_fields, _update_context_from, _update_run_fields)
 
 
-def _action_update(job: Dict[str, Any], a: Dict[str, Any]) -> str:
-    updates: Dict[str, Any] = {}
+def _action_update(job: dict[str, Any], a: dict[str, Any]) -> str:
+    updates: dict[str, Any] = {}
     for step in _UPDATE_STEPS:
         error = step(job, a, updates)
         if error:
@@ -982,36 +998,36 @@ def _resolve_job_or_error(job_id: str):
 
 def cronjob(
     action: str,
-    job_id: Optional[str] = None,
-    prompt: Optional[str] = None,
-    schedule: Optional[str] = None,
-    name: Optional[str] = None,
-    repeat: Optional[int] = None,
-    deliver: Optional[str] = None,
+    job_id: str | None = None,
+    prompt: str | None = None,
+    schedule: str | None = None,
+    name: str | None = None,
+    repeat: int | None = None,
+    deliver: str | None = None,
     include_disabled: bool = False,
-    skill: Optional[str] = None,
-    skills: Optional[List[str]] = None,
-    model: Optional[str] = None,
-    provider: Optional[str] = None,
-    base_url: Optional[str] = None,
-    reason: Optional[str] = None,
-    script: Optional[str] = None,
-    context_from: Optional[Union[str, List[str]]] = None,
-    continuity: Optional[bool] = None,
-    enabled_toolsets: Optional[List[str]] = None,
-    workdir: Optional[str] = None,
-    no_agent: Optional[bool] = None,
-    attach_to_session: Optional[bool] = None,
-    monitor_script: Optional[str] = None,
-    monitor_url: Optional[str] = None,
-    reasoning_effort: Optional[str] = None,
-    failure_deliver: Optional[Union[str, List[str]]] = None,
+    skill: str | None = None,
+    skills: list[str] | None = None,
+    model: str | None = None,
+    provider: str | None = None,
+    base_url: str | None = None,
+    reason: str | None = None,
+    script: str | None = None,
+    context_from: str | list[str] | None = None,
+    continuity: bool | None = None,
+    enabled_toolsets: list[str] | None = None,
+    workdir: str | None = None,
+    no_agent: bool | None = None,
+    attach_to_session: bool | None = None,
+    monitor_script: str | None = None,
+    monitor_url: str | None = None,
+    reasoning_effort: str | None = None,
+    failure_deliver: str | list[str] | None = None,
     task_id: str = None,
-    session_id: Optional[str] = None,
+    session_id: str | None = None,
     paused: bool = False,
-    paused_reason: Optional[str] = None,
-    pinned: Optional[bool] = None,
-    interpreter: Optional[str] = None) -> str:
+    paused_reason: str | None = None,
+    pinned: bool | None = None,
+    interpreter: str | None = None) -> str:
     """Unified cron job management tool."""
     a = dict(locals())
     del a["task_id"]  # unused but kept for handler signature compatibility

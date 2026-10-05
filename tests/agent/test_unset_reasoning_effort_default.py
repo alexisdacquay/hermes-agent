@@ -9,7 +9,6 @@ rejection ladder sees exactly what went out, and it never overrides an explicit 
 from unittest.mock import patch
 
 import pytest
-
 from agent.chat_completion_helpers import _build_api_kwargs_for_mode
 from agent.models_dev import ModelCapabilities
 from agent.transports.chat_completions import ChatCompletionsTransport

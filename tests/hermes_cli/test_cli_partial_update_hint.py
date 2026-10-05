@@ -9,13 +9,12 @@ bare ``hermes`` and ``hermes chat`` (including the fast-chat launch path)
 all go through it.
 """
 
-from argparse import Namespace
 import io
 import sys
 import types
+from argparse import Namespace
 
 import pytest
-
 from hermes_constants import emit_partial_update_hint
 
 

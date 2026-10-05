@@ -15,30 +15,46 @@ import subprocess
 import threading
 import time
 import urllib.parse
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import APIRouter, HTTPException
-
 from gateway.status import (
-    multiplexer_liveness_for_profile, profile_name_for_home, profile_platforms_from_multiplexer,
-    resolve_gateway_liveness, retained_gateway_state)
+    multiplexer_liveness_for_profile,
+    profile_name_for_home,
+    profile_platforms_from_multiplexer,
+    resolve_gateway_liveness,
+    retained_gateway_state,
+)
+from hermes_constants import get_process_hermes_home
+
 from hermes_cli._subprocess_compat import windows_hide_flags
 from hermes_cli.config import OPTIONAL_ENV_VARS, get_env_path
-from hermes_constants import get_process_hermes_home
 from hermes_cli.web_deps import LateState, late
-from hermes_cli.web_server_gateway import _restart_gateway_after
-from hermes_cli.web_server_messaging import (
-    _TelegramOnboardingPairing, _WhatsAppOnboardingSession, _messaging_platform_catalog, _telegram_onboarding_error_message, _telegram_onboarding_lock, _telegram_onboarding_pairings, _whatsapp_onboarding_payload, _whatsapp_onboarding_sessions,
+from hermes_cli.web_models import (
+    MessagingPlatformUpdate,
+    TelegramOnboardingApply,
+    TelegramOnboardingStart,
+    WhatsAppOnboardingApply,
+    WhatsAppOnboardingStart,
 )
 from hermes_cli.web_routers._common import (
-    REDACTED_CREDENTIAL_WRITE_DETAIL, http_failure, is_redacted_credential_preview,
+    REDACTED_CREDENTIAL_WRITE_DETAIL,
+    http_failure,
+    is_redacted_credential_preview,
     redacted_credential_preview,
 )
-from hermes_cli.web_models import (
-    MessagingPlatformUpdate, TelegramOnboardingApply, TelegramOnboardingStart,
-    WhatsAppOnboardingApply, WhatsAppOnboardingStart,
+from hermes_cli.web_server_gateway import _restart_gateway_after
+from hermes_cli.web_server_messaging import (
+    _messaging_platform_catalog,
+    _telegram_onboarding_error_message,
+    _telegram_onboarding_lock,
+    _telegram_onboarding_pairings,
+    _TelegramOnboardingPairing,
+    _whatsapp_onboarding_payload,
+    _whatsapp_onboarding_sessions,
+    _WhatsAppOnboardingSession,
 )
 
 _log = logging.getLogger("hermes_cli.web_server")
@@ -207,7 +223,7 @@ def _platform_enablement(
 
 def _messaging_platform_payload(
     entry: dict[str, Any], env_on_disk: dict[str, str], runtime: dict | None,
-    scoped: bool = False, profile_home: Optional[Path] = None,
+    scoped: bool = False, profile_home: Path | None = None,
 ) -> dict[str, Any]:
     platform_id = entry["id"]
     rt = runtime if isinstance(runtime, dict) else {}
@@ -291,7 +307,7 @@ def _messaging_platform_payload(
     return payload
 
 
-def _platform_payloads(scoped_dir: Optional[Path], entries) -> list[dict[str, Any]]:
+def _platform_payloads(scoped_dir: Path | None, entries) -> list[dict[str, Any]]:
     """Payloads for ``entries``; call inside ``_profile_scope`` (load_env honors the
     HERMES_HOME contextvar; the gateway status readers do not, hence the explicit path)."""
     env_on_disk = load_env()
@@ -384,9 +400,9 @@ def _ensure_whatsapp_bridge_dependencies(bridge_dir: Path) -> None:
     if (bridge_dir / "node_modules").exists():
         return
 
+    import pm
     from hermes_constants import find_node_executable, with_hermes_node_path
     from utils import env_int
-    import pm
 
     npm = find_node_executable("npm")
 
@@ -588,7 +604,7 @@ async def start_whatsapp_onboarding(body: WhatsAppOnboardingStart):
         expires_at_ts = time.time() + _WHATSAPP_ONBOARDING_TTL_SECONDS
         fields = dict(
             proc=None, mode=mode, allowed_users=allowed_users, session_path=str(session_path),
-            expires_at=datetime.fromtimestamp(expires_at_ts, timezone.utc).isoformat().replace("+00:00", "Z"),
+            expires_at=datetime.fromtimestamp(expires_at_ts, UTC).isoformat().replace("+00:00", "Z"),
             expires_at_ts=expires_at_ts, profile=body.profile,
         )
         already_linked = (session_path / "creds.json").exists()
@@ -622,7 +638,7 @@ async def get_whatsapp_onboarding_status(pairing_id: str):
 
 
 @router.post("/api/messaging/whatsapp/onboarding/{pairing_id}/apply")
-async def apply_whatsapp_onboarding(pairing_id: str, body: WhatsAppOnboardingApply, profile: Optional[str] = None):
+async def apply_whatsapp_onboarding(pairing_id: str, body: WhatsAppOnboardingApply, profile: str | None = None):
     with _whatsapp_onboarding_lock:
         record = _whatsapp_record_or_404(pairing_id)
         if record.status != "connected":
@@ -672,7 +688,7 @@ def _parse_expiry_ts(value: str) -> float:
     try:
         parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
         if parsed.tzinfo is None:
-            parsed = parsed.replace(tzinfo=timezone.utc)
+            parsed = parsed.replace(tzinfo=UTC)
         return parsed.timestamp()
     except Exception:
         return time.time() + 600
@@ -772,7 +788,7 @@ async def get_telegram_onboarding_status(pairing_id: str):
 
 
 @router.post("/api/messaging/telegram/onboarding/{pairing_id}/apply")
-async def apply_telegram_onboarding(pairing_id: str, body: TelegramOnboardingApply, profile: Optional[str] = None):
+async def apply_telegram_onboarding(pairing_id: str, body: TelegramOnboardingApply, profile: str | None = None):
     normalized_ids = [_normalize_telegram_user_id(raw_id) for raw_id in body.allowed_user_ids]
     if not all(normalized_ids):
         raise HTTPException(status_code=400, detail="Allowed Telegram user IDs must be numeric.")
@@ -822,7 +838,7 @@ async def cancel_telegram_onboarding(pairing_id: str):
 
 
 @router.get("/api/messaging/platforms")
-async def get_messaging_platforms(profile: Optional[str] = None):
+async def get_messaging_platforms(profile: str | None = None):
     # Profile-scoped so the global profile switcher shows the TARGET profile's channel state.
     def _run():
         # Profile-scoped so the dashboard's global profile switcher shows the TARGET profile's channel
@@ -839,7 +855,7 @@ async def get_messaging_platforms(profile: Optional[str] = None):
     return await asyncio.to_thread(_run)
 
 
-def _multiplex_port_binding_conflict(platform_id: str, requested_profile: Optional[str]) -> Optional[str]:
+def _multiplex_port_binding_conflict(platform_id: str, requested_profile: str | None) -> str | None:
     """Reason enabling ``platform_id`` on the target profile is pointless under a multiplexed
     gateway, or ``None`` when allowed.
 
@@ -881,7 +897,7 @@ def _multiplex_port_binding_conflict(platform_id: str, requested_profile: Option
 
 
 @router.put("/api/messaging/platforms/{platform_id}")
-async def update_messaging_platform(platform_id: str, body: MessagingPlatformUpdate, profile: Optional[str] = None):
+async def update_messaging_platform(platform_id: str, body: MessagingPlatformUpdate, profile: str | None = None):
     entry = _require_platform(platform_id)
 
     target_profile = body.profile or profile
@@ -942,11 +958,14 @@ async def update_messaging_platform(platform_id: str, body: MessagingPlatformUpd
         return {"ok": True, "platform": platform_id, "hot_served": hot_served}
 
 
-def _notify_multiplexer_hot_serve(profile: Optional[str]) -> bool:
+def _notify_multiplexer_hot_serve(profile: str | None) -> bool:
     """True when a live multiplexer serves the written profile and was told to rebuild its adapters.
     Unscoped (no ``?profile=``) means THIS process's profile: Desktop routes a pooled
     ``hermes --profile X serve`` without the query (#109088), so X must resolve here too."""
-    from hermes_cli.gateway import _current_profile_name, named_profile_served_by_running_multiplexer
+    from hermes_cli.gateway import (
+        _current_profile_name,
+        named_profile_served_by_running_multiplexer,
+    )
     from hermes_cli.gateway_multiplex_served import notify_multiplexer_profiles_changed
     name = (profile or "").strip() or _current_profile_name()
     if not name or name == "default" or not named_profile_served_by_running_multiplexer(name):
@@ -955,7 +974,7 @@ def _notify_multiplexer_hot_serve(profile: Optional[str]) -> bool:
 
 
 @router.post("/api/messaging/platforms/{platform_id}/test")
-async def test_messaging_platform(platform_id: str, profile: Optional[str] = None):
+async def test_messaging_platform(platform_id: str, profile: str | None = None):
     entry = _require_platform(platform_id)
 
     def _run():

@@ -12,8 +12,8 @@ import threading
 import time
 
 import pytest
-
 from gateway.run_shutdown import GatewayShutdownMixin
+
 from tests.gateway.restart_test_helpers import make_restart_runner
 
 

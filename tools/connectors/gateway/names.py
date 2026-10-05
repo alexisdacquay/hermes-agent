@@ -6,7 +6,6 @@ Compose and parse bridge names only here. The composed-name collision resolves p
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 __all__ = [
     "CONNECTOR_BATCH_SENTINEL",
@@ -37,7 +36,7 @@ def is_connector_name(name: object) -> bool:
     return isinstance(name, str) and name.startswith(CONNECTOR_NAME_PREFIX)
 
 
-def parse_connector_name(name: object) -> Optional[ConnectorName]:
+def parse_connector_name(name: object) -> ConnectorName | None:
     """Use a bounded split so tool slugs retain internal underscores."""
     if not isinstance(name, str):
         return None
@@ -52,8 +51,7 @@ def parse_connector_name(name: object) -> Optional[ConnectorName]:
 
 def format_connector_name(connector: str, tool: str) -> str:
     prefix = f"{connector.upper()}_"
-    if tool.startswith(prefix):
-        tool = tool[len(prefix):]
+    tool = tool.removeprefix(prefix)
     return f"{CONNECTOR_NAME_PREFIX}{connector}__{tool}"
 
 

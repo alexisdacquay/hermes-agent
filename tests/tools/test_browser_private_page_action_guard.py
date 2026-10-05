@@ -3,7 +3,6 @@
 import json
 
 import pytest
-
 from tools import browser_tool
 from tools import browser_tool_eval_policy as bt_eval_policy
 from tools import browser_tool_session as bt_session

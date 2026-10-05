@@ -13,9 +13,9 @@ import json
 import re
 from collections import Counter
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from hermes_constants import get_hermes_home
 
@@ -28,10 +28,10 @@ class SkillNode:
     name: str
     category: str
     source: str = "profile"
-    timestamp: Optional[int] = None
+    timestamp: int | None = None
     use_count: int = 0
     state: str = "active"
-    created_by: Optional[str] = None
+    created_by: str | None = None
     pinned: bool = False
     related: list[str] = field(default_factory=list)
 
@@ -63,7 +63,7 @@ def _load_usage() -> dict[str, dict[str, Any]]:
             return {}
 
 
-def _to_int_ts(value: Any) -> Optional[int]:
+def _to_int_ts(value: Any) -> int | None:
     """Epoch seconds from a number, numeric string, or ISO timestamp; None otherwise."""
     try:
         if value is None or not (s := str(value).strip()):
@@ -74,7 +74,7 @@ def _to_int_ts(value: Any) -> Optional[int]:
             return int(float(s))
         except ValueError:
             parsed = datetime.fromisoformat(s.replace("Z", "+00:00"))
-            return int((parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=timezone.utc)).timestamp())
+            return int((parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)).timestamp())
     except Exception:
         return None
 

@@ -11,8 +11,6 @@ from __future__ import annotations
 import errno
 import json
 import logging
-import os
-from typing import Optional
 
 from cron.env_settings import cron_env_setting
 
@@ -52,7 +50,7 @@ def _is_transient_provider_resolve_error(exc: BaseException) -> bool:
     }
     # Walk the cause chain; the scheduler wraps raw transport errors.
     seen: set[int] = set()
-    cur: Optional[BaseException] = exc
+    cur: BaseException | None = exc
     while cur is not None and id(cur) not in seen:
         seen.add(id(cur))
         module = type(cur).__module__ or ""
@@ -83,7 +81,7 @@ def _cron_preflight_enabled(cfg: dict) -> bool:
     return not isinstance(cron_cfg, dict) or cron_cfg.get("preflight", True) is not False
 
 
-def _preflight_check_provider_key(job: dict, cfg: dict) -> Optional[str]:
+def _preflight_check_provider_key(job: dict, cfg: dict) -> str | None:
     """READ-ONLY probe: would provider resolution fail for lack of a key? Mirrors run_job's
     requested-provider computation. Skipped when the job has a fallback chain — auth-fallback may
     legitimately rescue a missing primary key. A pinned job has none (``_job_fallback_chain``), so
@@ -233,7 +231,7 @@ class SharedRouteAdapters:
         return default
 
 
-def _preflight_check_delivery(job: dict) -> Optional[str]:
+def _preflight_check_delivery(job: dict) -> str | None:
     """Check delivery targets resolve to configured platforms. ``local``/``origin``/``all`` are
     never checked (no gateway-config load). Unknown platform always blocks; known platform blocks
     only if the gateway config loads AND reports it unconnected; config load failures fail OPEN.
@@ -258,7 +256,7 @@ def _preflight_check_delivery(job: dict) -> Optional[str]:
     if not platform_parts:
         return None
 
-    connected: Optional[set] = None
+    connected: set | None = None
     for platform_name in platform_parts:
         if not _delivery._is_known_delivery_platform(platform_name):
             return (
@@ -300,7 +298,7 @@ _SKILL_MISSING_FIELDS = (
     ("missing_credential_files", "credential file {}"))
 
 
-def _preflight_check_skills(job: dict) -> Optional[str]:
+def _preflight_check_skills(job: dict) -> str | None:
     """Block only on an affirmative ``setup_needed`` verdict from ``skill_view``; skills that fail
     to load fall through to ``_build_job_prompt``'s skipped-skill handling (fail-open)."""
     from cron.scheduler_prompt import _job_skill_names
@@ -334,7 +332,7 @@ def _preflight_check_skills(job: dict) -> Optional[str]:
 _RECONNECTING_WARNED: set = set()
 
 
-def _empty_requested_mcp_toolsets(job: dict, cfg: dict) -> Optional[str]:
+def _empty_requested_mcp_toolsets(job: dict, cfg: dict) -> str | None:
     """Reason when an MCP server the job's own ``enabled_toolsets`` names resolves to zero tools.
 
     Runs AFTER cron MCP discovery. The server's toolset alias is process-global while its tools
@@ -346,8 +344,8 @@ def _empty_requested_mcp_toolsets(job: dict, cfg: dict) -> Optional[str]:
     if not requested:
         return None
     from hermes_cli.tools_config import enabled_mcp_server_names
-    from toolsets import resolve_toolset
     from tools.mcp_tool_discovery import mcp_server_reconnecting
+    from toolsets import resolve_toolset
     missing = [name for name in requested
                if name in enabled_mcp_server_names(cfg) and not resolve_toolset(name)]
     # A server that worked in this process and is parked/self-probing after a network blip
@@ -384,7 +382,7 @@ def _empty_requested_mcp_toolsets(job: dict, cfg: dict) -> Optional[str]:
         "the job's toolsets.")
 
 
-def _preflight_job_config(job: dict, cfg: dict) -> Optional[str]:
+def _preflight_job_config(job: dict, cfg: dict) -> str | None:
     """Pre-dispatch validation: return a reason (missing key, unconfigured delivery, unready skill)
     so the caller refuses BEFORE building agent machinery or burning an LLM call. Every check fails
     open — preflight blocks only on an affirmative misconfiguration verdict.
@@ -408,5 +406,5 @@ def _preflight_job_config(job: dict, cfg: dict) -> Optional[str]:
 
 # Late-bound origin namespace (see module docstring). Imported LAST so this module is fully
 # populated before ``scheduler`` re-exports from it.
-from cron import scheduler as _sched  # noqa: E402
-from cron import scheduler_delivery as _delivery  # noqa: E402
+from cron import scheduler as _sched
+from cron import scheduler_delivery as _delivery

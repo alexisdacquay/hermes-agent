@@ -4,24 +4,25 @@ from __future__ import annotations
 
 import re
 import threading
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Mapping, Optional
+from typing import Any
 
 from hermes_platform.resolver.app import AppDef
 
 __all__ = [
     "AppSpec",
-    "RequiresSpec",
     "Declaration",
     "DeclarationError",
+    "RequiresSpec",
+    "clear",
     "gpu_label",
+    "lookup",
     "parse_app",
-    "parse_requires",
     "parse_declaration",
+    "parse_requires",
     "register",
     "unregister",
-    "lookup",
-    "clear",
 ]
 
 
@@ -35,7 +36,7 @@ class AppSpec:
 
     per_os: Mapping[str, AppDef] = field(default_factory=dict)
 
-    def for_os(self, os_family: str) -> Optional[AppDef]:
+    def for_os(self, os_family: str) -> AppDef | None:
         return self.per_os.get(os_family)
 
 
@@ -44,8 +45,8 @@ class RequiresSpec:
     """What the server needs before it is offered. Separate from ``app`` on purpose: one is data, one is policy."""
 
     app: bool = False
-    min_version: Optional[str] = None
-    gpu: Optional[str] = None
+    min_version: str | None = None
+    gpu: str | None = None
 
 
 @dataclass(frozen=True)
@@ -53,7 +54,7 @@ class Declaration:
     """A parsed declaration; satisfies ``hermes_platform.resolver.availability._HasRequirements``."""
 
     name: str
-    app: Optional[AppSpec]
+    app: AppSpec | None
     requires: RequiresSpec = RequiresSpec()
 
     @property
@@ -61,14 +62,14 @@ class Declaration:
         return self.requires.app
 
     @property
-    def min_version(self) -> Optional[str]:
+    def min_version(self) -> str | None:
         return self.requires.min_version
 
     @property
-    def required_gpu(self) -> Optional[str]:
+    def required_gpu(self) -> str | None:
         return self.requires.gpu
 
-    def app_for(self, os_family: str) -> Optional[AppDef]:
+    def app_for(self, os_family: str) -> AppDef | None:
         return self.app.for_os(os_family) if self.app else None
 
 
@@ -83,7 +84,7 @@ _VERSION_RE = re.compile(r"^\d+(\.\d+)*$")
 GPU_LABELS = {"nvidia": "an NVIDIA GPU"}
 
 
-def gpu_label(gpu: Optional[str]) -> str:
+def gpu_label(gpu: str | None) -> str:
     """How a user-facing sentence names a ``requires.gpu`` value."""
     return GPU_LABELS.get(gpu or "", "a supported GPU")
 
@@ -145,7 +146,7 @@ def _parse_app_os(where: str, name: str, osf: str, raw: Any) -> AppDef:
     )
 
 
-def parse_app(raw: Any, *, name: str, where: str) -> Optional[AppSpec]:
+def parse_app(raw: Any, *, name: str, where: str) -> AppSpec | None:
     """Parse the ``app:`` block (already-decoded mapping, not YAML text) into an ``AppSpec``."""
     if raw is None:
         return None
@@ -158,7 +159,7 @@ def parse_app(raw: Any, *, name: str, where: str) -> Optional[AppSpec]:
     return AppSpec(per_os={osf: _parse_app_os(where, name, osf, raw[osf]) for osf in raw})
 
 
-def parse_requires(raw: Any, app: Optional[AppSpec], *, where: str) -> RequiresSpec:
+def parse_requires(raw: Any, app: AppSpec | None, *, where: str) -> RequiresSpec:
     """Parse the ``requires:`` block; needs the parsed ``app`` to cross-check version policy."""
     if raw is None:
         return RequiresSpec()
@@ -194,9 +195,9 @@ def parse_declaration(name: str, raw_app: Any, raw_requires: Any, *, where: str)
     return Declaration(name=name, app=app, requires=parse_requires(raw_requires, app, where=where))
 
 
-_REGISTRY: Dict[str, Declaration] = {}
+_REGISTRY: dict[str, Declaration] = {}
 _REGISTRY_LOCK = threading.Lock()
-on_change: Optional[Callable[[], None]] = None
+on_change: Callable[[], None] | None = None
 
 
 def _changed() -> None:
@@ -218,7 +219,7 @@ def unregister(server_name: str) -> None:
     _changed()
 
 
-def lookup(server_name: str) -> Optional[Declaration]:
+def lookup(server_name: str) -> Declaration | None:
     """Return the declaration registered for *server_name*, if any."""
     with _REGISTRY_LOCK:
         return _REGISTRY.get(server_name)

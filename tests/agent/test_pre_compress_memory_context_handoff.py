@@ -3,7 +3,6 @@
 from unittest.mock import MagicMock
 
 import pytest
-
 from agent.compression_marker import _COMPRESSION_MARKER_RE
 
 

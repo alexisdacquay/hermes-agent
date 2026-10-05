@@ -10,13 +10,15 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 
-import pytest
-import hermes_yaml as yaml
-
 import hermes_constants
+import hermes_yaml as yaml
+import pytest
 from hermes_cli import gateway_migrate as gm
 from hermes_cli.profile_channels import (
-    channel_platforms_configured, shared_channel_credentials, strip_channel_config, strip_channel_env_file,
+    channel_platforms_configured,
+    shared_channel_credentials,
+    strip_channel_config,
+    strip_channel_env_file,
 )
 from hermes_cli.profiles import create_profile
 

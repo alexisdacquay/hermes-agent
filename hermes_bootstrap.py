@@ -99,7 +99,7 @@ def _happy_eyeballs_create_connection(address: tuple[str, int], timeout: float |
         while pending or active:
             now = time.monotonic()
             if deadline is not None and now >= deadline:
-                raise socket.timeout("timed out")
+                raise TimeoutError("timed out")
             if pending and now >= next_launch:
                 try:
                     winner = start_attempt(pending.pop(0))
@@ -524,10 +524,9 @@ class RelaunchExit(SystemExit):
     relaunched = True
 
 
-from pm.environments import activate_dependencies, install_state_permission_message
 from hermes_cli._early_recovery import recover_if_needed
-
 from hermes_cli._parser import command_argv
+from pm.environments import activate_dependencies, install_state_permission_message
 
 # Repair needs only stdlib. Do not activate the damaged tree to reach it.
 _pm_repair = command_argv(sys.argv[1:])[:2] == ["pm", "repair"]

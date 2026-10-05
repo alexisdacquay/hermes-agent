@@ -12,11 +12,12 @@ import json
 import logging
 import re
 import tempfile
+from collections.abc import Callable
 from contextvars import ContextVar, Token
 from dataclasses import dataclass
 from itertools import count
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -217,6 +218,7 @@ def make_acp_edit_approval_requester(
 
     def _requester(proposal: EditProposal) -> bool:
         from acp.schema import PermissionOption
+
         from acp_adapter.permissions import await_permission, resolve_permission_timeout
 
         if auto_approve_getter is not None:

@@ -32,7 +32,6 @@ import os
 import time
 
 import pytest
-
 from agent import anthropic_credentials as AA
 from agent.auxiliary_client import _refresh_provider_credentials
 from agent.credential_pool import AUTH_TYPE_OAUTH

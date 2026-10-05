@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 from agent.context_compressor import ContextCompressor, is_compaction_summary_message
-
 
 _COMPACTION_INTERNAL_FIELDS = (
     "tool_calls",
@@ -30,7 +29,7 @@ _COMPACTION_INTERNAL_FIELDS = (
 )
 
 
-def project_compaction_message_for_display(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def project_compaction_message_for_display(message: dict[str, Any]) -> dict[str, Any] | None:
     """Return authentic transcript content, or ``None`` for a pure handoff.
 
     Model-facing recovery history retains the complete carrier. Display

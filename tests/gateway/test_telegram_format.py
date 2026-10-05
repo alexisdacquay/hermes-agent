@@ -10,20 +10,17 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from gateway.config import PlatformConfig
-
 
 # ---------------------------------------------------------------------------
 # Mock the telegram package if it's not installed
 # ---------------------------------------------------------------------------
-from plugins.platforms.telegram.adapter import (  # noqa: E402
+from plugins.platforms.telegram.adapter import (
     TelegramAdapter,
     _escape_mdv2,
     _strip_mdv2,
     _wrap_markdown_tables,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

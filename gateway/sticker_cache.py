@@ -9,7 +9,6 @@ import json
 import threading
 import time
 from pathlib import Path
-from typing import Optional
 
 from hermes_cli.config import get_hermes_home
 from utils import atomic_json_write
@@ -52,7 +51,7 @@ def _save_cache(cache: dict) -> None:
 _CACHE_LOCK = threading.Lock()
 
 
-def get_cached_description(file_unique_id: str) -> Optional[dict]:
+def get_cached_description(file_unique_id: str) -> dict | None:
     """Return ``{description, emoji, set_name, cached_at}`` or None."""
     return _load_cache().get(file_unique_id)
 

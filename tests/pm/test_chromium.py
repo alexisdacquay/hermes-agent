@@ -2,7 +2,6 @@
 from pathlib import Path
 
 import pytest
-
 from pm.lock import Facts
 from pm.packages import Chromium
 from pm.registry import walk

@@ -12,7 +12,6 @@ from collections import OrderedDict
 from unittest.mock import MagicMock
 
 import pytest
-
 from gateway.agent_cache_pressure import (
     AgentCacheBounds,
     plan_pressure_evictions,
@@ -20,6 +19,7 @@ from gateway.agent_cache_pressure import (
     resolve_memory_high_mb,
     transcript_persistence_caught_up,
 )
+
 
 class TestBoundsResolution:
     """Absent config must stay absent so gateway/run.py keeps its defaults."""

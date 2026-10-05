@@ -16,7 +16,7 @@ import secrets
 import struct
 import time
 import urllib.parse
-from typing import Optional, Any
+from typing import Any
 
 import httpx
 
@@ -81,13 +81,13 @@ def _wh(w: int, h: int) -> dict[str, int]:
     return {"width": w, "height": h}
 
 
-def _parse_png_size(buf: bytes) -> Optional[dict[str, int]]:
+def _parse_png_size(buf: bytes) -> dict[str, int] | None:
     if len(buf) < 24 or buf[:4] != b"\x89PNG":
         return None
     return _wh(*struct.unpack(">II", buf[16:24]))
 
 
-def _parse_jpeg_size(buf: bytes) -> Optional[dict[str, int]]:
+def _parse_jpeg_size(buf: bytes) -> dict[str, int] | None:
     if len(buf) < 4 or buf[:2] != b"\xff\xd8":
         return None
     i = 2
@@ -104,13 +104,13 @@ def _parse_jpeg_size(buf: bytes) -> Optional[dict[str, int]]:
     return None
 
 
-def _parse_gif_size(buf: bytes) -> Optional[dict[str, int]]:
+def _parse_gif_size(buf: bytes) -> dict[str, int] | None:
     if len(buf) < 10 or buf[:6] not in (b"GIF87a", b"GIF89a"):
         return None
     return _wh(*struct.unpack("<HH", buf[6:10]))
 
 
-def _parse_webp_size(buf: bytes) -> Optional[dict[str, int]]:
+def _parse_webp_size(buf: bytes) -> dict[str, int] | None:
     if len(buf) < 16 or buf[:4] != b"RIFF" or buf[8:12] != b"WEBP":
         return None
     chunk = buf[12:16]
@@ -125,7 +125,7 @@ def _parse_webp_size(buf: bytes) -> Optional[dict[str, int]]:
     return None
 
 
-def parse_image_size(data: bytes) -> Optional[dict[str, int]]:
+def parse_image_size(data: bytes) -> dict[str, int] | None:
     """解析图片宽高（JPEG/PNG/GIF/WebP），返回 {"width", "height"} 或 None。"""
     return _parse_png_size(data) or _parse_jpeg_size(data) or _parse_gif_size(data) or _parse_webp_size(data)
 
@@ -190,7 +190,7 @@ def _sorted_kv(d: dict[str, str]) -> list[tuple[str, str]]:
 
 def _cos_sign(
     method: str, path: str, params: dict[str, str], headers: dict[str, str], secret_id: str, secret_key: str,
-    start_time: Optional[int] = None, expire_seconds: int = 3600,
+    start_time: int | None = None, expire_seconds: int = 3600,
 ) -> str:
     """COS Authorization 头（q-sign-algorithm=sha1；https://cloud.tencent.com/document/product/436/7778）。
 
@@ -202,7 +202,7 @@ def _cos_sign(
     sign_key = _hmac_sha1_hex(secret_key, q_sign_time)  # SignKey = HMAC-SHA1(SecretKey, q-sign-time)
     sorted_params = _sorted_kv(params)
     sorted_headers = _sorted_kv(headers)
-    kv = lambda pairs: "&".join(f"{k}={v}" for k, v in pairs)  # noqa: E731
+    kv = lambda pairs: "&".join(f"{k}={v}" for k, v in pairs)
     http_string = "\n".join([method.lower(), path, kv(sorted_params), kv(sorted_headers), ""])
     string_to_sign = "\n".join(["sha1", q_sign_time, hashlib.sha1(http_string.encode("utf-8")).hexdigest(), ""])
     return (
@@ -216,7 +216,7 @@ def _cos_sign(
 # ============ 主要公开 API ============
 
 async def get_cos_credentials(
-    app_key: str, api_domain: str, token: str, filename: str = "file", file_id: Optional[str] = None,
+    app_key: str, api_domain: str, token: str, filename: str = "file", file_id: str | None = None,
     bot_id: str = "", route_env: str = "",
 ) -> dict:
     """调用 genUploadInfo 获取 COS 临时密钥及上传配置。
@@ -255,8 +255,8 @@ async def upload_to_cos(
     secret_id, secret_key, session_token, cos_key = (
         credentials.get(k, "") for k in ("encryptTmpSecretId", "encryptTmpSecretKey", "encryptToken", "location")
     )
-    start_time: Optional[int] = credentials.get("startTime")
-    expired_time: Optional[int] = credentials.get("expiredTime")
+    start_time: int | None = credentials.get("startTime")
+    expired_time: int | None = credentials.get("expiredTime")
     if not secret_id or not secret_key or not cos_key:
         raise RuntimeError(
             f"COS credentials 不完整: secretId={bool(secret_id)}, secretKey={bool(secret_key)}, location={bool(cos_key)}"
@@ -290,7 +290,7 @@ async def upload_to_cos(
 # ============ TIM 媒体消息构建（https://cloud.tencent.com/document/product/269/2720） ============
 
 def build_image_msg_body(
-    url: str, uuid: Optional[str] = None, filename: Optional[str] = None, size: int = 0, width: int = 0,
+    url: str, uuid: str | None = None, filename: str | None = None, size: int = 0, width: int = 0,
     height: int = 0, mime_type: str = "",
 ) -> list[dict]:
     """TIMImageElem 消息体（可直接放入 msg_body）。uuid 缺省依次退到 filename / URL basename / "image"。"""
@@ -304,7 +304,7 @@ def build_image_msg_body(
     }]
 
 
-def build_file_msg_body(url: str, filename: str, uuid: Optional[str] = None, size: int = 0) -> list[dict]:
+def build_file_msg_body(url: str, filename: str, uuid: str | None = None, size: int = 0) -> list[dict]:
     """TIMFileElem 消息体（可直接放入 msg_body）。uuid 缺省使用 filename。"""
     return [{
         "msg_type": "TIMFileElem",

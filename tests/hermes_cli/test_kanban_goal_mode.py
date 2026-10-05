@@ -16,10 +16,9 @@ import sqlite3
 from pathlib import Path
 
 import pytest
-
+from hermes_cli import goals
 from hermes_cli import kanban_db as kb
 from hermes_cli import kanban_db_connect as kbc
-from hermes_cli import goals
 
 
 @pytest.fixture
@@ -215,6 +214,7 @@ class TestCLIJudgeGate:
         import argparse
         import types
         from unittest.mock import MagicMock
+
         from hermes_cli.kanban import _cmd_complete
 
         fake_task = types.SimpleNamespace(

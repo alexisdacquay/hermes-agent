@@ -9,9 +9,13 @@ behind the dict before it.
 from types import SimpleNamespace
 
 import pytest
-
-from agent.conversation_compression_archive import MERGED_DURABLE_ROWS, RETIRED_DURABLE_ROWS, UNNAMED_DURABLE_ROWS
+from agent.conversation_compression_archive import (
+    MERGED_DURABLE_ROWS,
+    RETIRED_DURABLE_ROWS,
+    UNNAMED_DURABLE_ROWS,
+)
 from agent.turn_context import build_api_messages
+
 from tests.agent import test_in_place_preflight_rewind as _rewind
 from tests.agent.test_in_place_preflight_rewind import _replies_displayed, _turn
 

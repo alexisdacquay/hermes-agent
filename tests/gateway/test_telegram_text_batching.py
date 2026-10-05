@@ -9,7 +9,6 @@ import asyncio
 from unittest.mock import AsyncMock, patch
 
 import pytest
-
 from gateway.config import Platform, PlatformConfig
 from gateway.platforms.base import SessionSource
 from gateway.platforms.event import MessageEvent, MessageType
@@ -199,6 +198,7 @@ class TestHoldInboundAcrossReconnect:
     async def test_late_teardown_salvage_on_retired_adapter_reaches_replacement(self):
         """Teardown of a rebuilt-away adapter can salvage a batch after the replacement drained (#132829)."""
         from contextvars import ContextVar
+
         from plugins.platforms.telegram.update_admission import _Claim
 
         old, new = _make_adapter(), _make_adapter()
@@ -524,7 +524,6 @@ class TestHoldInboundAcrossReconnect:
         async def _handle(event):
             if event.text == "boom":
                 raise RuntimeError("dispatch failed")
-            return None
 
         adapter.handle_message = _handle
         # Direct drain (no auto follow-up on failure)

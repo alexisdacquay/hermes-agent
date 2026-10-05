@@ -12,9 +12,10 @@ from __future__ import annotations
 import hashlib
 import json
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Dict, Generic, Optional, TypeVar
+from typing import Generic, TypeVar
 
 from hermes_constants import secure_parent_dir
 from utils import atomic_json_write
@@ -39,14 +40,14 @@ def fingerprint(material: str) -> str:
 class CachedFetch:
     """A set of fetched secret values plus when they were fetched."""
 
-    secrets: Dict[str, str]
+    secrets: dict[str, str]
     fetched_at: float
 
     def is_fresh(self, ttl_seconds: float) -> bool:
         return ttl_seconds > 0 and (time.time() - self.fetched_at) < ttl_seconds
 
 
-def resolve_cache_home(home_path: Optional[Path] = None) -> Path:
+def resolve_cache_home(home_path: Path | None = None) -> Path:
     """``home_path`` as resolved by ``load_hermes_dotenv()``, else ``$HERMES_HOME``/``~/.hermes``."""
     if home_path is None:
         from hermes_constants import get_hermes_home
@@ -55,7 +56,7 @@ def resolve_cache_home(home_path: Optional[Path] = None) -> Path:
     return home_path
 
 
-def entry_from_payload(payload: object) -> Optional[CachedFetch]:
+def entry_from_payload(payload: object) -> CachedFetch | None:
     """``{"secrets": {...}, "fetched_at": n}`` → :class:`CachedFetch`, or None if malformed.
 
     Only str→str pairs survive (JSON permits other types; env vars need strings).
@@ -101,10 +102,10 @@ class DiskCache(Generic[K]):
         self._basename = basename
         self._key_serializer = key_serializer
 
-    def path(self, home_path: Optional[Path] = None) -> Path:
+    def path(self, home_path: Path | None = None) -> Path:
         return resolve_cache_home(home_path) / "cache" / self._basename
 
-    def read(self, key: K, ttl_seconds: float, home_path: Optional[Path] = None) -> Optional[CachedFetch]:
+    def read(self, key: K, ttl_seconds: float, home_path: Path | None = None) -> CachedFetch | None:
         """Fresh cached entry for ``key``, or None (I/O error, mismatch, stale)."""
         if ttl_seconds <= 0:
             return None
@@ -118,7 +119,7 @@ class DiskCache(Generic[K]):
         entry = entry_from_payload(payload)
         return entry if entry is not None and entry.is_fresh(ttl_seconds) else None
 
-    def write(self, key: K, entry: CachedFetch, ttl_seconds: float, home_path: Optional[Path] = None) -> None:
+    def write(self, key: K, entry: CachedFetch, ttl_seconds: float, home_path: Path | None = None) -> None:
         """Persist ``entry`` atomically at mode 0600; no-op when ``ttl_seconds <= 0`` or on I/O error."""
         if ttl_seconds <= 0:
             return
@@ -128,7 +129,7 @@ class DiskCache(Generic[K]):
         except OSError:
             pass  # best-effort — a disk-cache miss next invocation is fine
 
-    def clear(self, home_path: Optional[Path] = None) -> None:
+    def clear(self, home_path: Path | None = None) -> None:
         """Delete the on-disk cache file if present (idempotent)."""
         try:
             self.path(home_path).unlink()
@@ -144,11 +145,11 @@ class SecretCache(Generic[K]):
     """
 
     def __init__(self, basename: str, *, key_serializer: Callable[[K], str]) -> None:
-        self.memory: Dict[K, CachedFetch] = {}
+        self.memory: dict[K, CachedFetch] = {}
         self.disk: DiskCache[K] = DiskCache(basename, key_serializer=key_serializer)
 
-    def lookup(self, key: K, ttl_seconds: float, home_path: Optional[Path] = None,
-               read_disk: Optional[Callable[[], Optional[CachedFetch]]] = None) -> Optional[CachedFetch]:
+    def lookup(self, key: K, ttl_seconds: float, home_path: Path | None = None,
+               read_disk: Callable[[], CachedFetch | None] | None = None) -> CachedFetch | None:
         """Fresh entry from L1, else from L2 (promoted into L1), else None.
 
         ``read_disk`` swaps in an alternative L2 reader (e.g. an encrypted file).
@@ -161,10 +162,10 @@ class SecretCache(Generic[K]):
             self.memory[key] = disk_cached
         return disk_cached
 
-    def store(self, key: K, entry: CachedFetch, ttl_seconds: float, home_path: Optional[Path] = None) -> None:
+    def store(self, key: K, entry: CachedFetch, ttl_seconds: float, home_path: Path | None = None) -> None:
         self.memory[key] = entry
         self.disk.write(key, entry, ttl_seconds, home_path)
 
-    def clear(self, home_path: Optional[Path] = None) -> None:
+    def clear(self, home_path: Path | None = None) -> None:
         self.memory.clear()
         self.disk.clear(home_path)

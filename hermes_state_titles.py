@@ -5,10 +5,11 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Any, Dict, Optional
+from typing import Any
 
 from agent.message_sanitization import _sanitize_surrogates
-from hermes_state_common import _COMPRESSION_CHILD_SQL, escape_like as _escape_like
+from hermes_state_common import _COMPRESSION_CHILD_SQL
+from hermes_state_common import escape_like as _escape_like
 
 # caplog tests pin the "hermes_state" logger name.
 logger = logging.getLogger("hermes_state")
@@ -39,14 +40,14 @@ class SessionTitlesMixin:
     """Sanitizing, ranking auto/user titles, lineage-aware lookups."""
 
     @classmethod
-    def _title_rank(cls, source: Optional[str]) -> int:
+    def _title_rank(cls, source: str | None) -> int:
         """Rank a stored title_source. NULL (pre-provenance rows) is indistinguishable from a
         manual ``/title`` of that era, so it ranks as ``user``."""
         rank = cls._TITLE_SOURCE_RANK
         return rank[cls.TITLE_SOURCE_USER] if source is None else rank.get(str(source), 0)
 
     @staticmethod
-    def sanitize_title(title: Optional[str]) -> Optional[str]:
+    def sanitize_title(title: str | None) -> str | None:
         """Strip control/zero-width/bidi chars (and lone surrogates sqlite3 cannot bind),
         collapse whitespace, normalize empty to None. ValueError past MAX_TITLE_LENGTH."""
         from hermes_state import SessionDB
@@ -164,12 +165,12 @@ class SessionTitlesMixin:
             raise ValueError(f"invalid automatic title source: {source!r}")
         return self._set_session_title(session_id, title, source=source)
 
-    def get_session_title(self, session_id: str) -> Optional[str]:
+    def get_session_title(self, session_id: str) -> str | None:
         """Get the title for a session, or None."""
         row = self._read_one("SELECT title FROM sessions WHERE id = ?", (session_id,))
         return row["title"] if row else None
 
-    def get_session_title_source(self, session_id: str) -> Optional[str]:
+    def get_session_title_source(self, session_id: str) -> str | None:
         """Get the provenance of a session's title, or None when untitled."""
         row = self._read_one("SELECT title, title_source FROM sessions WHERE id = ?", (session_id,))
         return row["title_source"] if row and row["title"] is not None else None
@@ -183,7 +184,7 @@ class SessionTitlesMixin:
             "UPDATE sessions SET title_source = ? WHERE id = ? AND title IS NOT NULL", (source, session_id)
         ) > 0
 
-    def get_session_by_title(self, title: str) -> Optional[Dict[str, Any]]:
+    def get_session_by_title(self, title: str) -> dict[str, Any] | None:
         """Look up a session by exact title. Returns session dict or None."""
         row = self._read_one(
             "SELECT s.*, COALESCE(sp.prompt, s.system_prompt) AS _system_prompt_resolved "
@@ -191,7 +192,7 @@ class SessionTitlesMixin:
             "WHERE s.title = ?", (title,))
         return self._session_row_dict(row) if row else None
 
-    def resolve_session_by_title(self, title: str) -> Optional[str]:
+    def resolve_session_by_title(self, title: str) -> str | None:
         """Resolve a title to a session ID, preferring the latest "title #N" continuation."""
         exact = self.get_session_by_title(title)
         # Exception to the "#N continuation" preference: the canonical Bot Chat's identity

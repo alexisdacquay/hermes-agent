@@ -8,7 +8,6 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
-
 from hermes_cli import anon_auth
 
 WELCOME = "https://welcome-api.nousresearch.com/v1"

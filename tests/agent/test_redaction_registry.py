@@ -13,15 +13,13 @@ never leaks between tests.
 
 import importlib.util
 
-import pytest
-
 import agent.redact as redact_mod
+import pytest
 from agent.redact import (
     _reset_plugin_redaction_patterns,
     redact_sensitive_text,
     register_redaction_patterns,
 )
-
 
 NVAPI_KEY = "nvapi-AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-abcdEFGH"
 NVAPI_PATTERN = r"nvapi-[A-Za-z0-9_-]{20,}"

@@ -3,7 +3,6 @@ and the execute-path CONNECTION_REQUIRED error carries a link only where no card
 
 import pytest
 from pydantic import ValidationError
-
 from tools.connectors.gateway import wire
 from tools.connectors.gateway.merge import partition_calls, splice_remote_results
 from tools.connectors.turn import CARD, LINK, SIDE, scoped_connection_surface

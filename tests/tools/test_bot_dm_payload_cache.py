@@ -15,7 +15,6 @@ import time
 from pathlib import Path
 
 import pytest
-
 from tools import bot_mode_dm
 
 

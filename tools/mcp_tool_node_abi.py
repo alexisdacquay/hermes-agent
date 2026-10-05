@@ -11,11 +11,10 @@ import os
 import re
 import shlex
 from pathlib import Path
-from typing import Optional
 
 _ABI_MARKERS = ("NODE_MODULE_VERSION", "ERR_DLOPEN_FAILED")
 _MODULE_PATH = re.compile(r"'([^'\n]+?\.node)'|(\S+?\.node):")
-_ABI_VERSIONS = re.compile(r"using\s+NODE_MODULE_VERSION (\d+)\..*?requires\s+NODE_MODULE_VERSION (\d+)", re.S)
+_ABI_VERSIONS = re.compile(r"using\s+NODE_MODULE_VERSION (\d+)\..*?requires\s+NODE_MODULE_VERSION (\d+)", re.DOTALL)
 
 
 class NodeAbiMismatchError(RuntimeError):
@@ -23,7 +22,7 @@ class NodeAbiMismatchError(RuntimeError):
     loads the same binary, so the server parks until the user rebuilds it."""
 
 
-def _managed(name: str) -> tuple[Optional[Path], str]:
+def _managed(name: str) -> tuple[Path | None, str]:
     """``(binary, version)`` of Hermes's own node/npm, or ``(None, "")`` when PM has none."""
     try:
         from pm import installed_package
@@ -33,7 +32,7 @@ def _managed(name: str) -> tuple[Optional[Path], str]:
     return (installed.binary, installed.version) if installed and installed.binary else (None, "")
 
 
-def _package_of(module_path: str) -> tuple[Optional[Path], str]:
+def _package_of(module_path: str) -> tuple[Path | None, str]:
     """``(project root, package name)`` owning *module_path*: the directory above its innermost
     ``node_modules`` and the (possibly scoped) package under it."""
     parts = Path(module_path).parts
@@ -47,7 +46,7 @@ def _package_of(module_path: str) -> tuple[Optional[Path], str]:
     return Path(*parts[:at]), package
 
 
-def _remedy(root: Optional[Path], package: str, node: Path, npm: Path) -> str:
+def _remedy(root: Path | None, package: str, node: Path, npm: Path) -> str:
     """The fix in the host shell's syntax: delete an npx cache entry (Hermes's npx reinstalls it on the
     next start) or rebuild with Hermes's npm, Hermes's Node first on PATH because npm's shebang and its
     lifecycle scripts both run the first ``node`` there."""
@@ -66,7 +65,7 @@ def _remedy(root: Optional[Path], package: str, node: Path, npm: Path) -> str:
     return f"{delete} (Hermes reinstalls it on the next start), or {rebuild}"
 
 
-def node_abi_error(server_name: str, stderr_text: str) -> Optional[NodeAbiMismatchError]:
+def node_abi_error(server_name: str, stderr_text: str) -> NodeAbiMismatchError | None:
     """The remedy-naming error for a server whose stderr shows a native-addon load failure, else None."""
     if not stderr_text or not any(marker in stderr_text for marker in _ABI_MARKERS):
         return None

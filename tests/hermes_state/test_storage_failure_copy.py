@@ -7,7 +7,6 @@ lead, plus a stable machine-readable `code` a GUI can key a "Run doctor" button 
 import sqlite3
 
 import pytest
-
 from hermes_state_user_copy import describe_storage_failure, storage_failure_details
 
 

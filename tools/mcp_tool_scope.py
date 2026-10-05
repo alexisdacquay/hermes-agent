@@ -16,14 +16,14 @@ whose own scope has none.
 
 from __future__ import annotations
 
-from typing import Optional, Tuple, Union
+from typing import Union
 
 from tools.mcp_tool_common import _core
 
-ServerKey = Union[str, Tuple[str, str]]
+ServerKey = Union[str, tuple[str, str]]
 
 
-def _server_key(name: str, scope: Optional[str] = None, *, current: bool = True) -> ServerKey:
+def _server_key(name: str, scope: str | None = None, *, current: bool = True) -> ServerKey:
     """Connection key for *name* owned by *scope* (the current registry scope when *current*).
     ``None`` scope (no multiplexer) keeps the bare name."""
     if scope is None and current:
@@ -35,12 +35,12 @@ def _key_name(key: ServerKey) -> str:
     return key[1] if isinstance(key, tuple) else key
 
 
-def _key_scope(key: ServerKey) -> Optional[str]:
+def _key_scope(key: ServerKey) -> str | None:
     """Owning registry scope encoded in *key* (None for a bare, unscoped key)."""
     return key[0] if isinstance(key, tuple) else None
 
 
-def _key_visible_in_scope(key: ServerKey, scope: Optional[str]) -> bool:
+def _key_visible_in_scope(key: ServerKey, scope: str | None) -> bool:
     """Whether the connection under *key* serves *scope*: owned by it or adopted into it.
     Caller holds ``_core._lock`` or tolerates a racy read (status surfaces)."""
     if scope is None:
@@ -48,7 +48,7 @@ def _key_visible_in_scope(key: ServerKey, scope: Optional[str]) -> bool:
     return _key_scope(key) == scope or scope in _core._server_tool_scopes.get(key, ())
 
 
-def _resolve_server_key(name: str, scope: Optional[str] = None, *, current: bool = True) -> ServerKey:
+def _resolve_server_key(name: str, scope: str | None = None, *, current: bool = True) -> ServerKey:
     """The connection key a call to *name* from *scope* must use: the scope's own connection
     (live, connecting or lazily registered) when it has one, else a shared connection it
     adopted, else its own (not yet existing) key so bookkeeping lands under this scope."""

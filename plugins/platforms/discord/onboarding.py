@@ -11,7 +11,6 @@ both read :func:`check_bot_token` instead of asking the user to verify those by 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 from urllib.parse import urlencode
 
 # Every permission the adapter exercises (text, threads, reactions, voice). Named so the integer
@@ -40,7 +39,7 @@ class DiscordBotCheck:
     owners: tuple[tuple[str, str], ...]
     message_content: bool
     server_members: bool
-    server_count: Optional[int]
+    server_count: int | None
 
     @property
     def invite_url(self) -> str:
@@ -70,7 +69,11 @@ def _owners(app: dict) -> tuple[tuple[str, str], ...]:
 def check_bot_token(token: str) -> DiscordBotCheck:
     """Read the application behind ``token``. Raises :class:`DiscordAPIError` (401 = bad token)
     or ``OSError`` when Discord is unreachable."""
-    from tools.discord_tool import _FLAGS_GUILD_MEMBERS, _FLAGS_MESSAGE_CONTENT, _discord_request
+    from tools.discord_tool import (
+        _FLAGS_GUILD_MEMBERS,
+        _FLAGS_MESSAGE_CONTENT,
+        _discord_request,
+    )
     app = _discord_request("GET", "/applications/@me", token.strip(), timeout=10)
     flags = int(app.get("flags") or 0)
     bot = app.get("bot") or {}
@@ -102,7 +105,7 @@ def _clean_discord_user_ids(raw: str) -> list:
     return cleaned
 
 
-def _discord_token_shape_error(token: str) -> Optional[str]:
+def _discord_token_shape_error(token: str) -> str | None:
     """Reject a Discord bot token that is really the numeric application ID.
 
     Users routinely paste the application ID from the Developer Portal's General Information page
@@ -132,7 +135,7 @@ def _prompt_discord_bot_token(prompt) -> str:
     return token
 
 
-def _prompt_checked_token(prompt) -> tuple[str, Optional[DiscordBotCheck]]:
+def _prompt_checked_token(prompt) -> tuple[str, DiscordBotCheck | None]:
     """A token Discord accepted (with its check), an unverifiable one (offline: ``None`` check),
     or ``("", None)`` when the user gave up."""
     from hermes_cli.cli_output import print_error, print_success, print_warning
@@ -198,7 +201,7 @@ def _print_invite(check: DiscordBotCheck) -> None:
     print_info("   Once you share a server with the bot you can also DM it directly.")
 
 
-def _prompt_allowlist(check: Optional[DiscordBotCheck], prompt, prompt_yes_no) -> None:
+def _prompt_allowlist(check: DiscordBotCheck | None, prompt, prompt_yes_no) -> None:
     from hermes_cli.cli_output import print_info, print_success
     from hermes_cli.config import get_env_value, save_env_value
     print()
@@ -233,7 +236,7 @@ def _prompt_allowlist(check: Optional[DiscordBotCheck], prompt, prompt_yes_no) -
         )
 
 
-def _check_saved_token(token: str) -> Optional[DiscordBotCheck]:
+def _check_saved_token(token: str) -> DiscordBotCheck | None:
     from tools.discord_tool import DiscordAPIError
     try:
         return check_bot_token(token) if token else None
@@ -244,7 +247,13 @@ def _check_saved_token(token: str) -> Optional[DiscordBotCheck]:
 def interactive_setup() -> None:
     """Guide the user through Discord bot setup: token (checked live), intents, invite link,
     allowlist (defaults to the bot's owner) and home channel. CLI imports are lazy."""
-    from hermes_cli.cli_output import print_header, print_info, print_success, prompt, prompt_yes_no
+    from hermes_cli.cli_output import (
+        print_header,
+        print_info,
+        print_success,
+        prompt,
+        prompt_yes_no,
+    )
     from hermes_cli.config import get_env_value, remove_env_value, save_env_value
     from hermes_cli.setup_platforms import declines_reconfigure
 

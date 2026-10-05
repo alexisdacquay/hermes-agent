@@ -16,7 +16,6 @@ import threading
 import time
 
 import pytest
-
 from agent import anthropic_credentials as ac
 from agent import credential_pool as cp
 from agent.credential_pool import STATUS_DEAD, CredentialPool, PooledCredential

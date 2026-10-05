@@ -15,7 +15,6 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-
 from scripts.bundles import native
 
 
@@ -48,7 +47,7 @@ def test_bundle_stages_git_tree_and_runs_native_children_before_manifest(tmp_pat
     elif os.name == "nt":
         shutil.copytree(Path(sys.base_prefix), source_python.parent, dirs_exist_ok=True)
     else:
-        shutil.copytree(Path(getattr(sys, "_base_executable")).resolve().parents[1],
+        shutil.copytree(Path(sys._base_executable).resolve().parents[1],
                         source_python.parents[1], dirs_exist_ok=True)
     repo = tmp_path / "repo"
     repo.mkdir()
@@ -278,7 +277,8 @@ def test_bundle_stages_git_tree_and_runs_native_children_before_manifest(tmp_pat
         run = subprocess.run([str(moved / command)], cwd=tmp_path, capture_output=True, text=True, timeout=30)
         assert run.returncode == 7, run.stderr
         assert run.stdout.strip() == "1.0"
-        from pm import runtime as runtime_api, paths
+        from pm import paths
+        from pm import runtime as runtime_api
         with monkeypatch.context() as patch:
             patch.setattr(paths, "repo_root", lambda: moved / "hermes-agent")
             run = subprocess.run(runtime_api.runtime_command(moved / "hermes-agent/pm/launch.py", ["status"]),

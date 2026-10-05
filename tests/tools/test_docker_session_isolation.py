@@ -26,10 +26,8 @@ These tests pin the fix:
   backends instead of prefixing commands with an un-cd-able host path.
 """
 
-import os
 
 import pytest
-
 from tools import terminal_tool, terminal_tool_backends
 from tools.terminal_tool_lifecycle import is_persistent_env
 
@@ -137,7 +135,10 @@ class TestRoutedScopeQualification:
 
     def test_colliding_session_id_is_isolated_per_routed_profile(self, monkeypatch, tmp_path):
         from agent import secret_scope
-        from hermes_constants import reset_hermes_home_override, set_hermes_home_override
+        from hermes_constants import (
+            reset_hermes_home_override,
+            set_hermes_home_override,
+        )
 
         _enable_isolation(monkeypatch)
         raw = "api-9a5f7809eec0aac1"
@@ -354,7 +355,7 @@ class TestSessionScopedContainerLifecycle:
             task_id="tui:sess-1",
         )
         assert captured["persist_across_processes"] is False
-        assert getattr(env, "_session_scoped") is True
+        assert env._session_scoped is True
 
     def test_create_environment_default_task_not_session_scoped(self, monkeypatch):
         _enable_isolation(monkeypatch)

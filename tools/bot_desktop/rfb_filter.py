@@ -15,7 +15,7 @@ choice, then ``ClientInit`` (1 byte). ``ServerInit`` is server→client and neve
 
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Callable
 
 _INPUT_TYPES = {4, 5, 6, 251, 255}  # KeyEvent, PointerEvent, ClientCutText, SetDesktopSize, QEMU Extended KeyEvent
 

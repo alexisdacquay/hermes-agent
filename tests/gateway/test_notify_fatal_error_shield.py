@@ -15,7 +15,6 @@ These tests model that carrier-cancellation race directly against
 import asyncio
 
 import pytest
-
 from gateway.platforms.base import BasePlatformAdapter
 
 

@@ -8,8 +8,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
-
-from plugins.platforms.discord.adapter import (  # noqa: E402
+from plugins.platforms.discord.adapter import (
     ChoicePickerView,
     ClarifyChoiceView,
     ExecApprovalView,

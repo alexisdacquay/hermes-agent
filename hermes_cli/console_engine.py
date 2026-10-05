@@ -10,14 +10,14 @@ import importlib
 import io
 import json
 import sys
+from collections.abc import Callable, Iterable, Sequence
 from contextlib import closing
 from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Callable, Iterable, Literal, NoReturn, Sequence
+from typing import Literal, NoReturn
 
 from tools.ansi_strip import strip_ansi as _strip_ansi
-
 
 ConsoleStatus = Literal["ok", "error", "confirm_required", "exit", "clear"]
 
@@ -39,7 +39,7 @@ class ConsoleCommand:
     path: tuple[str, ...]
     usage: str
     summary: str
-    handler: Callable[["HermesConsoleEngine", list[str]], str]
+    handler: Callable[[HermesConsoleEngine, list[str]], str]
     mutating: bool = False
     confirmation: str = ""
 
@@ -225,7 +225,7 @@ class _CliSurface:
 
 # Memoized: the surface is process-static, but the dashboard opens a fresh engine per
 # /api/console connection and would otherwise re-import + re-parse it on every reconnect.
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def _surface_summaries(surface: _CliSurface, root: str) -> dict[tuple[str, ...], str]:
     try:
         return _summaries_from_parser(surface.build(root, live=False))
@@ -335,7 +335,7 @@ _SEND_SURFACE = _CliSurface("adder", "hermes_cli.send_cmd", "register_send_subpa
 
 
 def _register_command_family(
-    engine: "HermesConsoleEngine", root: str, surface: _CliSurface, paths: str) -> None:
+    engine: HermesConsoleEngine, root: str, surface: _CliSurface, paths: str) -> None:
     summaries = _surface_summaries(surface, root)
     namespace_update = _apply_confirmed_defaults if surface.kind in _CONFIRMED_KINDS else None
     for child_path, mutating in _paths(paths):
@@ -351,8 +351,7 @@ def _register_command_family(
 
 
 _BLOCKED_TOP = frozenset(
-    "acp chat claw completion dashboard desktop fallback gateway gui login logout model moa "
-    "oneshot proxy serve setup uninstall update whatsapp whatsapp-cloud".split())
+    ["acp", "chat", "claw", "completion", "dashboard", "desktop", "fallback", "gateway", "gui", "login", "logout", "model", "moa", "oneshot", "proxy", "serve", "setup", "uninstall", "update", "whatsapp", "whatsapp-cloud"])
 
 _BLOCKED_PAIRS = {
     ("config", "edit"): "`config edit` opens an editor and is not available in Hermes Console.",
@@ -441,7 +440,7 @@ class HermesConsoleEngine:
 
     def register(
         self, path: Iterable[str], usage: str, summary: str,
-        handler: Callable[["HermesConsoleEngine", list[str]], str], *,
+        handler: Callable[[HermesConsoleEngine, list[str]], str], *,
         mutating: bool = False, confirmation: str = "") -> None:
         key = tuple(path)
         self.commands[key] = ConsoleCommand(key, usage, summary, handler, mutating, confirmation)

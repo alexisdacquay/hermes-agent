@@ -12,7 +12,6 @@ endpoint probe is actually handed, not just on the returned struct.
 
 import pytest
 
-
 ALIAS_HOST = "https://theta.example.com/v1"
 DEFAULT_PROVIDER_SECRET = "sk-or-DEFAULT-PROVIDER-SECRET"
 
@@ -725,8 +724,8 @@ class TestOneshotPassesAliasCredential:
     def test_alias_api_key_is_passed_to_the_resolver(self, monkeypatch):
         """``hermes chat -m theta`` must hand the alias's key to
         resolve_runtime_provider, not leave it to env fallbacks."""
-        from hermes_cli.model_switch import DirectAlias
         import hermes_cli.model_switch as ms
+        from hermes_cli.model_switch import DirectAlias
 
         monkeypatch.setattr(
             ms,
@@ -747,7 +746,7 @@ class TestOneshotPassesAliasCredential:
             "hermes_cli.runtime_provider.resolve_runtime_provider", _fake_resolve
         )
         monkeypatch.setattr("hermes_cli.config.load_config", lambda *a, **k: {})
-        import hermes_cli.oneshot as oneshot
+        from hermes_cli import oneshot
 
         # _run_agent holds the alias wiring; run_oneshot() wraps it in a
         # catch-all that would swallow the sentinel.

@@ -29,10 +29,8 @@ from __future__ import annotations
 import json
 
 import pytest
-
-from agent.context_compressor import MODEL_ONLY_DISPLAY_METADATA_KEY
-
 import tui_gateway.server as srv
+from agent.context_compressor import MODEL_ONLY_DISPLAY_METADATA_KEY
 
 
 @pytest.fixture

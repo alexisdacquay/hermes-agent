@@ -11,16 +11,20 @@ import json
 import logging
 import re
 from pathlib import Path
-from typing import Any, Dict, Optional
-
-from fastapi import APIRouter, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from typing import Any
 
 from agent.interrupt_scope import InterruptScope, bind_interrupt_scope
+from fastapi import APIRouter, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+
 from hermes_cli.pty_session import RegistryFull
 from hermes_cli.web_deps import LateState, late
 from hermes_cli.web_routers.chat_ws_errors import chat_start_failure_message
 from hermes_cli.web_server_chat import (
-    _build_sidecar_url, _close_stalled_pty_input, _get_console_executor, _legacy_pump, _ws_auth_ok,
+    _build_sidecar_url,
+    _close_stalled_pty_input,
+    _get_console_executor,
+    _legacy_pump,
+    _ws_auth_ok,
     _ws_request_is_allowed,
 )
 
@@ -38,7 +42,7 @@ _ws_host_origin_reason = late("_ws_host_origin_reason", "hermes_cli.web_server_c
 _DASHBOARD_EMBEDDED_CHAT_ENABLED = LateState("_DASHBOARD_EMBEDDED_CHAT_ENABLED")
 
 
-def _get_event_state(app: "FastAPI"):
+def _get_event_state(app: FastAPI):
     """(event_channels, event_lock) from app.state, lazily initialised when the
     lifespan hasn't run (TestClient without a ``with`` block). The lifespan path
     is preferred because it creates the Lock on the correct event loop."""
@@ -55,8 +59,8 @@ _VALID_CHANNEL_RE = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
 
 def _ws_auth_mode() -> str:
     """Short label for the active WS auth mode — logged on every connection."""
-    from hermes_cli.web_server_chat import _LOOPBACK_HOSTS
     from hermes_cli.web_server import app
+    from hermes_cli.web_server_chat import _LOOPBACK_HOSTS
     if getattr(app.state, "auth_required", False):
         return "gated"
     bound_host = (getattr(app.state, "bound_host", "") or "").strip().lower()
@@ -78,13 +82,13 @@ async def _broadcast_event(app: Any, channel: str, payload: str) -> None:
             _log.warning("broadcast send failed for subscriber on %s", channel, exc_info=True)
 
 
-def _channel_or_close_code(ws: WebSocket) -> Optional[str]:
+def _channel_or_close_code(ws: WebSocket) -> str | None:
     """Channel id from the query string, or None if invalid."""
     channel = ws.query_params.get("channel", "")
     return channel if _VALID_CHANNEL_RE.match(channel) else None
 
 
-def _read_active_session_file(path: Path) -> Optional[str]:
+def _read_active_session_file(path: Path) -> str | None:
     try:
         data = json.loads(path.read_text(encoding="utf-8-sig"))
     except (OSError, json.JSONDecodeError):
@@ -101,7 +105,7 @@ def _ws_close_reason(text: str) -> str:
     return encoded[:120].decode("utf-8", "ignore") + "..."
 
 
-async def _ws_gate(ws: WebSocket, kind: str) -> Optional[tuple[str, str, str]]:
+async def _ws_gate(ws: WebSocket, kind: str) -> tuple[str, str, str] | None:
     """Run the pre-accept gates for /api/console and /api/pty.
 
     Each gate maps to a distinct close code so the log and the browser banner
@@ -162,7 +166,7 @@ _CONSOLE_OUTPUT_LIMIT = 50000
 
 
 def _execute_console_line(
-    engine: Any, line: str, *, confirmed: bool, profile: Optional[str], scope: Optional[InterruptScope] = None,
+    engine: Any, line: str, *, confirmed: bool, profile: str | None, scope: InterruptScope | None = None,
 ) -> Any:
     # _profile_scope swaps process-global skill module paths; keep it inside
     # the worker thread and never hold it across awaits.
@@ -200,17 +204,17 @@ class _ConsoleSender:
         self.ws = ws
         self.lock = asyncio.Lock()
 
-    async def send(self, payload: Dict[str, Any]) -> None:
+    async def send(self, payload: dict[str, Any]) -> None:
         async with self.lock:
             await self.ws.send_json(payload)
 
     async def prompt(self, **payload: Any) -> None:
         await self.send({**payload, "prompt": _CONSOLE_PROMPT})
 
-    async def error(self, message: str, *, id: Optional[int] = None, command: Optional[str] = None,
-                    prompt: Optional[str] = None) -> None:
+    async def error(self, message: str, *, id: int | None = None, command: str | None = None,
+                    prompt: str | None = None) -> None:
         # Key order matches the historical frames: type, id, message, command, prompt.
-        frame: Dict[str, Any] = {"type": "error"}
+        frame: dict[str, Any] = {"type": "error"}
         if id is not None:
             frame["id"] = id
         frame["message"] = message
@@ -254,7 +258,7 @@ class _ConsoleSender:
             await self.error(f"Unknown console result status: {status}", id=command_id, command=command)
 
 
-def _console_json_payload(msg: Any) -> tuple[Optional[dict[str, Any]], Optional[str]]:
+def _console_json_payload(msg: Any) -> tuple[dict[str, Any] | None, str | None]:
     raw: str | bytes | None = msg.get("text")
     if raw is None:
         raw = msg.get("bytes")
@@ -305,7 +309,7 @@ async def console_ws(ws: WebSocket) -> None:
     await out.prompt(type="ready", profile=profile or "current")
 
     active_task: asyncio.Task | None = None
-    pending_confirmation: Optional[str] = None
+    pending_confirmation: str | None = None
     command_generation = 0
 
     async def run_command(line: str, *, confirmed: bool, command_id: int) -> None:
@@ -319,7 +323,7 @@ async def console_ws(ws: WebSocket) -> None:
         except asyncio.CancelledError:
             await _unwind_console_worker(worker, scope, "cancelled")
             raise
-        except asyncio.TimeoutError:
+        except TimeoutError:
             await _unwind_console_worker(worker, scope, "timed out")
             if command_id == command_generation:
                 pending_confirmation = None
@@ -437,8 +441,15 @@ async def _pty_fail(ws: WebSocket, exc: BaseException) -> None:
 
 @router.websocket("/api/pty")
 async def pty_ws(ws: WebSocket) -> None:
-    from hermes_cli.web_server_chat import PTY_REGISTRY, PtyBridge, PtyUnavailableError, _PTY_BRIDGE_AVAILABLE, _RESIZE_RE
     from pm.package import InstallError
+
+    from hermes_cli.web_server_chat import (
+        _PTY_BRIDGE_AVAILABLE,
+        _RESIZE_RE,
+        PTY_REGISTRY,
+        PtyBridge,
+        PtyUnavailableError,
+    )
     gate = await _ws_gate(ws, "pty")
     if gate is None:
         return
@@ -463,7 +474,7 @@ async def pty_ws(ws: WebSocket) -> None:
     channel = _channel_or_close_code(ws)
     sidecar_url = _build_sidecar_url(channel) if channel else None
     force_fresh = (ws.query_params.get("fresh") or "").strip().lower() in {"1", "true", "yes", "on"}
-    active_session_file: Optional[Path] = None
+    active_session_file: Path | None = None
 
     if channel:
         active_session_file = _active_session_file_for_channel(ws.app, channel)
@@ -596,8 +607,9 @@ async def pty_ws(ws: WebSocket) -> None:
 async def gateway_ws(ws: WebSocket) -> None:
     if not await _close_unless_sidecar_allowed(ws):
         return
-    from hermes_cli.mcp_startup import start_deferred_mcp_discovery_now
     from tui_gateway.ws import handle_ws
+
+    from hermes_cli.mcp_startup import start_deferred_mcp_discovery_now
 
     # First chat client of a standalone dashboard: fire the discovery armed at boot (no-op
     # otherwise). Off-loop: the first act is a config read + the ~350 ms `mcp` SDK import.
@@ -620,7 +632,7 @@ async def gateway_ws(ws: WebSocket) -> None:
 # child's stdio handshake with Ink.
 
 
-async def _accept_channel_ws(ws: WebSocket) -> Optional[str]:
+async def _accept_channel_ws(ws: WebSocket) -> str | None:
     if not await _close_unless_sidecar_allowed(ws):
         return None
     channel = _channel_or_close_code(ws)

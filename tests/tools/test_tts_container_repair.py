@@ -14,7 +14,6 @@ bytes once after synthesis and repairs the container centrally.
 import struct
 
 import pytest
-
 from tools.tts_tool import OPUS_VOICE_PLATFORMS, _repair_ogg_container
 from tools.tts_tool_delivery import _sniff_audio_container
 

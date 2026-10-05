@@ -8,12 +8,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from gateway.config import PlatformConfig
-
-
-
-
 
 
 class TestWeComInboundImageExtension:
@@ -33,6 +28,7 @@ class TestWeComInboundImageExtension:
         """End to end through `_cache_media`: a percent-encoded, unpadded `aeskey` decrypts, and an
         octet-stream-labelled PNG is stored with an image MIME, not application/octet-stream."""
         from urllib.parse import quote
+
         from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
         from plugins.platforms.wecom import media as wecom_media
         from plugins.platforms.wecom.adapter import WeComAdapter

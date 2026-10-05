@@ -16,13 +16,11 @@ import shutil
 import sqlite3
 import threading
 import time
-from dataclasses import dataclass
-from dataclasses import field
-from hermes_cli.sqlite_util import add_column_if_missing as _add_column_if_missing
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
-from typing import Optional
 
+from hermes_cli.sqlite_util import add_column_if_missing as _add_column_if_missing
 
 # ---------------------------------------------------------------------------
 # Connection helpers
@@ -88,7 +86,7 @@ def _try_lock_nb(handle) -> bool:
         import msvcrt
 
         handle.seek(0)
-        getattr(msvcrt, "locking")(handle.fileno(), getattr(msvcrt, "LK_NBLCK"), 1)
+        msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
     else:
         import fcntl
 
@@ -105,7 +103,7 @@ def _unlock(handle) -> None:
         import msvcrt
 
         handle.seek(0)
-        getattr(msvcrt, "locking")(handle.fileno(), getattr(msvcrt, "LK_UNLCK"), 1)
+        msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
     else:
         import fcntl
 
@@ -297,7 +295,7 @@ class KanbanDbCorruptError(RuntimeError):
     fail-closed guard against silently recreating a corrupt board (which would
     destroy the user's tasks). Carries the path and the backup made first."""
 
-    def __init__(self, db_path: Path, backup_path: Optional[Path], reason: str):
+    def __init__(self, db_path: Path, backup_path: Path | None, reason: str):
         self.db_path = db_path
         self.backup_path = backup_path
         self.reason = reason
@@ -307,11 +305,11 @@ class KanbanDbCorruptError(RuntimeError):
         )
 
 
-def _backup_label(backup_path: Optional[Path]) -> str:
+def _backup_label(backup_path: Path | None) -> str:
     return str(backup_path) if backup_path is not None else "<backup failed>"
 
 
-def _prune_corrupt_backups(parent: Path, base_name: str, keep: Optional[Path] = None) -> None:
+def _prune_corrupt_backups(parent: Path, base_name: str, keep: Path | None = None) -> None:
     """Keep only the ``_CORRUPT_BACKUP_RETENTION`` newest (by mtime)
     ``<db>.corrupt.<hash>.bak`` files plus their ``-wal``/``-shm`` copies.
     ``keep`` (the just-created backup) is never pruned regardless of mtime —
@@ -343,7 +341,7 @@ def _prune_corrupt_backups(parent: Path, base_name: str, keep: Optional[Path] = 
                 victim.unlink(missing_ok=True)
 
 
-def _backup_corrupt_db(path: Path) -> Optional[Path]:
+def _backup_corrupt_db(path: Path) -> Path | None:
     """Copy a corrupt DB (and WAL/SHM sidecars) to a content-addressed backup.
     The name is deterministic in the main DB's sha256, so repeated quarantines
     of the same bytes reuse one backup while changed bytes get a separate one.
@@ -434,7 +432,7 @@ def _probe_integrity(path: Path) -> list[str]:
         probe.close()
 
 
-def _repairable_index_names(messages: list[str]) -> Optional[list[str]]:
+def _repairable_index_names(messages: list[str]) -> list[str] | None:
     """Distinct index names iff EVERY message is index-repairable, else ``None``
     (caller fails closed; also ``None`` for no messages). First-appearance
     order is preserved so the REINDEX pass is deterministic."""
@@ -488,7 +486,7 @@ def _missing_or_empty(resolved: Path) -> bool:
         return True
 
 
-def _probe_for_corruption(resolved: Path) -> tuple[Optional[list[str]], Optional[str]]:
+def _probe_for_corruption(resolved: Path) -> tuple[list[str] | None, str | None]:
     """``(messages, reason)`` from an integrity probe; ``reason`` is ``None``
     when healthy and ``messages`` is ``None`` when sqlite refused to open the
     file at all. ``OperationalError`` (lock/busy) is NOT corruption and
@@ -562,11 +560,11 @@ class RepairResult:
     db_path: Path
     messages: list[str] = field(default_factory=list)
     post_repair_messages: list[str] = field(default_factory=list)
-    backup_path: Optional[Path] = None
+    backup_path: Path | None = None
     reindexed: list[str] = field(default_factory=list)
 
 
-def repair_db(db_path: Optional[Path] = None, *, board: Optional[str] = None) -> RepairResult:
+def repair_db(db_path: Path | None = None, *, board: str | None = None) -> RepairResult:
     """Probe a kanban DB and apply the narrow index-REINDEX repair if needed.
     Same policy as :func:`_guard_existing_db_is_healthy` (quarantine BEFORE
     any mutation; REINDEX under the init flock; anything non-index stays
@@ -665,7 +663,7 @@ def _open_configured(path: Path, under_lock) -> tuple[sqlite3.Connection, Any]:
     return conn, out
 
 
-def connect(db_path: Optional[Path] = None, *, board: Optional[str] = None) -> sqlite3.Connection:
+def connect(db_path: Path | None = None, *, board: str | None = None) -> sqlite3.Connection:
     """Open (and initialize if needed) the kanban DB. WAL is (re)enabled on
     every connection so a re-created file stays robust; the first connection
     per path auto-runs :func:`init_db`, later ones skip via
@@ -736,7 +734,7 @@ def connect(db_path: Optional[Path] = None, *, board: Optional[str] = None) -> s
 
 
 @contextlib.contextmanager
-def connect_closing(db_path: Optional[Path] = None, *, board: Optional[str] = None):
+def connect_closing(db_path: Path | None = None, *, board: str | None = None):
     """Open a kanban DB connection and guarantee it is closed on exit. Use
     instead of ``with kb.connect() as conn:`` — sqlite3's context manager only
     commits/rolls back, it does NOT close the fd, so long-lived processes
@@ -752,7 +750,7 @@ def connect_closing(db_path: Optional[Path] = None, *, board: Optional[str] = No
             conn.close()
 
 
-def init_db(db_path: Optional[Path] = None, *, board: Optional[str] = None) -> Path:
+def init_db(db_path: Path | None = None, *, board: str | None = None) -> Path:
     """Create the schema if it doesn't exist; return the path used. Unlike
     :func:`connect`'s cached first-time auto-init, this always re-runs the
     migration pass — callers that know the on-disk schema may have drifted
@@ -1176,7 +1174,7 @@ def _execute_boundary_with_retry(conn: sqlite3.Connection, sql: str) -> None:
             time.sleep(random.uniform(_BUSY_RETRY_MIN_S, _BUSY_RETRY_MAX_S))
 
 
-def _main_db_file(conn: sqlite3.Connection) -> Optional[str]:
+def _main_db_file(conn: sqlite3.Connection) -> str | None:
     """Filesystem path of *conn*'s main database (None for in-memory / unreadable)."""
     try:
         for _seq, name, file in conn.execute("PRAGMA database_list") or ():
@@ -1244,4 +1242,4 @@ def write_txn(conn: sqlite3.Connection, *, allow_nested: bool = False):
 
 # Late-bound origin namespace (see module docstring); imported LAST so this
 # module is fully populated before ``kanban_db`` imports from it.
-from hermes_cli import kanban_db as _kb  # noqa: E402
+from hermes_cli import kanban_db as _kb

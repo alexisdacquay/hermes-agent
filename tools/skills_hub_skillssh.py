@@ -4,11 +4,19 @@ import hashlib
 import logging
 import re
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from tools.skills_hub_github import GitHubAuth, GitHubSource, _split_repo_id
 from tools.skills_hub_models import (
-    SkillBundle, SkillMeta, SkillSource, _cache_metas, _cached_metas, _get_json, _get_text, _memo_json, hub,
+    SkillBundle,
+    SkillMeta,
+    SkillSource,
+    _cache_metas,
+    _cached_metas,
+    _get_json,
+    _get_text,
+    _memo_json,
+    hub,
 )
 
 logger = logging.getLogger("tools.skills_hub")
@@ -65,17 +73,17 @@ class SkillsShSource(SkillSource):
         return self.github.trust_level_for(self._normalize_identifier(identifier))
 
     def _meta(self, canonical: str, *, name: str, description: str, path: str,
-              extra: Optional[Dict[str, Any]] = None) -> SkillMeta:
+              extra: dict[str, Any] | None = None) -> SkillMeta:
         return SkillMeta(
             name=name, description=description, source="skills.sh", identifier=self._wrap_identifier(canonical),
             trust_level=self.github.trust_level_for(canonical), repo="/".join(canonical.split("/", 2)[:2]),
             path=path, extra=extra if extra is not None else {},
         )
 
-    def _urls_for(self, canonical: str, repo: str) -> Dict[str, str]:
+    def _urls_for(self, canonical: str, repo: str) -> dict[str, str]:
         return {"detail_url": f"{self.BASE_URL}/{canonical}", "repo_url": f"https://github.com/{repo}"}
 
-    def search(self, query: str, limit: int = 10) -> List[SkillMeta]:
+    def search(self, query: str, limit: int = 10) -> list[SkillMeta]:
         if not query.strip():
             # Empty query = bulk catalog dump (build_skills_index.py) — walk the sitemap.
             return self._sitemap_catalog(limit)
@@ -93,11 +101,11 @@ class SkillsShSource(SkillSource):
         _cache_metas(cache_key, results)
         return results
 
-    def fetch(self, identifier: str) -> Optional[SkillBundle]:
+    def fetch(self, identifier: str) -> SkillBundle | None:
         canonical = self._normalize_identifier(identifier)
         detail = self._fetch_detail_page(canonical)
 
-        def _relabel(github_id: Optional[str]) -> Optional[SkillBundle]:
+        def _relabel(github_id: str | None) -> SkillBundle | None:
             bundle = self.github.fetch(github_id) if github_id else None
             if bundle:
                 bundle.source, bundle.identifier = "skills.sh", self._wrap_identifier(canonical)
@@ -110,13 +118,13 @@ class SkillsShSource(SkillSource):
                 return bundle
         return _relabel(self._discover_identifier(canonical, detail=detail))
 
-    def inspect(self, identifier: str) -> Optional[SkillMeta]:
+    def inspect(self, identifier: str) -> SkillMeta | None:
         canonical = self._normalize_identifier(identifier)
         detail = self._fetch_detail_page(canonical)
         meta = self._resolve_github_meta(canonical, detail=detail)
         return self._finalize_inspect_meta(meta, canonical, detail) if meta else None
 
-    def _sitemap_catalog(self, limit: int) -> List[SkillMeta]:
+    def _sitemap_catalog(self, limit: int) -> list[SkillMeta]:
         """Enumerate the full catalog via the sitemap (cached for the index TTL —
         ~2 MB of XML). Falls back to ``_featured_skills`` when unreachable/empty."""
         cache_key = "skills_sh_sitemap_v1"
@@ -127,7 +135,7 @@ class SkillsShSource(SkillSource):
         # Every hop goes through the hub's guarded GET: the index is a root of trust
         # that may redirect, and its <loc> entries are remote-party-controlled — a
         # hostile index could point a sitemap at an internal address.
-        def _xml(url: str, timeout: int) -> Optional[str]:
+        def _xml(url: str, timeout: int) -> str | None:
             resp = hub()._guarded_http_get(url, timeout=timeout, headers=self._SITEMAP_HEADERS)
             return resp.text if resp is not None and resp.status_code == 200 else None
 
@@ -167,7 +175,7 @@ class SkillsShSource(SkillSource):
             _cache_metas(cache_key, results)
         return results[:limit] if limit > 0 else results
 
-    def _featured_skills(self, limit: int) -> List[SkillMeta]:
+    def _featured_skills(self, limit: int) -> list[SkillMeta]:
         cache_key = "skills_sh_featured"
         cached = _cached_metas(cache_key)
         if cached is not None:
@@ -190,7 +198,7 @@ class SkillsShSource(SkillSource):
         _cache_metas(cache_key, results)
         return results
 
-    def _meta_from_search_item(self, item: dict) -> Optional[SkillMeta]:
+    def _meta_from_search_item(self, item: dict) -> SkillMeta | None:
         if not isinstance(item, dict):
             return None
         canonical, repo, skill_path = item.get("id"), item.get("source"), item.get("skillId")
@@ -210,14 +218,14 @@ class SkillsShSource(SkillSource):
             extra={"installs": installs, **self._urls_for(canonical, repo)},
         )
 
-    def _fetch_detail_page(self, identifier: str) -> Optional[dict]:
+    def _fetch_detail_page(self, identifier: str) -> dict | None:
         def compute():
             html = _get_text(f"{self.BASE_URL}/{identifier}")
             return None if html is None else self._parse_detail_page(identifier, html) or None
         key = f"skills_sh_detail_{hashlib.md5(identifier.encode()).hexdigest()}"
         return _memo_json(key, compute, valid=lambda c: isinstance(c, dict))
 
-    def _parse_detail_page(self, identifier: str, html: str) -> Optional[dict]:
+    def _parse_detail_page(self, identifier: str, html: str) -> dict | None:
         split = _split_repo_id(identifier)
         if split is None:
             return None
@@ -238,7 +246,7 @@ class SkillsShSource(SkillSource):
             "security_audits": self._extract_security_audits(html, identifier),
         }
 
-    def _discover_identifier(self, identifier: str, detail: Optional[dict] = None) -> Optional[str]:
+    def _discover_identifier(self, identifier: str, detail: dict | None = None) -> str | None:
         split = _split_repo_id(identifier)
         if split is None:
             return None
@@ -249,7 +257,7 @@ class SkillsShSource(SkillSource):
         if isinstance(detail, dict):
             tokens.extend(detail.get(k, "") for k in ("install_skill", "page_title", "body_title"))
 
-        def _match_in(base_path: str) -> Optional[str]:
+        def _match_in(base_path: str) -> str | None:
             try:
                 skills = self.github._list_skills_in_repo(repo, base_path)
             except Exception:
@@ -284,7 +292,7 @@ class SkillsShSource(SkillSource):
             pass
         return None
 
-    def _resolve_github_meta(self, identifier: str, detail: Optional[dict] = None) -> Optional[SkillMeta]:
+    def _resolve_github_meta(self, identifier: str, detail: dict | None = None) -> SkillMeta | None:
         for candidate in self._candidate_identifiers(identifier):
             meta = self.github.inspect(candidate)
             if meta:
@@ -292,7 +300,7 @@ class SkillsShSource(SkillSource):
         resolved = self._discover_identifier(identifier, detail=detail)
         return self.github.inspect(resolved) if resolved else None
 
-    def _finalize_inspect_meta(self, meta: SkillMeta, canonical: str, detail: Optional[dict]) -> SkillMeta:
+    def _finalize_inspect_meta(self, meta: SkillMeta, canonical: str, detail: dict | None) -> SkillMeta:
         meta.source, meta.identifier = "skills.sh", self._wrap_identifier(canonical)
         meta.trust_level = self.trust_level_for(canonical)
         meta.extra = {**meta.extra, **self._detail_to_metadata(canonical, detail)}
@@ -305,13 +313,13 @@ class SkillsShSource(SkillSource):
         return meta
 
     @classmethod
-    def _matches_skill_tokens(cls, meta: SkillMeta, skill_tokens: List[str]) -> bool:
+    def _matches_skill_tokens(cls, meta: SkillMeta, skill_tokens: list[str]) -> bool:
         candidates = (cls._token_variants(meta.name) | cls._token_variants(meta.path)
                       | cls._token_variants(meta.identifier.split("/", 2)[-1] if meta.identifier else None))
         return any(cls._token_variants(token) & candidates for token in skill_tokens)
 
     @staticmethod
-    def _token_variants(value: Optional[str]) -> set[str]:
+    def _token_variants(value: str | None) -> set[str]:
         if not value:
             return set()
         plain = _strip_html(str(value)).strip().strip("/").lower()
@@ -326,17 +334,17 @@ class SkillsShSource(SkillSource):
         return {v for v in variants if v}
 
     @staticmethod
-    def _extract_repo_slug(repo_value: str) -> Optional[str]:
+    def _extract_repo_slug(repo_value: str) -> str | None:
         parts = repo_value.strip().removeprefix("https://github.com/").strip("/").split("/")
         return f"{parts[0]}/{parts[1]}" if len(parts) >= 2 else None
 
     @staticmethod
-    def _extract_first_match(pattern: re.Pattern, text: str) -> Optional[str]:
+    def _extract_first_match(pattern: re.Pattern, text: str) -> str | None:
         match = pattern.search(text)
         value = next((group for group in match.groups() if group), None) if match else None
         return (_strip_html(value).strip() or None) if value is not None else None
 
-    def _detail_to_metadata(self, canonical: str, detail: Optional[dict]) -> Dict[str, Any]:
+    def _detail_to_metadata(self, canonical: str, detail: dict | None) -> dict[str, Any]:
         parts = canonical.split("/", 2)
         metadata = {"detail_url": f"{self.BASE_URL}/{canonical}"}
         if len(parts) >= 2:
@@ -348,13 +356,13 @@ class SkillsShSource(SkillSource):
         return metadata
 
     @classmethod
-    def _extract_weekly_installs(cls, html: str) -> Optional[str]:
+    def _extract_weekly_installs(cls, html: str) -> str | None:
         match = cls._WEEKLY_INSTALLS_RE.search(html)
         return match.group("count") if match else None
 
     @staticmethod
-    def _extract_security_audits(html: str, identifier: str) -> Dict[str, str]:
-        audits: Dict[str, str] = {}
+    def _extract_security_audits(html: str, identifier: str) -> dict[str, str]:
+        audits: dict[str, str] = {}
         for audit in ("agent-trust-hub", "socket", "snyk"):
             idx = html.find(f"/security/{audit}")
             match = re.search(r'(Pass|Warn|Fail)', html[idx:idx + 500], re.IGNORECASE) if idx != -1 else None
@@ -368,7 +376,7 @@ class SkillsShSource(SkillSource):
         return identifier[len(prefix):]
 
     @classmethod
-    def _candidate_identifiers(cls, identifier: str) -> List[str]:
+    def _candidate_identifiers(cls, identifier: str) -> list[str]:
         split = _split_repo_id(identifier)
         if split is None:
             return [identifier]

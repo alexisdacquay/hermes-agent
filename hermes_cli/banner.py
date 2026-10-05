@@ -7,11 +7,14 @@ import shutil
 import sys
 import threading
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+from hermes_constants import get_hermes_home
+
 from hermes_cli import source_check
+
 # Historical updater import (tests/compat/old_updater_surface.json). In-tree callers use the owner.
 from hermes_cli.source_check import _github_compare_behind  # noqa: F401
-from hermes_constants import get_hermes_home
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 # rich and prompt_toolkit are imported lazily: this module sits on the TUI gateway's critical
 # startup path purely for the lightweight update-check helpers, and eager rich/prompt_toolkit
@@ -26,12 +29,12 @@ _DIM = "\033[2m"
 _RST = "\033[0m"
 
 
-def _check_via_pypi() -> Optional[int]:
+def _check_via_pypi() -> int | None:
     # Shim to stop the old updater doing work until relaunch. no registry query.
     return None
 
 
-def check_via_pypi() -> Optional[int]:
+def check_via_pypi() -> int | None:
     # Shim to stop the old updater doing work until relaunch. status is unknown.
     return None
 
@@ -97,9 +100,9 @@ HERMES_CADUCEUS = """[#CD7F32]⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣀⡀⠀⣀⣀�
 
 # Per-process caches: ``None`` until computed, then a 1-tuple ``(value,)`` so a computed ``None``
 # is distinguishable from "not yet computed". Reset by assigning ``None`` (tests, ``hermes skills``).
-_available_skills_cache: Optional[tuple] = None
-_git_banner_state_cache: Optional[tuple] = None
-_latest_release_cache: Optional[tuple] = None
+_available_skills_cache: tuple | None = None
+_git_banner_state_cache: tuple | None = None
+_latest_release_cache: tuple | None = None
 
 _UNCACHED = object()  # compute() result that must not be memoized
 
@@ -121,7 +124,7 @@ def _memo(cache_name: str, compute):
     return value
 
 
-def get_available_skills() -> Dict[str, List[str]]:
+def get_available_skills() -> dict[str, list[str]]:
     """Return skills grouped by category, filtered by platform and disabled state.
 
     Cached per-process (the skills-tree walk costs ~100ms and feeds only the startup banner);
@@ -135,7 +138,7 @@ def get_available_skills() -> Dict[str, List[str]]:
         all_skills = _quiet(_scan)
         if all_skills is None:
             return _UNCACHED
-        skills_by_category: Dict[str, List[str]] = {}
+        skills_by_category: dict[str, list[str]] = {}
         for skill in all_skills:
             skills_by_category.setdefault(skill.get("category") or "general", []).append(skill["name"])
         return skills_by_category
@@ -143,7 +146,7 @@ def get_available_skills() -> Dict[str, List[str]]:
     return {} if result is _UNCACHED else result
 
 
-def _resolve_repo_dir() -> Optional[Path]:
+def _resolve_repo_dir() -> Path | None:
     """The active Hermes git checkout, or None if this isn't a git install.
 
     Prefers the running code's location: ``$HERMES_HOME/hermes-agent/`` may be a stale copy
@@ -155,7 +158,7 @@ def _resolve_repo_dir() -> Optional[Path]:
     return repo_dir if (repo_dir / ".git").exists() else None
 
 
-def get_git_banner_state(repo_dir: Optional[Path] = None) -> Optional[dict]:
+def get_git_banner_state(repo_dir: Path | None = None) -> dict | None:
     """Return upstream/local git hashes for the startup banner.
 
     Cached per-process (default ``repo_dir`` only): 2-3 git subprocesses (~100ms) whose result
@@ -166,7 +169,7 @@ def get_git_banner_state(repo_dir: Optional[Path] = None) -> Optional[dict]:
     return _memo("_git_banner_state_cache", _compute_git_banner_state)
 
 
-def _baked_banner_state() -> Optional[dict]:
+def _baked_banner_state() -> dict | None:
     """Banner state from the baked build SHA (Docker image path), or None."""
     def _baked():
         from hermes_cli.version_info import get_code_identity
@@ -175,7 +178,7 @@ def _baked_banner_state() -> Optional[dict]:
     return {"upstream": baked, "local": baked, "ahead": 0} if baked else None
 
 
-def _compute_git_banner_state(repo_dir: Optional[Path] = None) -> Optional[dict]:
+def _compute_git_banner_state(repo_dir: Path | None = None) -> dict | None:
     repo_dir = repo_dir or _resolve_repo_dir()
     if repo_dir is None:
         return _baked_banner_state()
@@ -190,7 +193,7 @@ def _compute_git_banner_state(repo_dir: Optional[Path] = None) -> Optional[dict]
 _RELEASE_URL_BASE = "https://github.com/NousResearch/hermes-agent/releases/tag"
 
 
-def get_latest_release_tag(repo_dir: Optional[Path] = None) -> Optional[tuple]:
+def get_latest_release_tag(repo_dir: Path | None = None) -> tuple | None:
     """Return ``(tag, release_url)`` for the latest local git tag, or None (a miss is cached too).
 
     Release URL always points at the canonical NousResearch/hermes-agent repo (forks get no link).
@@ -243,11 +246,11 @@ def format_banner_version_label() -> str:
 
 # === Non-blocking update check ===
 
-_update_result: Optional[int] = None
+_update_result: int | None = None
 _update_check_done = threading.Event()
 
 
-def _daemon(name: Optional[str], target) -> None:
+def _daemon(name: str | None, target) -> None:
     """Start a daemon thread running ``target`` with any exception swallowed."""
     threading.Thread(target=lambda: _quiet(target), name=name, daemon=True).start()
 
@@ -312,7 +315,7 @@ def prefetch_banner_data():
         get_git_banner_state, get_latest_release_tag, get_available_skills)])
 
 
-def get_update_result(timeout: float = 0.5) -> Optional[int]:
+def get_update_result(timeout: float = 0.5) -> int | None:
     """Get result of prefetched check. Returns None if not ready."""
     _update_check_done.wait(timeout=timeout)
     return _update_result
@@ -342,6 +345,7 @@ def _render_markup_to_ansi(markup: str) -> str:
     the StdoutProxy, which sanitizes them into visible ``?[1;33m…`` artifacts (#83969).
     """
     from io import StringIO
+
     from rich.console import Console as _Console
     buf = StringIO()
     _Console(file=buf, force_terminal=True, color_system="truecolor", highlight=False).print(markup)
@@ -406,7 +410,7 @@ def _banner_snapshot_path() -> Path:
     return get_hermes_home() / "cache" / "banner_snapshot.json"
 
 
-def banner_snapshot_fingerprint() -> Optional[str]:
+def banner_snapshot_fingerprint() -> str | None:
     """Fingerprint the inputs the banner tool panel depends on."""
     import hashlib
     def _inputs():
@@ -428,7 +432,7 @@ def banner_snapshot_fingerprint() -> Optional[str]:
     return hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()
 
 
-def load_banner_snapshot(enabled_toolsets: List[str] = None) -> Optional[Dict[str, Any]]:
+def load_banner_snapshot(enabled_toolsets: list[str] = None) -> dict[str, Any] | None:
     """Return the stored banner snapshot when its fingerprint is current."""
     blob = _quiet(lambda: json.loads(_banner_snapshot_path().read_text(encoding="utf-8-sig")))
     if not isinstance(blob, dict):
@@ -443,8 +447,8 @@ def load_banner_snapshot(enabled_toolsets: List[str] = None) -> Optional[Dict[st
     return blob
 
 
-def save_banner_snapshot(tools: List[dict], enabled_toolsets: List[str], availability: Dict[str, Any],
-                         toolset_map: Dict[str, str]) -> None:
+def save_banner_snapshot(tools: list[dict], enabled_toolsets: list[str], availability: dict[str, Any],
+                         toolset_map: dict[str, str]) -> None:
     """Persist the banner tool panel inputs for next launch (best-effort)."""
     fp = banner_snapshot_fingerprint()
     if not fp:
@@ -467,12 +471,12 @@ def save_banner_snapshot(tools: List[dict], enabled_toolsets: List[str], availab
     _quiet(_write)
 
 
-def compute_toolset_availability(enabled_toolsets: List[str] = None) -> Dict[str, Any]:
+def compute_toolset_availability(enabled_toolsets: list[str] = None) -> dict[str, Any]:
     """Compute ``{"unavailable_toolsets", "lazy_tools", "disabled_tools"}`` for the banner.
 
     Split out so the result can be snapshotted and replayed without importing ``model_tools``.
     """
-    from model_tools import check_tool_availability, TOOLSET_REQUIREMENTS
+    from model_tools import TOOLSET_REQUIREMENTS, check_tool_availability
     enabled_toolsets = enabled_toolsets or []
     _, unavailable_toolsets = check_tool_availability(quiet=True)
     # The availability check walks the GLOBAL registry, so it includes toolsets outside this
@@ -511,22 +515,22 @@ def _mcp_server_line(srv: dict, *, dim: str, text: str) -> str:
     return _mcp_failed_line(name, transport, srv.get("error"))
 
 
-def _mcp_failed_line(name: str, transport: str, error: Optional[str]) -> str:
+def _mcp_failed_line(name: str, transport: str, error: str | None) -> str:
     """Failed MCP connect: the short reason (already humanised by ``_format_connect_error``) and the
     exact next command, so 'failed' is never the whole story."""
     from rich.markup import escape
     reason = escape(" ".join(str(error or "").split())[:120]) or "no details recorded"
-    next_cmd = (f"hermes mcp login {name}" if re.search(r"\b401\b|unauthori[sz]ed", reason, re.I)
+    next_cmd = (f"hermes mcp login {name}" if re.search(r"\b401\b|unauthori[sz]ed", reason, re.IGNORECASE)
                 else f"hermes mcp test {name}")
     return (f"[red]{name}[/] [dim]({transport})[/] [red]— could not connect:[/] {reason} "
             f"[dim]— run `{next_cmd}`[/]")
 
 
-def _truncate_tool_names(tool_names: List[str]) -> List[Optional[str]]:
+def _truncate_tool_names(tool_names: list[str]) -> list[str | None]:
     """Cut a toolset's tool list to ~42 columns; ``None`` marks the elided tail."""
     if len(", ".join(tool_names)) <= 45:
         return list(tool_names)
-    short_names: List[Optional[str]] = []
+    short_names: list[str | None] = []
     length = 0
     for name in tool_names:
         if length + len(name) + 2 > 42:
@@ -537,9 +541,9 @@ def _truncate_tool_names(tool_names: List[str]) -> List[Optional[str]]:
     return short_names
 
 
-def _pack_skill_names(skill_names: List[str], avail: int) -> str:
+def _pack_skill_names(skill_names: list[str], avail: int) -> str:
     """Join skill names into ``avail`` columns, ending with ``+N more`` when they don't all fit."""
-    parts: List[str] = []
+    parts: list[str] = []
     length = 0
     for i, name in enumerate(skill_names):
         needed = (2 if parts else 0) + len(name)
@@ -591,7 +595,7 @@ def _codex_runtime_active() -> bool:
     return get_current_runtime(load_config()) == "codex_app_server"
 
 
-def _active_profile_name() -> Optional[str]:
+def _active_profile_name() -> str | None:
     from hermes_cli.profiles import get_active_profile_name
     return get_active_profile_name()
 
@@ -644,7 +648,7 @@ def _banner_tool_lines(
     lazy_tools: set, disabled_tools: set, accent: str, dim: str, text: str) -> list:
     """"Available Tools" section: up to 8 toolsets, each truncated to ~42 columns."""
     lines = [f"[bold {accent}]Available Tools[/]"]
-    toolsets_dict: Dict[str, list] = {}
+    toolsets_dict: dict[str, list] = {}
     for tool in tools:
         tool_name = tool["function"]["name"]
         toolset = _display_toolset_name(get_toolset_for_tool(tool_name) or "other")
@@ -655,7 +659,7 @@ def _banner_tool_lines(
             if tool_name not in names:
                 names.append(tool_name)
 
-    def _color_tool(name: Optional[str]) -> str:
+    def _color_tool(name: str | None) -> str:
         if name is None:  # truncation marker
             return "[dim]...[/]"
         color = "red" if name in disabled_tools else "yellow" if name in lazy_tools else text
@@ -669,7 +673,7 @@ def _banner_tool_lines(
     return lines
 
 
-def _banner_skill_lines(skills_by_category: Dict[str, List[str]], skills_enabled: bool, *, dim: str, text: str) -> list:
+def _banner_skill_lines(skills_by_category: dict[str, list[str]], skills_enabled: bool, *, dim: str, text: str) -> list:
     """"Available Skills" body, sized to ~60% of the terminal width (the right grid column)."""
     if not skills_enabled:
         return [f"[dim {dim}]Skills toolset disabled[/]"]
@@ -685,9 +689,9 @@ def _banner_skill_lines(skills_by_category: Dict[str, List[str]], skills_enabled
 
 
 def build_welcome_banner(
-    console: "Console", model: str, cwd: str, tools: List[dict] = None, enabled_toolsets: List[str] = None,
+    console: Console, model: str, cwd: str, tools: list[dict] = None, enabled_toolsets: list[str] = None,
     session_id: str = None, get_toolset_for_tool=None, context_length: int = None, provider: str = None,
-    availability: Dict[str, Any] = None, skills_by_category: Dict[str, List[str]] = None,
+    availability: dict[str, Any] = None, skills_by_category: dict[str, list[str]] = None,
     context_pinned: bool = False,
 ):
     """Build and print a welcome banner with caduceus on left and info on right.

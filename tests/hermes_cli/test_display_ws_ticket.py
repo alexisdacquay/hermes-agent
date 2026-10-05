@@ -33,10 +33,9 @@ def test_a_bad_ticket_is_refused_with_a_close_frame_the_renderer_can_read(monkey
     cannot pick between re-observing and showing "not running". The handshake must complete and
     the reason travel in the close frame."""
     import pytest
+    from hermes_cli import web_server
     from starlette.testclient import TestClient
     from starlette.websockets import WebSocketDisconnect
-
-    from hermes_cli import web_server
 
     ws_tickets._reset_for_tests()
     prev = {k: getattr(web_server.app.state, k, None) for k in ("auth_required", "bound_host")}

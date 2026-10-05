@@ -9,7 +9,8 @@ and a launch-profile ``FEISHU_GROUP_POLICY=open`` is (deliberately) not inherite
 
 from __future__ import annotations
 
-from typing import Any, Collection, Mapping, Optional
+from collections.abc import Collection, Mapping
+from typing import Any
 
 
 def empty_allowlist_drop_warning(
@@ -18,7 +19,7 @@ def empty_allowlist_drop_warning(
     group_rules: Mapping[str, Any],
     default_group_policy: str,
     allowed_group_users: Collection[str],
-) -> Optional[str]:
+) -> str | None:
     """Message for a group drop caused by the empty-allowlist default, else None.
 
     A per-chat ``group_rules`` entry, a non-``allowlist`` policy or a populated allowlist

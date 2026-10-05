@@ -12,9 +12,10 @@ import re
 import shutil
 import sys
 import time
+from collections.abc import Mapping
 from contextlib import suppress
 from pathlib import Path
-from typing import Dict, Any, Optional, Mapping
+from typing import Any
 from urllib.parse import unquote, urlparse
 
 from agent.i18n import t
@@ -142,7 +143,7 @@ def _file_drop_result(path: Path, remainder: str) -> dict:
     return {"path": path, "is_image": path.suffix.lower() in _IMAGE_EXTENSIONS, "remainder": remainder}
 
 
-def _detect_file_drop(user_input: str) -> "dict | None":
+def _detect_file_drop(user_input: str) -> dict | None:
     """Detect a dragged/pasted file path at the start of *user_input* -> ``{path, is_image, remainder}`` or None."""
     from cli import _file_drop_result, _resolve_attachment_path, _split_path_input
     if not isinstance(user_input, str):
@@ -246,8 +247,8 @@ def _apply_bracketed_paste_timeout_patch() -> None:
     """
     try:
         import prompt_toolkit.input.vt100_parser as _vt100_mod
-        from prompt_toolkit.keys import Keys as _PtKeys
         from prompt_toolkit.key_binding.key_processor import KeyPress as _PtKeyPress
+        from prompt_toolkit.keys import Keys as _PtKeys
 
         if getattr(_vt100_mod, "_hermes_bp_timeout_patched", False):
             return
@@ -348,7 +349,7 @@ _EXTENDED_ENTER_KEYS_SEQ = _KITTY_KEYBOARD_PUSH_SEQ + _MODIFY_OTHER_KEYS_SEQ
 _BACKSLASH_LINE_CONTINUATION_RE = re.compile(r"\\[ \t]*$")
 
 
-def _is_ghostty_terminal(env: Optional[Mapping[str, str]] = None) -> bool:
+def _is_ghostty_terminal(env: Mapping[str, str] | None = None) -> bool:
     """Whether the terminal is Ghostty.
 
     Ghostty gets ONLY modifyOtherKeys: its Kitty disambiguate mode strips Alt from
@@ -361,7 +362,7 @@ def _is_ghostty_terminal(env: Optional[Mapping[str, str]] = None) -> bool:
     return (env.get("TERM_PROGRAM") or "").strip() == "ghostty" or (env.get("TERM") or "").strip().lower() == "xterm-ghostty"
 
 
-def _terminal_supports_extended_enter_keys(env: Optional[Mapping[str, str]] = None) -> bool:
+def _terminal_supports_extended_enter_keys(env: Mapping[str, str] | None = None) -> bool:
     """Allowlist of terminals where requesting modified-Enter reporting is safe (aligned with the Ink TUI)."""
     env = os.environ if env is None else env
     term_program = (env.get("TERM_PROGRAM") or "").strip()
@@ -375,7 +376,7 @@ def _terminal_supports_extended_enter_keys(env: Optional[Mapping[str, str]] = No
     )
 
 
-def _enable_extended_enter_keys(output=None, env: Optional[Mapping[str, str]] = None) -> bool:
+def _enable_extended_enter_keys(output=None, env: Mapping[str, str] | None = None) -> bool:
     """Ask allowlisted terminals to report modified keys distinctly.
 
     Pushes BOTH kitty keyboard protocol and xterm modifyOtherKeys (kitty dropped the
@@ -395,7 +396,12 @@ def _enable_extended_enter_keys(output=None, env: Optional[Mapping[str, str]] = 
     the CLI).
     See #87630.
     """
-    from cli import _EXTENDED_ENTER_KEYS_SEQ, _MODIFY_OTHER_KEYS_SEQ, _is_ghostty_terminal, _terminal_supports_extended_enter_keys
+    from cli import (
+        _EXTENDED_ENTER_KEYS_SEQ,
+        _MODIFY_OTHER_KEYS_SEQ,
+        _is_ghostty_terminal,
+        _terminal_supports_extended_enter_keys,
+    )
     if not _terminal_supports_extended_enter_keys(env):
         return False
     seq = _MODIFY_OTHER_KEYS_SEQ if _is_ghostty_terminal(env) else _EXTENDED_ENTER_KEYS_SEQ
@@ -413,7 +419,7 @@ def _enable_extended_enter_keys(output=None, env: Optional[Mapping[str, str]] = 
     return False
 
 
-def _cli_multiline_shortcuts_enabled(config: Optional[Dict[str, Any]] = None) -> bool:
+def _cli_multiline_shortcuts_enabled(config: dict[str, Any] | None = None) -> bool:
     """``display.cli_multiline_shortcuts`` (default on: Ctrl+J = newline; off restores the legacy c-j submit)."""
     if config is None:
         config = _cli().CLI_CONFIG
@@ -461,7 +467,7 @@ def _preserve_ctrl_enter_newline() -> bool:
     return False
 
 
-def _bind_prompt_submit_keys(kb, handler, *, multiline_shortcuts_enabled: Optional[bool] = None) -> None:
+def _bind_prompt_submit_keys(kb, handler, *, multiline_shortcuts_enabled: bool | None = None) -> None:
     """Enter always submits; c-j submits only with multiline shortcuts off AND where Ctrl+Enter isn't c-j.
 
     Even when the setting is disabled, environments where Ctrl+Enter is known to arrive as c-j (Windows,
@@ -502,8 +508,9 @@ def _build_cpr_disabled_output(stdout):
     """
     try:
         import io as _io
-        from prompt_toolkit.output.vt100 import Vt100_Output, _get_size
+
         from prompt_toolkit.data_structures import Size
+        from prompt_toolkit.output.vt100 import Vt100_Output, _get_size
 
         def _get_term_size():
             rows = columns = None
@@ -526,7 +533,13 @@ def _select_classic_cli_pt_output(stdout):
 
 def _strip_leaked_terminal_responses_with_meta(text: str) -> tuple[str, bool]:
     """Strip leaked CPR replies and mouse-report fragments -> ``(cleaned, had_mouse_reports)``."""
-    from cli import _DSR_CPR_ESC_RE, _DSR_CPR_VISIBLE_RE, _SGR_MOUSE_BARE_RE, _SGR_MOUSE_ESC_RE, _SGR_MOUSE_VISIBLE_RE
+    from cli import (
+        _DSR_CPR_ESC_RE,
+        _DSR_CPR_VISIBLE_RE,
+        _SGR_MOUSE_BARE_RE,
+        _SGR_MOUSE_ESC_RE,
+        _SGR_MOUSE_VISIBLE_RE,
+    )
     if not text:
         return text, False
 

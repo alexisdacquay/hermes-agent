@@ -4,7 +4,6 @@
 import types
 
 import pytest
-
 from agent import conversation_compression as cc
 from hermes_state import SessionDB
 

@@ -10,7 +10,6 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from gateway.platforms.base import unauthorized_action_notice
 
 # ---------------------------------------------------------------------------
@@ -25,8 +24,8 @@ if _repo not in sys.path:
 # Minimal Telegram mock so TelegramAdapter can be imported (mirrors
 # test_telegram_approval_buttons.py)
 # ---------------------------------------------------------------------------
-from plugins.platforms.telegram.adapter import TelegramAdapter
 from gateway.config import PlatformConfig
+from plugins.platforms.telegram.adapter import TelegramAdapter
 
 
 def _make_adapter(extra=None):

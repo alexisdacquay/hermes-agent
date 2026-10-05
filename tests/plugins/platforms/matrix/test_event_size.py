@@ -6,7 +6,6 @@ import sys
 import types
 
 import pytest
-
 from gateway.config import PlatformConfig
 
 # The homeserver rejects an event whose canonical JSON exceeds 65,536 bytes (M_TOO_LARGE). E2EE
@@ -73,7 +72,10 @@ async def test_sends_and_budget_sized_edits_fit_one_event():
 
 @pytest.mark.asyncio
 async def test_standalone_sender_events_fit_one_event(monkeypatch):
-    from plugins.platforms.matrix.adapter import DEFAULT_MAX_MESSAGE_LENGTH, _standalone_send
+    from plugins.platforms.matrix.adapter import (
+        DEFAULT_MAX_MESSAGE_LENGTH,
+        _standalone_send,
+    )
 
     payloads = []
 

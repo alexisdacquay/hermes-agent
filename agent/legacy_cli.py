@@ -22,8 +22,8 @@ from hermes_cli import _early_recovery
 if _early_recovery.restore_interrupted_pull():
     _early_recovery.relaunch_after_restore()
 
-import argparse  # noqa: E402
-from typing import Callable, List, Optional  # noqa: E402
+import argparse
+from collections.abc import Callable
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -57,7 +57,7 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: Optional[List[str]] = None, *, run: Optional[Callable[..., object]] = None) -> int:
+def main(argv: list[str] | None = None, *, run: Callable[..., object] | None = None) -> int:
     """Parse ``argv`` (default ``sys.argv[1:]``) and run one query through ``run_agent.main``.
 
     Metadata flags and a bare invocation never reach the runner; ``run`` lets

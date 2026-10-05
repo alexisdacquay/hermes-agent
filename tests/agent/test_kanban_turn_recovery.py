@@ -18,7 +18,6 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-
 from agent.kanban_turn_recovery import (
     DEFAULT_MAX_RECOVERY_ATTEMPTS,
     RECOVERY_DELAYS_SECONDS,

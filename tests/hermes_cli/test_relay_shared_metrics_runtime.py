@@ -6,14 +6,13 @@ import contextvars
 import json
 import sqlite3
 import threading
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
-
-from hermes_cli import lifecycle, plugins
 from agent import relay_runtime
+from hermes_cli import lifecycle, plugins
 from hermes_cli.observability import relay_shared_metrics
 from hermes_cli.plugins import PluginManager
 
@@ -668,7 +667,7 @@ def test_real_binding_drives_lifecycle_aggregation_export_and_snapshot(
     _join_export_workers()
     root = tmp_path / "hermes-home" / "telemetry" / "shared_metrics"
     store = SharedMetricsStore(root / "metrics.sqlite3", root / "outbox")
-    tomorrow = datetime.now(timezone.utc) + timedelta(days=1)
+    tomorrow = datetime.now(UTC) + timedelta(days=1)
     monkeypatch.setattr(
         "hermes_cli.observability.shared_metrics._utc_now",
         lambda: tomorrow,
@@ -817,9 +816,7 @@ def test_real_binding_correlates_plugin_approval_denial_to_tool_metric(
     monkeypatch,
 ):
     from hermes_cli.observability.shared_metrics import SharedMetricsStore
-    from tools import approval
-    import tools.approval_prompt as approval_prompt
-    import tools.approval_context as approval_context
+    from tools import approval, approval_context, approval_prompt
 
     assert real_binding_runtime._native is not None
     base = {
@@ -2460,7 +2457,7 @@ def test_task_retry_count_survives_provider_fallback_ordinal_reset(direct_runtim
 def test_failed_flush_keeps_daily_export_open_for_later_task(
     direct_runtime, tmp_path, monkeypatch, caplog
 ):
-    current_time = datetime(2026, 7, 28, 9, tzinfo=timezone.utc)
+    current_time = datetime(2026, 7, 28, 9, tzinfo=UTC)
     monkeypatch.setattr(
         "hermes_cli.observability.shared_metrics._utc_now",
         lambda: current_time,
@@ -2532,7 +2529,7 @@ def parked_flush(direct_runtime, monkeypatch):
     """A flush that blocks like the real barrier does while another session's tool runs."""
     monkeypatch.setattr(
         "hermes_cli.observability.shared_metrics._utc_now",
-        lambda: datetime(2026, 7, 28, 9, tzinfo=timezone.utc),
+        lambda: datetime(2026, 7, 28, 9, tzinfo=UTC),
     )
     state = SimpleNamespace(attempts=0, entered=threading.Event(), release=threading.Event())
 
@@ -2567,7 +2564,11 @@ def test_task_ends_do_not_wait_on_the_process_wide_flush_barrier(parked_flush, t
 def test_background_flush_runs_under_the_finishing_turns_profile(
     direct_runtime, tmp_path, monkeypatch
 ):
-    from hermes_constants import get_hermes_home, reset_hermes_home_override, set_hermes_home_override
+    from hermes_constants import (
+        get_hermes_home,
+        reset_hermes_home_override,
+        set_hermes_home_override,
+    )
 
     seen: list[Any] = []
     monkeypatch.setattr(
@@ -2932,7 +2933,9 @@ def test_milestone_install_age_is_the_subscriber_profile_not_the_relay_thread(tm
     import time
 
     from hermes_cli.observability.shared_metrics import SharedMetricsStore
-    from hermes_cli.observability.shared_metrics_subscriber import SharedMetricsSubscriber
+    from hermes_cli.observability.shared_metrics_subscriber import (
+        SharedMetricsSubscriber,
+    )
     from hermes_constants import reset_hermes_home_override, set_hermes_home_override
 
     launch, other = tmp_path / "A", tmp_path / "B"

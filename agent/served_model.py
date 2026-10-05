@@ -13,7 +13,7 @@ value never outlives the request that produced it). Consumers: ``agent/turn_fina
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ SERVED_MODEL_HEADERS: tuple[str, ...] = ("x-litellm-model-id", "x-litellm-model-
 _HOOK_MARK = "_hermes_served_model_hook"
 
 
-def served_model_from_headers(headers: Any) -> Optional[str]:
+def served_model_from_headers(headers: Any) -> str | None:
     """First non-empty served-model header, or ``None``."""
     if headers is None or not hasattr(headers, "get"):
         return None
@@ -56,7 +56,7 @@ def install_served_model_capture(agent: Any, client: Any) -> None:
         logger.debug("served-model hook install skipped", exc_info=True)
 
 
-def result_model_fields(agent: Any) -> dict[str, Optional[str]]:
+def result_model_fields(agent: Any) -> dict[str, str | None]:
     """``requested_model`` / ``served_model`` for the turn result: the proxy header when the
     last response carried one, else Hermes' own fallback route (primary → active model)."""
     served = getattr(agent, "last_served_model", None)

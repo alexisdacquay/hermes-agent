@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from pm.lock import Lockfile
 from pm.registry import all_packages, source_install_packages, walk
 

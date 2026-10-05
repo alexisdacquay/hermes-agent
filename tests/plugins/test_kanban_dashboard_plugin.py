@@ -10,8 +10,8 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
-import subprocess
 import shutil
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -19,7 +19,6 @@ from pathlib import Path
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-
 from hermes_cli import kanban_db as kb
 from hermes_cli import kanban_db_connect as kbc
 
@@ -509,8 +508,9 @@ def test_ws_events_rejects_when_token_required(tmp_path, monkeypatch):
 
     # Stub web_server_chat with a loopback-mode _ws_auth_ok (auth_required False →
     # accept only the correct ?token=). Mirrors the real gate's loopback path.
-    import hermes_cli
     import types
+
+    import hermes_cli
 
     def _fake_ws_auth_ok(ws):
         return ws.query_params.get("token", "") == "secret-xyz"
@@ -1047,12 +1047,13 @@ def test_specify_resolves_each_profiles_key_under_multiplex(kanban_home, tmp_pat
     UnscopedSecretError``). The plugin router is mounted the way ``_mount_plugin_api_routes``
     mounts every plugin router — behind ``_plugin_route_secret_scope`` — so the launch profile
     (A) and a ``?profile=`` request (B) each resolve their OWN key, and B never leaks into A."""
+    from unittest.mock import MagicMock
+
     import agent.secret_scope as ss
     from fastapi import Depends
     from hermes_cli import profiles
     from hermes_cli.web_server_dashboard import _plugin_route_secret_scope
     from tui_gateway import launch_profile_policy
-    from unittest.mock import MagicMock
 
     (kanban_home / ".env").write_text("KANBAN_AUX_SCOPE_TEST_KEY=key-of-launch-a\n")
     profiles_root = tmp_path / "profiles"

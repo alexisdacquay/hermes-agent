@@ -31,7 +31,6 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from agent.context_compressor import _DB_PERSISTED_MARKER
 from hermes_state import SessionDB
 

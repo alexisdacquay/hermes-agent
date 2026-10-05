@@ -4,7 +4,6 @@ import sys
 from pathlib import Path
 
 import pytest
-
 from tests.computer_use.driver_fixture import record_driver
 
 

@@ -10,7 +10,8 @@ import logging
 import re
 import sqlite3
 import time
-from typing import Any, Callable, Dict, Optional
+from collections.abc import Callable
+from typing import Any
 
 from fastapi import HTTPException
 
@@ -29,15 +30,14 @@ _CONFIG_MUTATION_LOCK = LateState("_CONFIG_MUTATION_LOCK")
 
 
 @contextlib.contextmanager
-def config_write_scope(profile: Optional[str]):
+def config_write_scope(profile: str | None):
     """Profile scope, then the config mutation lock — the write-path nesting
     every config-mutating handler uses."""
-    with _profile_scope(profile):
-        with _CONFIG_MUTATION_LOCK:
-            yield
+    with _profile_scope(profile), _CONFIG_MUTATION_LOCK:
+        yield
 
 
-async def scoped_to_thread(profile: Optional[str], fn: Callable[[], Any]) -> Any:
+async def scoped_to_thread(profile: str | None, fn: Callable[[], Any]) -> Any:
     """Run ``fn()`` inside ``_profile_scope(profile)`` on a worker thread."""
 
     def _run():
@@ -47,7 +47,7 @@ async def scoped_to_thread(profile: Optional[str], fn: Callable[[], Any]) -> Any
     return await asyncio.to_thread(_run)
 
 
-async def config_scoped_to_thread(profile: Optional[str], fn: Callable[[], Any]) -> Any:
+async def config_scoped_to_thread(profile: str | None, fn: Callable[[], Any]) -> Any:
     """Run ``fn()`` inside ``_config_profile_scope(profile)`` on a worker thread —
     home + secret scope without the process-global skills-module swap."""
 
@@ -58,7 +58,7 @@ async def config_scoped_to_thread(profile: Optional[str], fn: Callable[[], Any])
     return await asyncio.to_thread(_run)
 
 
-def destructive_profile(profile: Optional[str], route: str) -> Optional[str]:
+def destructive_profile(profile: str | None, route: str) -> str | None:
     """The profile a DESTRUCTIVE or PRIVILEGED route acts on, or 400 when it is ambiguous.
 
     One backend serves every profile, so an omitted ``profile`` on a route that deletes,
@@ -85,7 +85,7 @@ def destructive_profile(profile: Optional[str], route: str) -> Optional[str]:
 
 
 @contextlib.contextmanager
-def http_failure(log_msg: str, status: int, prefix: Optional[str] = None, *, detail: Optional[str] = None):
+def http_failure(log_msg: str, status: int, prefix: str | None = None, *, detail: str | None = None):
     """Map unexpected exceptions to an ``HTTPException``.
 
     ``HTTPException`` passes through; anything else is logged with ``log_msg`` (traceback),
@@ -102,7 +102,7 @@ def http_failure(log_msg: str, status: int, prefix: Optional[str] = None, *, det
 
 
 def spawn_profile_action(
-    profile: Optional[str], argv: list, name: str, *, log_msg: str, prefix: str
+    profile: str | None, argv: list, name: str, *, log_msg: str, prefix: str
 ) -> dict:
     """Spawn a background ``hermes -p <profile> <argv>`` action; a spawn
     failure is logged and becomes ``500 "<prefix>: <exc>"``."""
@@ -111,7 +111,7 @@ def spawn_profile_action(
     return {"ok": True, "pid": proc.pid, "name": name}
 
 
-def require(value: Optional[str], detail: str) -> str:
+def require(value: str | None, detail: str) -> str:
     """Strip ``value``; 400 with ``detail`` when empty."""
     stripped = (value or "").strip()
     if not stripped:
@@ -124,7 +124,7 @@ REDACTED_CREDENTIAL_WRITE_DETAIL = (
 )
 
 
-def redacted_credential_preview(value: Any) -> Optional[str]:
+def redacted_credential_preview(value: Any) -> str | None:
     """Return a display-only credential sentinel that can never gain write authority."""
     if not value:
         return None
@@ -154,7 +154,7 @@ def is_redacted_credential_preview(submitted: Any) -> bool:
 # (#96591). One WARNING per store per interval, then debug; the caller gets an explicit status
 # instead of a 500. The file is never quarantined or renamed from here — that is `hermes doctor`'s job.
 _CORRUPT_STORE_WARN_INTERVAL_S = 300.0
-_corrupt_store_warned_at: Dict[str, float] = {}  # {db path: monotonic}
+_corrupt_store_warned_at: dict[str, float] = {}  # {db path: monotonic}
 
 CORRUPT_STORE_DETAIL = {
     "error": "state_db_corrupt",
@@ -184,7 +184,11 @@ def corrupt_store_as_status(db_path):
     """Map a corrupt-image ``sqlite3.DatabaseError`` or ``StateDbReplacedError`` from a state.db read to a 503 status
     payload, warning once per store per :data:`_CORRUPT_STORE_WARN_INTERVAL_S`.
     Busy/locked and every other error propagate unchanged."""
-    from hermes_state_errors import StateDbReplacedError, classify_persistence_error, is_malformed_db_error
+    from hermes_state_errors import (
+        StateDbReplacedError,
+        classify_persistence_error,
+        is_malformed_db_error,
+    )
 
     try:
         yield

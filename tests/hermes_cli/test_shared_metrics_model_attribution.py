@@ -8,10 +8,10 @@ import json
 from types import SimpleNamespace
 
 import pytest
-
 from agent.portal_tags import reset_conversation_context, set_conversation_context
 from hermes_cli import lifecycle
 from hermes_cli.observability import relay_shared_metrics
+
 from tests.hermes_cli.test_relay_shared_metrics_runtime import (  # noqa: F401 - fixture
     _stored_values,
     direct_runtime,
@@ -53,8 +53,13 @@ def _turn(session_id, task_id, provider, model, *, prompt_tokens=1_000, context_
 def _emit_every_model_metric(provider, model) -> dict:
     """Drive every emitter that carries a provider/model dimension through its real entry point."""
     from hermes_cli.observability import shared_metrics_events as events
-    from hermes_cli.observability.shared_metrics_model import record_model_friction, record_tool_call_quality
-    from hermes_cli.observability.shared_metrics_snapshot import collect_install_snapshot
+    from hermes_cli.observability.shared_metrics_model import (
+        record_model_friction,
+        record_tool_call_quality,
+    )
+    from hermes_cli.observability.shared_metrics_snapshot import (
+        collect_install_snapshot,
+    )
 
     _turn("s1", "t1", provider, model)  # model_route, model_tokens (primary), context_peak
     lifecycle.invoke_hook("post_auxiliary_call", session_id="s1", provider=provider, model=model,
@@ -115,8 +120,10 @@ def test_user_provider_plugin_name_and_model_never_leave(direct_runtime, tmp_pat
     """A ``$HERMES_HOME/plugins/model-providers`` profile joins PROVIDER_REGISTRY under a name (and
     aliases) the user chose: every metric, the provider-setup marker and the snapshot read
     ``custom``/``custom``. An in-tree provider plugin (``deepinfra``) keeps its public name."""
-    from hermes_cli import auth, auth_plugin_providers, models_catalog_static as mcs
-    from hermes_cli.observability import shared_metrics_catalog as catalog, shared_metrics_setup as setup
+    from hermes_cli import auth, auth_plugin_providers
+    from hermes_cli import models_catalog_static as mcs
+    from hermes_cli.observability import shared_metrics_catalog as catalog
+    from hermes_cli.observability import shared_metrics_setup as setup
     from providers import get_provider_profile
 
     for mod, attr in ((auth, "PROVIDER_REGISTRY"), (auth_plugin_providers, "PLUGIN_MIRRORED_PROVIDERS"),
@@ -202,7 +209,7 @@ def test_tui_switch_before_first_prompt_blames_the_configured_route(
     home.mkdir(parents=True, exist_ok=True)
     (home / "config.yaml").write_text(
         f"model:\n  provider: {provider}\n  default: {model}\n" + (f"  base_url: {base_url}\n" if base_url else ""))
-    import tui_gateway.server as server
+    from tui_gateway import server
 
     monkeypatch.setattr(server, "_hermes_home", home)  # captured at first import
     result = SimpleNamespace(

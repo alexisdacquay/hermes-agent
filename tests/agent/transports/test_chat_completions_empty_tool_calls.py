@@ -10,8 +10,8 @@ wire with an invalid array.  See #58755 (follow-up).
 """
 
 import pytest
-
 from agent.transports import get_transport
+
 
 @pytest.fixture
 def transport():

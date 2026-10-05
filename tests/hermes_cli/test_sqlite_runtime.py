@@ -3,14 +3,12 @@
 from __future__ import annotations
 
 import json
-import os
 import shlex
 import sqlite3
 import sys
 from pathlib import Path
 
 import pytest
-
 from hermes_cli.sqlite_runtime import (
     is_sqlite_wal_reset_vulnerable,
     probe_sqlite_runtime,

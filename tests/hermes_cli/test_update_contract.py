@@ -9,11 +9,9 @@ docker/nix/apt heuristics second; refusals record a `refused` receipt.
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 
 import pytest
-
 from hermes_cli.image_provenance import read_image_provenance
 from hermes_cli.update_contract import (
     UpdateRefusal,

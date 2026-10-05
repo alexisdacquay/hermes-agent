@@ -16,8 +16,7 @@ import json
 from unittest.mock import patch
 
 import pytest
-
-import hermes_cli.source_check as source_check
+from hermes_cli import source_check
 
 SHA_A = "a" * 40
 SHA_B = "b" * 40

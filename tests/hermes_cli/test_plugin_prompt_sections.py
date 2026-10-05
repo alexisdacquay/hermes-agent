@@ -4,7 +4,6 @@ import logging
 from types import MappingProxyType
 
 import pytest
-
 from hermes_cli.plugins import (
     MAX_SYSTEM_PROMPT_SECTIONS_TOTAL_CHARS,
     PluginContext,

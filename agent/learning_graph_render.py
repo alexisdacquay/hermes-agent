@@ -8,11 +8,13 @@ from __future__ import annotations
 
 import math
 from collections import Counter
-from datetime import datetime, timezone
-from typing import Any, Iterable, Optional
+from collections.abc import Iterable
+from datetime import UTC, datetime
+from typing import Any
+
+from hermes_time import safe_strftime
 
 from agent.learning_graph import memory_node_id
-from hermes_time import safe_strftime
 
 LEAD_IN = 0.06  # time-axis.ts LEAD_IN: the oldest node sits just off recency 0.
 # constants.ts AGE_GRADIENT — old quiet, recent bright.
@@ -27,7 +29,7 @@ Row = list  # of runs ``[text, style, alpha, hex?]``; a grid is a list of rows
 
 
 def _clamp(v: float, lo: float, hi: float) -> float:
-    return lo if v < lo else hi if v > hi else v
+    return lo if v < lo else min(v, hi)
 
 
 def _lerp(a: float, b: float, t: float) -> float:
@@ -48,7 +50,7 @@ def _node_id(node: dict[str, Any]) -> str:
 
 
 def _utc(ts: float) -> datetime:
-    return datetime.fromtimestamp(ts, tz=timezone.utc)
+    return datetime.fromtimestamp(ts, tz=UTC)
 
 
 def _lead_in(ratio: float) -> float:
@@ -63,7 +65,7 @@ def _node_raw_label(node: dict[str, Any]) -> str:
     return str(node.get("label") or node.get("id") or "unknown").strip()
 
 
-def _node_ts(node: dict[str, Any]) -> Optional[float]:
+def _node_ts(node: dict[str, Any]) -> float | None:
     try:
         return None if node.get("timestamp") is None else float(node["timestamp"])
     except (TypeError, ValueError):
@@ -76,7 +78,7 @@ def recency_ink(rec: float) -> float:
     return _lerp(AGE_OLD_INK, AGE_MID_INK, _smoothstep(t / AGE_MID)) if t <= AGE_MID else _lerp(AGE_MID_INK, AGE_NEW_INK, _smoothstep((t - AGE_MID) / (1 - AGE_MID)))
 
 
-def format_date(ts: Optional[float]) -> str:
+def format_date(ts: float | None) -> str:
     try:
         dt = _utc(float(ts)) if ts else None
     except (ValueError, OSError, OverflowError):
@@ -101,7 +103,7 @@ def compute_recency(nodes: list[dict[str, Any]]) -> dict[str, Any]:
     return {"rec": rec, "timed": timed, "minTs": min_ts, "maxTs": max_ts}
 
 
-def _date_at(rec: dict[str, Any], reveal: float) -> Optional[float]:
+def _date_at(rec: dict[str, Any], reveal: float) -> float | None:
     lo, hi = rec.get("minTs"), rec.get("maxTs")
     return None if not rec.get("timed") or lo is None or hi is None else round(lo + _clamp(reveal, 0, 1) * (hi - lo))
 
@@ -191,7 +193,7 @@ def _skill_category_counts(nodes: Iterable[dict[str, Any]]) -> Counter:
 # ── Timeline chart frame ─────────────────────────────────────────────────────
 
 class _ChartBucket:
-    __slots__ = ("label", "ts", "nodes", "rec")
+    __slots__ = ("label", "nodes", "rec", "ts")
 
     def __init__(self, label: str, ts: float):
         self.label, self.ts, self.rec = label, ts, 1.0
@@ -201,7 +203,7 @@ class _ChartBucket:
     skills = property(lambda self: len(self.nodes) - self.memories)
     total = property(lambda self: len(self.nodes))
 
-    def category(self) -> Optional[str]:
+    def category(self) -> str | None:
         return max(counts, key=lambda k: counts[k]) if (counts := _skill_category_counts(self.nodes)) else None
 
 
@@ -232,7 +234,7 @@ def _build_chart_buckets(nodes: list[dict[str, Any]], rec: dict[str, Any], max_r
         _fill_even_bins(buckets, sorted(nodes, key=lambda n: rec["rec"].get(_node_id(n), 0.0)), rec)
         return buckets
 
-    chosen: Optional[list[_ChartBucket]] = None
+    chosen: list[_ChartBucket] | None = None
     for granularity in ("day", "month", "year"):
         groups: dict[tuple[int, ...], _ChartBucket] = {}
         for node in nodes:
@@ -390,7 +392,7 @@ def axis_labels(payload: dict[str, Any]) -> dict[str, str]:
     return {"start": format_date(rec["minTs"]), "end": format_date(rec["maxTs"])} if rec["timed"] else {"start": "oldest", "end": "now"}
 
 
-def _peak_day(payload: dict[str, Any]) -> Optional[str]:
+def _peak_day(payload: dict[str, Any]) -> str | None:
     periods = [_period(ts, "day") for ts in (_node_ts(n) for n in payload.get("nodes", [])) if ts is not None]
     counts, labels = Counter(key for key, _label in periods), dict(periods)
     if not counts:

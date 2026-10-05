@@ -14,7 +14,7 @@ import contextlib
 import logging
 import queue
 import threading
-from typing import Any, Dict, Optional
+from typing import Any
 
 from gateway.platforms.base import AudioFormat, StreamingTTSHandle
 
@@ -31,9 +31,9 @@ class _HandleDeclined(Exception):
 class StreamingTTSConsumer:
     """Consumes LLM text deltas and produces streaming PCM audio for an adapter."""
 
-    def __init__(self, adapter: Any, chat_id: str, tts_config: Dict[str, Any],
-                 loop: asyncio.AbstractEventLoop, *, metadata: Optional[Dict[str, Any]] = None,
-                 audio_format: Optional[AudioFormat] = None) -> None:
+    def __init__(self, adapter: Any, chat_id: str, tts_config: dict[str, Any],
+                 loop: asyncio.AbstractEventLoop, *, metadata: dict[str, Any] | None = None,
+                 audio_format: AudioFormat | None = None) -> None:
         from tools.tts_streaming import SentenceChunker, resolve_streaming_provider
         self._adapter, self._chat_id, self._loop, self._metadata = adapter, chat_id, loop, metadata
         # Resolved once; None => inactive, gateway falls back to whole-file TTS.
@@ -43,9 +43,9 @@ class StreamingTTSConsumer:
         # since an OpenAI-compatible endpoint reports its real rate only in the response (#76466).
         self._audio_format = audio_format or AudioFormat() if self._streamer is None else self._streamer_format()
         # Thread-safe queue of completed clauses plus the _DONE/_ABORT sentinels.
-        self._queue: "queue.Queue[Any]" = queue.Queue(maxsize=256)
-        self._handle: Optional[StreamingTTSHandle] = None
-        self._task: Optional[asyncio.Task] = None  # drain task, created once by start()
+        self._queue: queue.Queue[Any] = queue.Queue(maxsize=256)
+        self._handle: StreamingTTSHandle | None = None
+        self._task: asyncio.Task | None = None  # drain task, created once by start()
         self._completed = self._partial = self._aborted = False
         self._finished = self._dropped = self._suppress_whole_file = False
         self._lock, self._strip_markdown = threading.Lock(), None  # stripper lazily imported
@@ -73,7 +73,7 @@ class StreamingTTSConsumer:
             if log_errors:
                 logger.debug("streaming TTS on_delta error", exc_info=True)
 
-    def on_delta(self, text: Optional[str]) -> None:
+    def on_delta(self, text: str | None) -> None:
         """Receive text, or flush a ``None`` segment boundary without ending audio. Non-blocking."""
         if self._aborted or not self.active or self._finished:
             return
@@ -189,7 +189,7 @@ class StreamingTTSConsumer:
                 from tools.tts_text_normalize import _strip_markdown_for_tts as _strip
                 self._strip_markdown = _strip
             except ImportError:
-                self._strip_markdown = lambda t: t  # noqa: E731
+                self._strip_markdown = lambda t: t
         if not (cleaned := self._strip_markdown(clause).strip()):
             return
         iterator = iter(self._streamer.stream(cleaned))

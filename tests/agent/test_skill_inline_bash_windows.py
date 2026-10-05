@@ -1,6 +1,5 @@
 """Native Windows execution contract for opt-in skill snippets."""
 import pytest
-
 from agent.skill_preprocessing import preprocess_skill_content, run_inline_shell
 
 

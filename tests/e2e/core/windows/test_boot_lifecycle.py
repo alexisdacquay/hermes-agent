@@ -26,8 +26,8 @@ import time
 from pathlib import Path
 
 import pytest
-
 from hermes_cli.version_info import get_version_info
+
 from tests.e2e.core.windows._helpers import (
     WinHome,
     db_rows,
@@ -103,7 +103,7 @@ def _serve_ready(home: WinHome) -> tuple[subprocess.Popen, int]:
     """Spawn serve and wait for its READY port. A daemon pump keeps draining stdout after
     READY, as the Desktop does, so a full pipe can never stall the backend."""
     proc = _spawn_serve(home)
-    found: "queue.Queue[int | None]" = queue.Queue()
+    found: queue.Queue[int | None] = queue.Queue()
     seen: list[str] = []
 
     def pump() -> None:

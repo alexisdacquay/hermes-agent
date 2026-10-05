@@ -9,7 +9,6 @@ from __future__ import annotations
 import asyncio
 
 import pytest
-
 from tools import web_tools_extract as wte
 
 

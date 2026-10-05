@@ -4,13 +4,11 @@ These exercise the parsers with real command output shapes instead of
 patching the detectors themselves, so a change in what macOS / xdg report is
 caught here rather than in a user's browser session.
 """
+import posixpath
 from unittest.mock import patch
 
-import pytest
-
-import posixpath
-
 import hermes_cli.browser_connect as bc
+import pytest
 
 
 def _ls_dump(*entries: str) -> str:

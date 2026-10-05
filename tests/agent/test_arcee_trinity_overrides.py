@@ -12,7 +12,6 @@ Arcee models like trinity-large-preview or trinity-mini.
 from __future__ import annotations
 
 import pytest
-
 from agent.agent_init import _resolve_compression_threshold
 from agent.auxiliary_client import (
     _compression_threshold_for_model,

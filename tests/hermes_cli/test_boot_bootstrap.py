@@ -8,22 +8,19 @@ import json
 import os
 import shutil
 import subprocess
-import sys
 import time
 from pathlib import Path
 
 import pytest
-
 from hermes_cli import boot_bootstrap
 from hermes_cli.boot_bootstrap import (
     _RecordLock,
+    _write_record,
     current_install_identity,
     needs_bootstrap,
     read_git_head,
-    read_last_known,
     record_path,
     run_boot_bootstrap,
-    _write_record,
 )
 
 
@@ -59,6 +56,7 @@ def _head_sha(root):
 
 def test_git_selection_uses_pm_public_package_reader(repo, monkeypatch):
     from types import SimpleNamespace
+
     import pm
 
     command = shutil.which("git")

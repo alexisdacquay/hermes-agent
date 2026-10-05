@@ -3,7 +3,6 @@
 import subprocess
 
 import pytest
-
 from tools.self_repo_guard import (
     detect_self_repo_git_mutation,
 )

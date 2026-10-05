@@ -13,7 +13,6 @@ turn reports SUCCESS and a failed one still reports FAILURE.
 import asyncio
 
 import pytest
-
 from gateway.config import Platform, PlatformConfig
 from gateway.platforms.base import (
     BasePlatformAdapter,

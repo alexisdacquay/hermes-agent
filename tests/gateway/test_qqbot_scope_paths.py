@@ -25,7 +25,6 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from agent import secret_scope as ss
 from gateway.config import GatewayConfig, Platform, PlatformConfig
 from gateway.session import SessionSource

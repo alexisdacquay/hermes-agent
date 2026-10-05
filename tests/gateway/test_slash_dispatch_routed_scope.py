@@ -8,7 +8,6 @@ binds it once for the whole table instead of each handler re-entering the scope.
 """
 
 import pytest
-
 from gateway.config import GatewayConfig, Platform
 from gateway.platforms.base import MessageEvent, MessageType
 from gateway.run import GatewayRunner, _profile_runtime_scope

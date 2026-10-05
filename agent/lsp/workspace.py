@@ -11,8 +11,9 @@ from __future__ import annotations
 
 import logging
 import os
+from collections.abc import Iterable, Iterator
 from pathlib import Path
-from typing import AbstractSet, Iterable, Iterator, Optional, Set, Tuple
+from typing import AbstractSet
 
 logger = logging.getLogger("agent.lsp.workspace")
 
@@ -32,7 +33,7 @@ def normalize_path(path: str) -> str:
     return os.path.abspath(os.path.expanduser(path))
 
 
-def _start_dir(start: str) -> Optional[Path]:
+def _start_dir(start: str) -> Path | None:
     """Normalized start directory (a file's parent), or ``None`` on pathological input."""
     try:
         start_path = Path(normalize_path(start))
@@ -55,7 +56,7 @@ def _walk_up(start: Path) -> Iterator[Path]:
         cur = parent
 
 
-def find_git_worktree(start: str) -> Optional[str]:
+def find_git_worktree(start: str) -> str | None:
     """Return the nearest ancestor dir containing ``.git`` (file or dir — worktrees count), else ``None``."""
     start_path = _start_dir(start)
     if start_path is None:
@@ -96,9 +97,9 @@ def nearest_root(
     start: str,
     markers: Iterable[str],
     *,
-    excludes: Optional[Iterable[str]] = None,
-    ceiling: Optional[str] = None,
-) -> Optional[str]:
+    excludes: Iterable[str] | None = None,
+    ceiling: str | None = None,
+) -> str | None:
     """Walk up from ``start`` for the directory containing the first matched marker.
 
     Returns ``None`` past ``ceiling`` (or the filesystem root), or when an exclude marker is found
@@ -134,7 +135,7 @@ def nearest_root(
     return None
 
 
-def resolve_workspace_for_file(file_path: str, *, cwd: Optional[str] = None) -> Tuple[Optional[str], bool]:
+def resolve_workspace_for_file(file_path: str, *, cwd: str | None = None) -> tuple[str | None, bool]:
     """Return ``(workspace_root, gated_in)`` for a file.  The cwd's worktree wins when the file is
     inside it; otherwise the file's own worktree is the fallback anchor (monorepos / unrelated
     checkouts).  ``(None, False)`` when neither is in a git worktree."""
@@ -154,15 +155,16 @@ def resolve_workspace_for_file(file_path: str, *, cwd: Optional[str] = None) -> 
     return None, False
 
 
-def operator_workspace_roots() -> Set[str]:
+def operator_workspace_roots() -> set[str]:
     """Git worktrees the operator pointed Hermes at: the launch dir and the surface-set workspace
     (``resolve_agent_cwd``: the Desktop/TUI session cwd, ``hermes -w``'s worktree, a gateway's
     ``terminal.cwd``).  The agent's ``cd`` moves neither (it only moves the terminal's cwd).  A repo at
     or above ``$HOME`` never counts: a dotfiles repo would trust every directory below it."""
-    from agent.runtime_cwd import resolve_agent_cwd
     from gateway.session_context import get_session_env
     from tools.terminal_scope import TerminalPolicyUnavailable
     from utils import is_truthy_value
+
+    from agent.runtime_cwd import resolve_agent_cwd
     # Work the model can schedule has no operator anchor: a kanban worker is launched in (with
     # TERMINAL_CWD =) the task's workspace and a cron run's session cwd is the job's workdir, and the
     # kanban_create / cronjob tools let the model pick both.
@@ -172,7 +174,7 @@ def operator_workspace_roots() -> Set[str]:
     if not is_truthy_value(get_session_env("HERMES_CRON_SESSION", "")):
         anchors.append(resolve_agent_cwd)
     home = normalize_path("~")
-    roots: Set[str] = set()
+    roots: set[str] = set()
     for anchor in anchors:
         try:
             root = find_git_worktree(str(anchor()))
@@ -199,6 +201,12 @@ def clear_cache() -> None:
 
 
 __all__ = [
-    "find_git_worktree", "is_inside_workspace", "is_trusted_workspace", "nearest_root", "normalize_path",
-    "operator_workspace_roots", "resolve_workspace_for_file", "clear_cache",
+    "clear_cache",
+    "find_git_worktree",
+    "is_inside_workspace",
+    "is_trusted_workspace",
+    "nearest_root",
+    "normalize_path",
+    "operator_workspace_roots",
+    "resolve_workspace_for_file",
 ]

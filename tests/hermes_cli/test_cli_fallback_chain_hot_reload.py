@@ -9,9 +9,8 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-import pytest
-
 import cli
+import pytest
 from hermes_cli.config import get_config_path
 
 FALLBACK = [{"provider": "xai-oauth", "model": "grok-4.6"}]

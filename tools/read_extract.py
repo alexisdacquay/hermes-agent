@@ -20,8 +20,9 @@ import tempfile
 import threading
 import time
 import zipfile
+from collections.abc import Callable, Iterator
 from pathlib import Path
-from typing import Any, Callable, Iterator, Optional
+from typing import Any
 from xml.etree import ElementTree as ET
 
 __all__ = ["EXTRACTABLE_EXTENSIONS", "ExtractionError", "extract_document_bytes",
@@ -59,10 +60,10 @@ _anydoc_lock = threading.Lock()
 # Cooldown after a failed load: the attempt can shell out to pip, so retrying every call would
 # hammer the network where install can't succeed.
 ANYDOC_RETRY_SECONDS = 300.0
-_anydoc_failed_at: Optional[float] = None
+_anydoc_failed_at: float | None = None
 
 
-def _anydoc() -> Optional[Any]:
+def _anydoc() -> Any | None:
     """Lazily import the optional anydoc converter (None when unavailable; failures retried after
     ANYDOC_RETRY_SECONDS so one transient pip/network blip does not stick)."""
     global _anydoc_module, _anydoc_failed_at
@@ -250,7 +251,7 @@ PDF_GAP_MAP_MAX_ENTRIES = 20  # cap so alternating text/scan pages can't balloon
 _GAP_CONTEXT_CHARS = 60
 
 
-def _pdf_page_texts(path: str) -> Optional[list[str]]:
+def _pdf_page_texts(path: str) -> list[str] | None:
     """Per-page extracted text, or None when undeterminable."""
     if shutil.which("pdftotext") is None:
         return None
@@ -288,7 +289,7 @@ def _gap_map(counts: list[int], texts: list[str], empty: list[int]) -> str:
     return "\n".join(lines)
 
 
-def _pdf_coverage_note(path: str, display_path: Optional[str] = None) -> str:
+def _pdf_coverage_note(path: str, display_path: str | None = None) -> str:
     """Warning header when many pages yielded no text, else ''. ``display_path`` (default ``path``,
     which may be a host temp file) is what the recovery command shows."""
     texts = _pdf_page_texts(path)
@@ -411,7 +412,7 @@ def _notebook_outputs(cell: dict, jq_pointer: str = "", filename: str = "") -> s
 _CELL_LABELS = {"markdown": "Markdown", "code": "Code", "raw": "Raw"}
 
 
-def _extract_notebook(path: str, *, display_path: Optional[str] = None) -> str:
+def _extract_notebook(path: str, *, display_path: str | None = None) -> str:
     try:
         with open(path, encoding="utf-8-sig", errors="replace") as fh:
             nb = json.load(fh)

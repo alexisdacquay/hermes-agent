@@ -21,12 +21,11 @@ Two invariants pin the fix:
 import json
 from datetime import datetime
 
+import hermes_constants
+import hermes_state
 import pytest
 from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
-
-import hermes_constants
-import hermes_state
 from gateway.config import GatewayConfig, Platform, PlatformConfig
 from gateway.platforms.api_server import APIServerAdapter
 from gateway.session import SessionEntry, SessionSource, SessionStore

@@ -14,8 +14,8 @@ the event loop so a concurrent fast endpoint (/api/version) still responds.
 from __future__ import annotations
 
 import asyncio
-import time
 import threading
+import time
 from unittest.mock import patch
 
 import hermes_cli.web_server as web_server_mod

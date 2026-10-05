@@ -20,16 +20,13 @@ from contextlib import redirect_stdout
 from pathlib import Path
 
 import pytest
-
 from hermes_cli.setup_whatsapp_cloud import (
+    _validate_access_token,
+    _validate_app_secret,
     _validate_phone_number_id,
     _validate_waba_id,
-    _validate_app_id,
-    _validate_app_secret,
-    _validate_access_token,
     run_whatsapp_cloud_setup,
 )
-
 
 # ---------------------------------------------------------------------------
 # Validator tests — the cheap, exhaustive coverage layer

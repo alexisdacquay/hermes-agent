@@ -13,7 +13,6 @@ import sqlite3
 from unittest.mock import MagicMock
 
 import pytest
-
 from hermes_state import SessionDB, StateDbCorruptError
 from hermes_state_wal import _on_disk_journal_mode
 

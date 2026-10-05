@@ -12,19 +12,19 @@ from __future__ import annotations
 
 import logging
 from contextvars import ContextVar
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 # (session_db, session_id) for the active agent turn, or None outside one.
-_accounting: ContextVar[Optional[tuple]] = ContextVar("aux_accounting_context", default=None)
+_accounting: ContextVar[tuple | None] = ContextVar("aux_accounting_context", default=None)
 
 # MoA advisor/aggregator usage is already folded into conversation_loop's
 # update_token_counts delta (tokens AND cost); recording it here would double-count.
 _EXCLUDED_TASKS = frozenset({"moa_reference", "moa_aggregator"})
 
 
-def set_accounting_context(session_db: Any, session_id: Optional[str]):
+def set_accounting_context(session_db: Any, session_id: str | None):
     """Publish the active session's accounting handles; returns the token for ``reset_accounting_context``.
 
     ``None`` handles (no DB / no session id) clear the context.
@@ -43,8 +43,8 @@ def reset_accounting_context(token) -> None:
 
 
 def record_aux_usage(
-    response: Any, task: Optional[str], *, provider: Optional[str] = None,
-    base_url: Optional[str] = None,
+    response: Any, task: str | None, *, provider: str | None = None,
+    base_url: str | None = None,
 ) -> None:
     """Record an auxiliary response's token usage against the ambient session.
 
@@ -64,7 +64,11 @@ def record_aux_usage(
         if raw_usage is None:
             return
 
-        from agent.usage_pricing import estimate_usage_cost, normalize_usage, with_served_service_tier
+        from agent.usage_pricing import (
+            estimate_usage_cost,
+            normalize_usage,
+            with_served_service_tier,
+        )
 
         usage = with_served_service_tier(normalize_usage(raw_usage, provider=provider), response)
         if not (

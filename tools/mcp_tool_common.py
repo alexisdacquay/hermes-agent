@@ -6,7 +6,7 @@ import math
 import os
 import random
 import re
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger("tools.mcp_tool")
 
@@ -144,7 +144,7 @@ def mcp_server_enabled(cfg: dict) -> bool:
     return _parse_boolish(cfg.get("enabled", True), default=True)
 
 
-def _get_lifecycle_seconds(config: dict, key: str) -> Optional[float]:
+def _get_lifecycle_seconds(config: dict, key: str) -> float | None:
     """Optional positive lifecycle timeout from top-level/nested ``lifecycle`` config (``0``
     disables; negatives and non-numbers are warned about and ignored)."""
     raw = config.get(key)

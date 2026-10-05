@@ -13,7 +13,7 @@ import sqlite3
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from gateway.kanban_watchers_common import _board_slugs, _positive_int_setting, logger
 
@@ -36,12 +36,12 @@ class _DispatcherSettings:
 
     interval: float
     max_spawn: Any
-    max_in_progress: Optional[int]
+    max_in_progress: int | None
     failure_limit: int
     stale_timeout_seconds: int
     reconcile_orphans: bool
-    default_assignee: Optional[str]
-    max_in_progress_per_profile: Optional[int]
+    default_assignee: str | None
+    max_in_progress_per_profile: int | None
 
 
 def _resolve_dispatcher_settings(kanban_cfg: dict, kb: Any) -> _DispatcherSettings:
@@ -173,7 +173,7 @@ class _KanbanDispatcher:
         self.disabled_corrupt_boards.pop(slug, None)
         return True
 
-    def tick_once_for_board(self, slug: str) -> Optional[object]:
+    def tick_once_for_board(self, slug: str) -> object | None:
         """Run one dispatch_once for a specific board.
 
         The per-board DB is opened explicitly so boards never share a
@@ -213,7 +213,7 @@ class _KanbanDispatcher:
                 with contextlib.suppress(Exception):
                     conn.close()
 
-    def tick_once(self) -> list[tuple[str, Optional[object]]]:
+    def tick_once(self) -> list[tuple[str, object | None]]:
         """Run one dispatch_once per board. Returns (slug, result) pairs."""
         return [(slug, self.tick_once_for_board(slug)) for slug in self._board_slugs()]
 
@@ -313,7 +313,11 @@ def _default_profile_secret_scope():
     from that same home. No-op for single-profile gateways.
     """
     from agent.secret_scope import (
-        build_profile_secret_scope, is_multiplex_active, reset_secret_scope, set_secret_scope)
+        build_profile_secret_scope,
+        is_multiplex_active,
+        reset_secret_scope,
+        set_secret_scope,
+    )
     from hermes_constants import get_hermes_home
 
     if not is_multiplex_active():
@@ -327,7 +331,7 @@ def _default_profile_secret_scope():
         reset_secret_scope(token)
 
 
-def _log_spawn_results(results: Optional[list]) -> bool:
+def _log_spawn_results(results: list | None) -> bool:
     """Log per-board spawn summaries; returns whether any board spawned."""
     any_spawned = False
     for slug, res in (results or []):

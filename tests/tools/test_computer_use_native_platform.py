@@ -4,7 +4,6 @@ import json
 import sys
 
 import pytest
-
 from tools.computer_use import tool
 
 

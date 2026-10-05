@@ -11,8 +11,8 @@ from __future__ import annotations
 
 import time
 
-import hermes_cli.auth as auth
 from agent.credential_pool import CredentialPool
+from hermes_cli import auth
 
 
 def test_pending_refresh_sweep_leaves_waiter_windows_between_holds(tmp_path):

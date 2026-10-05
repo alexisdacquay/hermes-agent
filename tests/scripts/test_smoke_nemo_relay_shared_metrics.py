@@ -3,7 +3,6 @@
 from pathlib import Path
 
 import pytest
-
 from scripts import smoke_nemo_relay_shared_metrics as smoke
 
 

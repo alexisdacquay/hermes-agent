@@ -11,11 +11,12 @@ import errno
 import shutil
 import threading
 import time
+from typing import Any
 
 from agent.i18n import t
 from agent.pet import render as pet_render
+
 from hermes_cli.banner import _format_context_length
-from typing import Any, Dict, Optional
 
 _SB = "class:status-bar"
 _DIM = "class:status-bar-dim"
@@ -43,7 +44,7 @@ class CLIStatusBarMixin:
     """Status bar, spinner, turn-summary, pet pane, and prompt-stash rendering for the
     interactive CLI."""
 
-    def _status_bar_context_style(self, percent_used: Optional[int]) -> str:
+    def _status_bar_context_style(self, percent_used: int | None) -> str:
         if percent_used is None:
             return _DIM
         if percent_used >= 95:
@@ -52,7 +53,7 @@ class CLIStatusBarMixin:
             return "class:status-bar-bad"
         return _threshold_style(percent_used, ((50, "warn"),), "good")
 
-    def _cache_hit_rate(self, snapshot: dict, precision: int = 1) -> "tuple[float, str] | None":
+    def _cache_hit_rate(self, snapshot: dict, precision: int = 1) -> tuple[float, str] | None:
         """Return (cache_pct, label) or None without cache data. Prefers the baseline-delta pct
         from ``_get_status_bar_snapshot`` (resets on model switch / compression, so it reflects
         the *current* cache regime); falls back to the session-lifetime ratio."""
@@ -147,14 +148,14 @@ class CLIStatusBarMixin:
     def _compression_count_style(count: int) -> str:
         return _threshold_style(count, ((10, "bad"), (5, "warn")), "dim")
 
-    def _build_context_bar(self, percent_used: Optional[int], width: int = 10) -> str:
+    def _build_context_bar(self, percent_used: int | None, width: int = 10) -> str:
         safe_percent = max(0, min(100, percent_used or 0))
         filled = round((safe_percent / 100) * width)
         return f"[{('█' * filled) + ('░' * max(0, width - filled))}]"
 
     @staticmethod
     def _format_prompt_elapsed(
-        prompt_start_time: Optional[float], prompt_duration: float, live: bool = False) -> str:
+        prompt_start_time: float | None, prompt_duration: float, live: bool = False) -> str:
         """Per-prompt elapsed time. Always a string (``⏲ 0s`` on fresh start); seconds stay
         visible at every scale so it increments smoothly (``1m 59s → 2m → 2m 1s``). ⏱ while
         live, ⏲ frozen — width-1 glyphs (no variation selector) keep the bar aligned."""
@@ -181,7 +182,7 @@ class CLIStatusBarMixin:
         return f"{'⏱' if live else '⏲'} {time_str}"
 
     @staticmethod
-    def _format_idle_since(last_finished_at: Optional[float], turn_live: bool) -> str:
+    def _format_idle_since(last_finished_at: float | None, turn_live: bool) -> str:
         """``✓ 42s`` since the last final response; empty while a turn is live or before the
         first turn completes."""
         from cli import format_duration_compact
@@ -189,7 +190,7 @@ class CLIStatusBarMixin:
             return ""
         return f"✓ {format_duration_compact(max(0.0, time.time() - last_finished_at))}"
 
-    def _get_status_bar_snapshot(self) -> Dict[str, Any]:
+    def _get_status_bar_snapshot(self) -> dict[str, Any]:
         from cli import _reverse_alias_for_display, datetime, format_duration_compact
         agent = getattr(self, "agent", None)
         # Prefer the agent's model name — it updates on fallback; self.model never changes.
@@ -202,8 +203,7 @@ class CLIStatusBarMixin:
             # Shared RID-prefix stripper so this and ModelSwitchResult can't drift.
             from hermes_cli.model_switch import format_model_for_display
             model_short = format_model_for_display(model_short)
-        if model_short.endswith(".gguf"):
-            model_short = model_short[:-5]
+        model_short = model_short.removesuffix(".gguf")
         if len(model_short) > 26:
             model_short = f"{model_short[:23]}..."
 
@@ -456,7 +456,7 @@ class CLIStatusBarMixin:
         return "".join(out).rstrip() + "..."
 
     @classmethod
-    def _status_title_badge(cls, title: str, width: int) -> "tuple[str, int] | None":
+    def _status_title_badge(cls, title: str, width: int) -> tuple[str, int] | None:
         """(badge, left_width) for the far-right session-title badge, or None when it
         doesn't fit (no title / bar narrower than 24 cells)."""
         title = str(title or "").strip()
@@ -516,14 +516,14 @@ class CLIStatusBarMixin:
         except Exception:
             return shutil.get_terminal_size(default).columns
 
-    def _use_minimal_tui_chrome(self, width: Optional[int] = None) -> bool:
+    def _use_minimal_tui_chrome(self, width: int | None = None) -> bool:
         """Hide low-value chrome on narrow/mobile terminals to preserve rows."""
         if width is None:
             width = self._get_tui_terminal_width()
         return width < 64
 
     @staticmethod
-    def _scrollback_box_width(width: Optional[int] = None) -> int:
+    def _scrollback_box_width(width: int | None = None) -> int:
         """Full viewport width for printed scrollback box rules, floored at 32 cols so tiny
         terminals never hit negative ``'─' * (w - 2)`` math. (The old 56-col clamp against
         reflow-on-shrink is gone: the ``_output_screen_diff`` patch keeps chrome out of
@@ -543,13 +543,13 @@ class CLIStatusBarMixin:
                 width = 80
         return max(32, int(width or 80))
 
-    def _agent_spacer_height(self, width: Optional[int] = None) -> int:
+    def _agent_spacer_height(self, width: int | None = None) -> int:
         """Spacer height above the status bar while the agent runs."""
         if not getattr(self, "_agent_running", False):
             return 0
         return 0 if self._use_minimal_tui_chrome(width=width) else 1
 
-    def _spinner_widget_height(self, width: Optional[int] = None) -> int:
+    def _spinner_widget_height(self, width: int | None = None) -> int:
         """Visible height of the spinner/status line above the status bar."""
         spinner_line = self._render_spinner_text()
         if not spinner_line or self._use_minimal_tui_chrome(width=width):
@@ -637,7 +637,8 @@ class CLIStatusBarMixin:
 
     def _turn_summary_emit(self) -> None:
         """Print the post-turn accounting line, when enabled for this surface."""
-        from cli import _DIM as _D, _RST, _cprint, logger
+        from cli import _DIM as _D
+        from cli import _RST, _cprint, logger
         collector = getattr(self, "_turn_summary_collector", None)
         if collector is None or not self._turn_summary_is_active():
             return
@@ -665,8 +666,9 @@ class CLIStatusBarMixin:
         without a restart (mirrors the TUI's steady poll). Fail-open: any problem disables."""
         try:
             from agent.pet import constants, store
-            from hermes_cli.config import load_config
             from utils import is_truthy_value
+
+            from hermes_cli.config import load_config
 
             cfg = load_config()
             display = cfg.get("display", {}) if isinstance(cfg.get("display"), dict) else {}
@@ -830,7 +832,7 @@ class CLIStatusBarMixin:
         except (OSError, ValueError):
             pass
 
-    def _pet_view(self) -> "tuple[str, bool] | None":
+    def _pet_view(self) -> tuple[str, bool] | None:
         """(state, is_kitty) for the current frame, or None when no pet shows."""
         with self._pet_lock:
             if not self._pet_enabled or self._pet_renderer is None:
@@ -961,7 +963,7 @@ class CLIStatusBarMixin:
         except Exception:
             self._voice_record_key_display_cache = "Ctrl+B"
 
-    def _get_voice_status_fragments(self, width: Optional[int] = None):
+    def _get_voice_status_fragments(self, width: int | None = None):
         """Voice status bar fragments for the interactive TUI."""
         width = width or self._get_tui_terminal_width()
         compact = self._use_minimal_tui_chrome(width=width)
@@ -982,7 +984,7 @@ class CLIStatusBarMixin:
     # ── status bar rendering ──────────────────────────────────────────────────
 
     @staticmethod
-    def _status_bar_goal_segment(snapshot: Dict[str, Any]) -> str:
+    def _status_bar_goal_segment(snapshot: dict[str, Any]) -> str:
         """``⊙ goal 3/20`` while a goal is active, else ``""`` (paused/done goals already
         print their own glyph lines in the thread)."""
         if not snapshot.get("goal_active"):
@@ -991,7 +993,7 @@ class CLIStatusBarMixin:
         max_turns = snapshot.get("goal_max_turns") or 0
         return t("cli.status_bar.goal_turns", used=used, max=max_turns) if max_turns else t("cli.status_bar.goal")
 
-    def _get_status_bar_field_set(self) -> Optional[frozenset]:
+    def _get_status_bar_field_set(self) -> frozenset | None:
         """Visible status-bar fields from ``display.status_bar.fields`` (module-level
         ``CLI_CONFIG``; no per-render YAML parse). ``None`` = not customized, show everything.
 
@@ -1106,7 +1108,7 @@ class CLIStatusBarMixin:
                 segs.append([(_DIM, f"Σ{format_token_count_compact(total_tokens)}")])
         return segs
 
-    def _build_status_bar_text(self, width: Optional[int] = None) -> str:
+    def _build_status_bar_text(self, width: int | None = None) -> str:
         """Compact one-line session status string for the TUI footer."""
         try:
             snapshot = self._get_status_bar_snapshot()

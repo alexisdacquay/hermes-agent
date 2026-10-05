@@ -24,8 +24,9 @@ import json
 import logging
 import os
 import time
+from collections.abc import Callable, Iterable
 from pathlib import Path
-from typing import Any, Callable, Iterable, Optional
+from typing import Any
 
 logger = logging.getLogger("hermes_cli.update_cmd")
 
@@ -35,7 +36,7 @@ HOST_OBLIGATION_NAME = "host-update-restart.json"
 _RECORD_VERSION = 1
 
 
-def host_obligation_path() -> Optional[Path]:
+def host_obligation_path() -> Path | None:
     """Path of the host obligation record, or ``None`` when the host state dir is unresolvable."""
     try:
         from gateway.host_rendezvous import host_state_dir
@@ -46,7 +47,7 @@ def host_obligation_path() -> Optional[Path]:
         return None
 
 
-def read_host_obligation() -> Optional[dict]:
+def read_host_obligation() -> dict | None:
     """The published obligation record, or ``None`` when absent/corrupt/foreign-versioned."""
     path = host_obligation_path()
     if path is None:
@@ -91,7 +92,7 @@ def amend_host_obligation(**fields: Any) -> None:
 
 
 def write_host_obligation(
-    *, expected_sha: str = "", runtimes: Optional[list] = None, profile: str = ""
+    *, expected_sha: str = "", runtimes: list | None = None, profile: str = ""
 ) -> bool:
     """Arm the host obligation. True when it was written. Never raises.
 
@@ -143,7 +144,7 @@ def clear_host_obligation() -> None:
         logger.debug("Could not clear host update-restart obligation: %s", exc)
 
 
-def obligation_fields() -> Optional[dict[str, str]]:
+def obligation_fields() -> dict[str, str] | None:
     """The obligation in the legacy ``key=value`` field shape, or ``None`` when unarmed.
 
     Keeps one parser for both sources: the fields a reader needs (``expected_sha``, the
@@ -175,7 +176,7 @@ def mark_host_restart_completed(sha: str) -> None:
         logger.debug("Could not stamp host restart completion: %s", exc)
 
 
-def host_restart_already_completed(sha: Optional[str]) -> bool:
+def host_restart_already_completed(sha: str | None) -> bool:
     """True when THIS host obligation was already restarted onto ``sha``.
 
     The guard that makes the catch-up restart idempotent per host: a second profile running

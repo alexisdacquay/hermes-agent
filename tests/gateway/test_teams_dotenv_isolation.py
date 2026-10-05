@@ -9,7 +9,6 @@ from pathlib import Path
 
 import pytest
 
-
 CANARY_KEY = "HERMES_TEAMS_DOTENV_CANARY"
 
 
@@ -181,7 +180,6 @@ class TestTeamsAdapterImportDoesNotLeakDotenv:
         _purge_teams_adapter_modules()
 
         import dotenv
-
         import plugins.platforms.teams.adapter as teams_adapter
 
         def _marking_load_dotenv(*args, **kwargs):

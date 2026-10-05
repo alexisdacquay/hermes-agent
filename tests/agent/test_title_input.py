@@ -5,7 +5,6 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
-
 from agent.turn_context import _maybe_title_session_at_turn_start
 
 

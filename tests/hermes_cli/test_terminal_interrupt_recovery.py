@@ -18,8 +18,8 @@ These tests exercise the real method (not a re-implementation of its logic).
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from cli import HermesCLI
+
 
 @pytest.fixture
 def bare_cli():

@@ -13,7 +13,7 @@ import queue
 import threading
 import time
 from contextlib import suppress
-from typing import Any, Dict, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -26,13 +26,13 @@ class MonitoringEmitter:
 
     def __init__(self, *, enabled: bool = True) -> None:
         self._enabled = enabled
-        self._q: "queue.Queue[Dict[str, Any]]" = queue.Queue(maxsize=_MAX_QUEUE)
+        self._q: queue.Queue[dict[str, Any]] = queue.Queue(maxsize=_MAX_QUEUE)
         self._dropped = 0
         self._dispatched = 0
         self._stop = threading.Event()
         self._started = False
         self._lock = threading.Lock()
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
         # Subscribers are callable(batch: list[dict]), invoked on the dispatcher thread.
         self._subscribers: list = []
 
@@ -122,7 +122,7 @@ class MonitoringEmitter:
         threading.Thread(target=_wait_for_completion, name="hermes-monitoring-flush", daemon=True).start()
         finished.wait(timeout=timeout)
 
-    def stats(self) -> Dict[str, int]:
+    def stats(self) -> dict[str, int]:
         return {"queued": self._q.qsize(), "dispatched": self._dispatched, "dropped": self._dropped, "subscribers": len(self._subscribers)}
 
     def close(self) -> None:
@@ -133,7 +133,7 @@ class MonitoringEmitter:
 
 
 # ── process-wide singleton ──────────────────────────────────────────────────
-_EMITTER: Optional[MonitoringEmitter] = None
+_EMITTER: MonitoringEmitter | None = None
 _EMITTER_LOCK = threading.Lock()
 
 
@@ -154,7 +154,7 @@ def emit(event: Any) -> None:
     get_emitter().emit(event)
 
 
-def reset_emitter_for_tests(emitter: Optional[MonitoringEmitter] = None) -> None:
+def reset_emitter_for_tests(emitter: MonitoringEmitter | None = None) -> None:
     """Swap the singleton (tests only)."""
     global _EMITTER
     with _EMITTER_LOCK:
@@ -164,4 +164,4 @@ def reset_emitter_for_tests(emitter: Optional[MonitoringEmitter] = None) -> None
         _EMITTER = emitter
 
 
-__all__ = ["MonitoringEmitter", "get_emitter", "emit", "reset_emitter_for_tests"]
+__all__ = ["MonitoringEmitter", "emit", "get_emitter", "reset_emitter_for_tests"]

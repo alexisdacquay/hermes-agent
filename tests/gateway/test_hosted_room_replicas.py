@@ -3,10 +3,9 @@ stale-authority demotion for hosted Group Chat rooms."""
 
 import json
 
-import pytest
-
 import gateway.hosted_room_replicas as replicas
 import gateway.hosted_rooms as rooms
+import pytest
 
 USER = {"kind": "user", "id": "tek"}
 MEMBERS = [{"kind": "bot", "id": "planner"}, {"kind": "bot", "id": "coder"}]

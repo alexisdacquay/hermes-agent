@@ -12,7 +12,6 @@ from __future__ import annotations
 from unittest.mock import patch
 
 import pytest
-
 from agent.context_compressor import (
     ContextCompressor,
     _content_has_images,
@@ -20,7 +19,6 @@ from agent.context_compressor import (
     _strip_historical_media,
     _strip_images_from_content,
 )
-
 
 IMG_URL = {
     "type": "image_url",

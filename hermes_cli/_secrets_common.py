@@ -10,8 +10,8 @@ import argparse
 import os
 import subprocess
 import sys
+from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
-from typing import Callable, Iterable, Optional, Sequence
 
 from rich.console import Console
 from rich.panel import Panel
@@ -117,10 +117,10 @@ def secret_cli_env() -> dict:
 
 
 def rotate_token(
-    console: Console, given: Optional[str], token_env: str, *, flag: str, intro: str, prompt: str,
-    verify: Optional[Callable[[str], bool]], save: Callable[[str, str], object],
+    console: Console, given: str | None, token_env: str, *, flag: str, intro: str, prompt: str,
+    verify: Callable[[str], bool] | None, save: Callable[[str, str], object],
     env_path: Callable[[], object], clear_caches: Callable[[], object],
-    disabled_note: Optional[str],
+    disabled_note: str | None,
 ) -> int:
     """Shared ``token`` subcommand: prompt, optionally verify, then persist. Returns the exit code.
 
@@ -154,7 +154,7 @@ def rotate_token(
 
 
 def prompt_index(console: Console, prompt: str, count: int, *,
-                 allow_empty: bool = False, empty_message: Optional[str] = None) -> int:
+                 allow_empty: bool = False, empty_message: str | None = None) -> int:
     """Loop until the user enters an integer in ``1..count``; return it.
 
     Blank input returns 0 when ``allow_empty``; otherwise ``empty_message`` (if any)

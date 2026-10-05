@@ -12,7 +12,8 @@ delivered the text, it goes out as a trailing message via ``send_trailing_footer
 from __future__ import annotations
 
 import os
-from typing import Any, Iterable, Optional
+from collections.abc import Iterable
+from typing import Any
 
 _DEFAULT_FIELDS: tuple[str, ...] = ("model", "context_pct", "cwd")
 _SEP = " · "
@@ -32,7 +33,7 @@ def _home_relative_cwd(cwd: str) -> str:
         return cwd
 
 
-def _model_short(model: Optional[str]) -> str:
+def _model_short(model: str | None) -> str:
     """Drop ``vendor/`` prefix (``openai/gpt-5.4`` → ``gpt-5.4``)."""
     return model.rsplit("/", 1)[-1] if model else ""
 
@@ -73,10 +74,10 @@ def _format_latency(seconds: float) -> str:
     return f"{m}m{sec:02d}s"
 
 
-def format_runtime_footer(*, model: Optional[str], context_tokens: int,
-                          context_length: Optional[int], cwd: Optional[str] = None,
-                          turn_seconds: Optional[float] = None,
-                          requested_model: Optional[str] = None, served_model: Optional[str] = None,
+def format_runtime_footer(*, model: str | None, context_tokens: int,
+                          context_length: int | None, cwd: str | None = None,
+                          turn_seconds: float | None = None,
+                          requested_model: str | None = None, served_model: str | None = None,
                           fields: Iterable[str] = _DEFAULT_FIELDS) -> str:
     """Render the footer line, or "" if no fields have data. Fields whose data is missing (and
     unknown field names) are skipped silently — a partial footer beats ``?%`` or empty slots."""
@@ -104,9 +105,9 @@ def format_runtime_footer(*, model: Optional[str], context_tokens: int,
 
 
 def build_footer_line(*, user_config: dict[str, Any] | None, platform_key: str | None,
-                      model: Optional[str], context_tokens: int, context_length: Optional[int],
-                      cwd: Optional[str] = None, turn_seconds: Optional[float] = None,
-                      requested_model: Optional[str] = None, served_model: Optional[str] = None) -> str:
+                      model: str | None, context_tokens: int, context_length: int | None,
+                      cwd: str | None = None, turn_seconds: float | None = None,
+                      requested_model: str | None = None, served_model: str | None = None) -> str:
     """Entry point for gateway/run.py: footer text, or "" when disabled / no data. Callers append it
     to the final response themselves, preserving a single blank line of separation.
     ``turn_seconds`` is the caller-measured (``time.monotonic()``) run duration; ``None`` skips the

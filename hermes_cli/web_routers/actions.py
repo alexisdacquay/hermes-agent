@@ -9,19 +9,21 @@ import contextlib
 import logging
 import re
 import secrets
-import subprocess
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 
-from hermes_cli.config import format_docker_update_message, recommended_update_command_for_method
+from hermes_cli.config import (
+    format_docker_update_message,
+    recommended_update_command_for_method,
+)
 from hermes_cli.update_contract import COMMIT_BUILD_UPDATE_MESSAGE, is_commit_build
 from hermes_cli.version_info import get_version_info
 from hermes_cli.web_deps import LateState, late
-from hermes_cli.web_server_gateway import _ACTION_LOG_FILES
 from hermes_cli.web_routers._common import http_failure
+from hermes_cli.web_server_gateway import _ACTION_LOG_FILES
 
 _log = logging.getLogger("hermes_cli.web_server")
 router = APIRouter()
@@ -64,7 +66,7 @@ _UPDATE_REFUSAL_ERROR_CODES = {
 }
 
 
-def _finish_action(name: str, exit_code: Optional[int], pid: Optional[int]) -> None:
+def _finish_action(name: str, exit_code: int | None, pid: int | None) -> None:
     """Record a terminal result and drop the live-process registries for ``name``."""
     _ACTION_RESULTS[name] = {"exit_code": exit_code, "pid": pid}
     for registry in (_ACTION_PROCS, _ACTION_COMMANDS, _ACTION_IDS):
@@ -83,7 +85,7 @@ def _record_completed_action(name: str, message: str, exit_code: int = 1) -> Non
     _finish_action(name, exit_code, None)
 
 
-def _tail_lines(path: Path, n: int) -> List[str]:
+def _tail_lines(path: Path, n: int) -> list[str]:
     """Return the last ``n`` lines of ``path`` without loading huge logs."""
     try:
         size = path.stat().st_size
@@ -96,7 +98,7 @@ def _tail_lines(path: Path, n: int) -> List[str]:
     offset = size
     chunk_size = _ACTION_LOG_TAIL_INITIAL_CHUNK_BYTES
     newline_count = 0
-    chunks: List[bytes] = []
+    chunks: list[bytes] = []
     drop_partial_first_line = False
     try:
         with path.open("rb") as handle:
@@ -120,13 +122,13 @@ def _tail_lines(path: Path, n: int) -> List[str]:
     return lines[-n:]
 
 
-def _durable_completed_update_action_id(lines: List[str]) -> Optional[str]:
+def _durable_completed_update_action_id(lines: list[str]) -> str | None:
     """Latest successful update id from ``update.log`` — the durable record that survives
     the update restarting the dashboard (losing the in-memory ``Popen``/result registries).
     Only a completion marker after the latest start marker counts, so a stale success
     cannot mask a newer failed attempt."""
     last_start = last_completed = -1
-    completed_action_id: Optional[str] = None
+    completed_action_id: str | None = None
     for index, line in enumerate(lines):
         if line.startswith("=== hermes update started "):
             last_start = index
@@ -138,7 +140,7 @@ def _durable_completed_update_action_id(lines: List[str]) -> Optional[str]:
 
 
 @router.post("/api/gateway/restart")
-async def restart_gateway(profile: Optional[str] = None):
+async def restart_gateway(profile: str | None = None):
     """Kick off a ``hermes gateway restart`` in the background."""
     with http_failure("Failed to spawn gateway restart", 500, "Failed to restart gateway"):
         proc, _reused = _spawn_gateway_restart(profile)
@@ -177,7 +179,11 @@ async def gateway_drain(request: Request):
     transition (the marker IS the control channel). Idempotent on both sides;
     ``POST /api/gateway/restart`` is the force-override that supersedes a drain.
     """
-    from gateway.drain_control import clear_drain_request, drain_requested, write_drain_request
+    from gateway.drain_control import (
+        clear_drain_request,
+        drain_requested,
+        write_drain_request,
+    )
 
     try:
         body = await request.json()
@@ -209,7 +215,7 @@ async def gateway_drain(request: Request):
     }
 
 
-def _update_refused(error: str, message: str, update_command: str) -> Dict[str, Any]:
+def _update_refused(error: str, message: str, update_command: str) -> dict[str, Any]:
     _record_completed_action("hermes-update", message, exit_code=1)
     return {
         "ok": False, "pid": None, "name": "hermes-update", "error": error, "message": message,
@@ -230,7 +236,10 @@ async def update_hermes():
 
     # Shared admission gate: marker-first, then the docker/nix/apt heuristics —
     # one decision with the CLI paths.
-    from hermes_cli.update_contract import evaluate_update_admission, record_refusal_receipt
+    from hermes_cli.update_contract import (
+        evaluate_update_admission,
+        record_refusal_receipt,
+    )
 
     refusal = evaluate_update_admission(_server_path("PROJECT_ROOT"))
     if refusal is not None:
@@ -261,7 +270,7 @@ _NON_APPLYABLE_MESSAGES = {
 
 
 @router.get("/api/hermes/update/check")
-async def check_hermes_update(force: bool = False, profile: Optional[str] = None):
+async def check_hermes_update(force: bool = False, profile: str | None = None):
     """Report whether a Hermes update is available, without applying it.
 
     Returns install_method ('apt'|'git'|'docker'|'nix'|'nixos'|'unknown'),
@@ -289,7 +298,7 @@ async def check_hermes_update(force: bool = False, profile: Optional[str] = None
         }
 
     install_method = detect_install_method(_server_path("PROJECT_ROOT"))
-    payload: Dict[str, Any] = {
+    payload: dict[str, Any] = {
         "install_method": install_method,
         "current_version": get_version_info().derived_version,
         "behind": None,
@@ -328,8 +337,8 @@ async def check_hermes_update(force: bool = False, profile: Optional[str] = None
 
 
 def _completed_exit_code(
-    result: Optional[Dict[str, Any]], durable_action_id: Optional[str], receipt: Optional[Dict[str, Any]],
-) -> Optional[int]:
+    result: dict[str, Any] | None, durable_action_id: str | None, receipt: dict[str, Any] | None,
+) -> int | None:
     """Exit code for an action with no live process: in-memory result, else durable evidence."""
     if result is not None:
         return result.get("exit_code")
@@ -392,7 +401,7 @@ async def get_action_status(name: str, lines: int = 200):
     return response
 
 
-def _read_latest_receipt() -> Optional[Dict[str, Any]]:
+def _read_latest_receipt() -> dict[str, Any] | None:
     """Latest update receipt, or None on any failure (never raises)."""
     try:
         from hermes_cli.update_receipt import read_latest_receipt
@@ -401,7 +410,7 @@ def _read_latest_receipt() -> Optional[Dict[str, Any]]:
         return None
 
 
-def _latest_update_receipt_summary() -> Optional[Dict[str, Any]]:
+def _latest_update_receipt_summary() -> dict[str, Any] | None:
     """Compact summary of the latest receipt (written by EVERY ``hermes update`` run,
     incl. refused/failed), or None; never raises. Steps/skips stay in the full endpoint.
 

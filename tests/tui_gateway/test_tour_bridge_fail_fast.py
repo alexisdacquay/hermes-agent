@@ -10,8 +10,7 @@ nothing ever answers the request and the agent blocks for the whole deadline
 import json
 
 import pytest
-
-import tui_gateway.server as server
+from tui_gateway import server
 
 
 @pytest.fixture

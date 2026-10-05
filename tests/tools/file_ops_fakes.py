@@ -15,7 +15,6 @@ sentinel out of the command first (it is random), then compose:
 
 import base64
 import re
-from typing import Optional
 
 READ_SENTINEL_RE = re.compile(r"__HERMES_RF_[0-9a-f]{32}__")
 WRITE_SENTINEL_RE = re.compile(r"__HERMES_WF_[0-9a-f]{32}__")
@@ -25,7 +24,7 @@ def compound_read_output(
     sentinel: str,
     *,
     size: int,
-    sample: Optional[bytes],
+    sample: bytes | None,
     content: str,
     total_lines: int,
     trailing_newline: bool = True,

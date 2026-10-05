@@ -4,7 +4,6 @@ import threading
 from pathlib import Path
 
 import pytest
-
 from hermes_cli import web_server
 from hermes_cli.web_routers import git as git_router
 

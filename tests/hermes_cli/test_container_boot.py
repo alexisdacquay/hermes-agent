@@ -14,7 +14,6 @@ import os
 from pathlib import Path
 
 import pytest
-
 from hermes_cli.container_boot import (
     ReconcileAction,
     reconcile_profile_gateways,

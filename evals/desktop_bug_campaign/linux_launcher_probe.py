@@ -1,13 +1,12 @@
 """Real Linux venv/XDG I/O probe; help-launch is NOT a native UI proof."""
 import argparse
 import json
-import os
-from pathlib import Path
 import shlex
 import subprocess
 import sys
 import tempfile
 import venv
+from pathlib import Path
 
 
 def run(argv, env, cwd):

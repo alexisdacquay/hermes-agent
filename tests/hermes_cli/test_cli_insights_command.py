@@ -1,8 +1,7 @@
-from unittest.mock import MagicMock, patch
 from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
 import pytest
-
 from cli import HermesCLI
 from hermes_cli.main_agent_cmds import cmd_insights
 from hermes_state import _default_db_path

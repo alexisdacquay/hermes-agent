@@ -13,8 +13,9 @@ deleting a memory rewrites its file under the memory tool's lock.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 _MEMORY_FILES = {"memory": "MEMORY.md", "profile": "USER.md"}
 _STORE_TARGETS = {"memory": "memory", "profile": "user"}  # journey source -> MemoryStore target

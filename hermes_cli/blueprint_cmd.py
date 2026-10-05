@@ -6,7 +6,7 @@ import difflib
 import logging
 import shlex
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -21,10 +21,10 @@ class BlueprintCommandResult:
     """
 
     text: str
-    agent_seed: Optional[str] = None
+    agent_seed: str | None = None
 
 
-def _resolve_origin(explicit: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+def _resolve_origin(explicit: dict[str, Any] | None) -> dict[str, Any] | None:
     if explicit is not None:
         return explicit
     try:
@@ -42,9 +42,9 @@ def _resolve_origin(explicit: Optional[Dict[str, Any]]) -> Optional[Dict[str, An
     return None
 
 
-def _parse_kv(tokens) -> Tuple[Dict[str, str], list]:
+def _parse_kv(tokens) -> tuple[dict[str, str], list]:
     """Split ``slot=value`` tokens from bare tokens. Returns (values, leftovers)."""
-    values: Dict[str, str] = {}
+    values: dict[str, str] = {}
     leftovers = []
     for tok in tokens:
         k, sep, v = tok.partition("=")
@@ -55,7 +55,7 @@ def _parse_kv(tokens) -> Tuple[Dict[str, str], list]:
     return values, leftovers
 
 
-def _pick(candidates: List[Any]) -> Optional[Tuple[Optional[Any], List[Any]]]:
+def _pick(candidates: list[Any]) -> tuple[Any | None, list[Any]] | None:
     """One candidate -> (it, []); several -> (None, all); none -> None (keep searching)."""
     if len(candidates) == 1:
         return candidates[0], []
@@ -64,7 +64,7 @@ def _pick(candidates: List[Any]) -> Optional[Tuple[Optional[Any], List[Any]]]:
     return None
 
 
-def match_blueprint(query: str) -> Tuple[Optional[Any], List[Any]]:
+def match_blueprint(query: str) -> tuple[Any | None, list[Any]]:
     """Resolve a free-typed blueprint name to a blueprint.
 
     Matching is forgiving because chat-line users type the name (unlike the dashboard/Discord where
@@ -108,7 +108,7 @@ def build_blueprint_seed(blueprint) -> str:
     rendered prompt. Defaults are stated so the agent can offer them.
     """
     from cron.blueprint_catalog import WEEKDAY_PRESETS
-    lines: List[str] = [
+    lines: list[str] = [
         f"Set up the '{blueprint.title}' automation for me (automation blueprint "
         f"'{blueprint.key}'). {blueprint.description}",
         "",
@@ -154,7 +154,7 @@ def _fmt_catalog() -> str:
     return "\n".join(lines)
 
 
-def _fmt_candidates(query: str, candidates: List[Any]) -> str:
+def _fmt_candidates(query: str, candidates: list[Any]) -> str:
     lines = [f"'{query}' matches several blueprints — which one?\n"]
     lines.extend(f"  • {r.key} — {r.title}" for r in candidates)
     lines.append("\nRun `/blueprint <name>` with one of the names above.")
@@ -176,7 +176,7 @@ def _manage_hint(surface: str) -> str:
 
 
 def handle_blueprint_command(
-    args: str, *, origin: Optional[Dict[str, Any]] = None, surface: str = "cli"
+    args: str, *, origin: dict[str, Any] | None = None, surface: str = "cli"
 ) -> BlueprintCommandResult:
     """Dispatch a ``/blueprint`` invocation.
 
@@ -186,7 +186,7 @@ def handle_blueprint_command(
     up from; ``surface`` (``"cli"`` | ``"gateway"``) picks the follow-up hint wording.
     """
     try:
-        from cron.blueprint_catalog import fill_blueprint, BlueprintFillError
+        from cron.blueprint_catalog import BlueprintFillError, fill_blueprint
     except Exception as e:  # pragma: no cover - import guard
         logger.debug("blueprint catalog import failed: %s", e)
         return BlueprintCommandResult("Automation Blueprints are unavailable in this build.")
@@ -221,7 +221,10 @@ def handle_blueprint_command(
         )
 
     try:
-        from cron.scheduler import CronSchedulerRegistrationError, create_job_with_scheduler_registration
+        from cron.scheduler import (
+            CronSchedulerRegistrationError,
+            create_job_with_scheduler_registration,
+        )
         job = create_job_with_scheduler_registration(**spec)
     except CronSchedulerRegistrationError as e:
         return BlueprintCommandResult(e.user_message())

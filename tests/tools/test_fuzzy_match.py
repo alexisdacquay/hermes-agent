@@ -676,6 +676,7 @@ class TestContextAwareCorrectness:
     def test_no_match_on_large_file_is_fast(self):
         """The anchor pre-filter keeps a no-match scan from being O(file×pattern)."""
         import time
+
         from tools.fuzzy_match import _strategy_context_aware
 
         big = "\n".join(f"line {i} content here" for i in range(10000))
@@ -693,7 +694,7 @@ class TestBackslashDoublingDrift:
     """Regression tests for the backslash-run doubling guard.
 
     Live failure (Windows, Aug 2026): the model sent old_string/new_string
-    whose backslash runs were JSON-escaped one extra time (file had ``\``
+    whose backslash runs were JSON-escaped one extra time (file had ``\\``
     where the args had ``\\``). The context_aware strategy matched the
     region anyway and wrote new_string verbatim, doubling every backslash
     in a Windows path inside a Python string literal. The guard must block
@@ -755,7 +756,7 @@ class TestBackslashDoublingDrift:
         assert b * 4 not in result
 
     def test_single_prose_backslash_not_blocked(self):
-        """A lone ``\`` vs ``\\`` in prose is too weak a signal to block."""
+        """A lone ``\\`` vs ``\\`` in prose is too weak a signal to block."""
         b = "\\"
         content = "text with one " + b + " backslash here\nanother line\n"
         old = "text with one " + b * 2 + " backslash here\nanother line"

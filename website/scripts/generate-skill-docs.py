@@ -13,6 +13,7 @@ Sidebar is updated to nest all per-skill pages under Skills → Bundled / Option
 """
 
 from __future__ import annotations
+
 import re
 import sys
 from collections import defaultdict
@@ -247,7 +248,7 @@ def rewrite_relative_links(body: str, meta: dict[str, Any]) -> str:
         if url.startswith("mailto:"):
             return m.group(0)
         # Strip leading ./
-        url_clean = url[2:] if url.startswith("./") else url
+        url_clean = url.removeprefix("./")
         full = f"{base}/{url_clean}"
         return f"[{text}]({full})"
 

@@ -16,12 +16,10 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from gateway.config import PlatformConfig
 from gateway.stream_consumer import GatewayStreamConsumer, StreamConsumerConfig
 from plugins.platforms.telegram.adapter import TelegramAdapter
 from telegram.error import BadRequest, NetworkError, TimedOut
-
 
 # Content exercising rich-only constructs: a heading, a real Markdown table,
 # and a task list. Pipes / brackets must survive untouched into the payload.
@@ -287,7 +285,7 @@ async def test_transient_rich_error_does_not_legacy_resend(exc):
 
 @pytest.mark.asyncio
 async def test_rich_transport_error_redacts_bot_token_even_when_redaction_disabled(monkeypatch):
-    import agent.redact as redact
+    from agent import redact
 
     monkeypatch.setattr(redact, "_REDACT_ENABLED", False)
     token = "123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef"
@@ -309,7 +307,7 @@ async def test_rich_transport_error_redacts_bot_token_even_when_redaction_disabl
 
 @pytest.mark.asyncio
 async def test_legacy_send_error_redacts_bot_token_without_traceback(monkeypatch, caplog):
-    import agent.redact as redact
+    from agent import redact
 
     monkeypatch.setattr(redact, "_REDACT_ENABLED", False)
     token = "123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef"
@@ -714,7 +712,7 @@ async def test_finalize_edit_cjk_rich_content_can_be_opted_in():
 
 @pytest.mark.asyncio
 async def test_legacy_edit_error_logs_redacted_bot_token_without_traceback(monkeypatch, caplog):
-    import agent.redact as redact
+    from agent import redact
 
     monkeypatch.setattr(redact, "_REDACT_ENABLED", False)
     token = "123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef"
@@ -808,8 +806,8 @@ def _reply_message_with_rich_blocks(
 async def test_rich_reply_records_and_recovers_text(monkeypatch, tmp_path):
     """A reply to a rich-sent message resolves the original text via the index."""
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
-    from gateway.platforms.event import MessageType
     from gateway import rich_sent_store
+    from gateway.platforms.event import MessageType
 
     adapter = _make_adapter()
 

@@ -16,8 +16,8 @@ import tarfile
 from pathlib import Path
 
 import pytest
-
 from pm.package import DebPackage, InstallError
+
 from tests.pm._fixtures import _ar_member
 
 

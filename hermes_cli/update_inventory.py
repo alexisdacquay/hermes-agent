@@ -10,9 +10,11 @@ from __future__ import annotations
 import logging
 import shlex
 import sys
+from collections.abc import Callable
 from contextlib import contextmanager, suppress
-from dataclasses import dataclass, field, asdict, fields as dataclass_fields
-from typing import Any, Callable, Optional
+from dataclasses import asdict, dataclass, field
+from dataclasses import fields as dataclass_fields
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -23,11 +25,11 @@ class RuntimeRecord:
 
     kind: str                     # gateway | dashboard | serve
     profile: str
-    pid: Optional[int] = None
+    pid: int | None = None
     supervisor: str = "manual"    # systemd | launchd | desktop | windows-service | service | manual | manual-serve
-    code_sha: Optional[str] = None       # stamped running-code sha
+    code_sha: str | None = None       # stamped running-code sha
     # See #91283.
-    code_version: Optional[str] = None
+    code_version: str | None = None
     restart_via: str = ""         # mechanism id, see _RESTART_MECHANISMS
     detail: dict = field(default_factory=dict)
 
@@ -39,8 +41,8 @@ class UpdatePlan:
     install_method: str = "unknown"       # git | docker | nix | apt | ...
     updatable_in_place: bool = True
     update_mechanism: str = "hermes update"
-    expected_sha: Optional[str] = None    # current checkout HEAD (pre-pull)
-    expected_version: Optional[str] = None
+    expected_sha: str | None = None    # current checkout HEAD (pre-pull)
+    expected_version: str | None = None
     profiles: list = field(default_factory=list)
     runtimes: list = field(default_factory=list)  # list[RuntimeRecord]
 
@@ -48,7 +50,7 @@ class UpdatePlan:
         return asdict(self)  # recursive: RuntimeRecord entries become dicts
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "UpdatePlan":
+    def from_dict(cls, data: dict[str, Any]) -> UpdatePlan:
         """Inverse of :meth:`to_dict` (the plan crosses the post-swap hand-off as JSON)."""
         fields_ = {f.name for f in dataclass_fields(cls)}
         plan = cls(**{k: v for k, v in data.items() if k in fields_ and k != "runtimes"})
@@ -123,7 +125,7 @@ def describe_restart_mechanism(mechanism: str, profile: str) -> str:
 
 
 def _runtime(
-    kind: str, profile: str, pid: Optional[int], supervisor: str,
+    kind: str, profile: str, pid: int | None, supervisor: str,
     code_sha: Any = None, code_version: Any = None, **extra: Any,
 ) -> RuntimeRecord:
     """A :class:`RuntimeRecord` with ``restart_via`` derived from its supervisor."""
@@ -145,7 +147,11 @@ def _probe(label: str):
 
 def _collect_install_shape(plan: UpdatePlan) -> None:
     with _probe("Install-method probe"):
-        from hermes_cli.config import detect_install_method, get_managed_system, recommended_update_command_for_method
+        from hermes_cli.config import (
+            detect_install_method,
+            get_managed_system,
+            recommended_update_command_for_method,
+        )
 
         method = detect_install_method()
         managed = get_managed_system()
@@ -193,6 +199,7 @@ def _collect_gateway_runtimes(plan: UpdatePlan, profile_homes: list, seen: set[i
     supervisor = _supervisor_classifier()
     with _probe("Gateway-state inventory"):
         from gateway.status import live_gateway_pid_for_home, read_runtime_status
+
         from hermes_cli.update_receipt import _socket_identity
 
         for profile, home in profile_homes:
@@ -237,7 +244,7 @@ def _loaded_backend_launchd_jobs() -> list:
     return []
 
 
-def _launchd_owner_for_ledger_entry(entry: dict, pid: int, jobs: list) -> "tuple[str, str, int | None] | None":
+def _launchd_owner_for_ledger_entry(entry: dict, pid: int, jobs: list) -> tuple[str, str, int | None] | None:
     """``(domain, label, live_pid)`` of the loaded launchd job owning this ledger row, if any.
 
     A KeepAlive LaunchAgent backend's recorded spawner (the bootstrap shell) is long dead, so the
@@ -385,11 +392,11 @@ def _gateway_named_in(r: RuntimeRecord, names: set) -> bool:
 
 
 def match_runtime_outcomes(
-    plan: "UpdatePlan", *, restarted_services: list, relaunched_profiles: list,
+    plan: UpdatePlan, *, restarted_services: list, relaunched_profiles: list,
     externally_supervised_profiles: list, killed_pids: set, failed_units: list,
-    stale_serve_pids: "set | None" = None, failed_respawn_pids: "set | None" = None,
-    external_gateway_pids: "set | None" = None,
-    live_gateway_pids: "dict[str, set[int]] | None" = None,
+    stale_serve_pids: set | None = None, failed_respawn_pids: set | None = None,
+    external_gateway_pids: set | None = None,
+    live_gateway_pids: dict[str, set[int]] | None = None,
 ) -> list[dict[str, Any]]:
     """Reconcile the plan's runtimes against what the restart phase DID.
 

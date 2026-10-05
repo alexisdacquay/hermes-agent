@@ -23,10 +23,9 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
-import pytest
-
 import hermes_cli.gateway as gw
 import hermes_cli.profiles
+import pytest
 from hermes_cli.gateway import (
     _locate_launchd_gateway_service,
     _probe_launchd_domain_for_label,
@@ -36,7 +35,6 @@ from hermes_cli.update_cmd import (
     _restart_macos_launchd_gateways,
     _warn_incomplete_gateway_fleet_restart,
 )
-
 
 pytestmark = pytest.mark.platforms("macos")  # launchd fleet restart is macOS-only; helpers use POSIX os.getuid
 
@@ -100,7 +98,7 @@ class TestLaunchdGatewayLabelsForInstall:
         ]
 
     def test_no_profiles_means_no_fleet(self, monkeypatch):
-        monkeypatch.setattr(hermes_cli.profiles, "list_profiles", lambda: [])
+        monkeypatch.setattr(hermes_cli.profiles, "list_profiles", list)
         assert launchd_gateway_labels_for_install() == []
 
 

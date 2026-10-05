@@ -9,7 +9,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -557,8 +556,8 @@ class TestManagedGateway:
 
 
     def test_managed_429_concurrency_hint(self, monkeypatch):
-        import requests as req_lib
         import plugins.image_gen.krea as krea_mod
+        import requests as req_lib
         from plugins.image_gen.krea import KreaImageGenProvider
 
         monkeypatch.setattr(krea_mod, "_resolve_managed_krea_gateway", lambda: _managed_cfg())

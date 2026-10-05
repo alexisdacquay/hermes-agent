@@ -30,23 +30,28 @@ import sys
 import tempfile
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+from typing import Any
 from urllib.parse import quote as _urlquote
 
 from agent.i18n import t
-from gateway.platforms._shared import (
-    get_scoped_secret as _get_scoped_secret, seed_extra_from_env as _seed_extra_from_env, send_error
-)
-from gateway.platforms.base import (
-    gateway_trust_env, BasePlatformAdapter, SendResult,
-    cache_audio_from_bytes_async, cache_document_from_bytes_async, cache_image_from_bytes_async,
-    cache_video_from_bytes_async,
-)
-from gateway.platforms.helpers import MessageDeduplicator, cancel_task
-from gateway.platforms.event import MessageEvent, MessageType
 from gateway.config import Platform
+from gateway.platforms._shared import get_scoped_secret as _get_scoped_secret
+from gateway.platforms._shared import seed_extra_from_env as _seed_extra_from_env
+from gateway.platforms._shared import send_error
+from gateway.platforms.base import (
+    BasePlatformAdapter,
+    SendResult,
+    cache_audio_from_bytes_async,
+    cache_document_from_bytes_async,
+    cache_image_from_bytes_async,
+    cache_video_from_bytes_async,
+    gateway_trust_env,
+)
+from gateway.platforms.event import MessageEvent, MessageType
+from gateway.platforms.helpers import MessageDeduplicator, cancel_task
 
 logger = logging.getLogger(__name__)
 
@@ -90,7 +95,7 @@ _FALLBACK_PNG_PREVIEW = bytes.fromhex(
     "890000000d49444154789c63000100000005000100377a7ff20000000049454e"
     "44ae426082")
 # Markdown LINE can't render, applied in order (code blocks first so their content survives).
-_MD_STRIP_RULES: Tuple[Tuple[re.Pattern, Any], ...] = (
+_MD_STRIP_RULES: tuple[tuple[re.Pattern, Any], ...] = (
     (re.compile(r"```[a-zA-Z0-9_+-]*\n?(.*?)```", re.DOTALL), lambda m: m.group(1).rstrip("\n")),
     (re.compile(r"`([^`]+)`"), r"\1"),
     (re.compile(r"\[([^\]]+)\]\((https?://[^\s)]+)\)"), lambda m: f"{m.group(1)} ({m.group(2)})"),
@@ -114,11 +119,11 @@ def strip_markdown_preserving_urls(text: str) -> str:
     return text
 
 
-def split_for_line(text: str, max_chars: int = LINE_SAFE_BUBBLE_CHARS) -> List[str]:
+def split_for_line(text: str, max_chars: int = LINE_SAFE_BUBBLE_CHARS) -> list[str]:
     """Split into ≤5 LINE bubbles at paragraph/line/word breaks; overflow is ellipsised."""
     if not text or len(text) <= max_chars:
         return [text] if text else []
-    chunks: List[str] = []
+    chunks: list[str] = []
     remaining = text
     while remaining and len(chunks) < LINE_MAX_MESSAGES_PER_CALL and len(remaining) > max_chars:
         # Prefer paragraph, then line, then word breaks past the half-way mark; else a hard cut.
@@ -170,17 +175,17 @@ class RequestCache:
     """
 
     def __init__(self) -> None:
-        self._entries: Dict[str, _CacheEntry] = {}
+        self._entries: dict[str, _CacheEntry] = {}
 
     def register_pending(self, chat_id: str) -> str:
         rid = str(uuid.uuid4())
         self._entries[rid] = _CacheEntry(state=State.PENDING)
         return rid
 
-    def get(self, request_id: str) -> Optional[_CacheEntry]:
+    def get(self, request_id: str) -> _CacheEntry | None:
         return self._entries.get(request_id)
 
-    def _transition(self, request_id: str, allowed: Set[State], state: State, payload: Any = None) -> None:
+    def _transition(self, request_id: str, allowed: set[State], state: State, payload: Any = None) -> None:
         entry = self._entries.get(request_id)
         if entry is not None and entry.state in allowed:
             entry.state = state
@@ -200,7 +205,7 @@ class RequestCache:
 _SOURCE_KINDS = {"group": ("groupId", "group"), "room": ("roomId", "room"), "user": ("userId", "dm")}
 
 
-def _resolve_chat(source: Dict[str, Any]) -> Tuple[str, str]:
+def _resolve_chat(source: dict[str, Any]) -> tuple[str, str]:
     """Return ``(chat_id, chat_type)`` from a LINE event ``source`` block (user/group/room).
 
     Source: PR #21023 (perng), unchanged.
@@ -210,7 +215,7 @@ def _resolve_chat(source: Dict[str, Any]) -> Tuple[str, str]:
 
 
 def _allowed_for_source(
-    source: Dict[str, Any], *, allow_all: bool, user_ids: Set[str], group_ids: Set[str], room_ids: Set[str]) -> bool:
+    source: dict[str, Any], *, allow_all: bool, user_ids: set[str], group_ids: set[str], room_ids: set[str]) -> bool:
     """Three-list gate: users, groups, rooms.
 
     See #18153.
@@ -234,17 +239,17 @@ class _LineClient:
         import aiohttp
         return aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=timeout), trust_env=gateway_trust_env())
 
-    async def _post_messages(self, url: str, label: str, payload: Dict[str, Any]) -> None:
+    async def _post_messages(self, url: str, label: str, payload: dict[str, Any]) -> None:
         async with self._session(self._timeout) as session:
             async with session.post(url, headers=self._headers, json=payload) as resp:
                 if resp.status >= 400:
                     body = await resp.text()
                     raise RuntimeError(f"LINE {label} {resp.status}: {body[:200]}")
 
-    async def reply(self, reply_token: str, messages: List[Dict[str, Any]]) -> None:
+    async def reply(self, reply_token: str, messages: list[dict[str, Any]]) -> None:
         await self._post_messages(LINE_REPLY_URL, "reply", {"replyToken": reply_token, "messages": messages})
 
-    async def push(self, chat_id: str, messages: List[Dict[str, Any]]) -> None:
+    async def push(self, chat_id: str, messages: list[dict[str, Any]]) -> None:
         await self._post_messages(LINE_PUSH_URL, "push", {"to": chat_id, "messages": messages})
 
     async def loading(self, chat_id: str, seconds: int = 60) -> None:
@@ -267,7 +272,7 @@ class _LineClient:
                     raise RuntimeError(f"LINE content {resp.status}")
                 return await resp.read()
 
-    async def get_bot_user_id(self) -> Optional[str]:
+    async def get_bot_user_id(self) -> str | None:
         """Fetch this channel's own userId so we can filter self-messages."""
         import aiohttp  # noqa: F401 — ImportError must escape the swallow-all below
         try:
@@ -278,18 +283,18 @@ class _LineClient:
             return None
 
 
-def _text_message(text: str) -> Dict[str, Any]:
+def _text_message(text: str) -> dict[str, Any]:
     """Build a LINE text message object, capped to per-bubble max."""
     return {"type": "text", "text": text if len(text) <= LINE_PER_BUBBLE_CHARS else text[: LINE_PER_BUBBLE_CHARS - 1] + "…"}
 
 
-def _text_messages(content: str) -> List[Dict[str, Any]]:
+def _text_messages(content: str) -> list[dict[str, Any]]:
     """Markdown-strip, chunk and cap ``content`` into ≤5 LINE text messages."""
     chunks = split_for_line(strip_markdown_preserving_urls(content))
     return [_text_message(c) for c in chunks][:LINE_MAX_MESSAGES_PER_CALL]
 
 
-def build_postback_button_message(text: str, button_label: str, request_id: str) -> Dict[str, Any]:
+def build_postback_button_message(text: str, button_label: str, request_id: str) -> dict[str, Any]:
     """Slow-LLM postback bubble. Template Buttons stay tappable from history (Quick
     Reply chips vanish on the next message). LINE limits: text ≤160, altText ≤400.
 
@@ -309,14 +314,14 @@ def build_postback_button_message(text: str, button_label: str, request_id: str)
 # heartbeat); these bypass a PENDING postback cache so they land as visible bubbles. Matched on
 # the leading emoji marker only: the words behind it are localized (``gateway.busy.*``) and every
 # translation keeps the marker, so the fallback keeps firing in any language.
-_SYSTEM_BYPASS_PREFIXES: Tuple[str, ...] = ("⚡", "⏳", "⏩", "💾")
+_SYSTEM_BYPASS_PREFIXES: tuple[str, ...] = ("⚡", "⏳", "⏩", "💾")
 
 
 def _is_system_bypass(content: str) -> bool:
     return bool(content) and any(content.startswith(p) for p in _SYSTEM_BYPASS_PREFIXES)
 
 
-def _is_interim_send(content: str, metadata: Optional[Dict[str, Any]] = None) -> bool:
+def _is_interim_send(content: str, metadata: dict[str, Any] | None = None) -> bool:
     """True for mid-turn progress/status sends that must not become the cached answer.
 
     Purpose-first: the gateway stamps every mid-turn send with ``_interim_send`` metadata
@@ -329,7 +334,7 @@ def _is_interim_send(content: str, metadata: Optional[Dict[str, Any]] = None) ->
     return _is_system_bypass(content)
 
 
-def _csv_set(value: str) -> Set[str]:
+def _csv_set(value: str) -> set[str]:
     return {x.strip() for x in (value or "").split(",") if x.strip()}
 
 
@@ -339,7 +344,7 @@ def _truthy_env(name: str, default: bool = False) -> bool:
     return default if v is None else v.strip().lower() in {"1", "true", "yes", "on"}
 
 
-def _credentials(config) -> Tuple[str, str]:
+def _credentials(config) -> tuple[str, str]:
     """Return ``(channel_access_token, channel_secret)`` from scoped secrets, then ``extra``."""
     extra = getattr(config, "extra", {}) or {}
     return (
@@ -382,7 +387,7 @@ class LineAdapter(BasePlatformAdapter):
         def env_or(env: str, key: str, default: Any = "") -> Any:
             return _get_scoped_secret(env) or extra.get(key, default)
 
-        def allowlist(env: str, key: str) -> Set[str]:
+        def allowlist(env: str, key: str) -> set[str]:
             # Scoped read: under multiplex os.environ is the DEFAULT profile's allowlist.
             return _csv_set(_get_scoped_secret(env, "")) | set(extra.get(key, []))
 
@@ -408,17 +413,17 @@ class LineAdapter(BasePlatformAdapter):
             ("expired_text", "LINE_EXPIRED_TEXT", DEFAULT_EXPIRED_TEXT_KEY)):
             setattr(self, attr, env_or(env, attr, t(default_key)))
         # Runtime state
-        self._client: Optional[_LineClient] = None
+        self._client: _LineClient | None = None
         self._app = self._runner = self._site = None  # aiohttp web.Application / AppRunner / TCPSite
-        self._reply_tokens: Dict[str, Tuple[str, float]] = {}  # chat_id → (token, expiry)
+        self._reply_tokens: dict[str, tuple[str, float]] = {}  # chat_id → (token, expiry)
         self._cache = RequestCache()
         # LINE redelivers webhooks for up to a day on non-2xx; no TTL, just a size bound.
         self._dedup = MessageDeduplicator(max_size=1000, ttl_seconds=float("inf"))
-        self._bot_user_id: Optional[str] = None
-        self._media_tokens: Dict[str, Tuple[str, float]] = {}  # token → (path, expiry)
-        self._media_temp_paths: Set[str] = set()
+        self._bot_user_id: str | None = None
+        self._media_tokens: dict[str, tuple[str, float]] = {}  # token → (path, expiry)
+        self._media_temp_paths: set[str] = set()
         self._media_ttl = MEDIA_TOKEN_TTL_SECONDS
-        self._pending_buttons: Dict[str, str] = {}  # one outstanding button per chat: chat_id → request_id
+        self._pending_buttons: dict[str, str] = {}  # one outstanding button per chat: chat_id → request_id
 
     def _fail(self, code: str, detail: str, *, retryable: bool = False) -> bool:  # fatal connect error → False
         self._set_fatal_error(code, detail, retryable=retryable)
@@ -513,7 +518,7 @@ class LineAdapter(BasePlatformAdapter):
                 logger.exception("LINE: dispatch_event failed")
         return web.Response(status=200, text="ok")
 
-    async def _dispatch_event(self, event: Dict[str, Any]) -> None:
+    async def _dispatch_event(self, event: dict[str, Any]) -> None:
         event_type = event.get("type")
         source = event.get("source") or {}
         webhook_event_id = event.get("webhookEventId", "") or ""
@@ -535,7 +540,7 @@ class LineAdapter(BasePlatformAdapter):
         else:
             logger.debug("LINE: ignoring event type %r", event_type)
 
-    async def _handle_message_event(self, event: Dict[str, Any]) -> None:
+    async def _handle_message_event(self, event: dict[str, Any]) -> None:
         msg = event.get("message") or {}
         msg_type, message_id = msg.get("type", ""), msg.get("id", "")
         reply_token = event.get("replyToken", "")
@@ -544,8 +549,8 @@ class LineAdapter(BasePlatformAdapter):
         user_id = source.get("userId", "") or chat_id
         if chat_id and reply_token:  # stash the reply token for outbound use
             self._reply_tokens[chat_id] = (reply_token, time.time() + LINE_REPLY_TOKEN_TTL_SECONDS)
-        media_urls: List[str] = []
-        media_types: List[str] = []
+        media_urls: list[str] = []
+        media_types: list[str] = []
         if msg_type == "text":
             text = msg.get("text", "") or ""
         elif msg_type in _INBOUND_MEDIA_EXT:  # fetch, cache, surface a vision-friendly local path
@@ -569,7 +574,7 @@ class LineAdapter(BasePlatformAdapter):
             text=text, message_type=_LINE_MESSAGE_TYPES.get(msg_type, MessageType.TEXT), source=source_obj,
             raw_message=event, message_id=message_id, media_urls=media_urls, media_types=media_types))
 
-    async def _handle_postback_event(self, event: Dict[str, Any]) -> None:
+    async def _handle_postback_event(self, event: dict[str, Any]) -> None:
         """User tapped the slow-LLM postback button — deliver the cached payload. READY replies (push
         fallback) and ERROR replies settle the entry; DELIVERED / PENDING just re-issue their notice."""
         reply_token = event.get("replyToken", "")
@@ -620,7 +625,7 @@ class LineAdapter(BasePlatformAdapter):
             self._pending_buttons.pop(chat_id, None)
 
     async def _download_media(
-        self, message_id: str, msg_type: str, *, filename: Optional[str] = None) -> Tuple[Optional[str], str]:
+        self, message_id: str, msg_type: str, *, filename: str | None = None) -> tuple[str | None, str]:
         if not self._client or not message_id:
             return None, ""
         try:
@@ -642,7 +647,7 @@ class LineAdapter(BasePlatformAdapter):
             return None, ""
 
     async def send(
-        self, chat_id: str, content: str, reply_to: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None
+        self, chat_id: str, content: str, reply_to: str | None = None, metadata: dict[str, Any] | None = None
     ) -> SendResult:
         if not self._client:
             return SendResult(success=False, error="LINE adapter not connected")
@@ -669,7 +674,7 @@ class LineAdapter(BasePlatformAdapter):
     async def _send_text_chunks(self, chat_id: str, content: str, *, force_push: bool) -> SendResult:
         return await self._send_messages(chat_id, _text_messages(content), force_push=force_push, text=True)
 
-    def _consume_reply_token(self, chat_id: str) -> Tuple[str, bool]:
+    def _consume_reply_token(self, chat_id: str) -> tuple[str, bool]:
         """Consume a stashed reply token if present and unexpired → ``(token, used_reply)``."""
         token, expires_at = self._reply_tokens.pop(chat_id, None) or ("", 0.0)
         return (token, True) if token and time.time() < expires_at else ("", False)
@@ -679,7 +684,7 @@ class LineAdapter(BasePlatformAdapter):
         if self._client and chat_id:
             await self._client.loading(chat_id)
 
-    async def get_chat_info(self, chat_id: str) -> Dict[str, Any]:
+    async def get_chat_info(self, chat_id: str) -> dict[str, Any]:
         """Best-effort chat info inferred from the ID prefix (U=user, C=group, R=room)."""
         chat_type = {"U": "dm", "C": "group", "R": "channel"}.get((chat_id or "")[:1], "dm")
         return {"name": chat_id or "", "type": chat_type}
@@ -764,7 +769,7 @@ class LineAdapter(BasePlatformAdapter):
             return False
         return self.webhook_host is None or self.webhook_host in _WILDCARD_HOSTS
 
-    def _check_media_file(self, kind: str, file_path: str) -> Tuple[Optional[Path], Optional[SendResult]]:
+    def _check_media_file(self, kind: str, file_path: str) -> tuple[Path | None, SendResult | None]:
         """Shared preflight for send_image_file/send_voice/send_video → ``(path, error)``."""
         max_bytes, size_error, url_error = _OUTBOUND_MEDIA[kind]
         path = Path(file_path)
@@ -811,7 +816,7 @@ class LineAdapter(BasePlatformAdapter):
         return web.FileResponse(path, headers={"Content-Type": content_type})
 
     async def send_image_file(
-        self, chat_id: str, image_path: str, caption: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None
+        self, chat_id: str, image_path: str, caption: str | None = None, metadata: dict[str, Any] | None = None
     ) -> SendResult:
         path, err = self._check_media_file("image", image_path)
         if err:
@@ -819,11 +824,11 @@ class LineAdapter(BasePlatformAdapter):
         url = self._serve_file(path)
         if not url.lower().startswith("https://"):
             return SendResult(success=False, error=f"LINE image URL must be HTTPS: {url}")
-        msgs: List[Dict[str, Any]] = [{"type": "image", "originalContentUrl": url, "previewImageUrl": url}]
+        msgs: list[dict[str, Any]] = [{"type": "image", "originalContentUrl": url, "previewImageUrl": url}]
         return await self._send_messages(chat_id, msgs + ([_text_message(caption)] if caption else []))
 
     async def send_voice(
-        self, chat_id: str, audio_path: str, duration_ms: int = 1000, metadata: Optional[Dict[str, Any]] = None,
+        self, chat_id: str, audio_path: str, duration_ms: int = 1000, metadata: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> SendResult:
         path, err = self._check_media_file("audio", audio_path)
@@ -833,8 +838,8 @@ class LineAdapter(BasePlatformAdapter):
         return await self._send_messages(chat_id, [msg])
 
     async def send_video(
-        self, chat_id: str, video_path: str, preview_path: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None) -> SendResult:
+        self, chat_id: str, video_path: str, preview_path: str | None = None,
+        metadata: dict[str, Any] | None = None) -> SendResult:
         path, err = self._check_media_file("video", video_path)
         if err:
             return err
@@ -856,7 +861,7 @@ class LineAdapter(BasePlatformAdapter):
         return await self._send_messages(chat_id, [msg])
 
     async def _send_messages(
-        self, chat_id: str, messages: List[Dict[str, Any]], *, force_push: bool = False, text: bool = False
+        self, chat_id: str, messages: list[dict[str, Any]], *, force_push: bool = False, text: bool = False
     ) -> SendResult:
         """Send built message objects, batched at 5/call: reply token first, then push. ``text``
         selects the text contract: reply success reports the token as message_id; push failure logs at error."""
@@ -917,7 +922,7 @@ def is_connected(config) -> bool:
     return validate_config(config)
 
 
-def _env_enablement() -> Optional[Dict[str, Any]]:
+def _env_enablement() -> dict[str, Any] | None:
     """``env_enablement_fn``: seed ``PlatformConfig.extra`` from env-only setups so ``hermes status`` sees them."""
     if not _env_credentials_present():
         return None
@@ -927,8 +932,8 @@ def _env_enablement() -> Optional[Dict[str, Any]]:
 
 async def _standalone_send(
     pconfig, chat_id: str, message: str, *,
-    thread_id: Optional[str] = None, media_files: Optional[List[str]] = None, force_document: bool = False,
-) -> Dict[str, Any]:
+    thread_id: str | None = None, media_files: list[str] | None = None, force_document: bool = False,
+) -> dict[str, Any]:
     """Out-of-process Push delivery for cron jobs detached from the gateway (no inbound event → no
     reply token). ``thread_id`` is ignored (no threads); ``media_files`` need the webhook server."""
     extra = getattr(pconfig, "extra", {}) or {}
@@ -956,8 +961,8 @@ _SETUP_PROMPTS = (  # (env var, prompt, masked)
 
 def interactive_setup() -> None:
     """``hermes setup line`` wizard (writes ``~/.hermes/.env``); CLI helpers are lazy-imported."""
-    from hermes_cli.config import get_env_value, save_env_value
     from hermes_cli.cli_output import print_header, print_info, prompt
+    from hermes_cli.config import get_env_value, save_env_value
     from hermes_cli.setup_platforms import declines_reconfigure
     print_header("LINE Messaging API")
     if declines_reconfigure("LINE", "Reconfigure LINE?", "LINE_CHANNEL_ACCESS_TOKEN"):

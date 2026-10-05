@@ -12,8 +12,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
-
-from hermes_constants import PARTIAL_STREAM_STUB_ID, FINISH_REASON_LENGTH
+from hermes_constants import FINISH_REASON_LENGTH, PARTIAL_STREAM_STUB_ID
 
 
 @pytest.fixture()

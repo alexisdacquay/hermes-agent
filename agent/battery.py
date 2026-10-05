@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass(frozen=True)
@@ -17,8 +16,8 @@ class BatteryStatus:
     """One reading: ``percent`` clamped 0-100; ``plugged`` None when the platform can't tell."""
 
     available: bool
-    percent: Optional[int] = None
-    plugged: Optional[bool] = None
+    percent: int | None = None
+    plugged: bool | None = None
 
     @property
     def charging(self) -> bool:
@@ -38,7 +37,7 @@ CATEGORY_DIM = "dim"
 _LEVEL_CATEGORIES = ((10, CATEGORY_CRITICAL), (20, CATEGORY_BAD), (50, CATEGORY_WARN))
 
 _CACHE_TTL_SECONDS = 8.0
-_cache: Optional[tuple[float, BatteryStatus]] = None
+_cache: tuple[float, BatteryStatus] | None = None
 
 
 def _read_battery_uncached() -> BatteryStatus:
@@ -46,12 +45,12 @@ def _read_battery_uncached() -> BatteryStatus:
         import psutil
 
         # ``sensors_battery`` is missing on some platforms/builds of psutil.
-        batt = getattr(psutil, "sensors_battery")()
+        batt = psutil.sensors_battery()
     except Exception:
         return UNAVAILABLE
     if batt is None:
         return UNAVAILABLE
-    percent: Optional[int] = None
+    percent: int | None = None
     raw_percent = getattr(batt, "percent", None)
     if raw_percent is not None:
         try:

@@ -12,7 +12,6 @@ import re
 from dataclasses import replace
 
 import pytest
-
 from hermes_cli.local_runtime.context_policy import (
     FLOOR,
     SPEED_FLOOR_TOK_S,

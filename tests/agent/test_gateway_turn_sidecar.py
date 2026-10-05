@@ -15,7 +15,6 @@ import types
 from unittest.mock import patch
 
 import pytest
-
 from agent.turn_context import (
     append_notes_to_multimodal_content,
     build_turn_context,

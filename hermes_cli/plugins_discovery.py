@@ -12,17 +12,27 @@ import importlib.metadata
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Any
 
 from hermes_constants import get_hermes_home
+
 from hermes_cli.config import cfg_get
 from hermes_cli.plugin_capabilities import VALID_CAPABILITY_IDS
-from hermes_cli.plugin_capabilities import parse_declared_capabilities as _parse_declared_capabilities
-from hermes_cli.plugins_manifest import (
-    PluginManifest, _detect_kind_from_source, manifest_key, _resolve_module_source,
-    parse_manifest_file, portable_plugin_manifest,
+from hermes_cli.plugin_capabilities import (
+    parse_declared_capabilities as _parse_declared_capabilities,
 )
-from hermes_cli.relay_plugin_cutover import LEGACY_RELAY_PLUGIN_KEYS, RELAY_PLUGINS_CONFIG_ENV
+from hermes_cli.plugins_manifest import (
+    PluginManifest,
+    _detect_kind_from_source,
+    _resolve_module_source,
+    manifest_key,
+    parse_manifest_file,
+    portable_plugin_manifest,
+)
+from hermes_cli.relay_plugin_cutover import (
+    LEGACY_RELAY_PLUGIN_KEYS,
+    RELAY_PLUGINS_CONFIG_ENV,
+)
 
 logger = logging.getLogger("hermes_cli.plugins")
 
@@ -69,12 +79,12 @@ def _select_entry_point_group(entry_points: Any, group: str) -> list:
     return [ep for ep in entry_points if ep.group == group]
 
 
-def discover_entrypoint_manifests() -> List["PluginManifest"]:
+def discover_entrypoint_manifests() -> list[PluginManifest]:
     """Return metadata-only manifests for installed entry-point plugins. Kind comes from an import-free source
     scan (memory/model providers route to their own discovery). Capabilities come from the companion
     ``hermes_agent.plugin_capabilities`` group (``<plugin-id>.<capability-id>`` entries pointing at the same
     object), so consent works without importing plugin code. Failures are isolated per entry point."""
-    manifests: List[PluginManifest] = []
+    manifests: list[PluginManifest] = []
     try:
         eps = importlib.metadata.entry_points()
         group_eps = _select_entry_point_group(eps, ENTRY_POINTS_GROUP)
@@ -119,7 +129,7 @@ def _get_disabled_plugins() -> set:
         return set()
 
 
-def _get_enabled_plugins() -> Optional[set]:
+def _get_enabled_plugins() -> set | None:
     """Read the ``plugins.enabled`` allow-list (plugins are opt-in). ``None`` = key missing/malformed ("nothing
     enabled yet"; the first ``migrate_config`` run grandfathers installed user plugins); ``set()`` = explicitly
     empty; else the allow-list."""
@@ -132,13 +142,13 @@ def _get_enabled_plugins() -> Optional[set]:
 
 
 def scan_directory(
-    path: Path, source: str, *, skip_names: Optional[Set[str]] = None, prefix: str = "", depth: int = 0
-) -> List[PluginManifest]:
+    path: Path, source: str, *, skip_names: set[str] | None = None, prefix: str = "", depth: int = 0
+) -> list[PluginManifest]:
     """Read manifests under *path*: flat ``<root>/<name>/plugin.yaml`` (key ``name``) or category
     ``<root>/<cat>/<name>/plugin.yaml`` (key ``cat/name``; a manifest-less directory recurses one level, depth
     capped at two). *skip_names* ignores top-level names; portable ``plugin.json`` packages are accepted
     alongside YAML manifests."""
-    manifests: List[PluginManifest] = []
+    manifests: list[PluginManifest] = []
     if not path.is_dir():
         return manifests
     try:
@@ -186,14 +196,16 @@ def scan_directory(
     return manifests
 
 
-def collect_directory_manifests() -> List[PluginManifest]:
+def collect_directory_manifests() -> list[PluginManifest]:
     """Read directory manifests in full-discovery order (bundled top-level, bundled/platforms, user, opt-in
     project) without loading or mutating anything, so startup probes share the exact precedence/containment
     rules of the real discovery sweep."""
-    from hermes_cli import plugins as _origin  # patched names resolve through the origin
-    manifests: List[PluginManifest] = []
+    from hermes_cli import (
+        plugins as _origin,  # patched names resolve through the origin
+    )
+    manifests: list[PluginManifest] = []
 
-    def _scan(label: str, directory: Path, source: str, skip_names: Optional[Set[str]] = None) -> None:
+    def _scan(label: str, directory: Path, source: str, skip_names: set[str] | None = None) -> None:
         found = scan_directory(directory, source, skip_names=skip_names)
         logger.debug("  %s: %d manifest(s)", label, len(found))
         manifests.extend(found)
@@ -218,13 +230,13 @@ def collect_directory_manifests() -> List[PluginManifest]:
     return manifests
 
 
-def resolve_manifest_winners(manifests: List[PluginManifest]) -> Dict[str, PluginManifest]:
+def resolve_manifest_winners(manifests: list[PluginManifest]) -> dict[str, PluginManifest]:
     """Later sources win on key collision (project > user > bundled): a same-named copy under
     ``~/.hermes/plugins/<name>`` is the documented way to override a bundled plugin, and is logged. A flat
     user/project manifest that claims a bundled key from a *differently named* directory is an impostor, not
     an override (``impostor_dir/plugin.yaml`` with ``name: kanban``): it is skipped with a warning so
     ``hermes plugins enable kanban`` never activates unrelated code under the bundled name."""
-    winners: Dict[str, PluginManifest] = {}
+    winners: dict[str, PluginManifest] = {}
     for manifest in manifests:
         key = manifest_key(manifest)
         shadowed = winners.get(key)
@@ -250,12 +262,12 @@ class ManifestGate:
 
     action: str  # "load" (dependency-ordered pass) | "placeholder" | "load_now" | "defer"
     enabled: bool = False
-    error: Optional[str] = None
-    log: Optional[tuple] = None  # (level, message, *args)
+    error: str | None = None
+    log: tuple | None = None  # (level, message, *args)
 
 
 def gate_manifest(
-    manifest: PluginManifest, disabled: Set[str], enabled: Optional[Set[str]]
+    manifest: PluginManifest, disabled: set[str], enabled: set[str] | None
 ) -> ManifestGate:
     """Decide how one winning manifest is handled. Gate order matters: legacy relay refusal, explicit disable,
     category-owned kinds (exclusive / model-provider), bundled auto-loads (backend now, platform deferred),
@@ -263,7 +275,7 @@ def gate_manifest(
     lookup_key = manifest_key(manifest)
     names = {lookup_key, manifest.name}
 
-    def _placeholder(error: Optional[str], level: int, message: str, *args, enabled: bool = False) -> ManifestGate:
+    def _placeholder(error: str | None, level: int, message: str, *args, enabled: bool = False) -> ManifestGate:
         return ManifestGate("placeholder", enabled=enabled, error=error, log=(level, message, lookup_key, *args))
 
     # Relay lifecycle is core-owned; an old plugin copy would compete for its registries.

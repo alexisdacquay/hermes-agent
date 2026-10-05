@@ -5,9 +5,8 @@ the key were unlisted the handler would answer 4002 and the menu would show a sw
 never lands on disk.
 """
 
-import pytest
 import hermes_yaml as yaml
-
+import pytest
 from tui_gateway import server
 
 

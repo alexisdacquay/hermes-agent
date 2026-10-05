@@ -11,7 +11,6 @@ import os
 import re
 import threading
 from datetime import datetime
-from typing import Dict, Optional, Tuple
 from zoneinfo import ZoneInfo
 
 from hermes_constants import get_config_path
@@ -25,14 +24,14 @@ logger = logging.getLogger(__name__)
 # ``identity -> (name, ZoneInfo | None)`` value, so racing resolvers can never publish a mixed
 # identity/value pair. Call reset_cache() after in-place config changes.
 _cache_lock = threading.Lock()
-_tz_cache: Dict[Tuple[str, str], Tuple[str, Optional[ZoneInfo]]] = {}
+_tz_cache: dict[tuple[str, str], tuple[str, ZoneInfo | None]] = {}
 
 _SURROGATE_RE = re.compile(r"[\ud800-\udfff]")
 # ASCII plus surrogateescape'd bytes only: the shape of native text decoded with the wrong codec.
 _ESCAPED_BYTES_RE = re.compile(r"[\x00-\x7f\udc80-\udcff]*")
 
 
-def _repair_surrogates(text: str, encoding: Optional[str] = None) -> str:
+def _repair_surrogates(text: str, encoding: str | None = None) -> str:
     """Make locale text JSON/UTF-8 safe; a no-op (same object) on valid text.
 
     Windows hands back zone names in the ANSI code page (``heure d'\\xe9t\\xe9``) but a UTF-8
@@ -68,14 +67,16 @@ def _env_timezone() -> str:
     """``HERMES_TIMEZONE`` when it may speak for the active profile. Under the multiplexed
     gateway the env var holds only the DEFAULT profile's value (bridged from its config.yaml at
     startup), so every routed profile must read its own config.yaml instead."""
-    from agent.secret_scope import is_multiplex_active  # lazy: secret_scope pulls in more than a clock needs
+    from agent.secret_scope import (
+        is_multiplex_active,  # lazy: secret_scope pulls in more than a clock needs
+    )
 
     if is_multiplex_active():
         return ""
     return os.getenv("HERMES_TIMEZONE", "").strip()
 
 
-def _timezone_cache_identity() -> Tuple[str, str]:
+def _timezone_cache_identity() -> tuple[str, str]:
     tz_env = _env_timezone()
     return ("environment", tz_env) if tz_env else ("config", str(get_config_path()))
 
@@ -106,7 +107,7 @@ def _resolve_timezone_name() -> str:
     return ""
 
 
-def _timezone_entry() -> Tuple[str, Optional[ZoneInfo]]:
+def _timezone_entry() -> tuple[str, ZoneInfo | None]:
     """Cached ``(configured name, ZoneInfo | None)`` for the active profile."""
     cache_identity = _timezone_cache_identity()
     with _cache_lock:
@@ -126,7 +127,7 @@ def _timezone_entry() -> Tuple[str, Optional[ZoneInfo]]:
         return _tz_cache.setdefault(cache_identity, (name, tz))
 
 
-def get_timezone() -> Optional[ZoneInfo]:
+def get_timezone() -> ZoneInfo | None:
     """Return the active profile's configured ZoneInfo, or None (server-local)."""
     return _timezone_entry()[1]
 

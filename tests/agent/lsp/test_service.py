@@ -14,7 +14,6 @@ import time
 from pathlib import Path
 
 import pytest
-
 from agent.lsp.manager import LSPService
 from agent.lsp.servers import (
     SERVERS,
@@ -22,7 +21,6 @@ from agent.lsp.servers import (
     ServerDef,
     SpawnSpec,
 )
-
 
 MOCK_SERVER = str(Path(__file__).parent / "_mock_lsp_server.py")
 

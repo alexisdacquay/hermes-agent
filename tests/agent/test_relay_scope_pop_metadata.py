@@ -8,7 +8,6 @@ import tempfile
 from types import SimpleNamespace
 
 import pytest
-
 from agent import relay_runtime
 
 

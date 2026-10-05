@@ -33,10 +33,11 @@ import ssl
 import struct
 import threading
 import time
-from dataclasses import dataclass, field
+from collections.abc import Callable
+from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
 GEMINI_HOST = "generativelanguage.googleapis.com"
@@ -396,7 +397,7 @@ def _write_tls_material(directory: Path) -> tuple[Path, Path, Path]:
     from cryptography.hazmat.primitives.asymmetric import ec
     from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 
-    now = datetime.datetime.now(datetime.timezone.utc)
+    now = datetime.datetime.now(datetime.UTC)
     ca_key = ec.generate_private_key(ec.SECP256R1())
     ca_name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "hermes-e2e gemini fake CA")])
     ca = (x509.CertificateBuilder().subject_name(ca_name).issuer_name(ca_name)
@@ -458,11 +459,11 @@ class GeminiFake:
         self._thread = threading.Thread(target=self._server.serve_forever, name="gemini-fake", daemon=True)
 
     # lifecycle ---------------------------------------------------------------------------------
-    def __enter__(self) -> "GeminiFake":
+    def __enter__(self) -> GeminiFake:
         self._thread.start()
         return self
 
-    def __exit__(self, *exc: Any) -> None:
+    def __exit__(self, *exc: object) -> None:
         self._server.shutdown()
         self._server.server_close()
         self._thread.join(timeout=10)
@@ -587,10 +588,10 @@ class GeminiFake:
             protocol_version = "HTTP/1.1"
             tunneled = False
 
-            def log_message(self, format: str, *args: Any) -> None:  # noqa: A002 - base signature
+            def log_message(self, format: str, *args: Any) -> None:
                 return
 
-            def do_CONNECT(self) -> None:  # noqa: N802 - http.server naming
+            def do_CONNECT(self) -> None:
                 host = self.path.split(":", 1)[0].lower()
                 if self.tunneled or host != GEMINI_HOST:
                     with fake._lock:
@@ -621,12 +622,12 @@ class GeminiFake:
                 self.send_header("Content-Length", "0")
                 self.end_headers()
 
-            def do_GET(self) -> None:  # noqa: N802
+            def do_GET(self) -> None:
                 if not self.tunneled:
                     return self._refuse_plain()
                 fake._handle(self, "GET")
 
-            def do_POST(self) -> None:  # noqa: N802
+            def do_POST(self) -> None:
                 if not self.tunneled:
                     return self._refuse_plain()
                 fake._handle(self, "POST")

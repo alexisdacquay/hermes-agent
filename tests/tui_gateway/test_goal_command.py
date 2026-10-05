@@ -135,7 +135,7 @@ def turn_env(server, monkeypatch, tmp_path):
         server, "_sync_session_key_after_compress", lambda *a, **k: None
     )
     monkeypatch.setattr(server, "_get_usage", lambda agent: {})
-    monkeypatch.setattr(server, "_load_cfg", lambda: {})
+    monkeypatch.setattr(server, "_load_cfg", dict)
     return emitted
 
 
@@ -538,9 +538,9 @@ def _write_moa_config(home, text):
 def test_goal_draft_uses_session_profile_without_blocking_rpc_reader(
     server, session, monkeypatch, tmp_path, method,
 ):
+    import hermes_state
     from hermes_cli import goals
     from hermes_constants import get_hermes_home
-    import hermes_state
 
     # Restore call-time profile resolution; conftest pins this constant to one DB.
     monkeypatch.setattr(hermes_state, "DEFAULT_DB_PATH", hermes_state._IMPORT_DEFAULT_DB_PATH)

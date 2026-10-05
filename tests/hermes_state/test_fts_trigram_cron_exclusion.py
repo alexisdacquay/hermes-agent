@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import sqlite3
-
 import pytest
-
 from hermes_state import SessionDB
 from hermes_state_common import FTS_TRIGRAM_SQL
 

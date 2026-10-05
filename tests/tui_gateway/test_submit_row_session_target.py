@@ -272,7 +272,6 @@ def test_out_of_band_probe_reads_the_continuation_after_a_rotation(monkeypatch, 
     db = SessionDB(db_path=tmp_path / "state.db")
     sid, key, session, agent, child = _rotated_session(monkeypatch, db)
     try:
-        from tui_gateway import prompt_turn
         # _adopt_out_of_band_turns reads _message_row_id, which methods_prompt publishes onto server's
         # globals at bind_module time (prompt_turn's own module never imports it). Importing the module
         # here runs that binding — the same order server.py's own import loop produces.

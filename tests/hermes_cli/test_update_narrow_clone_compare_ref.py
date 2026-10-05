@@ -15,7 +15,6 @@ import subprocess
 from pathlib import Path
 
 import pytest
-
 from hermes_cli import update_cmd_check
 
 git_cmd = ["git"]

@@ -3,7 +3,6 @@ runtime resolver detected a value or will run on the silent default."""
 from unittest.mock import patch
 
 import pytest
-
 from hermes_cli import model_setup_flows_custom as flows
 
 

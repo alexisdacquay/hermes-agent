@@ -11,11 +11,10 @@ import logging
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Optional
 
-from utils import is_truthy_value
 from agent.i18n import t
 from hermes_constants import INDICATOR_STYLES
+from utils import is_truthy_value
 
 logger = logging.getLogger(__name__)
 
@@ -523,7 +522,7 @@ def _is_gateway_available(cmd: CommandDef, config_overrides: set[str] | None = N
     return cmd.name in overrides
 
 
-def gateway_help_lines(allowed: Optional[Iterable[str]] = None) -> list[str]:
+def gateway_help_lines(allowed: Iterable[str] | None = None) -> list[str]:
     """Generate gateway help text lines from the registry.
 
     ``allowed`` (canonical names) restricts the catalog to what the caller may run -- the

@@ -11,11 +11,13 @@ from __future__ import annotations
 import secrets
 from unittest.mock import MagicMock
 
-import pytest
-
 import plugins.dashboard_auth.drain as drain_plugin
-from hermes_cli.dashboard_auth import TokenPrincipal, assert_protocol_compliance
-from hermes_cli.dashboard_auth import token_auth
+import pytest
+from hermes_cli.dashboard_auth import (
+    TokenPrincipal,
+    assert_protocol_compliance,
+    token_auth,
+)
 
 
 @pytest.fixture(scope="module")
@@ -114,7 +116,7 @@ class TestProvider:
 
 class TestRegister:
     def test_skips_when_no_secret(self, drain, monkeypatch):
-        monkeypatch.setattr(drain, "_load_config_drain_auth_section", lambda: {})
+        monkeypatch.setattr(drain, "_load_config_drain_auth_section", dict)
         ctx = MagicMock()
         drain.register(ctx)
         ctx.register_dashboard_auth_provider.assert_not_called()
@@ -123,7 +125,7 @@ class TestRegister:
 
     def test_skips_and_fails_closed_on_weak_secret(self, drain, monkeypatch):
         monkeypatch.setenv("HERMES_DASHBOARD_DRAIN_SECRET", "tooweak")
-        monkeypatch.setattr(drain, "_load_config_drain_auth_section", lambda: {})
+        monkeypatch.setattr(drain, "_load_config_drain_auth_section", dict)
         ctx = MagicMock()
         drain.register(ctx)
         ctx.register_dashboard_auth_provider.assert_not_called()
@@ -134,7 +136,7 @@ class TestRegister:
     def test_registers_with_strong_env_secret(self, drain, monkeypatch):
         s = _strong_secret()
         monkeypatch.setenv("HERMES_DASHBOARD_DRAIN_SECRET", s)
-        monkeypatch.setattr(drain, "_load_config_drain_auth_section", lambda: {})
+        monkeypatch.setattr(drain, "_load_config_drain_auth_section", dict)
         ctx = MagicMock()
         drain.register(ctx)
         ctx.register_dashboard_auth_provider.assert_called_once()

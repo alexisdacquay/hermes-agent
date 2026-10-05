@@ -9,7 +9,6 @@ empty key instead of raising) a silent switch onto a metered aggregator.
 from __future__ import annotations
 
 import pytest
-
 from hermes_cli import models
 
 

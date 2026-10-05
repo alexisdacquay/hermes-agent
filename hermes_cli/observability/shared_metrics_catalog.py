@@ -84,6 +84,7 @@ def provider_names() -> frozenset[str]:
     in-tree ``plugins/model-providers`` profiles. Never the live registries (``PROVIDER_REGISTRY``,
     picker labels): ``$HERMES_HOME`` and pip provider plugins add their user-chosen names there."""
     import providers
+
     from hermes_cli.auth import _PROVIDER_ALIASES, BUILTIN_PROVIDER_IDS
     from hermes_cli.models_catalog_static import _PROVIDER_ALIASES as _CATALOG_ALIASES
     from hermes_cli.providers import ALIASES, HERMES_OVERLAYS
@@ -170,6 +171,7 @@ def _catalog_platform_owner(home: str, platform: str) -> str | None:
         import inspect
 
         from gateway.platform_registry import platform_registry
+
         from hermes_cli.plugins_provenance import read_sidecar_rows
 
         entry = platform_registry.get(platform)
@@ -257,7 +259,10 @@ def aux_task_metric_name(raw: object) -> str:
 def provider_metric_name(raw: object) -> str:
     """A shipped provider id; user-named providers (``custom:<name>``, unknown ids) and the local
     server aliases of ``custom`` read ``custom``."""
-    from .shared_metrics_contract import PROVIDER_IDENTIFIER_MAX_LENGTH, _metric_identifier
+    from .shared_metrics_contract import (
+        PROVIDER_IDENTIFIER_MAX_LENGTH,
+        _metric_identifier,
+    )
 
     name = _metric_identifier(raw, max_length=PROVIDER_IDENTIFIER_MAX_LENGTH)
     if name == "unknown":
@@ -302,6 +307,7 @@ def public_model_ids() -> frozenset[str]:
     """Model ids Hermes ships in its static catalogs plus every id in the local models.dev cache
     (never a network call), with and without a ``vendor/`` prefix."""
     from agent.models_dev import fetch_models_dev
+
     from hermes_cli.models_catalog_static import _PROVIDER_MODELS
 
     ids = {model for models in _PROVIDER_MODELS.values() for model in models}

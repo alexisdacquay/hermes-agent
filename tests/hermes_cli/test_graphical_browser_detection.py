@@ -16,7 +16,6 @@ from __future__ import annotations
 import webbrowser
 
 import pytest
-
 from hermes_cli.auth import _can_open_graphical_browser
 
 

@@ -10,12 +10,10 @@ import os
 import re
 import subprocess
 import time
+from collections.abc import Callable, Iterable
 from pathlib import Path
-from typing import Callable, Iterable, List, Optional
 
 from hermes_cli._subprocess_compat import (
-    NO_LAZY_FETCH_ENV,
-    bounded_probe_run,
     noninteractive_git_env,
     windows_hide_flags,
 )
@@ -60,8 +58,8 @@ def _git_proc_running() -> bool:
         return False
 
 
-def _sweep_stale(directory: Path, candidates: Callable[[], Iterable[Path]], *, min_age_seconds: Optional[int],
-                 default_age: int, skip_msg: str, log_removed: Callable[[Path, int], None]) -> List[str]:
+def _sweep_stale(directory: Path, candidates: Callable[[], Iterable[Path]], *, min_age_seconds: int | None,
+                 default_age: int, skip_msg: str, log_removed: Callable[[Path, int], None]) -> list[str]:
     """Shared guard + age-floor sweep. Never raises; skips anything it cannot stat/unlink."""
     if not directory.is_dir():
         return []
@@ -69,7 +67,7 @@ def _sweep_stale(directory: Path, candidates: Callable[[], Iterable[Path]], *, m
         logger.debug(skip_msg)
         return []
     cutoff = time.time() - (min_age_seconds if min_age_seconds is not None else default_age)
-    removed: List[str] = []
+    removed: list[str] = []
     for entry in candidates():
         try:
             if entry.is_file() and (st := entry.stat()).st_mtime < cutoff:
@@ -91,7 +89,7 @@ def _sweep_stale(directory: Path, candidates: Callable[[], Iterable[Path]], *, m
     return removed
 
 
-def clear_stale_git_locks(repo_root: Path, *, min_age_seconds: Optional[int] = None) -> List[str]:
+def clear_stale_git_locks(repo_root: Path, *, min_age_seconds: int | None = None) -> list[str]:
     """Remove abandoned ``.git`` lock files under ``repo_root``; returns the removed paths.
 
     Removes only when older than the age floor AND no git process is running. Never raises: a lock we cannot
@@ -207,7 +205,7 @@ def _migrate_earlier_maintenance_keys(repo_root: Path) -> None:
         logger.warning("Could not migrate earlier maintenance keys in %s", repo_root)
 
 
-def clear_stale_tmp_packs(repo_root: Path, *, min_age_seconds: Optional[int] = None) -> List[str]:
+def clear_stale_tmp_packs(repo_root: Path, *, min_age_seconds: int | None = None) -> list[str]:
     """Remove aborted-transfer temp pack files; same contract as clear_stale_git_locks.
 
     Resolves ``.git/objects/pack`` for a checkout and ``objects/pack`` for a bare repo such as
@@ -228,7 +226,7 @@ def clear_stale_tmp_packs(repo_root: Path, *, min_age_seconds: Optional[int] = N
     )
 
 
-def _git_stdout_lines(repo_root: Path, args: List[str]) -> List[str]:
+def _git_stdout_lines(repo_root: Path, args: list[str]) -> list[str]:
     """Run a read-only git query in ``repo_root``; [] on any failure."""
     try:
         result = subprocess.run(
@@ -244,7 +242,7 @@ def _git_stdout_lines(repo_root: Path, args: List[str]) -> List[str]:
         return []
 
 
-def _batch_missing_parents(repo_root: Path, candidates: List[str]) -> set[str]:
+def _batch_missing_parents(repo_root: Path, candidates: list[str]) -> set[str]:
     """Return local commit objects whose parent objects are missing.
 
     Parents are read from the commit *header* only (lines before the first blank
@@ -316,7 +314,7 @@ def _batch_missing_parents(repo_root: Path, candidates: List[str]) -> set[str]:
         return set()
 
 
-def _shallow_file_path(repo_root: Path) -> Optional[Path]:
+def _shallow_file_path(repo_root: Path) -> Path | None:
     """Resolve ``.git/shallow`` via git, or None when the repo has none."""
     shallow_rel = _git_stdout_lines(repo_root, ["rev-parse", "--git-path", "shallow"])
     if not shallow_rel:
@@ -336,7 +334,7 @@ class _ShallowLock:
         self._path = shallow_path
         self._lock_path = shallow_path.with_name(shallow_path.name + ".lock")
 
-    def __enter__(self) -> "_ShallowLock":
+    def __enter__(self) -> _ShallowLock:
         try:
             fd = os.open(self._lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
         except FileExistsError:
@@ -497,7 +495,7 @@ def prune_stale_shallow_grafts(repo_root: Path) -> int:
         return 0
 
 
-def _partial_clone_filter(repo_root: Path, **run_kwargs) -> "str | None":
+def _partial_clone_filter(repo_root: Path, **run_kwargs) -> str | None:
     """The checkout's own ``remote.origin.partialclonefilter``, or None for a non-partial clone."""
     result = subprocess.run(
         ["git", "config", "--get", "remote.origin.promisor"],
@@ -592,7 +590,7 @@ def is_partial_clone_pack_objects_crash(stderr: str) -> bool:
 
 
 def fetch_with_partial_clone_recovery(runner: Callable[..., subprocess.CompletedProcess],
-                                      git_cmd: List[str], fetch_args: List[str],
+                                      git_cmd: list[str], fetch_args: list[str],
                                       repo_root: Path) -> subprocess.CompletedProcess:
     """Run a fetch; on the pack-objects BUG, mark the unmarked packs and retry it once.
 

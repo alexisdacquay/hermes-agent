@@ -12,7 +12,6 @@ entry must survive resume; a launch-profile row keeps resolving against the laun
 from __future__ import annotations
 
 import pytest
-
 from hermes_state import SessionDB
 from tui_gateway import server
 

@@ -3,8 +3,8 @@
 import hashlib
 
 import pytest
-
 from pm.downloader import Download, Source
+
 from tests.pm._range_server import RangeHandler, dl_server, url  # noqa: F401
 
 

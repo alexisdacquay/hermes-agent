@@ -9,7 +9,6 @@ import types
 from pathlib import Path
 
 import pytest
-
 from hermes_cli import gateway, profiles
 
 

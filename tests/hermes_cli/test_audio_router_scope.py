@@ -14,7 +14,7 @@ import pytest
 def _restore_process_scope_state():
     """``_config_profile_scope``/``launch_secret_scope`` can freeze the launch-env
     snapshot (one-way process state); restore it so sibling suites are unaffected."""
-    import agent.secret_scope as secret_scope
+    from agent import secret_scope
     from tui_gateway import launch_profile_policy
 
     was_active = secret_scope.is_multiplex_active()

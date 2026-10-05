@@ -8,12 +8,10 @@ Covers the three Phase 0 deliverables:
      on, without disturbing the positional key layout downstream parsers rely
      on.
 """
-import pytest
 from datetime import datetime
 from unittest.mock import patch
-import hermes_yaml as yaml
 
-from hermes_constants import reset_hermes_home_override, set_hermes_home_override
+import pytest
 from gateway.config import GatewayConfig, Platform
 from gateway.session import SessionSource, SessionStore, build_session_key
 
@@ -72,8 +70,9 @@ class TestMultiplexConfigFlag:
         literal ``default``) as the shared-adapter owner or rex's own jobs fall to the fail-closed map."""
         import asyncio
         from types import SimpleNamespace
-        from gateway import run as run_mod
+
         from cron.scheduler_provider import InProcessCronScheduler
+        from gateway import run as run_mod
 
         captured = {}
 

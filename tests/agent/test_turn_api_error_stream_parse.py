@@ -1,6 +1,5 @@
 """jiter SSE parse ValueErrors are transient provider failures, not local bugs (#65147)."""
 import pytest
-
 from agent.turn_api_error import _is_local_validation_error
 
 

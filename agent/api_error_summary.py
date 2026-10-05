@@ -6,7 +6,7 @@ Extracted from ``run_agent.py``; every method resolves through ``AIAgent``'s MRO
 """
 import json
 import re
-from typing import Any, Dict, Optional
+from typing import Any
 
 from agent.redact import redact_sensitive_text
 
@@ -78,7 +78,7 @@ class ApiErrorSummaryMixin:
 
     @staticmethod
     def _is_entitlement_failure(
-        error_context: Optional[Dict[str, Any]], status_code: Optional[int]
+        error_context: dict[str, Any] | None, status_code: int | None
     ) -> bool:
         """Detect subscription/entitlement 401/403s that masquerade as auth failures.
 
@@ -160,7 +160,7 @@ class ApiErrorSummaryMixin:
         """
         raw = str(error)
 
-        current: Optional[BaseException] = error
+        current: BaseException | None = error
         seen: set[int] = set()
         while current is not None and id(current) not in seen:
             seen.add(id(current))
@@ -225,7 +225,7 @@ class ApiErrorSummaryMixin:
         # Fallback: truncate the raw string but give more room than 200 chars
         return ApiErrorSummaryMixin._decorate_xai_entitlement_error(f"{prefix}{raw[:500]}")
 
-    def _mask_api_key_for_logs(self, key: Any) -> Optional[str]:
+    def _mask_api_key_for_logs(self, key: Any) -> str | None:
         # Azure Foundry Entra ID bearer providers are callables — never invoke them in log
         # paths; identify the auth surface instead.
         if callable(key) and not isinstance(key, str):

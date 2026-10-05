@@ -1,13 +1,12 @@
 """Source update safety at the bootstrap and completion boundaries."""
 import json
 import os
-from pathlib import Path
 import subprocess
 import sys
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-
 from hermes_cli import source_completion, venv_sync
 
 

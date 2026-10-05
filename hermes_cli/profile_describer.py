@@ -11,10 +11,10 @@ import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+
+from agent.skill_utils import is_excluded_skill_path
 
 from hermes_cli import profiles as profiles_mod
-from agent.skill_utils import is_excluded_skill_path
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +72,7 @@ class DescribeOutcome:
     profile_name: str
     ok: bool
     reason: str = ""
-    description: Optional[str] = None
+    description: str | None = None
 
 
 def _collect_skills(profile_dir: Path) -> list[str]:
@@ -104,12 +104,12 @@ def _sample_skills(names: list[str]) -> list[str]:
     return [names[int(i * step)] for i in range(MAX_SKILLS_FOR_PROMPT)]
 
 
-def _extract_json_blob(raw: str) -> Optional[dict]:
+def _extract_json_blob(raw: str) -> dict | None:
     from hermes_cli.kanban_specify import _extract_json_blob as _extract
     return _extract(raw, _FENCE_RE)
 
 
-def describe_profile(profile_name: str, *, overwrite: bool = False, timeout: Optional[int] = None) -> DescribeOutcome:
+def describe_profile(profile_name: str, *, overwrite: bool = False, timeout: int | None = None) -> DescribeOutcome:
     """Auto-generate a description for one profile. Expected failures (profile missing, no aux
     client, API error, malformed response) return ``ok=False`` so a sweep continues.
 

@@ -23,7 +23,6 @@ hiding a real background operator is not.
 """
 
 import pytest
-
 from tools.shell_heredoc import strip_inert_heredoc_bodies
 from tools.terminal_tool import (
     _foreground_background_guidance as guidance,

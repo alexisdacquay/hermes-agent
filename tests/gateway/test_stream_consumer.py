@@ -5,12 +5,8 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from agent.think_scrubber import THINK_TAG_NAMES
 from gateway.stream_consumer import GatewayStreamConsumer, StreamConsumerConfig
-
-
-
 
 # ── _clean_for_display unit tests ────────────────────────────────────────
 
@@ -737,7 +733,7 @@ class TestInitialOverflowRollingEdit:
             return_value=SimpleNamespace(success=True, message_id="msg_3"),
         )
         raw_limit = 700
-        setattr(adapter, "MAX_MESSAGE_LENGTH", raw_limit)
+        adapter.MAX_MESSAGE_LENGTH = raw_limit
         splitter = MagicMock(side_effect=adapter.truncate_message)
         adapter.truncate_message = splitter
 
@@ -1170,7 +1166,7 @@ class TestUtf16OverflowDetection:
     def _make_telegram_like_adapter(self):
         """Construct a minimal BasePlatformAdapter subclass that overrides
         message_len_fn like Telegram does."""
-        from gateway.platforms.base import utf16_len, BasePlatformAdapter
+        from gateway.platforms.base import BasePlatformAdapter, utf16_len
 
         TelegramLikeAdapter = type(
             "TelegramLikeAdapter",

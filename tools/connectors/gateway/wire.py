@@ -5,7 +5,7 @@ Tolerate added gateway fields; callers receive plain dictionaries. Correlate res
 
 from __future__ import annotations
 
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -42,7 +42,7 @@ class _Wire(BaseModel):
 
 class ConnectorSearchQuery(_Wire):
     use_case: str = Field(alias="useCase")
-    known_fields: Optional[str] = Field(default=None, alias="knownFields")
+    known_fields: str | None = Field(default=None, alias="knownFields")
 
 
 class ConnectorSearchRequest(_Wire):
@@ -63,10 +63,10 @@ class ConnectorSearchResult(_Wire):
     tools: list[str] = Field(default_factory=list)
     related_tools: list[str] = Field(default_factory=list, alias="relatedTools")
     connectors: list[str] = Field(default_factory=list)
-    guidance: Optional[str] = None
-    plan_steps: Optional[list[str]] = Field(default=None, alias="planSteps")
-    pitfalls: Optional[list[str]] = None
-    error: Optional[str] = None
+    guidance: str | None = None
+    plan_steps: list[str] | None = Field(default=None, alias="planSteps")
+    pitfalls: list[str] | None = None
+    error: str | None = None
 
 
 class ConnectorConnectionStatus(_Wire):
@@ -95,11 +95,11 @@ class ConnectorSchemasResponse(_Wire):
 class ConnectorToolError(_Wire):
     code: ConnectorErrorCode
     message: str
-    connector: Optional[str] = None
-    connect_url: Optional[str] = Field(default=None, alias="connectUrl")
+    connector: str | None = None
+    connect_url: str | None = Field(default=None, alias="connectUrl")
     # The account the link was minted for; absent when the link mint failed. Absent means nothing to watch.
-    connection_id: Optional[str] = Field(default=None, alias="connectionId")
-    hint: Optional[str] = None
+    connection_id: str | None = Field(default=None, alias="connectionId")
+    hint: str | None = None
 
 
 class ConnectorExecuteCall(_Wire):
@@ -108,14 +108,14 @@ class ConnectorExecuteCall(_Wire):
     arguments: dict[str, Any] = Field(default_factory=dict)
     # On the wire for the multi-account switch; never sent by hermes today, because the vendor answers
     # 400 to any value while multi-account is off (contract probe F2).
-    account: Optional[str] = None
+    account: str | None = None
 
 
 class ConnectorExecuteRequest(_Wire):
     tools: list[ConnectorExecuteCall]
     # Ride any CONNECTION_REQUIRED link the call mints back to the surface that asked.
-    return_to: Optional[ConnectorReturnTarget] = Field(default=None, alias="returnTo")
-    op: Optional[str] = Field(default=None, min_length=1, max_length=128)
+    return_to: ConnectorReturnTarget | None = Field(default=None, alias="returnTo")
+    op: str | None = Field(default=None, min_length=1, max_length=128)
 
 
 class ConnectorExecuteResult(_Wire):
@@ -124,7 +124,7 @@ class ConnectorExecuteResult(_Wire):
     connector: str = ""
     tool: str = ""
     data: Any = None
-    error: Optional[ConnectorToolError] = None
+    error: ConnectorToolError | None = None
 
 
 class ConnectorExecuteResponse(_Wire):
@@ -137,23 +137,23 @@ class ConnectorExecuteResponse(_Wire):
 class ConnectorConnectionsRequest(_Wire):
     connectors: list[str]
     reinitiate: bool = False
-    alias: Optional[str] = None
-    return_to: Optional[ConnectorReturnTarget] = Field(default=None, alias="returnTo")
+    alias: str | None = None
+    return_to: ConnectorReturnTarget | None = Field(default=None, alias="returnTo")
     # The caller's operation id, echoed on the hermes://connections/done link.
-    op: Optional[str] = Field(default=None, min_length=1, max_length=128)
+    op: str | None = Field(default=None, min_length=1, max_length=128)
 
 
 class ConnectorConnectionResult(_Wire):
     connector: str
     status: Literal["active", "initiated", "failed"]
-    connect_url: Optional[str] = Field(default=None, alias="connectUrl")
+    connect_url: str | None = Field(default=None, alias="connectUrl")
     # The vendor account the mint created or observed. Optional by vendor semantics (a no-auth toolkit
     # answers active with none); a target without one has nothing to watch.
-    connection_id: Optional[str] = Field(default=None, alias="connectionId")
-    alias: Optional[str] = None
-    instruction: Optional[str] = None
+    connection_id: str | None = Field(default=None, alias="connectionId")
+    alias: str | None = None
+    instruction: str | None = None
     # Vendor error_message on ``failed``; the list route never carries it.
-    status_reason: Optional[str] = Field(default=None, alias="statusReason")
+    status_reason: str | None = Field(default=None, alias="statusReason")
     reinitiated: bool = False
 
 
@@ -161,23 +161,23 @@ class ConnectorListItem(_Wire):
     connector: str
     enabled: bool = True
     connected: bool = False
-    connection_status: Optional[ConnectionStatus] = Field(default=None, alias="connectionStatus")
-    status_reason: Optional[str] = Field(default=None, alias="statusReason")
+    connection_status: ConnectionStatus | None = Field(default=None, alias="connectionStatus")
+    status_reason: str | None = Field(default=None, alias="statusReason")
     gateway_disabled_tools: list[str] = Field(default_factory=list, alias="disabledTools")
 
 
 class ConnectorListResponse(_Wire):
     items: list[ConnectorListItem]
-    next_cursor: Optional[str] = Field(default=None, alias="nextCursor")
+    next_cursor: str | None = Field(default=None, alias="nextCursor")
 
 
 class ConnectorAccount(_Wire):
     connection_id: str = Field(alias="connectionId")
     connector: str
     status: ConnectionStatus
-    status_reason: Optional[str] = Field(default=None, alias="statusReason")
+    status_reason: str | None = Field(default=None, alias="statusReason")
     label: str = Field(min_length=1)
-    alias: Optional[str] = None
+    alias: str | None = None
     # The newest active account for this connector: the one the vendor executes with.
     active: bool
     created_at: str = Field(alias="createdAt")

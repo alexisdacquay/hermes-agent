@@ -21,7 +21,7 @@ request-size limit usually binds first, which the byte budget guards with headro
 
 from __future__ import annotations
 
-from typing import Optional, Sequence
+from collections.abc import Sequence
 
 OUTBOUND_IMAGE_LIMIT = 20
 OUTBOUND_IMAGE_BUDGET_BYTES = 24_000_000
@@ -34,7 +34,7 @@ def outbound_image_retire_count(
     carrier_blocks_newest_first: Sequence[int],
     reserved_blocks: int,
     *,
-    carrier_bytes_newest_first: Optional[Sequence[int]] = None,
+    carrier_bytes_newest_first: Sequence[int] | None = None,
     reserved_bytes: int = 0,
     limit: int = OUTBOUND_IMAGE_LIMIT,
     budget: int = OUTBOUND_IMAGE_BUDGET_BYTES,

@@ -8,13 +8,11 @@ secrets, and none of the launch profile's residue. The same build reaches every 
 """
 
 import json
-import os
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
-
 from agent.secret_scope import set_multiplex_active
 from hermes_constants import reset_hermes_home_override, set_hermes_home_override
 
@@ -55,7 +53,7 @@ def _assert_is_b_env(seen: dict, b: Path, *, with_secrets: bool):
 
 def test_slash_worker_child_runs_in_the_served_profiles_env(mux_homes, monkeypatch):
     """The real ``_SlashWorker`` spawn, observed from INSIDE the child: B's home and secrets, no A residue."""
-    import tui_gateway.server as server
+    from tui_gateway import server
 
     a, b = mux_homes
     captured = {}
@@ -89,7 +87,7 @@ def test_launch_profile_worker_spawns_with_own_home_after_multiplex_flip(mux_hom
     must still spawn under ITS home — ``served_profile_child_env(target_home=None, inherit_credentials=True)``
     raises ``UnscopedSecretError`` by design once multiplexing is on, so the spawn site must pass the
     launch home explicitly when no served home is set (regression for #115427)."""
-    import tui_gateway.server as server
+    from tui_gateway import server
 
     a, _b = mux_homes
     monkeypatch.setattr(server, "_hermes_home", str(a))  # launch profile home, captured at import

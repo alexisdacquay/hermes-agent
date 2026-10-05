@@ -669,6 +669,7 @@ _EARLY_CORE_INSTALL_MAX_ATTEMPTS = 3
 def _claim_recovery_lock(root: Path) -> int | None:
     """Hold a kernel lock in writable state; process exit releases it."""
     from pm.environments import install_state_dir
+
     from hermes_cli.runtime_state import _lock
 
     state = install_state_dir(root)

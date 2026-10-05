@@ -15,9 +15,16 @@ import time
 
 import httpx
 import pytest
-
-from agent.secret_scope import build_profile_secret_scope, reset_secret_scope, set_secret_scope
-from hermes_constants import get_hermes_home, reset_hermes_home_override, set_hermes_home_override
+from agent.secret_scope import (
+    build_profile_secret_scope,
+    reset_secret_scope,
+    set_secret_scope,
+)
+from hermes_constants import (
+    get_hermes_home,
+    reset_hermes_home_override,
+    set_hermes_home_override,
+)
 
 
 class _Resp(io.BytesIO):
@@ -64,7 +71,7 @@ def test_deepinfra_catalog_is_fetched_with_each_profiles_key(homes, monkeypatch)
     a, b = homes
     (a / ".env").write_text("DEEPINFRA_API_KEY=key-A\n", encoding="utf-8")
     (b / ".env").write_text("DEEPINFRA_API_KEY=key-B\n", encoding="utf-8")
-    import hermes_cli.models as models
+    from hermes_cli import models
 
     monkeypatch.setattr(models, "_deepinfra_catalog_cache", {})
     monkeypatch.setattr(models, "_deepinfra_catalog_neg_cache", {})
@@ -81,7 +88,7 @@ def test_deepinfra_catalog_is_fetched_with_each_profiles_key(homes, monkeypatch)
 
 
 def test_copilot_context_cache_hit_requires_same_api_key(homes, monkeypatch):
-    import hermes_cli.models as models
+    from hermes_cli import models
 
     monkeypatch.setattr(models, "_copilot_context_cache", {})
     monkeypatch.setattr(models, "_copilot_context_cache_time", 0.0)
@@ -103,8 +110,8 @@ def test_nous_reasoning_caps_follow_each_profiles_portal(homes, monkeypatch):
     a, b = homes
     (a / ".env").write_text("NOUS_INFERENCE_BASE_URL=https://portal-a.example/v1\n", encoding="utf-8")
     (b / ".env").write_text("NOUS_INFERENCE_BASE_URL=https://portal-b.example/v1\n", encoding="utf-8")
-    import hermes_cli.models as models
     import hermes_cli.models_reasoning_caps as caps
+    from hermes_cli import models
 
     for attr, value in (("_nous_reasoning_caps_cache", None), ("_nous_reasoning_caps_failed_at", None),
                         ("_nous_caps_disk_checked", False), ("_nous_caps_warm_started", False)):
@@ -124,7 +131,7 @@ def test_nous_reasoning_caps_follow_each_profiles_portal(homes, monkeypatch):
 
 def test_swr_refresh_runs_as_the_profile_that_spawned_it(homes):
     a, b = homes
-    import hermes_cli.models as models
+    from hermes_cli import models
 
     seen: dict[str, str] = {}
     done = threading.Event()
@@ -171,7 +178,7 @@ def test_model_catalog_in_process_copy_is_bound_to_its_cache_file(homes, monkeyp
 
 def test_openrouter_curated_list_is_per_profile(homes, monkeypatch):
     a, b = homes
-    import hermes_cli.models as models
+    from hermes_cli import models
 
     for home in (a, b):
         (home / "config.yaml").write_text("model_catalog:\n  ttl_minutes: 600\n", encoding="utf-8")
@@ -188,7 +195,7 @@ def test_openrouter_curated_list_is_per_profile(homes, monkeypatch):
 
 def test_banner_skills_are_the_routed_profiles(homes):
     a, b = homes
-    import hermes_cli.banner as banner
+    from hermes_cli import banner
 
     for home, tag in ((a, "a"), (b, "b")):
         skill = home / "skills" / f"skill_{tag}"
@@ -209,7 +216,7 @@ def test_failed_guest_mint_only_suppresses_that_profile(homes, monkeypatch, tmp_
     monkeypatch.setenv("HERMES_GUEST_ONBOARDING", "1")
     monkeypatch.setenv("HERMES_SHARED_AUTH_DIR", str(tmp_path / "shared"))
     import hermes_cli.anon_auth as anon
-    import hermes_cli.auth_nous as auth_nous
+    from hermes_cli import auth_nous
 
     anon.reset_mint_memo_for_tests()
     status = {"code": 429}

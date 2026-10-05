@@ -20,9 +20,8 @@ import time
 from datetime import timedelta
 from pathlib import Path
 
-import pytest
-
 import cron.jobs as jobs_mod
+import pytest
 from cron.jobs import (
     _jobs_lock,
     claim_job_for_fire,
@@ -31,7 +30,6 @@ from cron.jobs import (
     load_jobs,
     save_jobs,
 )
-
 
 try:
     import fcntl
@@ -81,9 +79,8 @@ class TestBoundedJobsLock:
         try:
             start = time.monotonic()
             entered = False
-            with caplog.at_level("ERROR", logger="cron.jobs"):
-                with _jobs_lock():
-                    entered = True
+            with caplog.at_level("ERROR", logger="cron.jobs"), _jobs_lock():
+                entered = True
             elapsed = time.monotonic() - start
 
             assert entered, "critical section must still run in degraded mode"
@@ -97,9 +94,8 @@ class TestBoundedJobsLock:
 
 
     def test_reentrant_nesting_still_works(self):
-        with _jobs_lock():
-            with _jobs_lock():  # must not deadlock or re-flock
-                pass
+        with _jobs_lock(), _jobs_lock():  # must not deadlock or re-flock
+            pass
 
 
 class TestFutureDatedClaims:

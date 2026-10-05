@@ -2,14 +2,8 @@ import re
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-import hermes_cli.memory_setup as memory_setup
+from hermes_cli import memory_setup
 from hermes_cli.memory_setup import _CANCELLED
-
-
-
-
-
-
 
 
 def test_cmd_setup_generic_choice_cancel_writes_nothing(tmp_path, monkeypatch):
@@ -97,7 +91,7 @@ def test_cmd_status_memory_tool_gate_disabled(capsys, monkeypatch):
     monkeypatch.setattr(
         "hermes_cli.config.load_config_readonly", lambda: _cfg, raising=False
     )
-    monkeypatch.setattr(memory_setup, "_get_available_providers", lambda: [])
+    monkeypatch.setattr(memory_setup, "_get_available_providers", list)
 
     memory_setup.cmd_status(SimpleNamespace())
 
@@ -114,7 +108,7 @@ def test_cmd_status_memory_tool_gate_enabled(capsys, monkeypatch):
     monkeypatch.setattr(
         "hermes_cli.config.load_config_readonly", lambda: _cfg, raising=False
     )
-    monkeypatch.setattr(memory_setup, "_get_available_providers", lambda: [])
+    monkeypatch.setattr(memory_setup, "_get_available_providers", list)
 
     memory_setup.cmd_status(SimpleNamespace())
 

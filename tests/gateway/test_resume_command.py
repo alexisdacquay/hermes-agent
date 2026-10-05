@@ -9,7 +9,6 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from gateway.config import Platform
 from gateway.platforms.event import MessageEvent
 from gateway.session import SessionSource, build_session_key
@@ -205,6 +204,7 @@ class TestHandleResumeCommand:
         writing into the wrong session. See #6672.
         """
         import threading
+
         from hermes_state import SessionDB
         db = SessionDB(db_path=tmp_path / "state.db")
         db.create_session("old_session", "telegram", user_id="12345", chat_id="67890")

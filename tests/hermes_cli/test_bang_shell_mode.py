@@ -12,7 +12,6 @@ import os
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from hermes_cli.bang_shell import (
     USAGE_HINT,
     bang_shell_enabled,

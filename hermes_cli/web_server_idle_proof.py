@@ -10,7 +10,7 @@ The separate messaging gateway process owns its own lifecycle and drain protocol
 from __future__ import annotations
 
 import logging
-from typing import Callable, Optional
+from collections.abc import Callable
 
 from hermes_cli.web_server_idle_exit import busy_ledger
 
@@ -19,13 +19,13 @@ _log = logging.getLogger(__name__)
 _input_probe_failure_logged = False
 
 
-def pending_human_input() -> Optional[int]:
+def pending_human_input() -> int | None:
     """Count of prompts waiting on a human (clarify/approval/sudo/secret requests plus queued
     gateway approvals); ``None`` when a ledger cannot be read."""
     global _input_probe_failure_logged
     try:
-        from tui_gateway import server_requests
         from tools.approval import pending_gateway_approval_count
+        from tui_gateway import server_requests
 
         return server_requests.open_request_count() + pending_gateway_approval_count()
     except Exception:
@@ -37,7 +37,7 @@ def pending_human_input() -> Optional[int]:
 
 
 def idle_proof(turn_probe: Callable[[], bool | str | None] = busy_ledger,
-               input_probe: Callable[[], Optional[int]] = pending_human_input) -> dict:
+               input_probe: Callable[[], int | None] = pending_human_input) -> dict:
     """``{"idle": True | False | None, "reason": str | None}`` plus ``"detail"`` naming the busy ledger.
 
     ``True`` only when no turn is in flight (session table AND cron ledger) and nothing is waiting

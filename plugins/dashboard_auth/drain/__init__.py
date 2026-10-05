@@ -17,7 +17,12 @@ from collections import Counter
 from typing import Optional
 
 from hermes_cli.dashboard_auth import DashboardAuthProvider, Session, TokenPrincipal
-from plugins.dashboard_auth._shared import NonInteractiveMixin, SkipRegistration, load_config_section, register_provider
+from plugins.dashboard_auth._shared import (
+    NonInteractiveMixin,
+    SkipRegistration,
+    load_config_section,
+    register_provider,
+)
 
 logger = logging.getLogger(__name__)
 _TAG = "dashboard-auth-drain"
@@ -45,7 +50,7 @@ def _shannon_bits(value: str) -> float:
     return per_char * n
 
 
-def assess_secret_strength(secret: str, *, min_chars: int = _DEFAULT_MIN_SECRET_CHARS) -> Optional[str]:
+def assess_secret_strength(secret: str, *, min_chars: int = _DEFAULT_MIN_SECRET_CHARS) -> str | None:
     """Human-readable rejection reason if ``secret`` is too weak, else ``None``. Checks, in
     order: length >= ``min_chars``, distinct chars >= ``_MIN_DISTINCT_CHARS``, Shannon
     entropy >= ``_MIN_SHANNON_BITS``."""
@@ -86,7 +91,7 @@ class DrainSecretProvider(NonInteractiveMixin, DashboardAuthProvider):
 
     # ---- token capability (the only thing this provider implements) --------
 
-    def verify_token(self, *, token: str) -> Optional[TokenPrincipal]:
+    def verify_token(self, *, token: str) -> TokenPrincipal | None:
         """Constant-time compare; ``drain-control`` principal on match, else
         ``None`` so the generic seam falls through / fails closed."""
         if token and hmac.compare_digest(token.encode("utf-8"), self._secret.encode("utf-8")):
@@ -95,7 +100,7 @@ class DrainSecretProvider(NonInteractiveMixin, DashboardAuthProvider):
 
     # ---- interactive methods: unsupported (service credential only) --------
 
-    def verify_session(self, *, access_token: str) -> Optional[Session]:
+    def verify_session(self, *, access_token: str) -> Session | None:
         # Never mints a Session, so never recognises a cookie. Return None (don't raise)
         # so it stacks harmlessly in the cookie-verify loop.
         return None

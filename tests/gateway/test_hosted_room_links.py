@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import stat
-import pytest
 from concurrent.futures import ThreadPoolExecutor
 
+import pytest
 from gateway.hosted_room_links import (
     load_room_links,
     make_stored_link,

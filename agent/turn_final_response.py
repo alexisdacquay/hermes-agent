@@ -7,14 +7,14 @@ re-prompt, scaffolding pop, stop gates, then the durable final flush. Extracted 
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import logging
-from typing import Any, Dict, Optional
+from dataclasses import dataclass
+from typing import Any
 
 from agent.message_metadata import append_message
 from agent.repetition_guard import STOP_PATH_MIN_CHARS, is_runaway_repetition
-from agent.turn_failure_copy import stamp_failure
 from agent.turn_empty_response import recover_empty_response
+from agent.turn_failure_copy import stamp_failure
 from agent.turn_stop_gates import apply_stop_gates
 from agent.turn_truncation import partial_result, repetition_copy
 
@@ -49,7 +49,7 @@ class FinalResponseVerdict:
     _pending_verification_response: Any
     _pending_verification_response_previewed: Any
     api_call_count: int
-    result: Optional[Dict[str, Any]] = None
+    result: dict[str, Any] | None = None
 
 
 def finish_text_response(
@@ -66,11 +66,13 @@ def finish_text_response(
     iteration-limit summarization; the final message is appended and flushed only after the
     stop gates accept it."""
     from agent.conversation_loop import (
-        _CODEX_ACK_CONTINUATION_NUDGE, _DEGENERATE_FINAL_NUDGE, _DROPPED_TOOLCALL_NUDGE_CONTENT,
-        _join_truncated_parts
+        _CODEX_ACK_CONTINUATION_NUDGE,
+        _DEGENERATE_FINAL_NUDGE,
+        _DROPPED_TOOLCALL_NUDGE_CONTENT,
+        _join_truncated_parts,
     )
 
-    def _verdict(action: str, result: Optional[Dict[str, Any]] = None) -> FinalResponseVerdict:
+    def _verdict(action: str, result: dict[str, Any] | None = None) -> FinalResponseVerdict:
         return FinalResponseVerdict(
             action=action, active_system_prompt=active_system_prompt, final_response=final_response,
             _turn_exit_reason=_turn_exit_reason,
@@ -165,8 +167,11 @@ def finish_text_response(
     # delivery channel (gateway status message / CLI print). NEVER appended to messages/api_messages:
     # conversation context and the cached prompt prefix stay byte-identical.
     from agent.agent_runtime_helpers import (
-        intent_ack_continuation_mode, looks_like_degenerate_final, promoted_reasoning_announces_action,
-        tool_results_this_turn, trailing_continue_intent,
+        intent_ack_continuation_mode,
+        looks_like_degenerate_final,
+        promoted_reasoning_announces_action,
+        tool_results_this_turn,
+        trailing_continue_intent,
     )
 
     _ack_mode = intent_ack_continuation_mode(agent)

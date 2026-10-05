@@ -3,7 +3,6 @@
 import sys
 
 import pytest
-
 from hermes_cli import relaunch as relaunch_mod
 
 

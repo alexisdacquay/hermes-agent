@@ -8,8 +8,9 @@ dependency-free so both the CLI and gateway can import it.
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Mapping, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +97,7 @@ def openclaw_residue_hint_cli() -> str:
     )
 
 
-def detect_openclaw_residue(home: Optional[Path] = None) -> bool:
+def detect_openclaw_residue(home: Path | None = None) -> bool:
     """True if ``$HOME/.openclaw`` is a directory (``home`` override for tests)."""
     try:
         return ((home or Path.home()) / ".openclaw").is_dir()
@@ -142,7 +143,7 @@ def first_contact_turn_note(
     *,
     session_history_empty: bool,
     install_has_prior_sessions: bool,
-) -> Optional[str]:
+) -> str | None:
     """Return a one-shot sidecar note for the install's first-ever message.
 
     Matches the gateway first-contact path: when ``profile_build`` is ``ask``
@@ -222,9 +223,20 @@ def mark_seen(config_path: Path, flag: str) -> bool:
 
 
 __all__ = [
-    "BUSY_INPUT_FLAG", "TOOL_PROGRESS_FLAG", "OPENCLAW_RESIDUE_FLAG", "PROFILE_BUILD_FLAG",
-    "PLAIN_INTRO_NOTE", "first_contact_turn_note",
-    "busy_input_hint_gateway", "busy_input_hint_cli", "tool_progress_hint_gateway", "tool_progress_hint_cli",
-    "openclaw_residue_hint_cli", "detect_openclaw_residue", "profile_build_mode", "profile_build_directive",
-    "is_seen", "mark_seen",
+    "BUSY_INPUT_FLAG",
+    "OPENCLAW_RESIDUE_FLAG",
+    "PLAIN_INTRO_NOTE",
+    "PROFILE_BUILD_FLAG",
+    "TOOL_PROGRESS_FLAG",
+    "busy_input_hint_cli",
+    "busy_input_hint_gateway",
+    "detect_openclaw_residue",
+    "first_contact_turn_note",
+    "is_seen",
+    "mark_seen",
+    "openclaw_residue_hint_cli",
+    "profile_build_directive",
+    "profile_build_mode",
+    "tool_progress_hint_cli",
+    "tool_progress_hint_gateway",
 ]

@@ -3,7 +3,6 @@ import json
 import subprocess
 
 import pytest
-
 from tools import tirith_security as tirith
 
 

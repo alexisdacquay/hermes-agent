@@ -10,7 +10,8 @@ resolves a cheap backend.
 """
 
 import logging
-from typing import Any, Callable, Dict, Optional, Tuple
+from collections.abc import Callable
+from typing import Any
 
 from agent.auxiliary_client import call_llm, extract_content_or_reasoning
 
@@ -18,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 # Templates are plain callables (not str.format) so diff/code payloads with
 # literal "{" / "}" pass through untouched.
-PromptTemplate = Callable[[Dict[str, Any]], Tuple[str, str]]
+PromptTemplate = Callable[[dict[str, Any]], tuple[str, str]]
 
 
 def _truncate(text: str, limit: int) -> str:
@@ -40,7 +41,7 @@ _COMMIT_INSTRUCTIONS = (
 )
 
 
-def _commit_message_template(variables: Dict[str, Any]) -> Tuple[str, str]:
+def _commit_message_template(variables: dict[str, Any]) -> tuple[str, str]:
     diff = _truncate(str(variables.get("diff") or ""), 12000)
     recent = _truncate(str(variables.get("recent_commits") or ""), 1500)
     parts = []
@@ -64,12 +65,12 @@ def _commit_message_template(variables: Dict[str, Any]) -> Tuple[str, str]:
 
 
 # Registry of named templates; add an entry to give a new surface a reusable prompt.
-PROMPT_TEMPLATES: Dict[str, PromptTemplate] = {
+PROMPT_TEMPLATES: dict[str, PromptTemplate] = {
     "commit_message": _commit_message_template,
 }
 
 
-def render_template(name: str, variables: Optional[Dict[str, Any]] = None) -> Tuple[str, str]:
+def render_template(name: str, variables: dict[str, Any] | None = None) -> tuple[str, str]:
     """Resolve a registered template into (instructions, user_input); KeyError if unknown."""
     template = PROMPT_TEMPLATES.get(name)
     if template is None:
@@ -81,13 +82,13 @@ def run_oneshot(
     *,
     instructions: str = "",
     user_input: str = "",
-    template: Optional[str] = None,
-    variables: Optional[Dict[str, Any]] = None,
+    template: str | None = None,
+    variables: dict[str, Any] | None = None,
     task: str = "title_generation",
     max_tokens: int = 1024,
-    temperature: Optional[float] = 0.3,
+    temperature: float | None = 0.3,
     timeout: float = 60.0,
-    main_runtime: Optional[Dict[str, Any]] = None,
+    main_runtime: dict[str, Any] | None = None,
 ) -> str:
     """Run a single stateless LLM request and return its text (fence-stripped).
 

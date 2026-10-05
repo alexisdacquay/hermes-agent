@@ -5,7 +5,6 @@ from __future__ import annotations
 import threading
 import time
 from collections import deque
-from pathlib import Path
 
 import pytest
 from fastapi import FastAPI
@@ -117,6 +116,7 @@ def test_quickstart_plan_progress_uses_actual_whole_plan_bytes(client, monkeypat
 
 def test_existing_weights_do_not_skip_missing_companion_download(client, monkeypatch, dl_server, tmp_path):
     from dataclasses import replace
+
     from hermes_cli.local_runtime.catalog import AssetFile
     from hermes_cli.web_routers import local_models as lm
 

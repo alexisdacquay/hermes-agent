@@ -146,9 +146,8 @@ class TestSingleWriterLoop:
         with patch(
             "agent.relay_llm.stream",
             return_value=managed_stream,
-        ):
-            with pytest.raises(AttributeError):
-                agent._interruptible_streaming_api_call({})
+        ), pytest.raises(AttributeError):
+            agent._interruptible_streaming_api_call({})
 
         managed_stream.close.assert_called_once()
 

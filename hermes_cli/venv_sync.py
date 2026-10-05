@@ -32,8 +32,9 @@ def _is_sealed(project_root: Path) -> bool:
     """
     if (project_root / ".git").exists():
         return False
-    from hermes_cli.steward import read_install_stamp
     from pm.paths import install_stamp_path
+
+    from hermes_cli.steward import read_install_stamp
     stamp_path = install_stamp_path(project_root)
     data = read_install_stamp(project_root)
     if not data:
@@ -51,6 +52,7 @@ def _is_sealed(project_root: Path) -> bool:
 def check_runtime(project_root: Path) -> str | None:
     """One passive startup verdict; callers only choose stderr or logging."""
     import pm
+
     from hermes_cli.steward import read_install_stamp, sealed_steward
 
     if (Path(project_root) / ".git").exists() and read_install_stamp(project_root).get("updateMechanism") != "self":
@@ -69,7 +71,12 @@ def publish_launchers(project_root: Path, *, create: bool = True) -> None:
     """Refresh durable commands; bootstrap repairs only existing PATH exposure."""
     import logging
 
-    from hermes_cli._launchers import ENTRY_POINTS, ensure_install_launchers, expose_cli, resolve_store_python
+    from hermes_cli._launchers import (
+        ENTRY_POINTS,
+        ensure_install_launchers,
+        expose_cli,
+        resolve_store_python,
+    )
     from hermes_cli.steward import read_install_stamp
 
     root = Path(project_root)
@@ -136,9 +143,10 @@ def collect_superseded_generations(project_root: Path) -> None:
     """
     import logging
 
-    from hermes_cli.runtime_state import collect_generations
     from pm.environments import install_state_dir
     from pm.runtime import collect_runtime_generations
+
+    from hermes_cli.runtime_state import collect_generations
 
     try:
         removed = collect_generations(project_root) + collect_runtime_generations(
@@ -375,6 +383,7 @@ def prepare_launch(project_root: Path, argv: list[str]) -> Path | None:
         return None  # Developer checkouts and packaged runtimes retain their owner.
 
     import pm
+
     from hermes_cli._launchers import resolve_store_python
     from hermes_cli.update_lock import UpdateLock, read_live_update
 
@@ -454,7 +463,9 @@ def _prepare_borrowed_launch(root: Path, owner: Path, *, current: bool) -> Path 
     """
     import os
     import sys
+
     import pm
+
     from hermes_cli._launchers import resolve_store_python
     from hermes_cli.update_lock import UpdateLock
 
@@ -479,8 +490,10 @@ def _prepare_borrowed_launch(root: Path, owner: Path, *, current: bool) -> Path 
 def _finish_source_update(root: Path, *, current: bool, pending: Path) -> None:
     """Sync dependencies when they are stale, then run the tail the marker still owes."""
     import sys
-    from hermes_cli._early_recovery import _marker_owner_is_live
+
     from pm.environments import activation_environment
+
+    from hermes_cli._early_recovery import _marker_owner_is_live
 
     if not current:
         # Existing markers guard liveness, never create the completion obligation.
@@ -538,6 +551,7 @@ def _sync_source_dependencies(root: Path, *, arm: bool, borrowed_from: Path | No
     it: the sync is this root's own, but the checkout's update markers stay the owner's.
     """
     import sys
+
     import pm
     from pm.client import ensure_tools_for_sync
     from pm.environments import runtime_facts_path

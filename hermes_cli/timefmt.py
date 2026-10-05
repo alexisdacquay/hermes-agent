@@ -6,7 +6,7 @@ import logging
 import math
 import time as _time
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +19,7 @@ EPOCH_MIN = 0.0
 EPOCH_MAX = 4_200_000_000.0
 
 
-def coerce_epoch(value: Any, *, session_id: Optional[str] = None, field: str = "timestamp") -> Optional[float]:
+def coerce_epoch(value: Any, *, session_id: str | None = None, field: str = "timestamp") -> float | None:
     """A stored timestamp cell as float epoch seconds, or ``None`` when it cannot be trusted.
 
     Numbers, numeric strings and ``datetime`` are accepted; anything else, non-finite values and
@@ -40,7 +40,7 @@ def coerce_epoch(value: Any, *, session_id: Optional[str] = None, field: str = "
     return ts
 
 
-def relative_time(ts, *, session_id: Optional[str] = None) -> str:
+def relative_time(ts, *, session_id: str | None = None) -> str:
     """Format a timestamp as relative time (e.g., '2h ago', 'yesterday'); ``?`` when unset or corrupt."""
     if not ts or (ts := coerce_epoch(ts, session_id=session_id, field="last_active")) is None:
         return "?"

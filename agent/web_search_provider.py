@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import abc
 import os
-from typing import Any, Dict, List
+from typing import Any
 
 from agent.provider_base import ProviderBase
 
@@ -35,7 +35,7 @@ def get_provider_env(name: str) -> str:
         from hermes_cli.config import get_env_value
 
         val = get_env_value(name)
-    except Exception as exc:  # noqa: BLE001 — config layer optional here
+    except Exception as exc:
         try:
             from agent.secret_scope import UnscopedSecretError
         except ImportError:
@@ -86,13 +86,13 @@ class WebSearchProvider(ProviderBase):
         the dispatcher awaits coroutine functions)."""
         return False
 
-    def search(self, query: str, limit: int = 5) -> Dict[str, Any]:
+    def search(self, query: str, limit: int = 5) -> dict[str, Any]:
         """Execute a web search. Callers gate on :meth:`supports_search`."""
         raise NotImplementedError(
             f"{self.name} does not support search (override supports_search)"
         )
 
-    def extract(self, urls: List[str], **kwargs: Any) -> Any:
+    def extract(self, urls: list[str], **kwargs: Any) -> Any:
         """Extract content from URLs (callers gate on :meth:`supports_extract`); may be ``async def``.
         Returns ``[{"url", "title", "content", "raw_content", "metadata"?, "error"?}, ...]`` (``error``
         only on per-URL failure). Ignore unknown ``kwargs`` (``format``, ``include_raw``, ``max_chars``)."""

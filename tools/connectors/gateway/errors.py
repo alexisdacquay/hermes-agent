@@ -5,15 +5,16 @@ Per-tool execute failures are result entries, not exceptions; connection links a
 
 from __future__ import annotations
 
-from typing import Any, Mapping, Optional
+from collections.abc import Mapping
+from typing import Any
 
 from tools.connectors.turn import CARD, LINK, SIDE
 
 __all__ = [
+    "SIDE_AGENT_HINT",
     "GatewayAuthError",
     "GatewayUnavailable",
     "IdempotencyConflict",
-    "SIDE_AGENT_HINT",
     "ToolGatewayError",
     "parse_gateway_error",
     "render_connection_required",
@@ -28,8 +29,8 @@ class ToolGatewayError(RuntimeError):
         message: str,
         *,
         code: str = "GATEWAY_ERROR",
-        status: Optional[int] = None,
-        request_id: Optional[str] = None,
+        status: int | None = None,
+        request_id: str | None = None,
         retryable: bool = False,
     ) -> None:
         super().__init__(message)
@@ -59,7 +60,7 @@ class RateLimited(ToolGatewayError):
         self.retry_after = retry_after
 
 
-def parse_gateway_error(status: int, body: Any, headers: Optional[Mapping[str, Any]] = None) -> ToolGatewayError:
+def parse_gateway_error(status: int, body: Any, headers: Mapping[str, Any] | None = None) -> ToolGatewayError:
     """Parse every gateway error envelope without raising on a malformed body.
 
     Three envelope shapes exist: ``{error: {code, message}}`` on most routes, ``{error: "<code>"}``
@@ -67,7 +68,7 @@ def parse_gateway_error(status: int, body: Any, headers: Optional[Mapping[str, A
     code = f"HTTP_{status}"
     message = ""
     request_id = None
-    retry_after_ms: Optional[float] = None
+    retry_after_ms: float | None = None
     if isinstance(body, Mapping):
         envelope = body.get("error")
         if isinstance(envelope, Mapping):
@@ -119,10 +120,10 @@ CARD_HINT = (
 
 def render_connection_required(
     *,
-    connector: Optional[str] = None,
-    message: Optional[str] = None,
-    connect_url: Optional[str] = None,
-    hint: Optional[str] = None,
+    connector: str | None = None,
+    message: str | None = None,
+    connect_url: str | None = None,
+    hint: str | None = None,
     surface: str = LINK,
 ) -> dict[str, Any]:
     payload: dict[str, Any] = {

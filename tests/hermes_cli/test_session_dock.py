@@ -3,9 +3,8 @@ import queue
 from types import SimpleNamespace
 
 import pytest
-from prompt_toolkit.utils import get_cwidth
-
 from agent.i18n import t
+from prompt_toolkit.utils import get_cwidth
 
 
 @pytest.fixture

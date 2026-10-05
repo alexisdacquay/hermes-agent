@@ -8,7 +8,6 @@ exists for; the install itself belongs to synthesis.
 """
 
 import pytest
-
 from tools import tts_tool
 
 

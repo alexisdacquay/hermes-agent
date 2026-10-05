@@ -19,7 +19,6 @@ derived from ``build_top_level_parser()`` (mirroring the
 
 
 import pytest
-
 from hermes_cli._parser import build_top_level_parser, top_level_value_flag_sets
 from hermes_cli.main import _first_positional_argv, _plugin_cli_discovery_needed
 

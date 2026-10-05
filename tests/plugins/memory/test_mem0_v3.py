@@ -2,10 +2,10 @@
 
 import json
 import threading
-import pytest
 
-from agent import secret_scope
 import plugins.memory.mem0 as mem0_plugin
+import pytest
+from agent import secret_scope
 from plugins.memory.mem0 import Mem0MemoryProvider
 
 

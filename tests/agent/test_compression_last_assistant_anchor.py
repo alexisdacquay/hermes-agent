@@ -16,7 +16,6 @@ guard lives there, next to ``_ensure_compressed_has_user_turn``.
 """
 
 import pytest
-
 from agent.context_compressor import SUMMARY_PREFIX
 from agent.conversation_compression_reply_anchor import (
     _ensure_compressed_keeps_last_assistant_reply,

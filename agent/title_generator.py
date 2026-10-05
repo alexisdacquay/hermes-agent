@@ -12,8 +12,9 @@ import re
 import threading
 import time
 import weakref
+from collections.abc import Callable
 from contextlib import suppress
-from typing import Any, Callable, Optional
+from typing import Any
 
 from agent.auxiliary_client import call_llm
 from agent.context_compressor import LEGACY_SUMMARY_PREFIX
@@ -25,7 +26,7 @@ logger = logging.getLogger(__name__)
 # In-flight stage-2 upgrade threads. They bill their aux usage to the session from a daemon thread,
 # so a process that reads the ledger right before exit (``-z --usage-file``) must be able to join
 # them (bounded) instead of racing the write (#112848).
-_UPGRADE_THREADS: "weakref.WeakSet[threading.Thread]" = weakref.WeakSet()
+_UPGRADE_THREADS: weakref.WeakSet[threading.Thread] = weakref.WeakSet()
 
 
 def wait_for_title_upgrades(timeout: float = 10.0) -> None:
@@ -177,7 +178,7 @@ def _model_title_upgrade_enabled() -> bool:
         return True
 
 
-def title_upgrade_must_wait_for_turn(main_runtime: Optional[dict]) -> bool:
+def title_upgrade_must_wait_for_turn(main_runtime: dict | None) -> bool:
     """True when the model title call would hit the SAME self-hosted endpoint as the turn's own request.
 
     A self-hosted main route (``_is_self_hosted_provider``: custom, lmstudio, local and their aliases)
@@ -236,7 +237,7 @@ def _title_pin_may_share_endpoint(pinned_provider: str, main_provider: str, main
     return bool(pdef and main_base_url and pdef.base_url.strip().rstrip("/") == main_base_url)
 
 
-def start_title_upgrade(upgrade: Optional[threading.Thread]) -> None:
+def start_title_upgrade(upgrade: threading.Thread | None) -> None:
     """Start a (deferred) title upgrade thread; joinable via ``wait_for_title_upgrades`` only once started."""
     if upgrade is None or upgrade.ident is not None:
         return
@@ -340,7 +341,7 @@ def is_titleable_user_message(user_message: str) -> bool:
             and not _attachment_only_opener(user_message))
 
 
-def derive_title(user_message: str, title_preview: str | None = None) -> Optional[str]:
+def derive_title(user_message: str, title_preview: str | None = None) -> str | None:
     """Instant title: first meaningful line trimmed to a word boundary. No model, never fails."""
     # Attachment-only opener, no paste preview: a file drop has no topic —
     # refuse rather than name the session after the truncated path (#92068).
@@ -362,7 +363,7 @@ def _first_line(text: str) -> str:
     return next((ln.strip() for ln in text.splitlines() if ln.strip()), "")
 
 
-def _extract_json_title(raw: str) -> Optional[str]:
+def _extract_json_title(raw: str) -> str | None:
     """Title from a ``{"title": ...}`` payload — strict parse, then a loose ``"title": "..."`` scan; None when absent."""
     try:
         parsed = json.loads(raw)
@@ -425,7 +426,7 @@ def _title_from_reasoning(message: Any) -> str:
     return ""
 
 
-def _clean_title(text: str) -> Optional[str]:
+def _clean_title(text: str) -> str | None:
     """Normalize a model-produced title, or None when nothing usable remains."""
     title = _strip_title_prefix(" ".join((text or "").split()).strip("\"'").strip()).rstrip(".!,;:")
     if len(title) > 80:
@@ -433,7 +434,7 @@ def _clean_title(text: str) -> Optional[str]:
     return title or None
 
 
-def _safe_callback(callback: Optional[Callable], args: tuple, log_fmt: str, label: str) -> None:
+def _safe_callback(callback: Callable | None, args: tuple, log_fmt: str, label: str) -> None:
     """Invoke an optional consumer callback, never raising."""
     try:
         if callback is not None:
@@ -442,11 +443,11 @@ def _safe_callback(callback: Optional[Callable], args: tuple, log_fmt: str, labe
         logger.debug(log_fmt, label, exc_info=True)
 
 
-def _report_failure(failure_callback: Optional[FailureCallback], exc: BaseException, label: str) -> None:
+def _report_failure(failure_callback: FailureCallback | None, exc: BaseException, label: str) -> None:
     _safe_callback(failure_callback, ("title generation", exc), "%s failure_callback raised", label)
 
 
-def _notify_title(title_callback: Optional[TitleCallback], title: str, source: str, label: str) -> None:
+def _notify_title(title_callback: TitleCallback | None, title: str, source: str, label: str) -> None:
     _safe_callback(title_callback, (title, source), "%s callback failed", label)
 
 
@@ -470,12 +471,12 @@ def _is_prompt_example_echo(title: str) -> bool:
 
 def generate_title(
     user_message: str,
-    timeout: Optional[float] = None,
-    failure_callback: Optional[FailureCallback] = None,
+    timeout: float | None = None,
+    failure_callback: FailureCallback | None = None,
     main_runtime: dict = None,
-    runtime_validator: Optional[RuntimeValidator] = None,
+    runtime_validator: RuntimeValidator | None = None,
     title_preview: str | None = None,
-) -> Optional[str]:
+) -> str | None:
     """Title from the opening message alone (waiting for the assistant made this slow and bought
     nothing). ``runtime_validator`` runs right before the request; False skips silently.
 
@@ -606,7 +607,7 @@ def _persist_session_title(session_db, session_id, title, *, source, dedupe=True
         return _set(deduped)
 
 
-def apply_subagent_title(session_db, session_id: str, goal: str) -> Optional[str]:
+def apply_subagent_title(session_db, session_id: str, goal: str) -> str | None:
     """Title a delegate run ``Subagent: <goal's first line>`` at ``derived`` authority. No model call:
     runs fan out in bulk, and the prefix alone is what tells them apart from conversations wherever
     ``sessions.show_subagents`` lists them (#97202). Collisions get ``#N``. Never raises."""
@@ -619,9 +620,9 @@ def apply_subagent_title(session_db, session_id: str, goal: str) -> Optional[str
 
 
 def apply_instant_title(
-    session_db, session_id: str, user_message: str, title_callback: Optional[TitleCallback] = None,
+    session_db, session_id: str, user_message: str, title_callback: TitleCallback | None = None,
     title_preview: str | None = None,
-) -> Optional[str]:
+) -> str | None:
     """Write the derived title inline. Returns it, or None (no usable text, or a ``derived``+ title exists). Never raises.
 
     ``title_preview`` must reach this stage too: the model upgrade's own ``derive_title`` fallback writes
@@ -643,10 +644,10 @@ def auto_title_session(
     session_db,
     session_id: str,
     user_message: str,
-    failure_callback: Optional[FailureCallback] = None,
+    failure_callback: FailureCallback | None = None,
     main_runtime: dict = None,
-    title_callback: Optional[TitleCallback] = None,
-    runtime_validator: Optional[RuntimeValidator] = None,
+    title_callback: TitleCallback | None = None,
+    runtime_validator: RuntimeValidator | None = None,
     title_preview: str | None = None,
 ) -> None:
     """Generate and store the model title (daemon-thread target); skips sessions already carrying an
@@ -710,7 +711,7 @@ def _session_is_untitled(session_db, session_id: str) -> bool:
         return False
 
 
-def _kanban_task_title() -> Optional[str]:
+def _kanban_task_title() -> str | None:
     """Kanban worker: the card's title, or ``Kanban task <id>`` when the board can't be read; None elsewhere
     (including delegate_task children of the worker, which inherit the env var but are not the card)."""
     task_id = (os.environ.get("HERMES_KANBAN_TASK") or "").strip()
@@ -737,13 +738,13 @@ def maybe_auto_title(
     session_db,
     session_id: str,
     user_message: str,
-    conversation_history: Optional[list] = None,
-    failure_callback: Optional[FailureCallback] = None,
+    conversation_history: list | None = None,
+    failure_callback: FailureCallback | None = None,
     main_runtime: dict = None,
-    title_callback: Optional[TitleCallback] = None,
-    runtime_validator: Optional[RuntimeValidator] = None,
+    title_callback: TitleCallback | None = None,
+    runtime_validator: RuntimeValidator | None = None,
     title_preview: str | None = None,
-) -> Optional[threading.Thread]:
+) -> threading.Thread | None:
     """Instant inline title, then a daemon-thread upgrade. Call at the START of a turn, before the model.
 
     Returns the upgrade thread: already started, or — when ``title_upgrade_must_wait_for_turn`` — left

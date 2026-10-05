@@ -5,8 +5,8 @@ import pytest
 
 
 def test_explicit_profile_target_never_falls_back(tmp_path, monkeypatch):
-    from tui_gateway import server
     from hermes_state import SessionDB
+    from tui_gateway import server
 
     home = tmp_path / ".hermes"
     worker = home / "profiles" / "worker"
@@ -75,9 +75,8 @@ def test_profile_param_traversal_fails_closed(tmp_path, monkeypatch, name):
 
     with pytest.raises(FileNotFoundError):
         server._profile_home(name)
-    with pytest.raises(FileNotFoundError):
-        with server._profile_db({"profile": name}):
-            pass
+    with pytest.raises(FileNotFoundError), server._profile_db({"profile": name}):
+        pass
 
 
 def test_unavailable_profile_is_a_typed_rpc_error_not_a_dispatch_crash(tmp_path, monkeypatch):

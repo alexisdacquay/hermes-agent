@@ -3,16 +3,12 @@
 Run with:  python -m pytest tests/agent/test_file_safety.py -v
 """
 
-import os
 from unittest.mock import patch
 
 import pytest
-
 from agent.file_safety import (
-    _BLOCKED_PROJECT_ENV_BASENAMES,
     get_read_block_error,
 )
-
 
 # ---------------------------------------------------------------------------
 # Project-local .env file blocking (issue #20734)

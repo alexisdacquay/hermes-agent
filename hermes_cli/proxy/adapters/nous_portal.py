@@ -4,14 +4,14 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import Any, Dict, FrozenSet, Optional
+from typing import Any
 
 from hermes_cli.auth import (
-    AuthError,
     DEFAULT_NOUS_INFERENCE_URL,
-    _load_auth_store,
+    AuthError,
     _auth_store_lock,
     _is_terminal_nous_refresh_error,
+    _load_auth_store,
     _nous_inference_env_override,
     _quarantine_nous_oauth_state,
     _quarantine_nous_pool_entries,
@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 # Endpoints inference-api.nousresearch.com actually serves; anything else is a 404 so stray
 # clients cannot leak odd requests upstream.
-_ALLOWED_PATHS: FrozenSet[str] = frozenset({"/chat/completions", "/completions", "/embeddings", "/models"})
+_ALLOWED_PATHS: frozenset[str] = frozenset({"/chat/completions", "/completions", "/embeddings", "/models"})
 
 
 class NousPortalAdapter(UpstreamAdapter):
@@ -45,7 +45,7 @@ class NousPortalAdapter(UpstreamAdapter):
         return "Nous Portal"
 
     @property
-    def allowed_paths(self) -> FrozenSet[str]:
+    def allowed_paths(self) -> frozenset[str]:
         return _ALLOWED_PATHS
 
     def is_authenticated(self) -> bool:
@@ -58,14 +58,14 @@ class NousPortalAdapter(UpstreamAdapter):
 
     def get_retry_credential(
         self, *, failed_credential: UpstreamCredential, status_code: int
-    ) -> Optional[UpstreamCredential]:
+    ) -> UpstreamCredential | None:
         if status_code != 401:
             return None
         logger.info("proxy: Nous upstream rejected bearer; force-refreshing invoke JWT")
         return self._get_credential(force_refresh=True, stale_access_token=failed_credential.bearer)
 
     def _get_credential(
-        self, *, force_refresh: bool = False, stale_access_token: Optional[str] = None
+        self, *, force_refresh: bool = False, stale_access_token: str | None = None
     ) -> UpstreamCredential:
         with self._lock:
             state = self._read_state()
@@ -99,7 +99,7 @@ class NousPortalAdapter(UpstreamAdapter):
 
     # auth.json access — kept local so hermes_cli.auth's public surface does not grow.
 
-    def _read_state(self) -> Optional[Dict[str, Any]]:
+    def _read_state(self) -> dict[str, Any] | None:
         try:
             with _auth_store_lock():
                 store = _load_auth_store()
@@ -111,10 +111,10 @@ class NousPortalAdapter(UpstreamAdapter):
 
     def _save_state(
         self,
-        state: Dict[str, Any],
+        state: dict[str, Any],
         *,
-        quarantine_error: Optional[AuthError] = None,
-        quarantine_reason: Optional[str] = None,
+        quarantine_error: AuthError | None = None,
+        quarantine_reason: str | None = None,
     ) -> None:
         try:
             with _auth_store_lock():

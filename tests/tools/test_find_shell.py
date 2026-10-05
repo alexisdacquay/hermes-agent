@@ -6,13 +6,10 @@ when ``~/.bash_profile`` contained ``exec /bin/zsh -l``.
 """
 
 import os
-import shutil
 import subprocess
-import time
 from unittest.mock import patch
 
 import pytest
-
 from tools.environments.local import _find_bash, _find_shell
 
 

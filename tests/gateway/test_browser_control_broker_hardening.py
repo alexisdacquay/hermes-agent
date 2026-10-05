@@ -1,15 +1,14 @@
 import threading
 
 import pytest
-
 from gateway.browser_control_broker import (
     BrowserControlBroker,
-    browser_control_enabled,
     ControllerCancelled,
-    ControllerScope,
     ControllerRejected,
+    ControllerScope,
     ControllerTimeout,
     ControllerUnavailable,
+    browser_control_enabled,
 )
 
 

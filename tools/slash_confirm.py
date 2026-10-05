@@ -13,12 +13,13 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from typing import Any, Awaitable, Callable, Dict, Optional
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 # session_key -> {"confirm_id", "command", "handler", "created_at"}
-_pending: Dict[str, Dict[str, Any]] = {}
+_pending: dict[str, dict[str, Any]] = {}
 _lock = threading.RLock()
 
 # Older pending confirms are discarded when the session's next message arrives (buttons live
@@ -27,14 +28,14 @@ DEFAULT_TIMEOUT_SECONDS = 300
 
 
 def register(session_key: str, confirm_id: str, command: str,
-             handler: Callable[[str], Awaitable[Optional[str]]]) -> None:
+             handler: Callable[[str], Awaitable[str | None]]) -> None:
     """Register a pending confirm, superseding any prior one for the session."""
     with _lock:
         _pending[session_key] = {"confirm_id": confirm_id, "command": command,
                                  "handler": handler, "created_at": time.time()}
 
 
-def get_pending(session_key: str) -> Optional[Dict[str, Any]]:
+def get_pending(session_key: str) -> dict[str, Any] | None:
     """Return a copy of the pending confirm dict for a session, or None."""
     with _lock:
         entry = _pending.get(session_key)
@@ -47,7 +48,7 @@ def clear(session_key: str) -> None:
         _pending.pop(session_key, None)
 
 
-def _is_stale(entry: Dict[str, Any], timeout: float) -> bool:
+def _is_stale(entry: dict[str, Any], timeout: float) -> bool:
     return time.time() - float(entry.get("created_at", 0) or 0) > timeout
 
 
@@ -62,7 +63,7 @@ def clear_if_stale(session_key: str, timeout: float = DEFAULT_TIMEOUT_SECONDS) -
 
 
 async def resolve(session_key: str, confirm_id: str, choice: str,
-                  timeout: float = DEFAULT_TIMEOUT_SECONDS) -> Optional[str]:
+                  timeout: float = DEFAULT_TIMEOUT_SECONDS) -> str | None:
     """Run the pending handler with ``choice`` ("once" / "always" / "cancel").
 
     Returns the handler's output string, or None if the confirm was stale, already resolved,

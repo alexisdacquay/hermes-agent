@@ -9,10 +9,9 @@ import types
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from tools.fal_common import (
-    _ManagedFalSyncClient,
     _extract_http_status,
+    _ManagedFalSyncClient,
     _normalize_fal_queue_url_format,
     import_fal_client,
 )

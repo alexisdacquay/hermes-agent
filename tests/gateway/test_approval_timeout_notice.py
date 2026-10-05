@@ -3,7 +3,6 @@
 from types import SimpleNamespace
 
 import pytest
-
 from gateway import run_turn_runner_approval_settle as settle_mod
 
 
@@ -15,7 +14,6 @@ class _Runner:
     def _schedule(self, coro, label):
         coro.close()
         self.scheduled.append(label)
-        return None
 
 
 def _capture_settle(monkeypatch):

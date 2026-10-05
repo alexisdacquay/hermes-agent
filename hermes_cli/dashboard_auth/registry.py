@@ -5,10 +5,13 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import List, Optional
 
 from hermes_constants import hermes_home_key, normalize_scope
-from hermes_cli.dashboard_auth.base import DashboardAuthProvider, assert_protocol_compliance
+
+from hermes_cli.dashboard_auth.base import (
+    DashboardAuthProvider,
+    assert_protocol_compliance,
+)
 
 _log = logging.getLogger(__name__)
 _lock = threading.Lock()
@@ -16,13 +19,13 @@ _providers: dict[str, DashboardAuthProvider] = {}
 _scoped_providers: dict[str, dict[str, DashboardAuthProvider]] = {}
 
 
-def _merged(scope: Optional[str] = None) -> dict[str, DashboardAuthProvider]:
+def _merged(scope: str | None = None) -> dict[str, DashboardAuthProvider]:
     providers = dict(_providers)
     providers.update(_scoped_providers.get(hermes_home_key(scope), {}))
     return providers
 
 
-def _target(scope: Optional[str], *, create: bool) -> dict[str, DashboardAuthProvider]:
+def _target(scope: str | None, *, create: bool) -> dict[str, DashboardAuthProvider]:
     """Global map for ``scope is None``, else that scope's overlay."""
     if scope is None:
         return _providers
@@ -33,7 +36,7 @@ def _log_registered(kind: str, provider: DashboardAuthProvider) -> None:
     _log.info("dashboard-auth: registered %s%r (%s)", kind, provider.name, provider.display_name)
 
 
-def register_provider(provider: DashboardAuthProvider, *, scope: Optional[str] = None) -> None:
+def register_provider(provider: DashboardAuthProvider, *, scope: str | None = None) -> None:
     """Raises ``TypeError`` on protocol violation, ``ValueError`` on a duplicate name."""
     assert_protocol_compliance(type(provider))
     with _lock:
@@ -46,22 +49,22 @@ def register_provider(provider: DashboardAuthProvider, *, scope: Optional[str] =
     _log_registered("provider ", provider)
 
 
-def get_provider(name: str, *, scope: Optional[str] = None) -> Optional[DashboardAuthProvider]:
+def get_provider(name: str, *, scope: str | None = None) -> DashboardAuthProvider | None:
     """Return the registered provider for ``name``, or None if unknown."""
     with _lock:
         return _merged(scope).get(name)
 
 
 def snapshot_registration(
-    name: str, *, scope: Optional[str] = None) -> Optional[DashboardAuthProvider]:
+    name: str, *, scope: str | None = None) -> DashboardAuthProvider | None:
     with _lock:
         scope = normalize_scope(scope)
         return _target(scope, create=False).get(name)
 
 
 def restore_registration(
-    name: str, current: DashboardAuthProvider, previous: Optional[DashboardAuthProvider],
-    *, scope: Optional[str] = None) -> bool:
+    name: str, current: DashboardAuthProvider, previous: DashboardAuthProvider | None,
+    *, scope: str | None = None) -> bool:
     """Restore a host-owned provider registration if it is still current."""
     with _lock:
         scope = normalize_scope(scope)
@@ -77,20 +80,20 @@ def restore_registration(
     return True
 
 
-def list_providers(*, scope: Optional[str] = None) -> List[DashboardAuthProvider]:
+def list_providers(*, scope: str | None = None) -> list[DashboardAuthProvider]:
     """All registered providers, in registration order."""
     with _lock:
         return list(_merged(scope).values())
 
 
-def list_token_providers() -> List[DashboardAuthProvider]:
+def list_token_providers() -> list[DashboardAuthProvider]:
     """Providers with ``supports_token`` True, in registration order. The ``token_auth`` seam
     consults only these, so OAuth/password-only providers are never asked to ``verify_token``;
     empty => a token-authable route fails closed (401)."""
     return [p for p in list_providers() if getattr(p, "supports_token", False)]
 
 
-def list_session_providers() -> List[DashboardAuthProvider]:
+def list_session_providers() -> list[DashboardAuthProvider]:
     """Providers with ``supports_session`` True (interactive cookie sessions); the login page,
     /auth/login and the gate's verify/refresh loops use only these."""
     return [p for p in list_providers() if getattr(p, "supports_session", True)]

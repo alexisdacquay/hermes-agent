@@ -11,7 +11,6 @@ import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from agent import auxiliary_client as ac
 from agent.auxiliary_client import async_call_llm, call_llm
 

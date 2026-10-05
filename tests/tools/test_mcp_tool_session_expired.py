@@ -19,7 +19,6 @@ from unittest.mock import MagicMock
 import pytest
 from tools import mcp_tool_loop as _mcp_loop
 
-
 # ---------------------------------------------------------------------------
 # _is_session_expired_error — unit coverage
 # ---------------------------------------------------------------------------

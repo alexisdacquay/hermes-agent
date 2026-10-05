@@ -9,7 +9,6 @@ always branch in place. Pure helpers only — the handler lives in ``slash_comma
 from __future__ import annotations
 
 import dataclasses
-from typing import Optional
 
 from gateway.config import Platform
 from gateway.session import SessionSource
@@ -32,7 +31,7 @@ def parse_branch_args(raw: str) -> tuple[bool, str]:
     return False, text
 
 
-def branch_thread_parent(source: SessionSource) -> Optional[str]:
+def branch_thread_parent(source: SessionSource) -> str | None:
     """Chat that can host a sibling thread for *source*, or None when nothing can (Discord DMs,
     a Discord thread whose parent channel is unknown)."""
     if source.platform not in BRANCH_THREAD_PLATFORMS:
@@ -65,7 +64,7 @@ def branch_dest_source(source: SessionSource, *, parent_id: str, thread_id: str,
     return dataclasses.replace(source, chat_id=str(parent_id), chat_type=chat_type, **common)
 
 
-def format_thread_ref(platform: Optional[Platform], thread_id: str) -> str:
+def format_thread_ref(platform: Platform | None, thread_id: str) -> str:
     """Clickable pointer where the platform has one (Discord ``<#id>`` mentions); id otherwise."""
     if platform == Platform.DISCORD:
         return f"<#{thread_id}>"

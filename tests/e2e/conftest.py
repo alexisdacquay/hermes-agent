@@ -12,12 +12,11 @@ No LLM, no real platform connections.
 import asyncio
 import sys
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from gateway.config import GatewayConfig, Platform, PlatformConfig
 from gateway.platforms.base import SendResult
 from gateway.platforms.event import MessageEvent
@@ -124,14 +123,13 @@ _ensure_telegram_mock()
 _ensure_discord_mock()
 _ensure_slack_mock()
 
-import discord  # noqa: E402 — mocked above
-from plugins.platforms.telegram.adapter import TelegramAdapter  # noqa: E402
-from plugins.platforms.discord.adapter import DiscordAdapter  # noqa: E402
+import discord
+import plugins.platforms.slack.adapter as _slack_mod
+from plugins.platforms.discord.adapter import DiscordAdapter
+from plugins.platforms.telegram.adapter import TelegramAdapter
 
-import plugins.platforms.slack.adapter as _slack_mod  # noqa: E402
 _slack_mod.SLACK_AVAILABLE = True
-from plugins.platforms.slack.adapter import SlackAdapter  # noqa: E402
-
+from plugins.platforms.slack.adapter import SlackAdapter
 
 # Platform-generic factories
 
@@ -409,7 +407,7 @@ def make_discord_message(
         guild=getattr(channel, "guild", None),
         mentions=mentions, attachments=attachments,
         type=getattr(discord, "MessageType", SimpleNamespace()).default,
-        reference=None, created_at=datetime.now(timezone.utc),
+        reference=None, created_at=datetime.now(UTC),
         create_thread=AsyncMock(),
     )
 

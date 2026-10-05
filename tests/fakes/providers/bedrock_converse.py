@@ -33,9 +33,10 @@ import re
 import struct
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Any, Callable, Union
+from typing import Any, Union
 from urllib.parse import unquote
 
 import botocore.session
@@ -302,7 +303,7 @@ class FakeBedrock:
     _ids: int = 0
     _httpd: ThreadingHTTPServer | None = None
 
-    def __enter__(self) -> "FakeBedrock":
+    def __enter__(self) -> FakeBedrock:
         self._httpd = ThreadingHTTPServer(("127.0.0.1", 0), _handler_for(self))
         self._httpd.daemon_threads = True
         threading.Thread(target=self._httpd.serve_forever, daemon=True).start()
@@ -404,7 +405,7 @@ def _handler_for(fake: FakeBedrock) -> type[BaseHTTPRequestHandler]:
         def log_message(self, *_args: Any) -> None:
             return
 
-        def do_POST(self) -> None:  # noqa: N802 - http.server API
+        def do_POST(self) -> None:
             raw = self.rfile.read(int(self.headers.get("Content-Length") or 0))
             headers = {k.lower(): v for k, v in self.headers.items()}
             route = _ROUTE_RE.match(self.path.split("?", 1)[0])

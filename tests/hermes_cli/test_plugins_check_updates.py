@@ -14,10 +14,8 @@ import subprocess
 from pathlib import Path
 
 import pytest
-
 from hermes_cli.plugins_provenance import Provenance, ProvenanceClass
 from hermes_cli.plugins_updates import (
-    CheckResult,
     check_pip_plugins,
     check_provenanced,
     parse_feed_yml,
@@ -474,6 +472,7 @@ def test_default_fetch_refuses_non_https_feeds_before_any_request(monkeypatch, u
     """Rows saved before the https rule (or hand-edited) still reach the real fetcher from the
     gateway tick; the sink refuses them instead of opening the URL."""
     import urllib.request
+
     from hermes_cli.plugins_updates import default_fetch
 
     def never(*a, **k):
@@ -499,9 +498,7 @@ def feed_redirect_server(monkeypatch):
             visited.append(self.path)
             if self.path == "/start":
                 target = f"http://127.0.0.1:{self.server.server_port}/middle"
-            elif self.path == "/middle":
-                target = f"https://127.0.0.1:{self.server.server_port}/feed"
-            elif self.path == "/secure":
+            elif self.path == "/middle" or self.path == "/secure":
                 target = f"https://127.0.0.1:{self.server.server_port}/feed"
             else:
                 self.send_response(200)

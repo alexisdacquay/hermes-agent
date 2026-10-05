@@ -2,12 +2,11 @@
 
 import logging
 import os
-import shutil
 import sys
 import time as _time
-
 from pathlib import Path
 from typing import NoReturn
+
 from hermes_cli import _early_recovery as _early_recovery_mod
 
 # Log-record parity with the origin module.
@@ -92,9 +91,10 @@ def _is_windows() -> bool:
 
 def _venv_scripts_dir() -> Path | None:
     """Return the venv Scripts directory if we're running inside the project venv."""
-    from hermes_cli.main import PROJECT_ROOT
     from hermes_constants import project_venv_dir
     from pm.environments import venv_bin_dir
+
+    from hermes_cli.main import PROJECT_ROOT
     venv_dir = project_venv_dir(PROJECT_ROOT)
     if venv_dir is None:
         return None
@@ -126,8 +126,7 @@ def _filter_pending_shim_renames(entries: list[str], shims: list[Path]) -> tuple
 
     def _norm(value: str) -> str:
         path = str(value).lstrip("!")
-        if path.startswith("\\??\\"):
-            path = path[4:]
+        path = path.removeprefix("\\??\\")
         return ntpath.normcase(ntpath.normpath(path))
 
     shim_paths = {_norm(str(shim)) for shim in shims}
@@ -248,6 +247,7 @@ def _configured_features_missing_deps() -> list[tuple[str, str, str]]:
         logger.debug("configured-platform dependency check skipped: %s", exc)
     try:
         import importlib.util
+
         from hermes_cli.config import load_config_readonly
 
         if (load_config_readonly().get("mcp_servers") or {}) and importlib.util.find_spec("mcp") is None:

@@ -21,7 +21,6 @@ since. These tests cover:
 from types import SimpleNamespace
 
 import pytest
-
 from agent.model_metadata import estimate_messages_tokens_rough
 from agent.turn_context import _preflight_request_tokens
 from agent.usage_anchor import (

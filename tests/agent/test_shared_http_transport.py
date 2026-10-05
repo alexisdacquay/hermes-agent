@@ -13,7 +13,6 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import certifi
 import httpx
 import pytest
-
 from agent import process_bootstrap
 from agent.agent_runtime_helpers import _iter_pool_sockets, force_close_tcp_sockets
 from agent.process_bootstrap import build_keepalive_http_client
@@ -34,7 +33,7 @@ def no_proxy_env(monkeypatch):
 class _Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"  # keep-alive so pooled connections persist
 
-    def do_GET(self):  # noqa: N802
+    def do_GET(self):
         body = b"ok"
         self.send_response(200)
         self.send_header("Content-Length", str(len(body)))

@@ -9,7 +9,6 @@ from pathlib import Path
 
 import pytest
 from fastapi import HTTPException
-
 from hermes_cli import web_server, web_server_chat
 from hermes_cli.web_routers import chat_workspaces
 

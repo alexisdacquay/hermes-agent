@@ -21,9 +21,8 @@ def test_notifier_watcher_skips_when_notifications_disabled():
     with patch(
         "hermes_cli.config.load_config",
         return_value={"kanban": {"notify_in_gateway": False}},
-    ):
-        with patch("hermes_cli.kanban_db.list_boards") as list_boards:
-            asyncio.run(runner._kanban_notifier_watcher())
+    ), patch("hermes_cli.kanban_db.list_boards") as list_boards:
+        asyncio.run(runner._kanban_notifier_watcher())
 
     list_boards.assert_not_called()
 
@@ -54,14 +53,12 @@ def test_notifier_watcher_polls_without_dispatch_ownership():
                 "notify_in_gateway": True,
             }
         },
-    ):
-        with patch.object(
-            _kb, "list_boards",
-            side_effect=lambda *a, **kw: past_gate.append(True) or [],
-        ):
-            with patch("asyncio.sleep", side_effect=fake_sleep):
-                with patch("asyncio.to_thread", side_effect=fake_to_thread):
-                    asyncio.run(runner._kanban_notifier_watcher())
+    ), patch.object(
+        _kb, "list_boards",
+        side_effect=lambda *a, **kw: past_gate.append(True) or [],
+    ), patch("asyncio.sleep", side_effect=fake_sleep):
+        with patch("asyncio.to_thread", side_effect=fake_to_thread):
+            asyncio.run(runner._kanban_notifier_watcher())
 
     assert past_gate, (
         "gateways without the dispatch lock must still poll owned subscriptions"

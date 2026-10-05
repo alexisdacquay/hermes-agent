@@ -17,7 +17,6 @@ import json
 import os
 import subprocess
 import sys
-import time
 from pathlib import Path
 from typing import Any
 
@@ -54,9 +53,10 @@ def post_swap_python() -> Path:
     running interpreter."""
     if sys.platform != "win32":
         return Path(sys.executable)
-    from hermes_cli._launchers import _is_windows
     from hermes_constants import project_venv_dir
     from pm.environments import venv_python
+
+    from hermes_cli._launchers import _is_windows
 
     venv_dir = project_venv_dir(Path(__file__).resolve().parents[1])
     if venv_dir is not None and _is_windows():

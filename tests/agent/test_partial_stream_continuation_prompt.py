@@ -1,6 +1,5 @@
 """After a mid-stream transport cut the continuation must keep tools on the table (#74990)."""
 import pytest
-
 from agent import conversation_loop as cl
 from agent.context_compressor import ContextCompressor
 

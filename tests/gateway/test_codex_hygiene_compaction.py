@@ -20,7 +20,6 @@ import asyncio
 from types import SimpleNamespace
 
 import pytest
-
 from agent.conversation_compression import compress_context
 from agent.transports.codex_app_server_session import TurnResult
 from gateway.run import run_codex_hygiene_compaction

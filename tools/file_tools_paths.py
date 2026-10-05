@@ -49,7 +49,11 @@ def _terminal_env_type_for_task(task_id: str = "default") -> str:
     """Best-effort terminal backend type for path-resolution decisions."""
     try:
         from tools.terminal_tool import (
-            _active_environments, _env_lock, _get_env_config, _resolve_container_task_id)
+            _active_environments,
+            _env_lock,
+            _get_env_config,
+            _resolve_container_task_id,
+        )
 
         try:
             container_key = _resolve_container_task_id(task_id)
@@ -178,6 +182,7 @@ def _ssh_remote_anchor(task_id: str) -> str:
     host path) is skipped. ``coerce_ssh_remote_cwd`` maps the host subprocess home back to ``~``.
     """
     from agent.runtime_cwd import scope_terminal_cwd
+
     from tools.terminal_tool import get_session_cwd, resolve_task_overrides
     from tools.terminal_tool_config import coerce_ssh_remote_cwd
 

@@ -59,7 +59,6 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Optional
 
 VERSION = "0.1.0"
 
@@ -140,7 +139,7 @@ def skill_root() -> Path:
     return script_dir().parent
 
 
-def cached_binary() -> Optional[Path]:
+def cached_binary() -> Path | None:
     """Look in <skill_root>/bin/ for a previously downloaded binary."""
     binname = "sg.exe" if os.name == "nt" else "sg"
     altname = "ast-grep.exe" if os.name == "nt" else "ast-grep"
@@ -151,14 +150,14 @@ def cached_binary() -> Optional[Path]:
     return None
 
 
-def npm_binary() -> Optional[Path]:
+def npm_binary() -> Path | None:
     """If @ast-grep/cli is installed globally via npm, find its binary."""
     # `sg` shipped by @ast-grep/cli is on PATH when npm prefix bin is on PATH.
     # We rely on shutil.which for that case.
     return None  # handled by which_binary
 
 
-def which_binary() -> Optional[Path]:
+def which_binary() -> Path | None:
     """Use shutil.which to find sg or ast-grep on PATH.
 
     On Linux, plain `sg` collides with the setgroups command from util-linux
@@ -188,7 +187,7 @@ def which_binary() -> Optional[Path]:
     return None
 
 
-def homebrew_binary() -> Optional[Path]:
+def homebrew_binary() -> Path | None:
     """Common Homebrew install paths."""
     candidates = [
         Path("/opt/homebrew/bin/ast-grep"),
@@ -204,7 +203,7 @@ def homebrew_binary() -> Optional[Path]:
 
 # --- OMO runtime resolution (vendored patch) ---
 
-def omo_env_binary() -> Optional[Path]:
+def omo_env_binary() -> Path | None:
     raw_path = os.environ.get("OMO_AST_GREP_SG_PATH")
     if not raw_path:
         return None
@@ -227,7 +226,7 @@ def omo_runtime_slug() -> str:
     return f"{os_slug}-{arch_slug}"
 
 
-def omo_runtime_binary() -> Optional[Path]:
+def omo_runtime_binary() -> Path | None:
     binary_name = "sg.exe" if sys.platform.startswith("win") else "sg"
     slug = omo_runtime_slug()
     candidates: list[Path] = []
@@ -243,7 +242,7 @@ def omo_runtime_binary() -> Optional[Path]:
     return None
 
 
-def resolve_binary() -> Optional[Path]:
+def resolve_binary() -> Path | None:
     """Resolve the ast-grep binary in priority order.
 
     1. OMO_AST_GREP_SG_PATH override
@@ -310,7 +309,7 @@ def find_alternation(pattern: str) -> bool:
     return bool(re.search(r"\w\s*\|\s*\w", stripped)) and "||" not in stripped
 
 
-def lang_specific_hints(pattern: str, lang: Optional[str]) -> list[str]:
+def lang_specific_hints(pattern: str, lang: str | None) -> list[str]:
     """Return a list of hints for language-specific common mistakes."""
     if not lang:
         return []
@@ -349,7 +348,7 @@ def lang_specific_hints(pattern: str, lang: Optional[str]) -> list[str]:
     return hints
 
 
-def validate_pattern(pattern: str, lang: Optional[str]) -> list[str]:
+def validate_pattern(pattern: str, lang: str | None) -> list[str]:
     """Return a list of hints. Empty list = pattern looks plausible."""
     hints: list[str] = []
 
@@ -368,7 +367,7 @@ def validate_pattern(pattern: str, lang: Optional[str]) -> list[str]:
     return hints
 
 
-def normalize_lang(lang: Optional[str]) -> Optional[str]:
+def normalize_lang(lang: str | None) -> str | None:
     if not lang:
         return None
     canonical = LANG_ALIASES.get(lang.lower(), lang.lower())
@@ -736,7 +735,7 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
-def main(argv: Optional[list[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     global _QUIET
     parser = build_parser()
     # Accept `search PATTERN --lang js .` — plain parse_args greedily
@@ -750,7 +749,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         parser.error(f"unrecognized arguments: {' '.join(bad)}")
     if extras:
         if hasattr(args, "paths"):
-            args.paths = list(getattr(args, "paths") or []) + extras
+            args.paths = list(args.paths or []) + extras
         else:
             parser.error(f"unrecognized arguments: {' '.join(extras)}")
     _QUIET = bool(getattr(args, "quiet", False))

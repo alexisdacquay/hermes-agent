@@ -15,15 +15,10 @@ import sqlite3
 import subprocess
 import sys
 import time
-from dataclasses import dataclass
-from dataclasses import field
+from collections.abc import Callable, Iterable, Mapping
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
-from typing import Callable
-from typing import Iterable
-from typing import Mapping
-from typing import Optional
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from hermes_cli.quiet_single_query import KANBAN_WORKER_EXIT_TRAILER
 
@@ -148,13 +143,13 @@ class DispatchResult:
     skipped_locked: bool = False
     """True when another process held the board's dispatch lock: this tick did
     no DB writes; the lock holder is making progress on the same board."""
-    memory_pressure: Optional[str] = None
+    memory_pressure: str | None = None
     """Memory pressure that restricted this tick: ``"critical"`` (no new
     workers), ``"elevated"`` (at most one), ``None`` (no restriction).
     Reclaim/promotion bookkeeping still ran; deferred tasks stay queued."""
 
 
-def describe_suppression(results: Iterable[Optional["DispatchResult"]]) -> str:
+def describe_suppression(results: Iterable[DispatchResult | None]) -> str:
     """One line naming why the tick(s) held ready work back, or ``""``.
 
     ``active_pr=1, recent_success=2, rate_limited=1, skipped_locked=1,
@@ -165,7 +160,7 @@ def describe_suppression(results: Iterable[Optional["DispatchResult"]]) -> str:
     guard reason is written (#111910).
     """
     counts: dict[str, int] = {}
-    pressure: Optional[str] = None
+    pressure: str | None = None
     for res in results:
         if res is None:
             continue
@@ -193,12 +188,12 @@ def describe_suppression(results: Iterable[Optional["DispatchResult"]]) -> str:
 # leaves in its own log (``KANBAN_WORKER_EXIT_TRAILER``).
 _RECENT_WORKER_EXIT_TTL_SECONDS = 600
 _RECENT_WORKER_EXITS_MAX = 4096
-_recent_worker_exits: "dict[int, tuple[int, float]]" = {}
+_recent_worker_exits: dict[int, tuple[int, float]] = {}
 
 # Windows has no ``waitpid(-1)``: a child's exit code is only recoverable
 # through a live handle, so ``_default_spawn`` parks each worker's ``Popen``
 # here (Windows only) and ``reap_worker_zombies`` polls it. Entry: ``pid -> Popen``.
-_live_worker_procs: "dict[int, subprocess.Popen]" = {}
+_live_worker_procs: dict[int, subprocess.Popen] = {}
 
 
 def _wait_status_from_returncode(returncode: int) -> int:
@@ -223,7 +218,7 @@ def _record_worker_exit(pid: int, raw_status: int) -> None:
             _recent_worker_exits.pop(_pid, None)
 
 
-def _classify_worker_exit(pid: int) -> "tuple[str, Optional[int]]":
+def _classify_worker_exit(pid: int) -> tuple[str, int | None]:
     """``(kind, code)`` for a reaped worker PID: ``clean_exit`` (rc 0 while
     still ``running`` = protocol violation), ``rate_limited``
     (``KANBAN_RATE_LIMIT_EXIT_CODE``, never counts as a failure),
@@ -246,7 +241,7 @@ def _classify_worker_exit(pid: int) -> "tuple[str, Optional[int]]":
     return ("unknown", None)
 
 
-def _exit_code_kind(code: int) -> "tuple[str, int]":
+def _exit_code_kind(code: int) -> tuple[str, int]:
     """``(kind, code)`` for a worker's exit code, however it was observed."""
     if code == 0:
         return ("clean_exit", 0)
@@ -262,7 +257,7 @@ _EXIT_TRAILER_RE = re.compile(
 )
 
 
-def _worker_log_exit_code(task_id: str, board: Optional[str] = None) -> Optional[int]:
+def _worker_log_exit_code(task_id: str, board: str | None = None) -> int | None:
     """Exit code from the trailer the worker CLI wrote to its own log; None when absent.
 
     The durable twin of ``_recent_worker_exits``: written by the worker itself
@@ -278,12 +273,12 @@ def _worker_log_exit_code(task_id: str, board: Optional[str] = None) -> Optional
     return int(matches[-1]) if matches else None
 
 
-def reap_worker_zombies() -> "list[int]":
+def reap_worker_zombies() -> list[int]:
     """Reap exited workers without blocking; returns reaped PIDs. POSIX reaps
     every child via ``waitpid(-1)``; Windows polls the ``Popen`` handles
     parked by ``_default_spawn`` (the only way to learn a child's exit code
     there), so the rate-limit sentinel exit is classified on both hosts."""
-    reaped: "list[int]" = []
+    reaped: list[int] = []
     if _kb._IS_WINDOWS:
         for pid, proc in list(_live_worker_procs.items()):
             returncode = proc.poll()
@@ -308,7 +303,7 @@ def reap_worker_zombies() -> "list[int]":
     return reaped
 
 
-def _pid_alive(pid: Optional[int]) -> bool:
+def _pid_alive(pid: int | None) -> bool:
     """Return True if ``pid`` is still running on this host.
 
     Uses ``gateway.status._pid_exists`` (OpenProcess on Windows, ``os.kill(pid, 0)``
@@ -364,7 +359,7 @@ def _pid_alive(pid: Optional[int]) -> bool:
 UNVERIFIED_WORKER_FINGERPRINT = "unverified"
 
 
-def _process_fingerprint(pid: int) -> Optional[str]:
+def _process_fingerprint(pid: int) -> str | None:
     """Restart-stable identity of a live process: ``"<instantiation epoch>|<start time>"``. The start
     time alone (``/proc/<pid>/stat`` field 22 on Linux) is clock ticks since THIS boot, so a row that
     survives a reboot could match an unrelated process with the same PID and the same tick value;
@@ -378,7 +373,7 @@ def _process_fingerprint(pid: int) -> Optional[str]:
     return f"{current_instantiation_epoch()}|{start}"
 
 
-def _worker_alive(pid: Optional[int], started_at) -> bool:
+def _worker_alive(pid: int | None, started_at) -> bool:
     """True when ``pid`` is live AND is still the worker we spawned. ``started_at`` is the fingerprint
     recorded by ``_set_worker_pid``; after a reboot (or any PID recycle) an unrelated process can own
     the number, so bare existence is never enough to extend a claim or to signal. A legacy row without
@@ -393,7 +388,7 @@ def _worker_alive(pid: Optional[int], started_at) -> bool:
     return not _pid_recycled(pid, started_at)
 
 
-def _pid_recycled(pid: Optional[int], started_at) -> bool:
+def _pid_recycled(pid: int | None, started_at) -> bool:
     """True when a live ``pid`` is NOT the process fingerprinted at spawn (or the fingerprint can no
     longer be read). Signalling it would hit a stranger. ``None`` fingerprint = legacy row, never
     recycled; the UNVERIFIED marker is always foreign. An integer fingerprint (rows written before the
@@ -414,14 +409,14 @@ def _pid_recycled(pid: Optional[int], started_at) -> bool:
         return True
 
 
-def _kill_fn(signal_fn) -> Optional[Callable[[int, int], None]]:
+def _kill_fn(signal_fn) -> Callable[[int, int], None] | None:
     """``signal_fn`` test hook, else ``os.kill`` when the platform has one."""
     if signal_fn is not None:
         return signal_fn
     return os.kill if hasattr(os, "kill") else None
 
 
-def _poll_worker_exit(pid: int, started_at: Optional[int] = None) -> bool:
+def _poll_worker_exit(pid: int, started_at: int | None = None) -> bool:
     """Poll ~5 s (10 x 0.5 s) for ``pid`` to die; True once it is gone."""
     for _ in range(10):
         if not _worker_alive(pid, started_at):
@@ -441,8 +436,8 @@ def _sigkill(kill, pid: int) -> bool:
 
 
 def _terminate_reclaimed_worker(
-    pid: Optional[int],
-    claim_lock: Optional[str],
+    pid: int | None,
+    claim_lock: str | None,
     *,
     signal_fn=None,
     started_at=None,
@@ -577,7 +572,7 @@ def _worker_survived_termination(termination: dict) -> bool:
 def _defer_reclaim_for_live_worker(
     conn: sqlite3.Connection,
     task_id: str,
-    claim_lock: Optional[str],
+    claim_lock: str | None,
     now: int,
     termination: dict,
     *,
@@ -611,8 +606,8 @@ def heartbeat_worker(
     conn: sqlite3.Connection,
     task_id: str,
     *,
-    note: Optional[str] = None,
-    expected_run_id: Optional[int] = None,
+    note: str | None = None,
+    expected_run_id: int | None = None,
 ) -> bool:
     """Record a ``heartbeat`` event + touch ``last_heartbeat_at``.
 
@@ -989,7 +984,7 @@ def _log_noise_prefixes() -> tuple[str, ...]:
     return ("session_id:", "Query:", t("cli.chat.initializing_agent"))
 
 
-def _worker_final_output(task_id: str, board: Optional[str] = None) -> str:
+def _worker_final_output(task_id: str, board: str | None = None) -> str:
     """Best-effort read of a dead worker's last printed text, for the board diagnostic.
 
     A ``chat -q`` worker's stdout/stderr are redirected to its per-task log
@@ -1027,7 +1022,7 @@ class _DeadWorker:
     """How ``detect_crashed_workers`` should book one dead worker."""
 
     kind: str
-    code: Optional[int]
+    code: int | None
     error_text: str
     event_kind: str
     event_payload: dict
@@ -1045,7 +1040,7 @@ class _DeadWorker:
 
 
 def _classify_dead_worker(
-    pid: int, claimer: Optional[str], *, task_id: Optional[str] = None, board: Optional[str] = None,
+    pid: int, claimer: str | None, *, task_id: str | None = None, board: str | None = None,
 ) -> _DeadWorker:
     """Map a dead worker's reaped exit status to its reclaim bookkeeping.
 
@@ -1064,10 +1059,10 @@ def _classify_dead_worker(
 
 def _classify_dead_worker_exit(
     pid: int,
-    claimer: Optional[str],
+    claimer: str | None,
     *,
-    task_id: Optional[str] = None,
-    board: Optional[str] = None,
+    task_id: str | None = None,
+    board: str | None = None,
 ) -> _DeadWorker:
     """Exit status -> reclaim bookkeeping, before the worker's own words are folded in.
 
@@ -1143,7 +1138,7 @@ class _CrashSweep:
     exited_hook_payloads: list[dict] = field(default_factory=list)
 
 
-def _reclaim_dead_workers(conn: sqlite3.Connection, board: Optional[str] = None) -> _CrashSweep:
+def _reclaim_dead_workers(conn: sqlite3.Connection, board: str | None = None) -> _CrashSweep:
     """Release every host-local ``running`` task whose worker PID is dead."""
     sweep = _CrashSweep()
     with _kb.write_txn(conn):
@@ -1293,7 +1288,7 @@ def _account_crashes(conn: sqlite3.Connection, crash_details: list) -> list[str]
     return auto_blocked
 
 
-def detect_crashed_workers(conn: sqlite3.Connection, board: Optional[str] = None) -> list[str]:
+def detect_crashed_workers(conn: sqlite3.Connection, board: str | None = None) -> list[str]:
     """Reclaim ``running`` tasks whose worker PID is no longer alive.
 
     Restores the source phase immediately (no waiting for the claim TTL), for
@@ -1352,7 +1347,7 @@ def _record_task_failure(
     force_trip: bool = False,
     release_claim: bool = False,
     end_run: bool = False,
-    event_payload_extra: Optional[dict] = None,
+    event_payload_extra: dict | None = None,
     infrastructure: bool = False,
 ) -> bool:
     """Record a non-success outcome and maybe trip the circuit breaker; every
@@ -1524,7 +1519,7 @@ def _clear_failure_counter(conn: sqlite3.Connection, task_id: str) -> None:
 
 def check_respawn_guard(
     conn: sqlite3.Connection, task_id: str, *, lane: str = "ready",
-) -> Optional[str]:
+) -> str | None:
     """Return a guard reason if ``task_id`` should NOT be re-spawned, else None.
 
     Called per ready/review row before any claim attempt. Priority order:
@@ -1648,7 +1643,7 @@ def check_respawn_guard(
     return None
 
 
-def _is_handoff_event(kind: str, payload: Optional[str]) -> bool:
+def _is_handoff_event(kind: str, payload: str | None) -> bool:
     """Only an ``assigned`` event that moves the card to a DIFFERENT profile is
     a handoff. A no-op re-assign (dev→dev via CLI/dashboard/``reassign
     --reclaim``), an unassign, or the dispatcher's own
@@ -1664,7 +1659,7 @@ def _is_handoff_event(kind: str, payload: Optional[str]) -> bool:
     return bool(to) and "from" in data and data["from"] != to
 
 
-def _profile_exists_fn() -> Optional[Callable[[str], bool]]:
+def _profile_exists_fn() -> Callable[[str], bool] | None:
     """``hermes_cli.profiles.profile_exists``, or ``None`` when it cannot be
     imported (local import avoids a cycle; callers fall back to trusting the
     assignee).
@@ -1692,7 +1687,7 @@ def _profile_exists_fn() -> Optional[Callable[[str], bool]]:
     return _gated
 
 
-def _dispatch_profile_allowlist(normalize_profile_name) -> Optional[frozenset]:
+def _dispatch_profile_allowlist(normalize_profile_name) -> frozenset | None:
     """Per-home claim allowlist ``kanban.dispatch_profiles`` (#110995).
 
     On a shared board (one ``kanban.db`` mounted across several Hermes homes),
@@ -1832,7 +1827,7 @@ def _system_memory_sample() -> dict:
         return {}
 
 
-def derive_default_max_in_progress(sample: Optional[Mapping[str, Any]] = None) -> Optional[int]:
+def derive_default_max_in_progress(sample: Mapping[str, Any] | None = None) -> int | None:
     """Memory-derived default for ``kanban.max_in_progress`` when unset:
     ``clamp(MemTotal / MEMORY_GUARD_MB_PER_WORKER, FLOOR, CEILING)``. Returns
     ``None`` (no cap) when total memory is unknown, so macOS/Windows dev
@@ -1847,7 +1842,7 @@ def derive_default_max_in_progress(sample: Optional[Mapping[str, Any]] = None) -
     return max(DERIVED_MAX_IN_PROGRESS_FLOOR, min(workers, DERIVED_MAX_IN_PROGRESS_CEILING))
 
 
-def resolve_max_in_progress(configured: Optional[int]) -> Optional[int]:
+def resolve_max_in_progress(configured: int | None) -> int | None:
     """Effective global concurrency cap: explicit config wins, else the
     memory-derived default. All config-parsing callers route through this so
     both paths agree.
@@ -1857,7 +1852,7 @@ def resolve_max_in_progress(configured: Optional[int]) -> Optional[int]:
     return derive_default_max_in_progress()
 
 
-def configured_max_in_progress() -> Optional[int]:
+def configured_max_in_progress() -> int | None:
     """Read ``kanban.max_in_progress`` from config, or None when unset/invalid.
 
     Shared so every dispatch entry point agrees on "explicitly configured": a
@@ -1894,7 +1889,7 @@ def count_running_tasks(conn: sqlite3.Connection) -> int:
         return 0
 
 
-def count_running_tasks_other_boards(board: Optional[str] = None) -> int:
+def count_running_tasks_other_boards(board: str | None = None) -> int:
     """Total ``running`` tasks across every board EXCEPT ``board``.
 
     Caps bound the HOST, but each board's tick only sees its own DB; without
@@ -1931,7 +1926,7 @@ def count_running_tasks_other_boards(board: Optional[str] = None) -> int:
     return total
 
 
-def _memory_pressure_level(sample: Optional[Mapping[str, Any]] = None) -> str:
+def _memory_pressure_level(sample: Mapping[str, Any] | None = None) -> str:
     """Classify system memory pressure: ok/elevated/critical/unknown.
 
     Reuses :func:`gateway.memory_status.classify_pressure` so "critical" matches
@@ -1954,15 +1949,15 @@ def dispatch_once(
     conn: sqlite3.Connection,
     *,
     spawn_fn=None,
-    ttl_seconds: Optional[int] = None,
+    ttl_seconds: int | None = None,
     dry_run: bool = False,
-    max_spawn: Optional[int] = None,
-    max_in_progress: Optional[int] = None,
+    max_spawn: int | None = None,
+    max_in_progress: int | None = None,
     failure_limit: int = DEFAULT_FAILURE_LIMIT,
     stale_timeout_seconds: int = 0,
-    board: Optional[str] = None,
-    default_assignee: Optional[str] = None,
-    max_in_progress_per_profile: Optional[int] = None,
+    board: str | None = None,
+    default_assignee: str | None = None,
+    max_in_progress_per_profile: int | None = None,
     reconcile_orphans: bool = True,
 ) -> DispatchResult:
     """Run one dispatcher tick under the board's single-writer lock.
@@ -2009,7 +2004,7 @@ def dispatch_once(
     return result
 
 
-def _call_spawn_fn(spawn_fn, task: Task, workspace: str, board: Optional[str]) -> Optional[int]:
+def _call_spawn_fn(spawn_fn, task: Task, workspace: str, board: str | None) -> int | None:
     """Back-compat: older spawn_fn signatures (and test stubs) accept only
     ``(task, workspace)``; pass ``board`` only when the callable supports it."""
     import inspect
@@ -2026,15 +2021,15 @@ def _dispatch_lane_task(
     conn: sqlite3.Connection,
     row: sqlite3.Row,
     assignee: str,
-    result: "DispatchResult",
+    result: DispatchResult,
     *,
     lane: str,
     dry_run: bool,
-    ttl_seconds: Optional[int],
-    board: Optional[str],
+    ttl_seconds: int | None,
+    board: str | None,
     failure_limit: int,
     spawn_fn,
-    per_profile_cap: Optional[int],
+    per_profile_cap: int | None,
     per_profile_running: dict[str, int],
 ) -> bool:
     """Guard, claim, resolve the workspace and spawn one ready/review row.
@@ -2187,7 +2182,7 @@ def _run_reclaim_phase(
     stale_timeout_seconds: int,
     failure_limit: int,
     reconcile_orphans: bool,
-    board: Optional[str] = None,
+    board: str | None = None,
 ) -> None:
     """Reclaim stale/orphaned/crashed/timed-out running tasks, then promote."""
     reap_worker_zombies()
@@ -2209,10 +2204,10 @@ def _tick_spawn_budget(
     conn: sqlite3.Connection,
     result: DispatchResult,
     *,
-    max_spawn: Optional[int],
-    max_in_progress: Optional[int],
-    board: Optional[str],
-) -> tuple[bool, Optional[int]]:
+    max_spawn: int | None,
+    max_in_progress: int | None,
+    board: str | None,
+) -> tuple[bool, int | None]:
     """``(may_spawn, spawn_budget)`` for this tick; ``budget None`` = uncapped.
 
     ``max_spawn`` is a live per-board concurrency cap (running + this tick's
@@ -2225,7 +2220,7 @@ def _tick_spawn_budget(
     # per-tick budget: "running" tasks stay running until the worker makes a terminal
     # board call (kanban_complete/kanban_block/kanban_request_review) or the TTL reclaims them.
     running_count = 0
-    spawn_budget: Optional[int] = None
+    spawn_budget: int | None = None
     if max_spawn is not None or max_in_progress is not None:
         running_count = count_running_tasks(conn)
 
@@ -2279,8 +2274,8 @@ def _any_spawnable_review(
     conn: sqlite3.Connection,
     review_rows: list[sqlite3.Row],
     *,
-    per_profile_cap: Optional[int] = None,
-    per_profile_running: Optional[dict[str, int]] = None,
+    per_profile_cap: int | None = None,
+    per_profile_running: dict[str, int] | None = None,
 ) -> bool:
     """Mirror review dispatch gates before reserving ready-lane capacity.
 
@@ -2307,7 +2302,7 @@ def _any_spawnable_review(
     return False
 
 
-def _resolve_default_assignee(default_assignee: Optional[str]) -> Optional[str]:
+def _resolve_default_assignee(default_assignee: str | None) -> str | None:
     """``kanban.default_assignee`` when it names a real profile this home may
     claim (``kanban.dispatch_profiles`` gated, same predicate as the spawn
     gate). Otherwise ``None`` so an unassigned shared-board card is never
@@ -2329,15 +2324,15 @@ def _dispatch_once_locked(
     conn: sqlite3.Connection,
     *,
     spawn_fn=None,
-    ttl_seconds: Optional[int] = None,
+    ttl_seconds: int | None = None,
     dry_run: bool = False,
-    max_spawn: Optional[int] = None,
-    max_in_progress: Optional[int] = None,
+    max_spawn: int | None = None,
+    max_in_progress: int | None = None,
     failure_limit: int = DEFAULT_FAILURE_LIMIT,
     stale_timeout_seconds: int = 0,
-    board: Optional[str] = None,
-    default_assignee: Optional[str] = None,
-    max_in_progress_per_profile: Optional[int] = None,
+    board: str | None = None,
+    default_assignee: str | None = None,
+    max_in_progress_per_profile: int | None = None,
     reconcile_orphans: bool = True,
 ) -> DispatchResult:
     """One dispatcher tick: reclaim stale/crashed running tasks, promote
@@ -2437,7 +2432,7 @@ def _positive_int(value: Any, default: int, *, minimum: int = 1) -> int:
     return parsed if parsed >= minimum else default
 
 
-def worker_log_rotation_config(kanban_cfg: Optional[dict] = None) -> tuple[int, int]:
+def worker_log_rotation_config(kanban_cfg: dict | None = None) -> tuple[int, int]:
     """Return ``(rotate_bytes, backup_count)`` for worker log rotation.
     Defaults: rotate at 2 MiB, keep one backup (``.log.1``); both overridable
     from ``config.yaml``.
@@ -2546,7 +2541,7 @@ def _path_search_names(command: str) -> list[str]:
     return [command + ext for ext in raw.split(";") if ext]
 
 
-def _safe_which_no_cwd(command: str) -> Optional[str]:
+def _safe_which_no_cwd(command: str) -> str | None:
     """Resolve a bare command from PATH without implicit current-dir search.
 
     On Windows ``shutil.which`` may search the current directory before PATH
@@ -2610,9 +2605,9 @@ def _resolve_hermes_argv() -> list[str]:
 
 
 def _worker_terminal_timeout_env(
-    max_runtime_seconds: Optional[int],
-    current_timeout: Optional[str],
-) -> Optional[str]:
+    max_runtime_seconds: int | None,
+    current_timeout: str | None,
+) -> str | None:
     """Return a worker-scoped TERMINAL_TIMEOUT override, if needed.
 
     When ``max_runtime_seconds`` exceeds the terminal tool's default timeout,
@@ -2659,10 +2654,24 @@ def _worker_profile_scope(hermes_home: str, *, bind_home: bool = True):
     env-over-``.env`` precedence (``launch_secret_scope``) so systemd / ``op run`` injection still
     resolves for a standalone dispatcher.
     """
-    from agent.secret_scope import build_profile_secret_scope, reset_secret_scope, set_secret_scope
-    from hermes_constants import get_process_hermes_home, reset_hermes_home_override, set_hermes_home_override
-    from tools.terminal_scope import install_profile_terminal_scope, reset_terminal_scope
-    from tui_gateway.launch_profile_policy import launch_secret_scope, launch_terminal_env
+    from agent.secret_scope import (
+        build_profile_secret_scope,
+        reset_secret_scope,
+        set_secret_scope,
+    )
+    from hermes_constants import (
+        get_process_hermes_home,
+        reset_hermes_home_override,
+        set_hermes_home_override,
+    )
+    from tools.terminal_scope import (
+        install_profile_terminal_scope,
+        reset_terminal_scope,
+    )
+    from tui_gateway.launch_profile_policy import (
+        launch_secret_scope,
+        launch_terminal_env,
+    )
 
     home = Path(hermes_home)
     is_launch_home = str(home.resolve()) == str(Path(get_process_hermes_home()).resolve())
@@ -2684,7 +2693,7 @@ def _worker_profile_scope(hermes_home: str, *, bind_home: bool = True):
             reset_hermes_home_override(home_token)
 
 
-def _resolve_worker_cli_toolsets(hermes_home: Optional[str]) -> Optional[list[str]]:
+def _resolve_worker_cli_toolsets(hermes_home: str | None) -> list[str] | None:
     """Return the assigned profile's effective CLI toolsets for a worker.
 
     Resolved at dispatch time and passed as an explicit ``--toolsets`` pin so
@@ -2740,7 +2749,7 @@ def _retag_legacy_worker_sessions(workspaces_root_path: str) -> None:
         _kb._log.debug("kanban worker: legacy session retag skipped (%s)", exc)
 
 
-def _worker_argv(task: Task, profile_arg: str, hermes_home: Optional[str]) -> list[str]:
+def _worker_argv(task: Task, profile_arg: str, hermes_home: str | None) -> list[str]:
     """Build the ``hermes -p <profile> --cli ... chat -q ...`` worker command."""
     cmd = [
         *_resolve_hermes_argv(),
@@ -2777,7 +2786,7 @@ def _worker_argv(task: Task, profile_arg: str, hermes_home: Optional[str]) -> li
     return cmd
 
 
-def _open_worker_log(task: Task, board: Optional[str]):
+def _open_worker_log(task: Task, board: str | None):
     """Append-mode per-task log (a re-run on unblock appends, never overwrites),
     rotated first. Anchored at the board root (not the shared kanban root) so
     `hermes kanban log` reads its own file and boards sharing task ids don't
@@ -2828,7 +2837,7 @@ def _restart_safe_worker_argv(task: Task, command: list[str]) -> list[str]:
     ).argv
 
 
-def _default_spawn(task: Task, workspace: str, *, board: Optional[str] = None) -> Optional[int]:
+def _default_spawn(task: Task, workspace: str, *, board: str | None = None) -> int | None:
     """Fire-and-forget ``hermes -p <profile> chat -q ...`` subprocess.
 
     Returns the child's PID so the dispatcher can detect crashes before the
@@ -2845,7 +2854,11 @@ def _default_spawn(task: Task, workspace: str, *, board: Optional[str] = None) -
     profile_arg = normalize_profile_name(task.assignee)
 
     from agent.secret_scope import is_multiplex_active
-    from tools.environments.local import _is_routed_home, build_subprocess_env, strip_launch_profile_env
+    from tools.environments.local import (
+        _is_routed_home,
+        build_subprocess_env,
+        strip_launch_profile_env,
+    )
 
     try:
         profile_home = resolve_profile_env(profile_arg)
@@ -2949,7 +2962,7 @@ def _default_spawn(task: Task, workspace: str, *, board: Optional[str] = None) -
     env = systemd_user_bus_env(env)
     log_f = _open_worker_log(task, board)
     try:
-        proc = subprocess.Popen(  # noqa: S603 -- argv is a fixed list built above
+        proc = subprocess.Popen(
             cmd,
             cwd=workspace if os.path.isdir(workspace) else None,
             stdin=subprocess.DEVNULL,
@@ -2979,7 +2992,7 @@ def _default_spawn(task: Task, workspace: str, *, board: Optional[str] = None) -
 def run_daemon(
     *,
     interval: float = 60.0,
-    max_spawn: Optional[int] = None,
+    max_spawn: int | None = None,
     failure_limit: int = DEFAULT_FAILURE_LIMIT,
     stop_event=None,
     on_tick=None,
@@ -3033,6 +3046,6 @@ def run_daemon(
 
 # Late-bound origin namespace (see module docstring); imported LAST so this
 # module is fully populated before ``kanban_db`` imports from it.
-from hermes_cli import kanban_db as _kb  # noqa: E402
-from hermes_cli import kanban_db_connect as _kbc  # noqa: E402
-from hermes_cli import kanban_db_workspace as _kbw  # noqa: E402
+from hermes_cli import kanban_db as _kb
+from hermes_cli import kanban_db_connect as _kbc
+from hermes_cli import kanban_db_workspace as _kbw

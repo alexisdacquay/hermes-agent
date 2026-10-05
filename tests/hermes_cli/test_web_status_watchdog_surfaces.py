@@ -5,15 +5,14 @@
 * A watchdog hard-exited the process (``degraded`` + watchdog ``exit_reason``, PID gone) -> the
   retained verdict stays ``degraded`` with its ``gateway_exit_reason`` instead of a bare ``stopped``.
 """
-from datetime import datetime, timedelta, timezone
-
-import pytest
+from datetime import UTC, datetime, timedelta
 
 import gateway.status as _gw_status
+import pytest
 
 
 def _iso_age(seconds_ago: float) -> str:
-    return (datetime.now(timezone.utc) - timedelta(seconds=seconds_ago)).isoformat()
+    return (datetime.now(UTC) - timedelta(seconds=seconds_ago)).isoformat()
 
 
 @pytest.fixture
@@ -23,7 +22,7 @@ def client(monkeypatch):
     except ImportError:
         pytest.skip("fastapi/starlette not installed")
 
-    from hermes_cli.web_server import app, _SESSION_HEADER_NAME, _SESSION_TOKEN
+    from hermes_cli.web_server import _SESSION_HEADER_NAME, _SESSION_TOKEN, app
 
     monkeypatch.setattr(_gw_status, "_pid_exists", lambda pid: False)
     monkeypatch.setattr(_gw_status, "_get_process_start_time", lambda pid: None)

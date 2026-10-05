@@ -10,8 +10,9 @@ from __future__ import annotations
 import hashlib
 import logging
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 from agent.monitoring import emitter
 from agent.monitoring.events import GatewayDiagnosticEvent, GatewayHealthEvent
@@ -24,13 +25,13 @@ logger = logging.getLogger(__name__)
 class GatewayMetric:
     name: str
     value: int | float
-    attributes: Dict[str, str]
+    attributes: dict[str, str]
 
 
 @dataclass(frozen=True, slots=True)
 class GatewayHealthSnapshot:
-    metrics: List[GatewayMetric]
-    events: List[GatewayHealthEvent | GatewayDiagnosticEvent]
+    metrics: list[GatewayMetric]
+    events: list[GatewayHealthEvent | GatewayDiagnosticEvent]
 
 
 _RUNNING_PLATFORM_STATES = {"running", "connected", "ok", "ready"}
@@ -41,7 +42,7 @@ _SUPERVISION_MODES = {"systemd", "s6", "container", "launchd", "manual", "unknow
 _SOURCE_LOGGER_RE = re.compile(r"^gateway(?:\.[A-Za-z_][A-Za-z0-9_]*)*$")
 
 
-def source_logger_for_export(name: Any) -> Optional[str]:
+def source_logger_for_export(name: Any) -> str | None:
     """Return a bounded source-controlled gateway logger name for OTLP scope."""
     value = str(name or "")
     return value if len(value) <= 128 and _SOURCE_LOGGER_RE.fullmatch(value) else None
@@ -69,7 +70,7 @@ def classify_gateway_error(raw: Any) -> str:
     return next((label for match, label in _GATEWAY_ERROR_RULES if match(s)), "unknown")
 
 
-def classify_exit_reason(raw: Any, *, state: Any, restart_requested: bool) -> Optional[str]:
+def classify_exit_reason(raw: Any, *, state: Any, restart_requested: bool) -> str | None:
     """Reduce free-form shutdown text to a bounded operational class."""
     if restart_requested:
         return "restart_requested"
@@ -92,7 +93,7 @@ def _bounded_state(raw: Any, *, allowed: set[str]) -> str:
     return state if state in allowed else "unknown"
 
 
-def _optional_state(raw: Any, *, allowed: set[str]) -> Optional[str]:
+def _optional_state(raw: Any, *, allowed: set[str]) -> str | None:
     """``_bounded_state`` that preserves "absent" (None) instead of coercing to unknown."""
     return None if raw is None else _bounded_state(raw, allowed=allowed)
 
@@ -116,11 +117,11 @@ def subsystem_for_logger(logger_name: str) -> str:
     return "platform" if logger_name.startswith("gateway.platforms") else "gateway"
 
 
-def platform_for_subsystem(subsystem: str) -> Optional[str]:
+def platform_for_subsystem(subsystem: str) -> str | None:
     return (subsystem.split(".", 1)[1] or None) if subsystem.startswith("platform.") else None
 
 
-def _coerce_pid(raw: Any) -> Optional[int]:
+def _coerce_pid(raw: Any) -> int | None:
     try:
         pid = int(raw)
     except (TypeError, ValueError):
@@ -131,7 +132,7 @@ def _coerce_pid(raw: Any) -> Optional[int]:
 def _gateway_status(name: str, fallback: Callable[[], Any], /, **kwargs: Any) -> Any:
     """Prefer ``gateway.status.<name>`` (the runtime-status contract); fall back to the local approximation."""
     try:
-        import gateway.status as status
+        from gateway import status
         return getattr(status, name)(**kwargs)
     except Exception:
         return fallback()
@@ -151,12 +152,12 @@ def _dict_or_empty(raw: Any) -> dict[str, Any]:
     return raw if isinstance(raw, dict) else {}
 
 
-def _platforms_of(runtime: Optional[dict[str, Any]]) -> dict[str, Any]:
+def _platforms_of(runtime: dict[str, Any] | None) -> dict[str, Any]:
     return _dict_or_empty((runtime or {}).get("platforms"))
 
 
 def build_gateway_health_snapshot(
-    runtime: Optional[dict[str, Any]], *, gateway_running: bool, profile: str, install_id: str, version: str,
+    runtime: dict[str, Any] | None, *, gateway_running: bool, profile: str, install_id: str, version: str,
     supervision_mode: str = "unknown",
 ) -> GatewayHealthSnapshot:
     """Convert gateway_state.json-compatible runtime state into P0 signals."""
@@ -179,7 +180,7 @@ def build_gateway_health_snapshot(
         "hermes.supervision_mode": mode if mode in _SUPERVISION_MODES else "unknown",
     }
 
-    def metric(name: str, value: int | float, **extra: str) -> GatewayMetric:
+    def metric(name: str, value: float, **extra: str) -> GatewayMetric:
         attrs = dict(base)
         for key, val in extra.items():
             if val is not None:
@@ -237,7 +238,7 @@ def _safe_version() -> str:
 
 
 def _lifecycle_events(
-    previous: Optional[dict[str, Any]], current: dict[str, Any], *, profile: str, version: str
+    previous: dict[str, Any] | None, current: dict[str, Any], *, profile: str, version: str
 ) -> list[GatewayHealthEvent | GatewayDiagnosticEvent]:
     """Gateway-level transition events: lifecycle, startup_failed diagnostic, exit."""
     old_state = _optional_state((previous or {}).get("gateway_state"), allowed=_KNOWN_GATEWAY_STATES)
@@ -267,7 +268,7 @@ def _lifecycle_events(
 
 
 def _platform_events(
-    previous: Optional[dict[str, Any]], current: dict[str, Any], *, profile: str, version: str
+    previous: dict[str, Any] | None, current: dict[str, Any], *, profile: str, version: str
 ) -> list[GatewayDiagnosticEvent]:
     """Per-platform state_change diagnostics, plus platform.fatal when the new state is fatal."""
     old_platforms = _platforms_of(previous)
@@ -290,7 +291,7 @@ def _platform_events(
     return out
 
 
-def emit_runtime_status_transition(previous: Optional[dict[str, Any]], current: dict[str, Any]) -> None:
+def emit_runtime_status_transition(previous: dict[str, Any] | None, current: dict[str, Any]) -> None:
     """Emit immediate content-free gateway events for runtime status changes.  Called by
     gateway.status.write_runtime_status after persisting; fully fail-open."""
     try:
@@ -326,6 +327,10 @@ class GatewayDiagnosticLogHandler(logging.Handler):
 
 
 __all__ = [
-    "GatewayMetric", "GatewayHealthSnapshot", "GatewayDiagnosticLogHandler",
-    "build_gateway_health_snapshot", "classify_gateway_error", "source_logger_for_export",
+    "GatewayDiagnosticLogHandler",
+    "GatewayHealthSnapshot",
+    "GatewayMetric",
+    "build_gateway_health_snapshot",
+    "classify_gateway_error",
+    "source_logger_for_export",
 ]

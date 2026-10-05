@@ -26,9 +26,9 @@ import os
 import shutil
 import struct
 import time
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, Iterator, List, Optional
 
 from hermes_cli._subprocess_compat import (
     NO_LAZY_FETCH_ENV,
@@ -102,11 +102,11 @@ class _Index:
         self._map.close()  # Windows refuses to unlink a mapped file
 
 
-def _git_env() -> Dict[str, str]:
+def _git_env() -> dict[str, str]:
     return {**noninteractive_git_env(), **NO_LAZY_FETCH_ENV}
 
 
-def _promisor_packs(pack_dir: Path) -> List[Path]:
+def _promisor_packs(pack_dir: Path) -> list[Path]:
     return [p for p in pack_dir.glob("pack-*.pack")
             if p.with_suffix(".promisor").exists() and p.with_suffix(".idx").exists()]
 
@@ -199,7 +199,7 @@ def _save_state(pack_dir: Path, state: dict) -> None:
         logger.debug("could not record pack tidy state in %s", pack_dir, exc_info=True)
 
 
-def _is_redundant(oids: Iterable[bytes], others: List[_Index], deadline: float) -> Optional[bool]:
+def _is_redundant(oids: Iterable[bytes], others: list[_Index], deadline: float) -> bool | None:
     """Whether every oid is in one of ``others``; None when the deadline passed first."""
     hit = 0
     for n, oid in enumerate(oids):
@@ -218,8 +218,8 @@ def _is_redundant(oids: Iterable[bytes], others: List[_Index], deadline: float) 
 
 def _erase_redundant_packs(pack_dir: Path, deadline: float, result: TidyResult, state: dict) -> None:
     cutoff = time.time() - _MIN_PACK_AGE_SECONDS
-    sizes: Dict[Path, int] = {}
-    candidates: List[Path] = []
+    sizes: dict[Path, int] = {}
+    candidates: list[Path] = []
     for pack in _promisor_packs(pack_dir):
         try:
             st = pack.stat()
@@ -230,7 +230,7 @@ def _erase_redundant_packs(pack_dir: Path, deadline: float, result: TidyResult, 
             candidates.append(pack)
     if not candidates:
         return
-    indexes: Dict[str, _Index] = {}
+    indexes: dict[str, _Index] = {}
     try:
         for pack in sizes:
             try:
@@ -319,7 +319,7 @@ def _merge_smallest_packs(repo_root: Path, pack_dir: Path, deadline: float, resu
             shutil.rmtree(staging, ignore_errors=True)
 
 
-def _take_lock(git_dir: Path) -> Optional[int]:
+def _take_lock(git_dir: Path) -> int | None:
     """A kernel lock on the tidy lock file, or None while another tidy holds it. The OS drops it
     when the holder exits, killed or not, so there is no stale lock to judge or take over; the file
     itself is never removed (a removed path lets a later run lock a fresh file beside a live one)."""

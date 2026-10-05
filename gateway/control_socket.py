@@ -20,8 +20,9 @@ import socket
 import sys
 import tempfile
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -58,13 +59,13 @@ def _fallback_socket_path(home: Path) -> Path:
     return next((c for c in candidates if _fits_sun_path(c)), candidates[0])
 
 
-def resolve_server_socket_path(home: Path) -> tuple[Path, Optional[Path]]:
+def resolve_server_socket_path(home: Path) -> tuple[Path, Path | None]:
     """Return ``(bind_path, pointer_file)``; pointer_file is set only for the temp-dir fallback."""
     direct = Path(home) / _SOCKET_FILENAME
     return (direct, None) if _fits_sun_path(direct) else (_fallback_socket_path(home), Path(home) / _POINTER_FILENAME)
 
 
-def resolve_client_socket_path(home: Path) -> Optional[Path]:
+def resolve_client_socket_path(home: Path) -> Path | None:
     """Where a client should connect for ``home``, or None when nothing exists."""
     direct = Path(home) / _SOCKET_FILENAME
     if direct.exists():
@@ -97,7 +98,12 @@ def _detect_supervisor() -> str:
 
 def build_identify_payload() -> dict[str, Any]:
     """Default ``identify`` answer, built from gateway.status primitives."""
-    from gateway.status import _build_pid_record, _get_code_identity_fields, _profile_label_for_home, read_runtime_status
+    from gateway.status import (
+        _build_pid_record,
+        _get_code_identity_fields,
+        _profile_label_for_home,
+        read_runtime_status,
+    )
     record = _build_pid_record()
     payload: dict[str, Any] = {
         "protocol": CONTROL_PROTOCOL_VERSION,
@@ -124,16 +130,16 @@ class GatewayControlServer:
     ``stop()`` on shutdown. All failures are non-fatal — the gateway never refuses to serve messaging
     because its control socket couldn't bind; consumers fall back to the scan layer."""
 
-    def __init__(self, home: Optional[Path] = None, *,
-                 verb_handlers: Optional[dict[str, Callable[..., dict[str, Any]]]] = None) -> None:
+    def __init__(self, home: Path | None = None, *,
+                 verb_handlers: dict[str, Callable[..., dict[str, Any]]] | None = None) -> None:
         if home is None:
             from gateway.status import _get_process_hermes_home
             home = _get_process_hermes_home()
         self._home = Path(home)
-        self._server: Optional[asyncio.AbstractServer] = None
+        self._server: asyncio.AbstractServer | None = None
         self._pipe_server: Any = None  # Windows proactor pipe server
-        self._bind_path: Optional[Path] = None
-        self._pointer_file: Optional[Path] = None
+        self._bind_path: Path | None = None
+        self._pointer_file: Path | None = None
         self._handlers: dict[str, Callable[..., dict[str, Any]]] = {
             "identify": build_identify_payload, "status": build_status_payload, **(verb_handlers or {})}
 
@@ -240,7 +246,7 @@ class GatewayControlServer:
                 None, self.handle_request_line, raw.rstrip(b"\n"))
             writer.write(response)
             await writer.drain()
-        except (asyncio.TimeoutError, ConnectionError, OSError):
+        except (TimeoutError, ConnectionError, OSError):
             pass
         except Exception:
             logger.debug("Control socket connection handler error", exc_info=True)
@@ -270,8 +276,8 @@ class _PipeControlProtocol(asyncio.Protocol):
                 self._transport.close()
 
 
-def query_gateway_control(home: Path, verb: str, *, params: Optional[dict[str, Any]] = None,
-                          timeout: float = _DEFAULT_CLIENT_TIMEOUT) -> Optional[dict[str, Any]]:
+def query_gateway_control(home: Path, verb: str, *, params: dict[str, Any] | None = None,
+                          timeout: float = _DEFAULT_CLIENT_TIMEOUT) -> dict[str, Any] | None:
     """Ask the gateway serving ``home`` a control verb; returns its ``result`` payload. Any failure (no/stale
     socket, timeout, malformed answer, ``ok: false``) returns None so callers fall back to the scan layer.
     ``params`` carries verb arguments (e.g. ``{"old": ..., "new": ...}``). Never raises."""
@@ -289,7 +295,7 @@ def query_gateway_control(home: Path, verb: str, *, params: Optional[dict[str, A
     return result if isinstance(result, dict) else None
 
 
-def _read_response_line(read: Callable[[], bytes], deadline: float) -> Optional[bytes]:
+def _read_response_line(read: Callable[[], bytes], deadline: float) -> bytes | None:
     """Read chunks until a newline, EOF, deadline, or the size cap (-> None)."""
     chunks: list[bytes] = []
     while time.monotonic() < deadline:
@@ -302,7 +308,7 @@ def _read_response_line(read: Callable[[], bytes], deadline: float) -> Optional[
     return b"".join(chunks).partition(b"\n")[0] or None
 
 
-def _query_unix_socket(home: Path, request: bytes, timeout: float) -> Optional[bytes]:
+def _query_unix_socket(home: Path, request: bytes, timeout: float) -> bytes | None:
     path = resolve_client_socket_path(home)
     if path is None:
         return None
@@ -315,7 +321,7 @@ def _query_unix_socket(home: Path, request: bytes, timeout: float) -> Optional[b
     return None
 
 
-def _query_windows_pipe(home: Path, request: bytes, timeout: float) -> Optional[bytes]:
+def _query_windows_pipe(home: Path, request: bytes, timeout: float) -> bytes | None:
     """A synchronous pipe handle has no ``settimeout``: ``handle.read`` blocks until the peer answers,
     so the ``deadline`` in ``_read_response_line`` is only checked between chunks. Run the exchange on
     an abandoned-at-deadline worker so a peer that never answers costs ``timeout``, never forever —
@@ -325,7 +331,7 @@ def _query_windows_pipe(home: Path, request: bytes, timeout: float) -> Optional[
     return None if outcome.timed_out else outcome.value
 
 
-def _windows_pipe_exchange(home: Path, request: bytes, timeout: float) -> Optional[bytes]:  # pragma: no cover - wine2e lane
+def _windows_pipe_exchange(home: Path, request: bytes, timeout: float) -> bytes | None:  # pragma: no cover - wine2e lane
     pipe_name = windows_pipe_name(home)
     deadline = time.monotonic() + timeout
     handle = None
@@ -347,12 +353,12 @@ def _windows_pipe_exchange(home: Path, request: bytes, timeout: float) -> Option
             handle.close()
 
 
-def identify_gateway(home: Path, *, timeout: float = _DEFAULT_CLIENT_TIMEOUT) -> Optional[dict[str, Any]]:
+def identify_gateway(home: Path, *, timeout: float = _DEFAULT_CLIENT_TIMEOUT) -> dict[str, Any] | None:
     """Convenience wrapper: ``identify`` the gateway serving ``home``."""
     return query_gateway_control(home, "identify", timeout=timeout)
 
 
-def pause_gateway_for_update(home: Path, *, timeout: float = _DEFAULT_CLIENT_TIMEOUT) -> Optional[dict[str, Any]]:
+def pause_gateway_for_update(home: Path, *, timeout: float = _DEFAULT_CLIENT_TIMEOUT) -> dict[str, Any] | None:
     """Ask the gateway serving ``home`` to drain and exit for an update. Returns the ACK ``{"pausing",
     "already_stopping", "pid", "drain_timeout"}`` or None when no gateway answers (old gateway without
     the verb, no/dead socket) — the caller then uses the legacy signal/tree-kill pause path.
@@ -362,7 +368,7 @@ def pause_gateway_for_update(home: Path, *, timeout: float = _DEFAULT_CLIENT_TIM
     return query_gateway_control(home, "pause-for-update", timeout=timeout)
 
 
-def rescan_gateway_profiles(home: Path, *, timeout: float = 8.0) -> Optional[dict[str, Any]]:
+def rescan_gateway_profiles(home: Path, *, timeout: float = 8.0) -> dict[str, Any] | None:
     """Ask the multiplexer serving ``home`` to reconcile ``profiles/`` now (hot-serve a created profile,
     unroute a deleted one). Returns its ``{"served_profiles", "added", "removed", ...}`` answer, or None
     when no gateway answers / the gateway predates the verb — callers then rely on the periodic rescan
@@ -370,16 +376,16 @@ def rescan_gateway_profiles(home: Path, *, timeout: float = 8.0) -> Optional[dic
     return query_gateway_control(home, "rescan-profiles", timeout=timeout)
 
 
-def request_unserve_profile(home: Path, name: str) -> Optional[dict[str, Any]]:
+def request_unserve_profile(home: Path, name: str) -> dict[str, Any] | None:
     return query_gateway_control(home, "unserve-profile", params={"name": name}, timeout=8.0)
 
 
-def request_serve_profile_hot(home: Path, name: str) -> Optional[dict[str, Any]]:
+def request_serve_profile_hot(home: Path, name: str) -> dict[str, Any] | None:
     return query_gateway_control(home, "serve-profile", params={"name": name}, timeout=8.0)
 
 
 def migrate_gateway_profile_identity(home: Path, old_name: str, new_name: str, *,
-                                     timeout: float = 8.0) -> Optional[dict[str, Any]]:
+                                     timeout: float = 8.0) -> dict[str, Any] | None:
     """Ask the multiplexer serving ``home`` to rekey a renamed profile's in-memory + on-disk routing
     from ``agent:<old>:`` to ``agent:<new>:`` now. Returns its ``{"rekeyed": N, ...}`` answer, or None
     when no gateway answers / the gateway predates the verb — the CLI's durable DB rewrite still lands,
@@ -389,7 +395,7 @@ def migrate_gateway_profile_identity(home: Path, old_name: str, new_name: str, *
 
 
 def purge_gateway_profile_identity(home: Path, name: str, *,
-                                   timeout: float = 8.0) -> Optional[dict[str, Any]]:
+                                   timeout: float = 8.0) -> dict[str, Any] | None:
     """Ask the multiplexer serving ``home`` to drop a deleted profile's routing identity now — the
     in-memory index AND the durable rows, neither of which a CLI-side delete can settle: this process
     writes its in-memory copy back, so it re-creates what the CLI removed. Returns its
@@ -398,8 +404,8 @@ def purge_gateway_profile_identity(home: Path, name: str, *,
     return query_gateway_control(home, "purge-profile-identity", params={"name": name}, timeout=timeout)
 
 
-def reload_gateway_plugins(home: Path, *, profile_home: Optional[Path] = None,
-                           timeout: float = 30.0) -> Optional[dict[str, Any]]:
+def reload_gateway_plugins(home: Path, *, profile_home: Path | None = None,
+                           timeout: float = 30.0) -> dict[str, Any] | None:
     """Ask the gateway serving ``home`` to force plugin re-discovery for ``profile_home`` (default: ``home``)
     and re-wire its live adapters' plugin handlers now (#87770). Returns ``{"reloaded", "plugins",
     "adapters_rewired", ...}`` or None when no gateway answers / it predates the verb — callers then

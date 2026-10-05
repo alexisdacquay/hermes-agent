@@ -10,14 +10,10 @@ strings (so payloads that quote the marker cannot poison the stable prefix).
 """
 
 import copy
-
-import pytest
 from unittest.mock import patch
 
-import agent.skill_bundles as skill_bundles
-import agent.skill_commands as skill_commands
-import tools.skills_tool as skills_tool
-import agent.prompt_cache_boundary as prompt_cache_boundary
+import pytest
+from agent import prompt_cache_boundary, skill_bundles, skill_commands
 from agent.prompt_cache_boundary import (
     find_stable_prefix,
     register_stable_prefix,
@@ -28,6 +24,7 @@ from agent.prompt_caching import (
     strip_anthropic_cache_control,
 )
 from agent.skill_commands import _SINGLE_SKILL_INSTRUCTION
+from tools import skills_tool
 
 MARKER = {"type": "ephemeral"}
 

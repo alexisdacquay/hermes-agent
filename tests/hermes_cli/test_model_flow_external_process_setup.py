@@ -8,7 +8,6 @@ import sys
 from unittest.mock import patch
 
 import pytest
-
 from hermes_cli import model_setup_flows as flows
 from providers import register_provider
 from providers.base import ProviderProfile

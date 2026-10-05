@@ -5,10 +5,9 @@ used to be re-derived in every button adapter and needed three separate "same fi
 sweeps. It now comes from one place; adapters only render it.
 """
 
-from typing import Any, Dict
+from typing import Any
 
 import pytest
-
 from gateway.config import Platform, PlatformConfig
 from gateway.platforms.base import BasePlatformAdapter, ExecApprovalPrompt, SendResult
 from gateway.run_turn_runner import _renders_exec_approval_buttons
@@ -27,7 +26,7 @@ class _Plain(BasePlatformAdapter):
     async def send(self, *a: Any, **k: Any) -> SendResult:
         return SendResult(success=True)
 
-    async def get_chat_info(self, chat_id: str) -> Dict[str, Any]:
+    async def get_chat_info(self, chat_id: str) -> dict[str, Any]:
         return {}
 
 

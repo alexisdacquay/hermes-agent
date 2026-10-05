@@ -8,7 +8,6 @@ import sys
 import time
 
 import pytest
-
 from gateway.restart import (
     EXTERNAL_GATEWAY_SUPERVISOR_ENV,
     GATEWAY_FATAL_CONFIG_EXIT_CODE,

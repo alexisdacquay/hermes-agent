@@ -5,7 +5,6 @@ tables did not know: ``bun -e/--eval``, and Deno's bare ``eval`` subcommand
 """
 
 import pytest
-
 from tools.approval import detect_dangerous_command
 
 

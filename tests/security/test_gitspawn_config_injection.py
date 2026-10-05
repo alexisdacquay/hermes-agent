@@ -22,7 +22,6 @@ import time
 from pathlib import Path
 
 import pytest
-
 from hermes_cli._subprocess_compat import (
     FILTER_DISCOVERY_FAILED,
     NO_DRIVER_DIFF_FLAGS,

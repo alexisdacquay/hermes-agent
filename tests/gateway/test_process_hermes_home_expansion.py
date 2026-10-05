@@ -8,7 +8,6 @@ or a fish-style ``HERMES_HOME='~/.hermes'`` lands the identity files under ``<cw
 from pathlib import Path
 
 import pytest
-
 from gateway import lifecycle_ledger, shutdown_watchdog, status
 
 

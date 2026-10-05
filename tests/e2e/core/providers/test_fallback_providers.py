@@ -23,9 +23,9 @@ import socket
 import sys
 import threading
 import time
+from collections.abc import Iterator
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Iterator
 
 import pytest
 
@@ -148,7 +148,7 @@ class _Portal5xx(BaseHTTPRequestHandler):
     def log_message(self, *_a: object) -> None:
         pass
 
-    def do_POST(self) -> None:  # noqa: N802
+    def do_POST(self) -> None:
         self.hits.append(self.path)
         body = json.dumps({"error": "server_error", "error_description": "portal overloaded"}).encode()
         self.send_response(503)

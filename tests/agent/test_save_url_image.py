@@ -19,7 +19,6 @@ import threading
 
 import pytest
 
-
 PNG_1PX = bytes.fromhex(
     "89504e470d0a1a0a0000000d49484452000000010000000108020000009077"
     "53de00000010494441547801635c0e000000feff03000006000557bfabd400"
@@ -30,7 +29,7 @@ PNG_1PX = bytes.fromhex(
 class _TinyImageHandler(http.server.BaseHTTPRequestHandler):
     """Tiny HTTP server that mimics the shapes save_url_image must handle."""
 
-    def do_GET(self):  # noqa: N802
+    def do_GET(self):
         if self.path == "/image.png":
             self.send_response(200)
             self.send_header("Content-Type", "image/png")
@@ -70,7 +69,7 @@ class _TinyImageHandler(http.server.BaseHTTPRequestHandler):
             self.send_response(404)
             self.end_headers()
 
-    def log_message(self, *args, **kw):  # noqa: D401
+    def log_message(self, *args, **kw):
         return
 
 
@@ -122,8 +121,8 @@ class TestSaveUrlImage:
     def test_404_raises(self, http_server):
         """HTTP errors must propagate — caller decides whether to fall back."""
         base, _ = http_server
-        from agent.image_gen_provider import save_url_image
         import httpx
+        from agent.image_gen_provider import save_url_image
 
         with pytest.raises(httpx.HTTPStatusError):
             save_url_image(f"{base}/404")

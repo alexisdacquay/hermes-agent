@@ -7,11 +7,11 @@ import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from gateway.config import HomeChannel, Platform
 from gateway.pairing import PairingStore
 from gateway.run import GatewayRunner
 from gateway.session import SessionSource, build_session_key
+
 from tests.gateway.restart_test_helpers import make_restart_runner, make_restart_source
 
 

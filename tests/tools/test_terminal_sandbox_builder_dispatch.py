@@ -1,7 +1,6 @@
 """Regression coverage for sandbox backend builder dispatch (#112715)."""
 
 import pytest
-
 from tools import terminal_tool_backends as backends
 
 

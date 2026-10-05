@@ -19,8 +19,7 @@ import asyncio
 import types
 
 import pytest
-
-import gateway.run as run
+from gateway import run
 
 
 class _RecordingSessionDB:

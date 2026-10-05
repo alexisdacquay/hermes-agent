@@ -4,11 +4,11 @@ Split out of ``hermes_cli/main.py``. Names that still live in main (``PROJECT_RO
 are imported lazily inside the functions that use them (avoids an import cycle).
 """
 
-import logging
-import contextlib
 import argparse
+import contextlib
 import hashlib
 import json
+import logging
 import os
 import platform
 import re
@@ -19,11 +19,12 @@ import subprocess
 import sys
 import tempfile
 import time as _time_mod
-
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, Optional
-from hermes_cli.desktop_console import desktop_console_output, desktop_launch_notice
+
 from hermes_platform.host import facts
+
+from hermes_cli.desktop_console import desktop_console_output, desktop_launch_notice
 
 # Log-record parity with the origin module.
 logger = logging.getLogger("hermes_cli.main")
@@ -36,7 +37,7 @@ def _desktop_dist_exists(desktop_dir: Path) -> bool:
     return (desktop_dir / "dist" / "index.html").exists()
 
 
-def _renderer_bundle_dir(desktop_dir: Path, *, source_mode: bool) -> Optional[Path]:
+def _renderer_bundle_dir(desktop_dir: Path, *, source_mode: bool) -> Path | None:
     """The renderer ``dist`` a launch loads: ``apps/desktop/dist`` in source mode, else the
     ``app.asar.unpacked/dist`` copy (the only real directory, and the one an interrupted replace tears)."""
     if source_mode:
@@ -46,7 +47,7 @@ def _renderer_bundle_dir(desktop_dir: Path, *, source_mode: bool) -> Optional[Pa
     return None if resources is None else resources / "app.asar.unpacked" / "dist"
 
 
-def _packaged_resources_dir(desktop_dir: Path) -> Optional[Path]:
+def _packaged_resources_dir(desktop_dir: Path) -> Path | None:
     """The packaged app's ``resources`` dir (renderer bundle, baked ``install-stamp.json``)."""
     executable = _desktop_packaged_executable(desktop_dir)
     if executable is None:
@@ -148,12 +149,12 @@ def _packaged_desktop_current_for_head(desktop_dir: Path, project_root: Path) ->
     return not _desktop_build_needed(desktop_dir, project_root, source_mode=False)
 
 
-def _desktop_packaged_executable(desktop_dir: Path) -> Optional[Path]:
+def _desktop_packaged_executable(desktop_dir: Path) -> Path | None:
     """Return the current platform's unpacked Electron app executable."""
     return _desktop_packaged_executable_in(desktop_dir / "release")
 
 
-def _desktop_packaged_executable_in(release_dir: Path) -> Optional[Path]:
+def _desktop_packaged_executable_in(release_dir: Path) -> Path | None:
     """The unpacked Electron app executable under *release_dir* (live ``release`` or a staging dir).
 
     *release_dir* is electron-builder's ``directories.output`` — the live ``apps/desktop/release`` or a
@@ -239,7 +240,7 @@ def _desktop_unpacked_root(exe: Path, release_dir: Path) -> Path:
     return unpacked
 
 
-def _swap_staged_desktop_app(desktop_dir: Path, staging_dir: Path) -> Optional[Path]:
+def _swap_staged_desktop_app(desktop_dir: Path, staging_dir: Path) -> Path | None:
     """Promote a VERIFIED staged pack over ``release/`` by two renames (live → ``.previous``, staged →
     live); a failure between them rolls back. Returns the live exe or None (live app kept). Never raises."""
     staged_exe = _desktop_packaged_executable_in(staging_dir)
@@ -313,7 +314,7 @@ def _kernel32():
     return ctypes.WinDLL("kernel32", use_last_error=True)
 
 
-def _windows_user_runnable_pe_machines() -> Optional[set]:
+def _windows_user_runnable_pe_machines() -> set | None:
     """PE machines this host runs in user mode via GetMachineTypeAttributes (the only API reporting
     AMD64-on-ARM64 emulation); None when unavailable (pre-Win11 22000) so callers fall back."""
     import ctypes
@@ -402,14 +403,14 @@ def _parse_pe_machine(path: Path) -> int:
     return machine
 
 
-def _pe_machine_or_none(path: Path) -> Optional[int]:
+def _pe_machine_or_none(path: Path) -> int | None:
     try:
         return _parse_pe_machine(path)
     except ValueError:
         return None
 
 
-def _desktop_exe_integrity_error(path: Path) -> Optional[str]:
+def _desktop_exe_integrity_error(path: Path) -> str | None:
     """Why ``path`` cannot run on this Windows host, or None when it parses as a loadable PE."""
     try:
         machine = _parse_pe_machine(path)
@@ -441,7 +442,7 @@ def _runs_from(proc, release_dir: Path) -> bool:
         return False
 
 
-def _desktop_ancestor_in(desktop_dir: Path) -> Optional[int]:
+def _desktop_ancestor_in(desktop_dir: Path) -> int | None:
     """PID of a Desktop from this build's ``release`` tree that is one of OUR ancestors, else None.
 
     That Desktop is running this process (its backend's launch-time update tail, or a
@@ -550,7 +551,7 @@ def _stop_desktop_processes_locking_build(desktop_dir: Path, *, also_posix: bool
     return stopped
 
 
-def _desktop_macos_bundle_id(bundle: Path) -> Optional[str]:
+def _desktop_macos_bundle_id(bundle: Path) -> str | None:
     """Return a bundle/framework CFBundleIdentifier for local macOS signing."""
     import plistlib
     info = bundle / "Contents" / "Info.plist"
@@ -569,7 +570,7 @@ def _desktop_macos_bundle_id(bundle: Path) -> Optional[str]:
     return str(ident) if ident else None
 
 
-def _desktop_macos_local_signing_identity() -> Optional[str]:
+def _desktop_macos_local_signing_identity() -> str | None:
     """``desktop.macos_signing_identity`` — a persistent (even self-signed) code-signing cert anchors
     the Designated Requirement and keeps TCC grants stable across rebuilds. Unset → ad-hoc."""
     if sys.platform != "darwin":
@@ -596,7 +597,7 @@ def _codesign_verify(codesign: str, app: Path, **kwargs) -> subprocess.Completed
         [codesign, "--verify", "--deep", "--strict", str(app)], capture_output=True, **kwargs)
 
 
-def _macos_signature_summary(codesign: str, app: Path) -> Optional[dict]:
+def _macos_signature_summary(codesign: str, app: Path) -> dict | None:
     """Best-effort signing identity of a ``.app`` bundle: ``{team, identifier, verified}``.
 
     ``None`` when the bundle has no readable signature (``codesign -dv`` fails — e.g. an
@@ -614,7 +615,7 @@ def _macos_signature_summary(codesign: str, app: Path) -> Optional[dict]:
     if info.returncode != 0:
         return None
 
-    def field(key: str) -> Optional[str]:
+    def field(key: str) -> str | None:
         for line in output.splitlines():
             if line.startswith(f"{key}="):
                 return line[len(key) + 1:].strip() or None
@@ -628,7 +629,7 @@ def _macos_signature_summary(codesign: str, app: Path) -> Optional[dict]:
     }
 
 
-def _macos_signing_downgrade_error(installed: dict, rebuilt: Optional[dict]) -> Optional[str]:
+def _macos_signing_downgrade_error(installed: dict, rebuilt: dict | None) -> str | None:
     """Reason to refuse swapping a publisher-signed installed app for ``rebuilt``, or None.
 
     #123748: replacing a Developer ID (Team ID) installation with a locally signed or
@@ -695,7 +696,7 @@ def _desktop_macos_local_codesign(app: Path, *, desktop_dir: Path, identity: str
         raise FileNotFoundError(f"desktop entitlement plists missing under {desktop_dir / 'electron'}")
 
     def sign_path(
-        path: Path, *, entitlements: Optional[Path] = None, identifier: Optional[str] = None,
+        path: Path, *, entitlements: Path | None = None, identifier: str | None = None,
         runtime: bool = True) -> None:
         args = [codesign, "--force", "--sign", identity, "--timestamp=none"]
         if runtime:
@@ -773,8 +774,8 @@ def _macos_legacy_adhoc_resign(codesign: str, app: Path) -> bool:
 
 
 def _desktop_macos_relaunchable_fixup(
-    desktop_dir: Path, *, publisher_signing_configured: Optional[bool] = None,
-    release_dir: Optional[Path] = None) -> bool:
+    desktop_dir: Path, *, publisher_signing_configured: bool | None = None,
+    release_dir: Path | None = None) -> bool:
     """Re-sign a locally-built macOS app so in-place self-update doesn't reset TCC grants.
 
     A rebuilt ad-hoc bundle (new cdhash, no stable Designated Requirement) reports
@@ -1037,7 +1038,7 @@ def _app_asar_hash(app_path: Path) -> str | None:
             for chunk in iter(lambda: f.read(65536), b""):
                 h.update(chunk)
         return h.hexdigest()
-    except (OSError, IOError):
+    except OSError:
         return None
 
 
@@ -1076,7 +1077,7 @@ def _running_macos_app_bundles() -> set[Path]:
     """``.app`` bundles of every live Hermes Desktop process. A running bundle is never swapped
     under: Electron loads ``app.asar`` chunks and helper apps lazily, so renaming its bundle away
     and deleting the old tree crashes the live app (the detached updater waits for it to exit)."""
-    import psutil  # noqa: PLC0415
+    import psutil
     bundles: set[Path] = set()
     for proc in psutil.process_iter(["exe"]):
         exe = proc.info.get("exe") or ""
@@ -1132,8 +1133,9 @@ def _refresh_installed_desktop_apps(desktop_dir: Path) -> None:
             print(f"  ✓ Installed the rebuilt Desktop app at {app}")
     for problem in problems:
         print(f"  ⚠ {problem}")
-    from hermes_cli.gui_uninstall import desktop_install_record  # noqa: PLC0415
-    from utils import atomic_json_write, read_json_or_empty  # noqa: PLC0415
+    from utils import atomic_json_write, read_json_or_empty
+
+    from hermes_cli.gui_uninstall import desktop_install_record
     # A copy that failed to reinstall stays recorded, so the next update retries it. Every
     # `hermes desktop` launch lands here: write only when the set changed.
     apps = [str(app) for app in owned]
@@ -1170,8 +1172,9 @@ def _owns_installed_desktop_apps() -> bool:
     backend."""
     if sys.platform != "darwin":
         return False
-    from hermes_cli.main import PROJECT_ROOT  # noqa: PLC0415
-    from hermes_constants import get_default_hermes_root  # noqa: PLC0415
+    from hermes_constants import get_default_hermes_root
+
+    from hermes_cli.main import PROJECT_ROOT
     return Path(PROJECT_ROOT).resolve() == (get_default_hermes_root() / "hermes-agent").resolve()
 
 
@@ -1185,8 +1188,12 @@ def _installed_desktop_apps() -> list[Path]:
     """
     if not _owns_installed_desktop_apps():
         return []
-    from hermes_cli.gui_uninstall import desktop_install_record, packaged_gui_app_paths  # noqa: PLC0415
-    from utils import read_json_or_empty  # noqa: PLC0415
+    from utils import read_json_or_empty
+
+    from hermes_cli.gui_uninstall import (
+        desktop_install_record,
+        packaged_gui_app_paths,
+    )
     candidates = packaged_gui_app_paths()
     if owned := _update_owned_macos_bundles(candidates):
         return owned
@@ -1310,7 +1317,7 @@ def _desktop_linux_userns_sandbox_available() -> bool:
         return False
 
 
-def _sandbox_helper_lstat(packaged_executable: Path) -> tuple[Path, Optional[os.stat_result]]:
+def _sandbox_helper_lstat(packaged_executable: Path) -> tuple[Path, os.stat_result | None]:
     """``(chrome-sandbox path, lstat or None)`` — lstat so a symlink is inspected, not followed."""
     sandbox = packaged_executable.parent / "chrome-sandbox"
     try:
@@ -1490,7 +1497,11 @@ def _register_linux_desktop_entry(defer: bool = False):
     """
     from hermes_cli.main import PROJECT_ROOT
     try:
-        from hermes_cli.linux_desktop_entry import DeferredDesktopEntryInstall, install_desktop_entry, is_supported
+        from hermes_cli.linux_desktop_entry import (
+            DeferredDesktopEntryInstall,
+            install_desktop_entry,
+            is_supported,
+        )
         if not is_supported():
             return None
         if defer:
@@ -1507,7 +1518,7 @@ def _register_linux_desktop_entry(defer: bool = False):
 
 def _promote_staged_desktop_app(
     desktop_dir: Path, staging_dir: Path, *,
-    integrity_check: Optional[Callable[[Path], Optional[str]]] = None,
+    integrity_check: Callable[[Path], str | None] | None = None,
 ) -> Path:
     """Sign and verify before swapping; the default integrity check is Windows PE validation."""
     staged_executable = _desktop_packaged_executable_in(staging_dir)
@@ -1547,7 +1558,7 @@ def _promote_staged_desktop_app(
     return packaged_executable
 
 
-def _diagnose_esbuild_ignore_scripts(output: Optional[str]) -> None:
+def _diagnose_esbuild_ignore_scripts(output: str | None) -> None:
     """Print an actionable hint when a desktop build failed because esbuild's platform
     binary was never staged (`ignore-scripts=true` skips esbuild's postinstall, so the
     ``@esbuild/<platform>`` optional dependency is absent) — #53082. Best-effort: only
@@ -1564,7 +1575,7 @@ def _diagnose_esbuild_ignore_scripts(output: Optional[str]) -> None:
 
 
 def build_prepared_desktop(desktop_dir: Path, *, source_mode: bool, npm: str, env: dict,
-                           icons: Path | None = None) -> Optional[Path]:
+                           icons: Path | None = None) -> Path | None:
     """Build prepared desktop sources, then publish the verified staged app."""
     from pm.progress import run_contained
 
@@ -1692,7 +1703,7 @@ def _desktop_launch_env(args: argparse.Namespace) -> tuple[dict, list[str]]:
 
 
 def _check_desktop_skip_build(
-    desktop_dir: Path, project_root: Path, *, source_mode: bool, packaged_executable: Optional[Path]
+    desktop_dir: Path, project_root: Path, *, source_mode: bool, packaged_executable: Path | None
 ) -> None:
     """Validate the pre-built artifact ``--skip-build`` promised; exit with a hint when it's missing."""
     if source_mode:
@@ -1730,7 +1741,7 @@ def _packaged_desktop_launch_command(packaged_executable: Path) -> list[str]:
     return launch_command
 
 
-def _site_packages_install_kind(project_root: Path) -> Optional[str]:
+def _site_packages_install_kind(project_root: Path) -> str | None:
     """The package manager owning a non-editable install at *project_root*, or None.
 
     A package-manager install (Homebrew, pip, distro packaging) places this
@@ -2020,7 +2031,11 @@ def _launch_bundled_desktop(
 
     Never returns.
     """
-    from hermes_cli.bundled_app import NotBundledApp, launch_detached, resolve_bundle_layout
+    from hermes_cli.bundled_app import (
+        NotBundledApp,
+        launch_detached,
+        resolve_bundle_layout,
+    )
     from hermes_cli.main import PROJECT_ROOT
 
     refused = [

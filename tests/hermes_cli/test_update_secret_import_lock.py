@@ -15,9 +15,7 @@ import sys
 from pathlib import Path
 
 import pytest
-
 from hermes_cli import env_loader
-
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 

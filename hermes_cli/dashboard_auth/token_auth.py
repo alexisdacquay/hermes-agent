@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import Awaitable, Callable, Optional, Tuple
+from collections.abc import Awaitable, Callable
 
 from fastapi import Request
 from fastapi.responses import JSONResponse, Response
@@ -19,8 +19,11 @@ from fastapi.responses import JSONResponse, Response
 from hermes_cli.dashboard_auth import list_token_providers
 from hermes_cli.dashboard_auth.audit import AuditEvent, audit_log
 from hermes_cli.dashboard_auth.base import ProviderError, TokenPrincipal
+from hermes_cli.dashboard_auth.request_utils import client_ip as _client_ip
 from hermes_cli.dashboard_auth.request_utils import (
-    client_ip as _client_ip, extract_bearer as extract_bearer_token, unreachable_response)
+    extract_bearer as extract_bearer_token,
+)
+from hermes_cli.dashboard_auth.request_utils import unreachable_response
 
 _log = logging.getLogger(__name__)
 
@@ -46,14 +49,14 @@ def clear_token_routes() -> None:
         _token_routes.clear()
 
 
-def authenticate_token(request: Request) -> Tuple[Optional[TokenPrincipal], Optional[str]]:
+def authenticate_token(request: Request) -> tuple[TokenPrincipal | None, str | None]:
     """Try every token provider against the request's bearer token. Returns ``(principal, None)``
     on success; ``(None, None)`` for no token or no recogniser (401); ``(None, name)`` when no
     provider accepted it AND at least one was unreachable (caller surfaces 503). Never raises."""
     token = extract_bearer_token(request)
     if not token:
         return None, None
-    unreachable: Optional[str] = None
+    unreachable: str | None = None
     for provider in list_token_providers():
         try:
             principal = provider.verify_token(token=token)

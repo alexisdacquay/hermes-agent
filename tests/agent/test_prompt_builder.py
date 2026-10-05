@@ -8,20 +8,19 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-
 from agent.prompt_builder import (
-    _scan_context_content,
-    _truncate_content,
-    _parse_skill_file,
-    _skill_should_show,
-    _find_hermes_md,
-    _find_git_root,
-    _cursorrules_candidates,
-    _strip_yaml_frontmatter,
-    build_skills_system_prompt,
-    build_context_files_prompt,
     CONTEXT_FILE_MAX_CHARS,
+    _cursorrules_candidates,
+    _find_git_root,
+    _find_hermes_md,
     _get_context_file_max_chars,
+    _parse_skill_file,
+    _scan_context_content,
+    _skill_should_show,
+    _strip_yaml_frontmatter,
+    _truncate_content,
+    build_context_files_prompt,
+    build_skills_system_prompt,
     drain_truncation_warnings,
 )
 
@@ -169,8 +168,8 @@ class TestDynamicContextFileCap:
     @pytest.fixture(autouse=True)
     def _no_explicit_config(self, monkeypatch):
         # No explicit context_file_max_chars → dynamic path is eligible.
-        monkeypatch.setattr("hermes_cli.config.load_config", lambda: {})
-        monkeypatch.setattr("hermes_cli.config.load_config_readonly", lambda: {})
+        monkeypatch.setattr("hermes_cli.config.load_config", dict)
+        monkeypatch.setattr("hermes_cli.config.load_config_readonly", dict)
 
 
 
@@ -727,7 +726,7 @@ class TestEnvironmentHints:
         import agent.prompt_builder as _pb
         monkeypatch.setattr(_pb, "is_wsl", lambda: False)
         monkeypatch.delenv("TERMINAL_ENV", raising=False)
-        monkeypatch.setattr("tools.bot_desktop.runtime.published_env", lambda: {})
+        monkeypatch.setattr("tools.bot_desktop.runtime.published_env", dict)
         _pb._BACKEND_PROBE_CACHE.clear()
         assert "Bot Screen" not in _pb.build_environment_hints()
 

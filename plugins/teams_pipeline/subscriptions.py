@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from os import getenv
 from typing import Any
+
+from tools.microsoft_graph_auth import MicrosoftGraphTokenProvider
+from tools.microsoft_graph_client import MicrosoftGraphClient
 
 from plugins.teams_pipeline.models import GraphSubscription, _parse_datetime
 from plugins.teams_pipeline.models import _serialize_datetime as _iso_z
 from plugins.teams_pipeline.store import TeamsPipelineStore
-from tools.microsoft_graph_auth import MicrosoftGraphTokenProvider
-from tools.microsoft_graph_client import MicrosoftGraphClient
 
 
 def build_graph_client() -> MicrosoftGraphClient:
@@ -18,7 +19,7 @@ def build_graph_client() -> MicrosoftGraphClient:
 
 
 def _utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def utc_timestamp(hours_from_now: int = 0, *, base: datetime | None = None) -> str:

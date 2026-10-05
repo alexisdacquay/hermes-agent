@@ -8,7 +8,6 @@ import os
 import threading
 import time
 from contextlib import suppress
-from typing import Optional
 
 from agent.session_activity import ActivityProvenance
 
@@ -16,7 +15,7 @@ from agent.session_activity import ActivityProvenance
 logger = logging.getLogger("run_agent")
 
 
-def _activity_lock(obj) -> "threading.Lock":
+def _activity_lock(obj) -> threading.Lock:
     """Lazy per-instance ``_turn_liveness_activity_lock`` (so ``__new__``/SimpleNamespace doubles work)."""
     _lock = getattr(obj, "_turn_liveness_activity_lock", None)
     if _lock is None:
@@ -28,7 +27,7 @@ def _activity_lock(obj) -> "threading.Lock":
 class ActivityTrackingMixin:
     """Liveness timestamps/labels and rate-limited session activity persistence."""
 
-    def _liveness_activity_lock(self) -> "threading.Lock":
+    def _liveness_activity_lock(self) -> threading.Lock:
         """Shared lock for the activity clock and its generation counter.
 
         ``_touch_activity`` stamps under it and the liveness watchdog samples/commits under it, so a stall
@@ -39,7 +38,7 @@ class ActivityTrackingMixin:
         return _activity_lock(self)
 
     def _touch_activity(
-        self, desc: str, *, provenance: Optional[ActivityProvenance] = None,
+        self, desc: str, *, provenance: ActivityProvenance | None = None,
         force_persist: bool = False,
     ) -> None:
         """Update the last-activity timestamp and description (thread-safe).
@@ -56,8 +55,10 @@ class ActivityTrackingMixin:
         See #72016, #72039.
         """
         from agent.session_activity import (
-            bound_activity_description, is_terminal_compression_provenance,
-            normalize_activity_provenance, reset_session_activity_persist_window,
+            bound_activity_description,
+            is_terminal_compression_provenance,
+            normalize_activity_provenance,
+            reset_session_activity_persist_window,
         )
 
         resolved_provenance = normalize_activity_provenance(provenance)
@@ -75,7 +76,8 @@ class ActivityTrackingMixin:
             # Never let the bridge break the loop; this guard covers import-time failures.
             with suppress(Exception):
                 from tools.kanban_tools import (
-                    heartbeat_current_worker_from_env, inject_new_comments_from_env
+                    heartbeat_current_worker_from_env,
+                    inject_new_comments_from_env,
                 )
                 heartbeat_current_worker_from_env()
                 # Fold new operator notes into the running turn (OUT-OF-BAND steer).
@@ -102,7 +104,8 @@ class ActivityTrackingMixin:
         if not callable(touch):
             return
         from agent.session_activity import (
-            SESSION_ACTIVITY_HEARTBEAT_MIN_INTERVAL_SECONDS, normalize_activity_provenance
+            SESSION_ACTIVITY_HEARTBEAT_MIN_INTERVAL_SECONDS,
+            normalize_activity_provenance,
         )
 
         now_mono = time.monotonic()

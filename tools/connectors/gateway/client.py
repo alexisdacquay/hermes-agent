@@ -8,7 +8,8 @@ from __future__ import annotations
 import logging
 import os
 import uuid
-from typing import Any, Callable, Optional, Protocol, Sequence
+from collections.abc import Callable, Sequence
+from typing import Any, Protocol
 
 import requests
 from pydantic import ValidationError
@@ -21,7 +22,6 @@ from tools.connectors.gateway.errors import (
     ToolGatewayError,
     parse_gateway_error,
 )
-
 from tools.connectors.gateway.merge import PlannedCall
 
 logger = logging.getLogger(__name__)
@@ -44,9 +44,9 @@ class Transport(Protocol):
         method: str,
         url: str,
         *,
-        headers: Optional[dict] = None,
-        json: Optional[dict] = None,
-        timeout: Optional[float] = None,
+        headers: dict | None = None,
+        json: dict | None = None,
+        timeout: float | None = None,
     ) -> Any: ...
 
 
@@ -54,7 +54,7 @@ def _default_transport() -> Transport:
     return requests
 
 
-def _default_endpoint_resolver() -> Optional[str]:
+def _default_endpoint_resolver() -> str | None:
     """Resolve the connector deployment origin directly, not as a vendor passthrough."""
     from tools.managed_gateway_auth import connector_gateway_origin
 
@@ -74,9 +74,9 @@ class ConnectorClient:
     def __init__(
         self,
         *,
-        transport: Optional[Transport] = None,
-        endpoint_resolver: Optional[Callable[[], Optional[str]]] = None,
-        header_provider: Optional[Callable[[str], dict]] = None,
+        transport: Transport | None = None,
+        endpoint_resolver: Callable[[], str | None] | None = None,
+        header_provider: Callable[[str], dict] | None = None,
     ) -> None:
         self._transport = transport or _default_transport()
         self._endpoint_resolver = endpoint_resolver or _default_endpoint_resolver
@@ -104,7 +104,7 @@ class ConnectorClient:
 
     def connections(
         self, connectors: Sequence[str], *, reinitiate: bool = False,
-        return_to: Optional[str] = None, op: Optional[str] = None,
+        return_to: str | None = None, op: str | None = None,
     ) -> dict[str, Any]:
         """Never retry: the gateway cannot deduplicate authorization starts."""
         body = wire.ConnectorConnectionsRequest(
@@ -118,7 +118,7 @@ class ConnectorClient:
         watcher bounds it by the operation's remaining deadline so a stalled page cannot hold the
         operation open."""
         items: list[dict[str, Any]] = []
-        cursor: Optional[str] = None
+        cursor: str | None = None
         for _ in range(20):
             path = f"{wire.CONNECTORS_PATH}?limit=50"
             if cursor:
@@ -133,7 +133,7 @@ class ConnectorClient:
 
     def account_status(
         self, connection_id: str, *, timeout: float = DEFAULT_TIMEOUT_SECONDS
-    ) -> Optional[dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """One account's row; ``None`` when the gateway no longer knows it. A 429 raises ``RateLimited``.
         ``timeout`` is the watcher's remaining deadline, so a stalled read cannot outlive its operation."""
         try:
@@ -156,7 +156,7 @@ class ConnectorClient:
                                    code="INVALID_RESPONSE") from exc
 
     def execute(
-        self, planned: Sequence[PlannedCall], *, return_to: Optional[str] = None, op: Optional[str] = None,
+        self, planned: Sequence[PlannedCall], *, return_to: str | None = None, op: str | None = None,
     ) -> list[dict[str, Any]]:
         """Return gateway results in request order; merge owns length mismatches."""
         body = wire.ConnectorExecuteRequest(
@@ -185,7 +185,7 @@ class ConnectorClient:
         body: dict[str, Any],
         *,
         timeout: float = DEFAULT_TIMEOUT_SECONDS,
-        idempotency_key: Optional[str] = None,
+        idempotency_key: str | None = None,
         retries: int = _MAX_RETRIES,
     ) -> Any:
         return self._request(
@@ -197,10 +197,10 @@ class ConnectorClient:
         self,
         method: str,
         path: str,
-        body: Optional[dict[str, Any]],
+        body: dict[str, Any] | None,
         *,
         timeout: float = DEFAULT_TIMEOUT_SECONDS,
-        idempotency_key: Optional[str] = None,
+        idempotency_key: str | None = None,
         retries: int = _MAX_RETRIES,
     ) -> Any:
         origin = self._endpoint_resolver()
@@ -210,7 +210,7 @@ class ConnectorClient:
             )
         url = f"{origin.rstrip('/')}/{path}"
 
-        last_error: Optional[ToolGatewayError] = None
+        last_error: ToolGatewayError | None = None
         for attempt in range(1 + retries):
             headers = dict(self._header_provider(url))
             if not headers:
@@ -254,7 +254,7 @@ class ConnectorClient:
         raise last_error
 
 
-def return_to_args(*, op: Optional[str] = None) -> dict[str, Any]:
+def return_to_args(*, op: str | None = None) -> dict[str, Any]:
     """The ``returnTo`` / ``op`` arguments a connect or execute call carries so the vendor's done page
     can send the browser back to the app that asked for the connection.
 

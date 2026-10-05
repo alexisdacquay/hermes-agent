@@ -4,27 +4,27 @@ Cluster: every consumer of ``Retry-After`` / free-text reset grammars goes throu
 so an HTTP-date header or a "resets in 2 hours 5 minutes" body yields the same wait everywhere.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from email.utils import format_datetime
 from types import SimpleNamespace
 
 import pytest
-
 from agent.retry_utils import parse_retry_after_seconds, reset_delay_from_message
 
 
 def _http_date(seconds_ahead: int) -> str:
-    return format_datetime(datetime.now(timezone.utc) + timedelta(seconds=seconds_ahead), usegmt=True)
+    return format_datetime(datetime.now(UTC) + timedelta(seconds=seconds_ahead), usegmt=True)
 
 
 class TestRetryAfterHeaderOneParser:
     def test_http_date_header_parsed_identically_at_formerly_divergent_sites(self):
         """anon_auth, the error-context extractor and nous_rate_guard used to float() the header
         and silently drop the RFC 7231 date form; all three must now agree with the canonical."""
+        import time
+
         from agent.agent_runtime_helpers import extract_api_error_context
         from agent.nous_rate_guard import _parse_reset_seconds
         from hermes_cli.anon_auth import _retry_after_seconds as anon_retry_after
-        import time
 
         header = _http_date(90)
         canonical = parse_retry_after_seconds(header)
@@ -65,6 +65,7 @@ class TestResetDelayOneTable:
         """The pooled-credential cooldown and the UI's error context read the same table, so the
         long-form "hours/minutes" grammar (which the pool used to miss) resolves at both sites."""
         import time
+
         from agent.credential_pool import _normalize_error_context
 
         assert reset_delay_from_message(message) == pytest.approx(seconds)

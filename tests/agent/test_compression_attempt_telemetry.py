@@ -3,8 +3,8 @@ import logging
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from agent.conversation_compression import compress_context
 from agent.context_compressor import ContextCompressor
+from agent.conversation_compression import compress_context
 
 
 class _TodoStore:

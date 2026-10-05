@@ -16,9 +16,8 @@ from __future__ import annotations
 import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
-
 import hermes_constants
+import pytest
 from gateway import delivery_ledger as dl
 from gateway.config import Platform, PlatformConfig
 from gateway.platforms.base import BasePlatformAdapter, SendResult

@@ -1,10 +1,8 @@
 """Regression coverage for Telegram final delivery after streamed edit failure."""
 
-from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from gateway.config import PlatformConfig
 from gateway.platforms.base import SendResult
 from gateway.stream_consumer import GatewayStreamConsumer, StreamConsumerConfig

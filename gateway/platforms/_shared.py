@@ -10,7 +10,8 @@ import contextlib
 import json
 import logging
 import os
-from typing import Any, Callable, Iterable, Optional
+from collections.abc import Callable, Iterable
+from typing import Any
 
 # Profile-scoped secret reader for multiplexing support (PR #50094)
 from agent.secret_scope import UnscopedSecretError as _UnscopedSecretError
@@ -47,7 +48,7 @@ def _current_scope():
     return current_secret_scope()
 
 
-_UNSCOPED_PROFILE_SECRETS: Optional[dict] = None
+_UNSCOPED_PROFILE_SECRETS: dict | None = None
 
 
 def _unscoped_profile_secrets() -> dict:
@@ -103,7 +104,7 @@ def decode_json_list_literal(raw):
     return raw
 
 
-def extra_or_secret(extra: Optional[dict], key: str, env: str, default: Any = "",
+def extra_or_secret(extra: dict | None, key: str, env: str, default: Any = "",
                     *, blank_is_unset: bool = True) -> Any:
     """The ONE per-profile setting reader: explicit env ``env`` → the profile's YAML
     ``config.extra[key]`` → ``default``.

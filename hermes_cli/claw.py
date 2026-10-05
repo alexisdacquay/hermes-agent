@@ -6,15 +6,24 @@ import itertools
 import logging
 import subprocess
 import sys
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Callable, Optional
 
-from hermes_cli.config import get_hermes_home, get_config_path, load_config, save_config
 from hermes_constants import get_optional_skills_dir
-from hermes_cli.setup import (Colors, color, print_header, print_info, print_success, print_error,
-                              print_warning, prompt_yes_no)
+
+from hermes_cli.config import get_config_path, get_hermes_home, load_config, save_config
+from hermes_cli.setup import (
+    Colors,
+    color,
+    print_error,
+    print_header,
+    print_info,
+    print_success,
+    print_warning,
+    prompt_yes_no,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +76,7 @@ def _info(*lines: str) -> None:
         print_info(line) if line else print()
 
 
-def _error_block(headline: str, *lines: str, debug: Optional[str] = None) -> None:
+def _error_block(headline: str, *lines: str, debug: str | None = None) -> None:
     """Print a blank line, an error headline, then info lines; ``debug`` logs the traceback."""
     print()
     print_error(headline)
@@ -77,7 +86,7 @@ def _error_block(headline: str, *lines: str, debug: Optional[str] = None) -> Non
 
 
 def _confirm(auto_yes: bool, question: str, *, default: bool, declined: str,
-             non_tty: Optional[tuple[str, ...]] = None) -> Optional[bool]:
+             non_tty: tuple[str, ...] | None = None) -> bool | None:
     """Ask to proceed unless --yes; print ``declined`` and return False on an explicit no. With
     ``non_tty`` set, a non-interactive stdin prints those lines and returns None (not a refusal)."""
     if auto_yes:
@@ -92,7 +101,7 @@ def _confirm(auto_yes: bool, question: str, *, default: bool, declined: str,
 
 
 def _warn_running(auto_yes: bool, headline: str, running: list[str], lines: tuple[str, ...],
-                  question: str, declined: str, non_tty: Optional[tuple[str, ...]] = None):
+                  question: str, declined: str, non_tty: tuple[str, ...] | None = None):
     """Print the 'still running' block (headline, `* detail` per process, advice) then _confirm."""
     _error_block(headline, *(f"  * {detail}" for detail in running), *lines)
     print()
@@ -175,7 +184,10 @@ def _warn_if_gateway_running(auto_yes: bool) -> None:
     those profiles — the liveness ladder answers for the served case too.
     """
     from gateway.status import (
-        profile_platforms_from_multiplexer, read_runtime_status, resolve_gateway_liveness)
+        profile_platforms_from_multiplexer,
+        read_runtime_status,
+        resolve_gateway_liveness,
+    )
     liveness = resolve_gateway_liveness(use_cache=False)
     platforms: dict = {}
     if liveness.running:
@@ -310,7 +322,7 @@ def _cmd_migrate(args):
     # Source directory is left untouched — archiving is `hermes claw cleanup`'s job.
 
 
-def _load_migrator(script_path: Path, opts: SimpleNamespace) -> Optional[Callable[[bool], dict]]:
+def _load_migrator(script_path: Path, opts: SimpleNamespace) -> Callable[[bool], dict] | None:
     """Load the migration script; return ``run(execute) -> report`` or None (error printed)."""
     try:
         mod = _load_migration_module(script_path)
@@ -368,7 +380,7 @@ def _apply_migration(run_migrator: Callable[[bool], dict], opts: SimpleNamespace
     """Take a pre-migration backup (unless --no-backup), execute, and print the report. The backup
     shares the pre-update backup's implementation (exclusions, SQLite safe-copy, zip) so it is
     restorable with `hermes import`: one restore point before any mutation, pruned to the last 5."""
-    backup_archive: Optional[Path] = None
+    backup_archive: Path | None = None
     if not opts.no_backup:
         try:
             from hermes_cli.backup import create_pre_migration_backup

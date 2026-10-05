@@ -3,21 +3,31 @@
 import json
 import os
 import time
-from typing import List, Optional
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import httpx
 import pytest
-
 from tools.skills_hub import HubLockFile, TapsManager, append_audit_log
 from tools.skills_hub_github import GitHubAuth, GitHubSource
 from tools.skills_hub_install import (
-    bundle_content_hash, check_for_skill_updates, install_from_quarantine, quarantine_bundle,
+    bundle_content_hash,
+    check_for_skill_updates,
+    install_from_quarantine,
+    quarantine_bundle,
 )
-from tools.skills_hub_models import SkillBundle, SkillMeta, SkillSource, _referenced_support_paths
+from tools.skills_hub_models import (
+    SkillBundle,
+    SkillMeta,
+    SkillSource,
+    _referenced_support_paths,
+)
 from tools.skills_hub_official import OptionalSkillSource
 from tools.skills_hub_search import (
-    HERMES_INDEX_TTL, _load_hermes_index, create_source_router, parallel_search_sources, unified_search,
+    HERMES_INDEX_TTL,
+    _load_hermes_index,
+    create_source_router,
+    parallel_search_sources,
+    unified_search,
 )
 from tools.skills_hub_skillssh import SkillsShSource
 from tools.skills_hub_sources import LobeHubSource, UrlSource, WellKnownSkillSource
@@ -234,7 +244,7 @@ class TestSkillsShSource:
         index = ("<sitemapindex><sitemap><loc>https://www.skills.sh/sitemap-skills-0.xml</loc></sitemap>"
                  "<sitemap><loc>https://www.skills.sh/sitemap-skills-1.xml</loc></sitemap></sitemapindex>")
         shard0 = "<urlset><url><loc>https://www.skills.sh/o/r/skill-a</loc></url></urlset>"
-        calls: List[str] = []
+        calls: list[str] = []
 
         def fake_get(url, *, timeout, headers=None):
             calls.append(url)
@@ -274,7 +284,7 @@ class TestSkillsShSource:
             if url.endswith("/contents/"):
                 # Root listing for shallow scan — return empty so it falls through
                 resp.status_code = 200
-                resp.json = lambda: []
+                resp.json = list
                 return resp
             if "/contents/" in url:
                 # All contents API calls fail (candidate paths miss)
@@ -1409,7 +1419,7 @@ class TestInstallPathSafety:
         # process then sees this test's tmp dir as the skills root. Set the
         # override attribute directly and delete it on teardown so the
         # module returns to dynamic resolution.
-        setattr(hub, "SKILLS_DIR", skills_dir)
+        hub.SKILLS_DIR = skills_dir
         try:
             yield skills_dir
         finally:
@@ -1924,16 +1934,16 @@ class _FakeSource(SkillSource):
     def source_id(self) -> str:
         return self._sid
 
-    def search(self, query: str, limit: int = 10) -> List[SkillMeta]:
+    def search(self, query: str, limit: int = 10) -> list[SkillMeta]:
         self.calls += 1
         if self._sleep:
             time.sleep(self._sleep)
         return list(self._results)
 
-    def fetch(self, identifier: str) -> Optional[SkillBundle]:
+    def fetch(self, identifier: str) -> SkillBundle | None:
         return None
 
-    def inspect(self, identifier: str) -> Optional[SkillMeta]:
+    def inspect(self, identifier: str) -> SkillMeta | None:
         return None
 
 class TestParallelSearchSourcesTimeout:

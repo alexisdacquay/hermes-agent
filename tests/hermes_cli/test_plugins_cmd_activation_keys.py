@@ -8,7 +8,6 @@ the command just wrote.
 from __future__ import annotations
 
 import pytest
-
 from hermes_cli import plugins_cmd
 from hermes_cli.config import load_config, save_config
 from hermes_cli.plugins_discovery import collect_directory_manifests, gate_manifest

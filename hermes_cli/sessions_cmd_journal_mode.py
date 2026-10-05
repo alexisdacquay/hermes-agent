@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
-from typing import Optional
 
 # SQLite file header: bytes 18 (write version) / 19 (read version) are 1 for rollback-journal, 2 for WAL.
 _HEADER_VERSION_BYTES = {"delete": (1, 1), "wal": (2, 2)}
@@ -27,7 +26,7 @@ def _header_mode(db_path: Path) -> str:
     return _MODE_BY_HEADER_VERSION.get((head[18], head[19]), f"unknown({head[18]}/{head[19]})")
 
 
-def _refusal(target: str, current: str, *, on_cross_vm_fs: bool) -> Optional[str]:
+def _refusal(target: str, current: str, *, on_cross_vm_fs: bool) -> str | None:
     """Admission checks independent of holder discovery, which is enforced for every platform."""
     if current == "not-a-database" or current.startswith("unknown("):
         return (f"its file header reads {current}, so it is not a Hermes SQLite store this command can convert "
@@ -42,8 +41,12 @@ def _refusal(target: str, current: str, *, on_cross_vm_fs: bool) -> Optional[str
 def cmd_set_journal_mode(args) -> int:
     from hermes_state import _default_db_path
     from hermes_state_holders import describe_holder_pid, foreign_state_db_holders
-    from hermes_state_wal import (_path_on_cross_vm_fs, _set_journal_mode_no_wait, is_sqlite_wal_reset_vulnerable,
-                                  resolve_journal_mode)
+    from hermes_state_wal import (
+        _path_on_cross_vm_fs,
+        _set_journal_mode_no_wait,
+        is_sqlite_wal_reset_vulnerable,
+        resolve_journal_mode,
+    )
 
     target = args.mode
     db_path = Path(getattr(args, "db", None) or _default_db_path())

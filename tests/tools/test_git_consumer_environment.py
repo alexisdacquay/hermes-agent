@@ -3,9 +3,8 @@ import importlib
 import shutil
 import subprocess
 
-import pytest
-
 import pm
+import pytest
 from tools import checkpoint_manager, working_diff
 
 

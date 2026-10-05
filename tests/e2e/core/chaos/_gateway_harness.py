@@ -10,18 +10,23 @@ condition-variable poll against a deadline.
 from __future__ import annotations
 
 import json
-import os
 import signal
 import socket
 import subprocess
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any
 
 from tests.e2e.core.chaos import _gateway_fake_platform as fake_platform
-from tests.e2e.core.chaos._helpers import hermetic_env, kill_tagged, python_exe, write_chaos_home
+from tests.e2e.core.chaos._helpers import (
+    hermetic_env,
+    kill_tagged,
+    python_exe,
+    write_chaos_home,
+)
 
 BOOT_DEADLINE_S = 180.0
 SHUTDOWN_DEADLINE_S = 60.0
@@ -82,11 +87,11 @@ class GatewayProc:
         self.log_path = self.root / "gateway.log"
         self.events: list[Event] = []
         self._cond = threading.Condition()
-        self._conn: Optional[socket.socket] = None
-        self._listener: Optional[socket.socket] = None
-        self.proc: Optional[subprocess.Popen] = None
-        self.exit_code: Optional[int] = None
-        self.shutdown_s: Optional[float] = None
+        self._conn: socket.socket | None = None
+        self._listener: socket.socket | None = None
+        self.proc: subprocess.Popen | None = None
+        self.exit_code: int | None = None
+        self.shutdown_s: float | None = None
         self._msg_seq = 0
 
     # -- lifecycle -------------------------------------------------------------
@@ -123,7 +128,7 @@ class GatewayProc:
             try:
                 conn, _ = listener.accept()
                 break
-            except socket.timeout:
+            except TimeoutError:
                 if self.proc.poll() is not None:
                     raise AssertionError(f"gateway exited during boot rc={self.proc.returncode}\n{self.log_tail()}")
                 if time.monotonic() >= deadline:
@@ -195,7 +200,7 @@ class GatewayProc:
             return len(self.events)
 
     def wait_for(self, pred: Callable[[Event], bool], timeout: float, what: str,
-                 since: int = 0) -> Optional[Event]:
+                 since: int = 0) -> Event | None:
         """First event at index >= ``since`` matching ``pred``; None at the deadline."""
         deadline = time.monotonic() + timeout
         with self._cond:

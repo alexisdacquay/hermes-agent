@@ -21,7 +21,6 @@ infinite stale-retry class.
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from run_agent import AIAgent
 
 

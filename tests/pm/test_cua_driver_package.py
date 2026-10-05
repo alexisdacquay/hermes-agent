@@ -4,7 +4,6 @@ import tarfile
 import zipfile
 
 import pytest
-
 from pm import Lockfile, Store, get_package, paths
 
 

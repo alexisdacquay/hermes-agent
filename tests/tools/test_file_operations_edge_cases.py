@@ -7,13 +7,11 @@ Covers:
 
 import os
 import sys
-
-import pytest
 from unittest.mock import MagicMock, patch
 
+import pytest
 from tools.file_operations import ShellFileOperations
 from tools.file_operations_search import _parse_search_context_line
-
 
 # =========================================================================
 # _is_likely_binary edge cases

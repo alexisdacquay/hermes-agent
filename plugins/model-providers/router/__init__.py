@@ -29,7 +29,7 @@ ROUTER_DEFAULT_BASE_URL = "https://api.router.com/v1"
 
 #: model id -> accepted effort levels. ``[]`` = model accepts NO reasoning
 #: fields; absent = unknown (callers keep their defaults).
-_efforts_cache: Optional[dict[str, list[str]]] = None
+_efforts_cache: dict[str, list[str]] | None = None
 _efforts_lock = threading.Lock()
 _warm_started = False
 _disk_checked = False
@@ -38,10 +38,10 @@ _disk_checked = False
 class _CacheState:
     """Efforts cache + once-only flags for one Hermes home (same names as the module slots)."""
 
-    __slots__ = ("_efforts_cache", "_warm_started", "_disk_checked")
+    __slots__ = ("_disk_checked", "_efforts_cache", "_warm_started")
 
     def __init__(self) -> None:
-        self._efforts_cache: Optional[dict[str, list[str]]] = None
+        self._efforts_cache: dict[str, list[str]] | None = None
         self._warm_started = False
         self._disk_checked = False
 
@@ -104,7 +104,7 @@ def _dig(obj: Any, *keys: str) -> Any:
     return obj
 
 
-def _parse_efforts(items: Any) -> Optional[dict[str, list[str]]]:
+def _parse_efforts(items: Any) -> dict[str, list[str]] | None:
     """Parse a ``/v1/models`` ``data`` array into the efforts map (None if unusable).
 
     Ladder-unknown levels are dropped: clamp_effort ignores them, so an all-unknown
@@ -136,7 +136,7 @@ def _parse_efforts(items: Any) -> Optional[dict[str, list[str]]]:
     return efforts_by_id or None
 
 
-def _disk_path() -> Optional[Path]:
+def _disk_path() -> Path | None:
     try:
         from hermes_constants import get_hermes_home
         return get_hermes_home() / "cache" / "router_catalog.json"
@@ -157,7 +157,7 @@ def _save_disk(efforts_by_id: dict[str, list[str]]) -> None:
         logger.debug("router: caps disk mirror write failed: %s", exc)
 
 
-def _load_disk() -> tuple[Optional[dict[str, list[str]]], float]:
+def _load_disk() -> tuple[dict[str, list[str]] | None, float]:
     """Disk mirror -> (efforts map or None, age in seconds; TTL when ``ts`` is unparseable)."""
     path = _disk_path()
     if path is None:
@@ -177,7 +177,7 @@ def _load_disk() -> tuple[Optional[dict[str, list[str]]], float]:
         return None, 0.0
 
 
-def _seed_efforts(items: Any) -> Optional[dict[str, list[str]]]:
+def _seed_efforts(items: Any) -> dict[str, list[str]] | None:
     """Seed memory + disk caches from a ``/v1/models`` payload."""
     parsed = _parse_efforts(items)
     if parsed is not None:
@@ -188,7 +188,7 @@ def _seed_efforts(items: Any) -> Optional[dict[str, list[str]]]:
     return parsed
 
 
-def _fetch_catalog_items(*, api_key: str = "", base_url: str = "", timeout: float = 8.0) -> Optional[list]:
+def _fetch_catalog_items(*, api_key: str = "", base_url: str = "", timeout: float = 8.0) -> list | None:
     """Fetch the raw ``/v1/models`` ``data`` array. None on any failure."""
     import urllib.request
 
@@ -210,7 +210,7 @@ def _fetch_catalog_items(*, api_key: str = "", base_url: str = "", timeout: floa
     return items if isinstance(items, list) else None
 
 
-def _efforts_cache_only() -> Optional[dict[str, list[str]]]:
+def _efforts_cache_only() -> dict[str, list[str]] | None:
     """Memory, else the disk mirror (checked once per home). Never HTTP (hot-path safe)."""
     state = _state()
     with _efforts_lock:
@@ -264,8 +264,8 @@ class RouterProfile(ProviderProfile):
     """Ramp Router — Responses-only gateway with catalog-declared efforts."""
 
     def fetch_models(
-        self, *, api_key: Optional[str] = None, base_url: Optional[str] = None, timeout: float = 8.0
-    ) -> Optional[list[str]]:
+        self, *, api_key: str | None = None, base_url: str | None = None, timeout: float = 8.0
+    ) -> list[str] | None:
         """Live, key-scoped catalog; the same payload seeds the caps cache.
         Deduped but not sorted: Router's listing order is deliberate presentation."""
         items = _fetch_catalog_items(api_key=api_key or "", base_url=base_url or "", timeout=timeout)
@@ -274,7 +274,7 @@ class RouterProfile(ProviderProfile):
         _seed_efforts(items)
         return list(dict.fromkeys(str(i["id"]) for i in items if isinstance(i, dict) and i.get("id"))) or None
 
-    def supported_reasoning_efforts(self, model: Optional[str]) -> Optional[tuple[str, ...]]:
+    def supported_reasoning_efforts(self, model: str | None) -> tuple[str, ...] | None:
         """Catalog-declared effort vocabulary (cache-only; cold cache -> None + warm)."""
         mid = str(model or "").strip()
         if not mid:

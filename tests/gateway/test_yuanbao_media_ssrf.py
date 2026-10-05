@@ -7,7 +7,6 @@ the gateway fetch cloud-metadata endpoints. These tests pin the guard.
 """
 
 import pytest
-
 from gateway.platforms.yuanbao_media import download_url
 
 

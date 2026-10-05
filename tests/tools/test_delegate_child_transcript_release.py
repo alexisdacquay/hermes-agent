@@ -102,8 +102,9 @@ def test_run_single_child_result_json_unchanged_by_transcript_release():
     """Pin: the parent-visible result entry is byte-identical whether or not
     the child released its transcript at close() (the entry never carried
     ``messages``; only summary/tool_trace/tokens/cost derive from them)."""
-    from tests.tools.test_delegate import _make_mock_parent
     from tools.delegate_tool import _run_single_child
+
+    from tests.tools.test_delegate import _make_mock_parent
 
     messages = [
         {"role": "user", "content": "goal"},

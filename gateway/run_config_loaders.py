@@ -11,24 +11,30 @@ import json
 import logging
 import os
 import time
-from contextlib import suppress
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
+
+from hermes_cli.config import cfg_get, resolve_ephemeral_system_prompt_from_config
+from hermes_cli.fallback_config import get_fallback_chain
+from utils import is_truthy_value
 
 from gateway.config import Platform
 from gateway.restart import (
-    DEFAULT_GATEWAY_CRON_DRAIN_TIMEOUT, DEFAULT_GATEWAY_POST_INTERRUPT_GRACE_TIMEOUT,
-    DEFAULT_GATEWAY_RESTART_AFTER_TURN_TIMEOUT, DEFAULT_GATEWAY_RESTART_DRAIN_TIMEOUT,
-    DEFAULT_GATEWAY_SIGNAL_INTERRUPT_GRACE_TIMEOUT, parse_cron_drain_timeout,
-    parse_restart_after_turn_timeout, parse_restart_drain_timeout,
-    launchd_service_label, parse_signal_interrupt_grace_timeout, read_launchd_exit_timeout_s,
+    DEFAULT_GATEWAY_CRON_DRAIN_TIMEOUT,
+    DEFAULT_GATEWAY_POST_INTERRUPT_GRACE_TIMEOUT,
+    DEFAULT_GATEWAY_RESTART_AFTER_TURN_TIMEOUT,
+    DEFAULT_GATEWAY_RESTART_DRAIN_TIMEOUT,
+    DEFAULT_GATEWAY_SIGNAL_INTERRUPT_GRACE_TIMEOUT,
+    launchd_service_label,
+    parse_cron_drain_timeout,
+    parse_restart_after_turn_timeout,
+    parse_restart_drain_timeout,
+    parse_signal_interrupt_grace_timeout,
+    read_launchd_exit_timeout_s,
     resolve_launchd_capped_drain,
 )
 from gateway.session import SessionSource
 from gateway.session_state import SERVICE_TIER_UNSET as _SERVICE_TIER_UNSET
-from hermes_cli.config import cfg_get, resolve_ephemeral_system_prompt_from_config
-from hermes_cli.fallback_config import get_fallback_chain
-from utils import is_truthy_value
 
 if TYPE_CHECKING:  # string annotations only; never imported at runtime (cycle)
     from gateway.run import GatewayRunner  # noqa: F401
@@ -57,7 +63,7 @@ class GatewayConfigLoadersMixin:
         return os.getenv(env_var, "").strip() or cls._cfg_str(section, key)
 
     @staticmethod
-    def _load_prefill_messages() -> List[Dict[str, Any]]:
+    def _load_prefill_messages() -> list[dict[str, Any]]:
         """Load ephemeral prefill messages from config or env var.
 
         HERMES_PREFILL_MESSAGES_FILE env wins, then top-level prefill_messages_file in config.yaml,
@@ -107,8 +113,8 @@ class GatewayConfigLoadersMixin:
         return _get_channel_override(config, platform, chat_id, thread_id=thread_id, parent_id=parent_id)
 
     def _resolve_model_for_channel(
-        self, platform: Platform, chat_id: str, *, user_config: Optional[dict] = None,
-        thread_id: Optional[str] = None, parent_id: Optional[str] = None,
+        self, platform: Platform, chat_id: str, *, user_config: dict | None = None,
+        thread_id: str | None = None, parent_id: str | None = None,
     ) -> str:
         """Resolve model for this channel: channel_overrides else global default.
 
@@ -116,8 +122,9 @@ class GatewayConfigLoadersMixin:
         API server so the surfaces cannot diverge). No session tier here: session /model overrides
         are applied later by ``_apply_session_model_override``.
         """
-        from gateway.run import _resolve_gateway_model
         from hermes_cli.model_switch import resolve_effective_model
+
+        from gateway.run import _resolve_gateway_model
         return resolve_effective_model(
             None,  # session tier applied downstream (_apply_session_model_override)
             self._channel_override(platform, chat_id, thread_id, parent_id),
@@ -125,8 +132,8 @@ class GatewayConfigLoadersMixin:
         )
 
     def _get_system_prompt_for_channel(
-        self, platform: Platform, chat_id: str, *, thread_id: Optional[str] = None,
-        parent_id: Optional[str] = None,
+        self, platform: Platform, chat_id: str, *, thread_id: str | None = None,
+        parent_id: str | None = None,
     ) -> str:
         """Ephemeral system prompt for this channel/thread.
 
@@ -154,8 +161,9 @@ class GatewayConfigLoadersMixin:
 
         Closes #21256.
         """
-        from gateway.run import _load_gateway_config
         from hermes_constants import resolve_reasoning_config
+
+        from gateway.run import _load_gateway_config
         return resolve_reasoning_config(_load_gateway_config(), model)
 
     @staticmethod
@@ -173,7 +181,7 @@ class GatewayConfigLoadersMixin:
         return value.strip().lower(), "--global" in tokens
 
     def _resolve_session_reasoning_config(
-        self, *, source: Optional[SessionSource] = None, session_key: Optional[str] = None,
+        self, *, source: SessionSource | None = None, session_key: str | None = None,
         model: str = "",
     ) -> dict | None:
         """Session ``/reasoning --session`` > per-model ``agent.reasoning_overrides`` > global.
@@ -188,7 +196,7 @@ class GatewayConfigLoadersMixin:
                 return _r_state.conversation.reasoning_override
         return self._load_reasoning_config(model)
 
-    def _set_session_reasoning_override(self, session_key: str, reasoning_config: Optional[dict]) -> None:
+    def _set_session_reasoning_override(self, session_key: str, reasoning_config: dict | None) -> None:
         """Set or clear the session-scoped reasoning override."""
         if not session_key:
             return
@@ -198,7 +206,7 @@ class GatewayConfigLoadersMixin:
             None if reasoning_config is None else dict(reasoning_config)
         )
 
-    def _resolve_session_service_tier(self, source=None, session_key: Optional[str] = None) -> Optional[str]:
+    def _resolve_session_service_tier(self, source=None, session_key: str | None = None) -> str | None:
         """Effective service tier: a session-scoped /fast override beats the config default.
 
         The override stores "priority" or None (explicit normal), so presence — not truthiness — decides.
@@ -271,7 +279,10 @@ class GatewayConfigLoadersMixin:
         """``display.busy_text_debounce_seconds`` / ``display.busy_text_hard_cap_seconds`` for one
         profile, without consulting process env (#116893). A non-numeric or negative value is
         rejected with a warning naming the key, never silently coerced."""
-        from gateway.platforms.base import DEFAULT_BUSY_TEXT_DEBOUNCE_SECONDS, DEFAULT_BUSY_TEXT_HARD_CAP_SECONDS
+        from gateway.platforms.base import (
+            DEFAULT_BUSY_TEXT_DEBOUNCE_SECONDS,
+            DEFAULT_BUSY_TEXT_HARD_CAP_SECONDS,
+        )
         out = []
         for key, default in (("busy_text_debounce_seconds", DEFAULT_BUSY_TEXT_DEBOUNCE_SECONDS),
                              ("busy_text_hard_cap_seconds", DEFAULT_BUSY_TEXT_HARD_CAP_SECONDS)):
@@ -290,7 +301,7 @@ class GatewayConfigLoadersMixin:
         return out[0], out[1]
 
     @staticmethod
-    def _human_delay_from_config(config: dict) -> Optional[tuple[int, int]]:
+    def _human_delay_from_config(config: dict) -> tuple[int, int] | None:
         """``human_delay.{mode,min_ms,max_ms}`` for one profile as a ``(lo_ms, hi_ms)`` range, or
         ``None`` when off (#116895). ``natural`` is the fixed 800-2500 range; ``custom`` reads the
         bounds and rejects non-integer, negative or inverted values with a warning naming the key,
@@ -333,7 +344,7 @@ class GatewayConfigLoadersMixin:
         self.__dict__.setdefault("_human_delay_by_profile", {})[profile_name] = (
             self._human_delay_from_config(config))
 
-    def _busy_profile_name_for_source(self, source: SessionSource) -> Optional[str]:
+    def _busy_profile_name_for_source(self, source: SessionSource) -> str | None:
         """Return the routed profile whose busy policy applies, if any."""
         if not getattr(getattr(self, "config", None), "multiplex_profiles", False):
             return None
@@ -380,7 +391,7 @@ class GatewayConfigLoadersMixin:
         return value
 
     @staticmethod
-    def _load_launchd_exit_timeout(drain_timeout: float) -> Optional[float]:
+    def _load_launchd_exit_timeout(drain_timeout: float) -> float | None:
         """Read the live launchd ``ExitTimeOut`` this job runs under, if any.
 
         launchd is the one supervisor the gateway cannot size from config: the per-user (gui)
@@ -472,8 +483,8 @@ class GatewayConfigLoadersMixin:
         the AMBIENT profile — callers deciding for another profile's event enter its scope first
         (``_completion_event_scope``). The env override reads through the secret scope so a served
         secondary sees its own ``.env`` value, not the launch profile's ``os.environ``."""
-        from gateway.run import _load_gateway_config
         from gateway.platforms._shared import platform_gate_env as _platform_gate_env
+        from gateway.run import _load_gateway_config
         mode = _platform_gate_env("HERMES_BACKGROUND_NOTIFICATIONS")
         if not mode:
             raw = cfg_get(_load_gateway_config(), "display", "background_process_notifications")
@@ -522,8 +533,9 @@ class GatewayConfigLoadersMixin:
         and keeps one last-known-good chain per home: a single runner-wide slot filled from the launch
         home handed every secondary profile the default profile's fallback chain.
         """
-        from gateway.run import _gateway_config_home
         from hermes_constants import hermes_home_key
+
+        from gateway.run import _gateway_config_home
         home = _gateway_config_home()
         by_home = getattr(self, "_fallback_model_by_home", None)
         if by_home is None:

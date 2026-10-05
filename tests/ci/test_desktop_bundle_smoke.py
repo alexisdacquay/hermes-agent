@@ -9,10 +9,21 @@ from pathlib import Path
 
 import hermes_yaml
 import pytest
-
 from tests.ci.desktop_release_roles import (
-    CANARY_TAG as TAG, NATIVE_TARGETS, SHA, native_builds, needs_of, phase_result, selection_gates,
-    smoke_callers, stage_step, termux_builder, universal_assembler, updater_publishers,
+    CANARY_TAG as TAG,
+)
+from tests.ci.desktop_release_roles import (
+    NATIVE_TARGETS,
+    SHA,
+    native_builds,
+    needs_of,
+    phase_result,
+    selection_gates,
+    smoke_callers,
+    stage_step,
+    termux_builder,
+    universal_assembler,
+    updater_publishers,
 )
 from tests.ci.test_commit_build_staging import ROOT, shell_step
 from tests.ci.test_desktop_release_tag_admission import _child_env, _workflow

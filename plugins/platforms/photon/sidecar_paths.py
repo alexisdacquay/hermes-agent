@@ -15,7 +15,6 @@ import logging
 import os
 import shutil
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -24,10 +23,10 @@ SOURCE_SIDECAR_DIR = Path(__file__).parent / "sidecar"
 # images or installed by npm in the mirror).
 _MIRROR_FILES = ("index.mjs", "package.json", "package-lock.json", "patch-spectrum-mixed-attachments.mjs")
 # Tests monkeypatch these module globals directly; the accessors honor a non-None value.
-_SIDECAR_DIR: Optional[Path] = None
+_SIDECAR_DIR: Path | None = None
 # Written by `hermes photon install-sidecar` on npm failure so check_requirements() can
 # surface the root cause later; cleared on success.
-_NPM_ERROR_LOG: Optional[Path] = None
+_NPM_ERROR_LOG: Path | None = None
 _NPM_ERROR_LOG_MAX_CHARS = 300
 
 
@@ -58,7 +57,7 @@ def _lock_newer_than_install(sidecar_dir: Path) -> bool:
         return False
 
 
-def resolve_sidecar_dir(source_dir: Optional[Path] = None) -> Path:
+def resolve_sidecar_dir(source_dir: Path | None = None) -> Path:
     """Return the directory the sidecar should run from (see module doc)."""
     source = Path(source_dir) if source_dir is not None else SOURCE_SIDECAR_DIR
     override = os.getenv("PHOTON_SIDECAR_DIR")

@@ -12,11 +12,11 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Optional
 
 from hermes_constants import get_hermes_home
-from hermes_cli.debug_redaction import redact_debug_support_text
 from utils import atomic_json_write
+
+from hermes_cli.debug_redaction import redact_debug_support_text
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +56,7 @@ def _save_pending(entries: list[dict]) -> None:
         pass  # non-fatal — worst case the user runs ``hermes debug delete`` manually
 
 
-def _sweep_expired_pastes(now: Optional[float] = None) -> tuple[int, int]:
+def _sweep_expired_pastes(now: float | None = None) -> tuple[int, int]:
     """Synchronously DELETE pending pastes whose ``expire_at`` has passed → (deleted, remaining).
 
     Best-effort and silent: failed deletes stay pending for the next sweep, up to 24h past
@@ -124,7 +124,7 @@ _GATEWAY_PRIVACY_NOTICE = (
     "1 day, cannot be deleted).")
 
 
-def _extract_paste_id(url: str) -> Optional[str]:
+def _extract_paste_id(url: str) -> str | None:
     """Paste ID from a paste.rs URL (dpaste.com pastes have no deletable ID)."""
     url = url.strip().rstrip("/")
     for prefix in ("https://paste.rs/", "http://paste.rs/"):
@@ -212,12 +212,12 @@ def upload_to_pastebin(content: str, expiry_days: int = 1) -> str:
 @dataclass
 class LogSnapshot:
     """Single-read snapshot of a log file used by debug-share."""
-    path: Optional[Path]
+    path: Path | None
     tail_text: str
-    full_text: Optional[str]
+    full_text: str | None
 
 
-def _primary_log_path(log_name: str) -> Optional[Path]:
+def _primary_log_path(log_name: str) -> Path | None:
     """Where *log_name* would live if present. Doesn't check existence."""
     from hermes_cli.logs import LOG_FILES
     filename = LOG_FILES.get(log_name)
@@ -242,7 +242,7 @@ def _missing_log_note(log_name: str) -> str:
     return f"(not on this host: {reason}{f' — expected at {primary}' if primary else ''})"
 
 
-def _resolve_log_path(log_name: str) -> Optional[Path]:
+def _resolve_log_path(log_name: str) -> Path | None:
     """First non-empty candidate for *log_name* (primary, then the .1 rotation), or None."""
     primary = _primary_log_path(log_name)
     if primary is None:
@@ -363,7 +363,7 @@ def _capture_dump(redact: bool = True) -> str:
 
 def collect_debug_report(
     *, log_lines: int = 200, dump_text: str = "",
-    log_snapshots: Optional[dict[str, LogSnapshot]] = None) -> str:
+    log_snapshots: dict[str, LogSnapshot] | None = None) -> str:
     """Build the summary debug report (system dump + log tails) as upload-ready text.
 
     ``dump_text`` is pre-captured dump output; when empty, ``hermes dump`` is run internally.
@@ -423,7 +423,7 @@ def build_nous_bundle(bundle: dict[str, str], redact: bool = True) -> bytes:
     """Gzip a :func:`collect_share_bundle` mapping into the Nous envelope (shape parsed by the
     discord-support viewer — keep it stable)."""
     envelope = {"format": _NOUS_BUNDLE_FORMAT, "redacted": bool(redact),
-                "created": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                "created": datetime.datetime.now(datetime.UTC).isoformat(),
                 "files": bundle}
     return gzip.compress(json.dumps(envelope).encode("utf-8"))
 

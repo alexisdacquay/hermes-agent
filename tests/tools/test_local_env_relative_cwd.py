@@ -1,9 +1,8 @@
 """Regression tests for local terminal initial cwd normalization."""
 
-from pathlib import Path
 
-from tools.environments.local import LocalEnvironment, _resolve_local_initial_cwd
 import pytest
+from tools.environments.local import LocalEnvironment, _resolve_local_initial_cwd
 
 
 def test_relative_initial_cwd_resolves_from_parent(tmp_path, monkeypatch):

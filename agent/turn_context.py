@@ -13,24 +13,29 @@ import sys
 import threading
 import time
 import uuid
+from collections.abc import Mapping
 from contextlib import suppress
 from dataclasses import dataclass
-from typing import Any, Dict, List, Mapping, Optional, Tuple
+from typing import Any
 
 from agent.conversation_compression import recover_rotated_compression_session
+from agent.image_token_cost import bind_image_token_cost
 from agent.iteration_budget import IterationBudget
 from agent.memory_manager import build_memory_context_block
 from agent.memory_provider import is_trivial_prompt
 from agent.message_content import flatten_message_text
-from agent.message_metadata import PERSISTENCE_ONLY_MESSAGE_FIELDS, append_message, stamp_message_timestamp
+from agent.message_metadata import (
+    PERSISTENCE_ONLY_MESSAGE_FIELDS,
+    append_message,
+    stamp_message_timestamp,
+)
 from agent.model_metadata import (
     estimate_messages_tokens_rough,
     estimate_native_anthropic_request_tokens_rough,
     estimate_request_tokens_rough,
 )
-from agent.image_token_cost import bind_image_token_cost
-from agent.usage_anchor import anchored_context_tokens, restore_usage_anchor
 from agent.turn_author import parse_turn_author
+from agent.usage_anchor import anchored_context_tokens, restore_usage_anchor
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +46,7 @@ def _str_attr(agent: Any, name: str) -> str:
 
 
 def _preflight_request_tokens(
-    agent: Any, messages: List[Dict[str, Any]], system_prompt: str
+    agent: Any, messages: list[dict[str, Any]], system_prompt: str
 ) -> int:
     """Token estimate for automatic preflight compression: a valid provider usage anchor,
     else the checkpoint-pruned native wire payload, else the generic estimator."""
@@ -51,7 +56,9 @@ def _preflight_request_tokens(
         return anchored
     tools = getattr(agent, "tools", None) or None
     try:
-        from agent.codex_responses_adapter import estimate_native_responses_preflight_tokens
+        from agent.codex_responses_adapter import (
+            estimate_native_responses_preflight_tokens,
+        )
 
         native = estimate_native_responses_preflight_tokens(
             agent, messages, system_prompt=system_prompt or "", tools=tools
@@ -67,12 +74,16 @@ def _preflight_request_tokens(
     charge_stale_thinking = _agent_stale_thinking_on_wire(agent)
     estimate_messages = messages
     if charge_stale_thinking and getattr(agent, "api_mode", "") == "anthropic_messages":
-        from agent.anthropic_thinking_policy import native_anthropic_preserves_prior_thinking
+        from agent.anthropic_thinking_policy import (
+            native_anthropic_preserves_prior_thinking,
+        )
 
         if native_anthropic_preserves_prior_thinking(
             getattr(agent, "base_url", ""), getattr(agent, "model", "")
         ):
-            from agent.anthropic_thinking_replay import apply_rejected_thinking_suppression
+            from agent.anthropic_thinking_replay import (
+                apply_rejected_thinking_suppression,
+            )
 
             # Preflight runs on canonical history, while the eventual request is a
             # filtered copy. Mirror suppression onto shallow message copies before
@@ -106,7 +117,7 @@ def _agent_stale_thinking_on_wire(agent: Any) -> bool:
 
 def compose_multimodal_context_part(
     ext_prefetch_cache: str, plugin_user_context: str,
-) -> Optional[str]:
+) -> str | None:
     """The ephemeral context of one turn (memory prefetch + ``pre_llm_call``) as one text
     block; ``None`` when nothing is injected. The string sidecar appends it to ``content``;
     a multimodal (list) turn carries it as a durable text part (#71998)."""
@@ -117,7 +128,7 @@ def compose_multimodal_context_part(
 
 def compose_user_api_content(
     content: Any, ext_prefetch_cache: str, plugin_user_context: str
-) -> Optional[str]:
+) -> str | None:
     """Compose the API-bound content of the current turn's string user message.
 
     Single source for the ``api_content`` sidecar and the wire bytes so they never drift
@@ -129,7 +140,7 @@ def compose_user_api_content(
     return None if injection is None else content + "\n\n" + injection
 
 
-def substitute_api_content(api_msg: Dict[str, Any]) -> Optional[str]:
+def substitute_api_content(api_msg: dict[str, Any]) -> str | None:
     """Pop the ``api_content`` sidecar and substitute it into ``content`` (keeps the
     prompt-cache prefix byte-stable). Returns the popped sidecar, or ``None``."""
     sidecar = api_msg.pop("api_content", None)
@@ -138,13 +149,13 @@ def substitute_api_content(api_msg: Dict[str, Any]) -> Optional[str]:
     return sidecar
 
 
-def drop_stale_api_content(msg: Dict[str, Any]) -> None:
+def drop_stale_api_content(msg: dict[str, Any]) -> None:
     """Drop the ``api_content`` sidecar from a message whose content was rewritten
     (replaying it would resend what the rewrite removed; cost is one cache miss)."""
     msg.pop("api_content", None)
 
 
-def extract_api_content_sidecar(msg: Mapping[str, Any]) -> Optional[str]:
+def extract_api_content_sidecar(msg: Mapping[str, Any]) -> str | None:
     """Extract the ``api_content`` sidecar; ``None`` when absent/non-string."""
     v = msg.get("api_content")
     return v if isinstance(v, str) else None
@@ -171,7 +182,7 @@ def consume_surface_switch_note(agent: Any) -> str:
     return _pop_turn_note(agent, "_surface_switch_note")
 
 
-def append_notes_to_multimodal_content(content: Any, notes: Optional[str]) -> bool:
+def append_notes_to_multimodal_content(content: Any, notes: str | None) -> bool:
     """Append must-deliver notes as a durable text part on a multimodal (list) user
     message (the sidecar path returns ``None`` for non-string content)."""
     if not notes or not isinstance(content, list):
@@ -188,7 +199,7 @@ _UNTITLED_PLATFORMS = frozenset({"cron"})
 
 
 def _maybe_title_session_at_turn_start(
-    agent: Any, messages: List[Any], title_user_message: Optional[str] = None,
+    agent: Any, messages: list[Any], title_user_message: str | None = None,
 ) -> None:
     """Kick off auto-titling for the session's first user message; never fatal."""
     session_db = getattr(agent, "_session_db", None)
@@ -271,7 +282,7 @@ def start_deferred_title_upgrade(agent: Any) -> None:
     start_title_upgrade(upgrade)
 
 
-def reanchor_current_turn_user_idx(messages: List[Any], user_message: Any) -> int:
+def reanchor_current_turn_user_idx(messages: list[Any], user_message: Any) -> int:
     """Locate this turn's user message after compaction rebuilt ``messages``.
 
     Prefers the LAST user message whose content exactly matches this turn's text, else
@@ -376,7 +387,10 @@ def _fail_closed_after_preflight_timeout(agent, request_tokens: int) -> None:
     request that merely sits above the compression threshold is sent unchanged, exactly as the
     cooldown-blocked path sends it every turn — otherwise a slow summariser turns a session that still
     fits its window into a turn that can never run (#113646, #114594)."""
-    from agent.conversation_compression import context_compression_timed_out, request_exceeds_model_window
+    from agent.conversation_compression import (
+        context_compression_timed_out,
+        request_exceeds_model_window,
+    )
 
     if not context_compression_timed_out(agent):
         return
@@ -406,7 +420,10 @@ def _fail_closed_on_insufficient_progress(agent, request_tokens: int) -> None:
     fitting request keeps the send-as-is behaviour — and a pass skipped by the summary-failure
     cooldown is a defer, not proof of incompressibility, so it keeps its typed cooldown result.
     """
-    from agent.conversation_compression import compression_blocked_transiently, request_exceeds_model_window
+    from agent.conversation_compression import (
+        compression_blocked_transiently,
+        request_exceeds_model_window,
+    )
 
     if request_exceeds_model_window(agent, request_tokens) is not True:
         return
@@ -439,7 +456,7 @@ def _compression_warrants_another_preflight_pass(
 
 
 def _should_run_preflight_estimate(
-    messages: List[Dict[str, Any]], protect_first_n: int, protect_last_n: int, threshold_tokens: int
+    messages: list[dict[str, Any]], protect_first_n: int, protect_last_n: int, threshold_tokens: int
 ) -> bool:
     """Cheap gate for the (expensive) full preflight estimate: message count exceeds the
     protected ranges OR a rough char-based estimate crosses the threshold (few-but-huge
@@ -486,9 +503,9 @@ class TurnContext:
 
     user_message: str  # sanitized inbound message (surrogates stripped)
     original_user_message: Any  # clean text for transcripts / memory queries (no nudges)
-    messages: List[Dict[str, Any]]  # working list for this turn (loop appends to it)
-    conversation_history: Optional[List[Dict[str, Any]]]  # None after rotation
-    active_system_prompt: Optional[str]  # may be rebuilt by compression
+    messages: list[dict[str, Any]]  # working list for this turn (loop appends to it)
+    conversation_history: list[dict[str, Any]] | None  # None after rotation
+    active_system_prompt: str | None  # may be rebuilt by compression
     effective_task_id: str
     turn_id: str
     current_turn_user_idx: int  # index of the current user turn within ``messages``
@@ -554,8 +571,8 @@ def _refresh_mcp_tools_between_turns(agent: Any) -> None:
         # Import-cost gate: MCP tools are only registered by code that already imported
         # ``tools.mcp_tool`` (~0.4s); not in sys.modules => nothing to do.
         if not getattr(agent, "_skip_mcp_refresh", False) and "tools.mcp_tool" in sys.modules:
-            from tools.mcp_tool_discovery import has_registered_mcp_tools
             from tools.mcp_tool_agent import refresh_agent_mcp_tools
+            from tools.mcp_tool_discovery import has_registered_mcp_tools
             if has_registered_mcp_tools():
                 refresh_agent_mcp_tools(agent, quiet_mode=True, preserve_prefix=True)
     except Exception:
@@ -563,9 +580,9 @@ def _refresh_mcp_tools_between_turns(agent: Any) -> None:
 
 
 def _bind_turn_identity(
-    agent: Any, task_id: Optional[str], stream_callback, persist_user_message: Any,
-    persist_user_timestamp: Optional[float], persist_user_platform_id: Optional[str],
-) -> Tuple[str, str]:
+    agent: Any, task_id: str | None, stream_callback, persist_user_message: Any,
+    persist_user_timestamp: float | None, persist_user_platform_id: str | None,
+) -> tuple[str, str]:
     """Stage callback/persist overrides on the agent and bind this turn's task and turn
     ids. Returns ``(effective_task_id, turn_id)``."""
     agent._stream_callback = stream_callback  # picked up by _interruptible_api_call
@@ -592,7 +609,7 @@ def _bind_turn_identity(
 
 # Per-turn agent state reset at turn start (retry counters, guardrail halt, file-mutation
 # verifier). ``_turns_since_memory`` / ``_iters_since_skill`` are deliberately NOT reset.
-_PER_TURN_RESET_STATE: Tuple[Tuple[str, Any], ...] = (
+_PER_TURN_RESET_STATE: tuple[tuple[str, Any], ...] = (
     ("_invalid_tool_retries", 0), ("_invalid_json_retries", 0), ("_empty_content_retries", 0),
     ("_incomplete_scratchpad_retries", 0), ("_codex_incomplete_retries", 0),
     # Consecutive Codex reasoning-only (no answer, no tool call) responses, kept apart from
@@ -656,10 +673,10 @@ def _reset_per_turn_agent_state(agent: Any) -> None:
 
 def _stage_turn_user_message(
     agent: Any, user_message: Any, persist_user_message: Any,
-    persist_user_timestamp: Optional[float], persist_user_platform_id: Optional[str],
-    persist_user_display_kind: Optional[str],
-    persist_user_display_metadata: Optional[Dict[str, Any]],
-) -> Tuple[Dict[str, Any], Any]:
+    persist_user_timestamp: float | None, persist_user_platform_id: str | None,
+    persist_user_display_kind: str | None,
+    persist_user_display_metadata: dict[str, Any] | None,
+) -> tuple[dict[str, Any], Any]:
     """Build this turn's user dict, reusing CLI-staged input only when its clean text
     matches this turn (a stale handoff must not replace later input; voice turns
     compare the clean override). Returns ``(user_msg, pending_cli_message)``."""
@@ -696,7 +713,7 @@ def _stage_turn_user_message(
     return user_msg, pending_cli_message
 
 
-def _hydrate_from_history(agent: Any, conversation_history: Optional[List[Any]]) -> None:
+def _hydrate_from_history(agent: Any, conversation_history: list[Any] | None) -> None:
     """Hydrate process-local state from persisted history on the first resumed turn."""
     if not conversation_history:
         return
@@ -781,7 +798,7 @@ def _ensure_session_row(agent: Any, pending_cli_message: Any) -> None:
 
 def _collect_pre_llm_call_context(
     agent: Any, *, effective_task_id: str, turn_id: str, original_user_message: Any,
-    messages: List[Any], conversation_history: Optional[List[Any]],
+    messages: list[Any], conversation_history: list[Any] | None,
 ) -> str:
     """Run ``pre_llm_call`` plugins; their context is injected into the user message
     (never the system prompt). Oversized per-hook context is spilled to disk so a
@@ -806,8 +823,9 @@ def _collect_pre_llm_call_context(
         try:
             # Spill oversized per-hook context to disk so a runaway plugin can't inflate every subsequent
             # turn's prompt. Ported from openai/codex PR #21069 ("Spill large hook outputs from context").
+            from tools.hook_output_spill import get_spill_config as _spill_cfg
             from tools.hook_output_spill import (
-                get_spill_config as _spill_cfg, spill_if_oversized as _spill_if_oversized
+                spill_if_oversized as _spill_if_oversized,
             )
             _spill_config_cached = _spill_cfg()
         except Exception:
@@ -837,7 +855,7 @@ def _collect_pre_llm_call_context(
 
 
 def _merge_gateway_notes(
-    agent: Any, messages: List[Any], current_turn_user_idx: int, plugin_user_context: str
+    agent: Any, messages: list[Any], current_turn_user_idx: int, plugin_user_context: str
 ) -> str:
     """Must-deliver per-turn notes ride the user-message injection channel (one-shot) so the
     ephemeral system prompt stays byte-stable: the gateway's staged notes, then the
@@ -888,7 +906,7 @@ def _memory_query_text(original_user_message: Any) -> str:
 
 
 def _memory_turn_start_and_prefetch(
-    agent: Any, original_user_message: Any, turn_author: Optional[Dict[str, Any]] = None,
+    agent: Any, original_user_message: Any, turn_author: dict[str, Any] | None = None,
 ) -> str:
     """Notify memory providers of the new turn, then prefetch external memory once
     before the tool loop (skipped on trivial prompts with no semantic signal).
@@ -919,7 +937,7 @@ def _memory_turn_start_and_prefetch(
 
 
 def _stamp_api_content_sidecar(
-    agent: Any, messages: List[Any], current_turn_user_idx: int, ext_prefetch_cache: str,
+    agent: Any, messages: list[Any], current_turn_user_idx: int, ext_prefetch_cache: str,
     plugin_user_context: str, *, preflight_compressed: bool,
 ) -> None:
     """api_content sidecar — persist what you send: injected context lives only in the
@@ -966,7 +984,7 @@ def _stamp_api_content_sidecar(
 
 
 def _append_multimodal_context(
-    agent: Any, turn_user_msg: Dict[str, Any], ext_prefetch_cache: str, plugin_user_context: str,
+    agent: Any, turn_user_msg: dict[str, Any], ext_prefetch_cache: str, plugin_user_context: str,
     *, preflight_compressed: bool,
 ) -> None:
     """Multimodal (list) content takes no string sidecar: the turn's context becomes a durable
@@ -998,7 +1016,7 @@ def _append_multimodal_context(
 
 
 def _persist_turn_start(
-    agent: Any, messages: List[Any], conversation_history: Optional[List[Any]],
+    agent: Any, messages: list[Any], conversation_history: list[Any] | None,
     pending_cli_message: Any,
 ) -> None:
     """Crash-resilience: persist the inbound user turn once, with final api_content,
@@ -1015,15 +1033,15 @@ def _persist_turn_start(
 
 
 def build_turn_context(
-    agent, user_message: Any, system_message: Optional[str],
-    conversation_history: Optional[List[Dict[str, Any]]], task_id: Optional[str], stream_callback,
-    persist_user_message: Optional[Any], persist_user_timestamp: Optional[float]=None,
-    persist_user_platform_id: Optional[str]=None, *, persist_user_display_kind: Optional[str]=None,
-    persist_user_display_metadata: Optional[Dict[str, Any]]=None, turn_author: Optional[Dict[str, Any]]=None,
+    agent, user_message: Any, system_message: str | None,
+    conversation_history: list[dict[str, Any]] | None, task_id: str | None, stream_callback,
+    persist_user_message: Any | None, persist_user_timestamp: float | None=None,
+    persist_user_platform_id: str | None=None, *, persist_user_display_kind: str | None=None,
+    persist_user_display_metadata: dict[str, Any] | None=None, turn_author: dict[str, Any] | None=None,
     restore_or_build_system_prompt,
     install_safe_stdio, sanitize_surrogates, summarize_user_message_for_log, set_session_context,
     set_current_write_origin, ra, moa_active: bool=False,
-    title_user_message: Optional[str]=None,
+    title_user_message: str | None=None,
 ) -> TurnContext:
     """Run the once-per-turn setup and return the loop's input context.
 
@@ -1219,9 +1237,9 @@ def _sanitize_model_for(agent: Any, moa_config: Any) -> Any:
 
 
 def build_api_messages(
-    agent: Any, messages: List[Dict[str, Any]], *, current_turn_user_idx: Any,
+    agent: Any, messages: list[dict[str, Any]], *, current_turn_user_idx: Any,
     ext_prefetch_cache: Any, plugin_user_context: Any, moa_config: Any, active_system_prompt: Any,
-) -> Tuple[List[Dict[str, Any]], str]:
+) -> tuple[list[dict[str, Any]], str]:
     """Build the wire copy of ``messages`` for one API call plus the effective system
     message. Returns ``(api_messages, effective_system)``.
 

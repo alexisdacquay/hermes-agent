@@ -6,9 +6,8 @@ from __future__ import annotations
 import logging
 import signal
 
-import pytest
-
 import gateway.run as gateway_run
+import pytest
 from gateway.config import GatewayConfig
 
 

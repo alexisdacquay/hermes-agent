@@ -14,12 +14,8 @@ public guard entry points.
 from __future__ import annotations
 
 import pytest
-
 from tools import approval as A
-import tools.approval_prompt as approval_prompt
-import tools.approval_detection as approval_detection
-from tools import approval_context
-from tools import approval_smart
+from tools import approval_context, approval_detection, approval_prompt, approval_smart
 
 BREAKER_MARKER = "CIRCUIT BREAKER:"
 

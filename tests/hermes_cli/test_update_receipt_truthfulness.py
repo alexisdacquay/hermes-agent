@@ -40,9 +40,8 @@ Only paths/env are monkeypatched; every receipt is produced by the real
 
 import json
 
-import pytest
-
 import hermes_cli.update_receipt as ur
+import pytest
 from hermes_cli.update_inventory import (
     RuntimeRecord,
     UpdatePlan,

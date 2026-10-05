@@ -18,15 +18,15 @@ import/patch target): ``terminal_tool_config`` (TERMINAL_* reads, ``_quiet``),
 ``terminal_tool_result`` (foreground result post-processing).
 """
 
+import atexit
 import json
 import logging
 import os
 import sys
-import time
 import threading
-import atexit
+import time
 from dataclasses import dataclass
-from typing import Optional, Dict, Any, List
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -39,21 +39,37 @@ def _redact_terminal_error_text(value: Any) -> str:
 
 
 from tools.registry import tool_error
-from tools.terminal_tool_lifecycle import (
-    _check_disk_usage_warning, _cleanup_inactive_envs, _create_configured_env,
-    _evict_environment_for_task, cleanup_all_environments, ensure_task_env,
-)
-from tools.terminal_tool_config import (
-    _is_container_backend, _is_host_cwd, _is_mounted_host_cwd, _is_unusable_container_cwd,
-    _is_windows_drive_path, _parse_env_var, _plugin_env_flag, _quiet, _safe_getcwd, _tenv, _tenv_bool,
-    coerce_ssh_remote_cwd, translate_mounted_host_path,
-)
 from tools.terminal_tool_backends import (
-    _REQUIREMENT_CHECKERS, _VERCEL_SANDBOX_DEFAULT_CWD, _check_plugin_requirements,
-    _record_unavailable_reason, terminal_backend_unavailable_reason,  # noqa: F401 — re-exported
+    _REQUIREMENT_CHECKERS,
+    _VERCEL_SANDBOX_DEFAULT_CWD,
+    _check_plugin_requirements,
+    _record_unavailable_reason,
+    )
+from tools.terminal_tool_config import (
+    _is_container_backend,
+    _is_host_cwd,
+    _is_mounted_host_cwd,
+    _is_unusable_container_cwd,
+    _is_windows_drive_path,
+    _parse_env_var,
+    _plugin_env_flag,
+    _quiet,
+    _safe_getcwd,
+    _tenv,
+    _tenv_bool,
+    coerce_ssh_remote_cwd,
+    translate_mounted_host_path,
 )
+from tools.terminal_tool_lifecycle import (
+    _check_disk_usage_warning,
+    _cleanup_inactive_envs,
+    _create_configured_env,
+    _evict_environment_for_task,
+    cleanup_all_environments,
+)
+
 # display_hermes_home imported lazily at call site (stale-module safety during hermes update)
-from tools.tool_backend_helpers import coerce_modal_mode, managed_nous_tools_enabled
+from tools.tool_backend_helpers import coerce_modal_mode
 
 
 def _safe_parse_import_env(name: str, default: Any, converter, type_label: str):
@@ -136,7 +152,7 @@ def _docker_volume_uses_host_path(volume_spec: str) -> bool:
     )
 
 
-def _docker_has_host_access(config: Dict[str, Any]) -> bool:
+def _docker_has_host_access(config: dict[str, Any]) -> bool:
     """Return True when a Docker sandbox exposes host paths through bind mounts."""
     if config.get("env_type") != "docker":
         return False
@@ -155,7 +171,6 @@ def _check_all_guards(command: str, env_type: str,
 
 from tools.environments.base import EnvironmentConnectionError
 
-
 # Tool description for LLM
 TERMINAL_TOOL_DESCRIPTION = """Execute shell commands. The host OS, shell, and terminal backend are stated in your environment section — write commands for THAT platform. Filesystem, current working directory, and exported environment variables persist between calls.
 
@@ -170,10 +185,10 @@ Persist: background=true, persist_on_release=true keeps the job alive across age
 """
 
 # Environment lifecycle state.
-_active_environments: Dict[str, Any] = {}
-_last_activity: Dict[str, float] = {}
+_active_environments: dict[str, Any] = {}
+_last_activity: dict[str, float] = {}
 _env_lock = threading.Lock()
-_creation_locks: Dict[str, threading.Lock] = {}  # Per-task locks for sandbox creation
+_creation_locks: dict[str, threading.Lock] = {}  # Per-task locks for sandbox creation
 _creation_locks_lock = threading.Lock()  # Protects _creation_locks dict itself
 _cleanup_thread = None
 _cleanup_running = False
@@ -183,7 +198,7 @@ _docker_orphan_reaper_ran = False
 _docker_orphan_reaper_lock = threading.Lock()
 
 
-def _maybe_reap_docker_orphans(container_config: Dict[str, Any]) -> None:
+def _maybe_reap_docker_orphans(container_config: dict[str, Any]) -> None:
     """Run the docker orphan reaper once per process, if enabled.
 
     Sweeps Exited containers labeled ``hermes-agent=1`` for the current
@@ -214,7 +229,10 @@ def _maybe_reap_docker_orphans(container_config: Dict[str, Any]) -> None:
     max_age = max(60, lifetime) * 2
 
     try:
-        from tools.environments.docker import reap_orphan_containers, _container_identity
+        from tools.environments.docker import (
+            _container_identity,
+            reap_orphan_containers,
+        )
     except ImportError:
         return
     # Never fail the env-creation path because of a janitor problem.
@@ -231,7 +249,7 @@ def _maybe_reap_docker_orphans(container_config: Dict[str, Any]) -> None:
 # Per-task environment overrides (never exposed to the model). RL/benchmark
 # envs and ACP register a custom image / cwd for a task_id BEFORE the agent
 # loop; sandbox creation consults this first, then the TERMINAL_* env vars.
-_task_env_overrides: Dict[str, Dict[str, Any]] = {}
+_task_env_overrides: dict[str, dict[str, Any]] = {}
 
 # Per-session cwd records: the durable source of truth for "which directory
 # is THIS session in". Keyed by the raw session/task key, NOT the collapsed
@@ -239,18 +257,18 @@ _task_env_overrides: Dict[str, Dict[str, Any]] = {}
 # it is a global mutable timeshared between sessions (the wrong-worktree bug
 # class). Written after every completed command and on cwd-override
 # registration; readers resolve against it before any env-side cwd.
-_session_cwd: Dict[str, str] = {}
+_session_cwd: dict[str, str] = {}
 _session_cwd_lock = threading.Lock()
 
 # Subagent → parent container aliasing. delegate_task children have their own
 # task_id but must share the PARENT's container; under per-session isolation
 # the collapse-to-"default" shortcut no longer provides that, so the spawn
 # site registers an explicit alias.
-_container_aliases: Dict[str, str] = {}
+_container_aliases: dict[str, str] = {}
 _container_alias_lock = threading.Lock()
 
 
-def record_session_cwd(session_key: Optional[str], cwd: Optional[str]) -> None:
+def record_session_cwd(session_key: str | None, cwd: str | None) -> None:
     """Record *cwd* as *session_key*'s working directory (after a completed
     command, or on workspace-override registration). None/empty keys collapse
     to ``"default"``; non-string / empty cwds are ignored. Keys are routed-profile
@@ -263,7 +281,7 @@ def record_session_cwd(session_key: Optional[str], cwd: Optional[str]) -> None:
             _session_cwd[key] = cwd
 
 
-def get_session_cwd(session_key: Optional[str]) -> Optional[str]:
+def get_session_cwd(session_key: str | None) -> str | None:
     """Recorded cwd for *session_key*, or None. No fallback chain on purpose:
     callers decide what an absent record means. None/empty keys read ``"default"``."""
     with _session_cwd_lock:
@@ -276,7 +294,7 @@ def clear_session_cwd(session_key: str) -> None:
         _session_cwd.pop(_qualify_task_key(session_key), None)
 
 
-def _sanitize_cwd_for_live_env(env: Any, new_cwd: str) -> Optional[str]:
+def _sanitize_cwd_for_live_env(env: Any, new_cwd: str) -> str | None:
     """Cwd to write into a LIVE cached env, or None to leave it untouched.
 
     On container backends a raw host path (a desktop/TUI session registering its
@@ -313,7 +331,7 @@ def _sanitize_cwd_for_live_env(env: Any, new_cwd: str) -> Optional[str]:
     return None
 
 
-def register_task_env_overrides(task_id: str, overrides: Dict[str, Any]):
+def register_task_env_overrides(task_id: str, overrides: dict[str, Any]):
     """Register per-task sandbox overrides (``docker_image``/``modal_image``/
     ``singularity_image``/``daytona_image``, ``env_type``, ``cwd``) before the
     agent loop runs.
@@ -353,7 +371,7 @@ def clear_task_env_overrides(task_id: str):
         _container_aliases.pop(task_id, None)
 
 
-def register_container_alias(child_task_id: str, parent_task_id: Optional[str]) -> None:
+def register_container_alias(child_task_id: str, parent_task_id: str | None) -> None:
     """Make *child_task_id* resolve to *parent_task_id*'s container (called at
     delegate_task spawn). A missing parent id aliases to ``"default"``."""
     if not child_task_id:
@@ -379,7 +397,7 @@ _ISOLATION_OVERRIDE_KEYS = frozenset({
 })
 
 
-def _has_isolation_overrides(task_id: Optional[str]) -> bool:
+def _has_isolation_overrides(task_id: str | None) -> bool:
     """True when *task_id* registered image/env_type overrides — the single
     "isolated RL/benchmark rollout" predicate shared by key resolution and
     container creation so the two can't drift."""
@@ -443,7 +461,7 @@ def _docker_session_isolation_enabled() -> bool:
     return _session_scope().docker_session_isolated
 
 
-def _routed_home_task_key(profile_scoped: bool) -> Optional[str]:
+def _routed_home_task_key(profile_scoped: bool) -> str | None:
     """Key for a session-less task serving a routed (non-launch) profile home, else None.
 
     A multiplexed host runs every profile's cron jobs without a session key; collapsing them all onto
@@ -453,6 +471,7 @@ def _routed_home_task_key(profile_scoped: bool) -> Optional[str]:
     container instead of a second one per home path.
     """
     from hermes_constants import get_hermes_home_override, profile_name_for_home
+
     from tools.environments.local import _is_routed_home
 
     override = get_hermes_home_override()
@@ -481,7 +500,7 @@ def _qualify_task_key(key: str) -> str:
     return f"{scope}:{key}" if scope else key
 
 
-def _resolve_container_task_id(task_id: Optional[str]) -> str:
+def _resolve_container_task_id(task_id: str | None) -> str:
     """Map a tool-call ``task_id`` to the ``_active_environments`` key. Order matters —
     earlier branches are authoritative where they apply:
 
@@ -530,7 +549,7 @@ def _resolve_container_task_id(task_id: Optional[str]) -> str:
     return "default" if profile == "default" else f"profile:{profile}"
 
 
-def resolve_task_overrides(task_id: Optional[str]) -> Dict[str, Any]:
+def resolve_task_overrides(task_id: str | None) -> dict[str, Any]:
     """Return the env overrides for *task_id*, raw key first then collapsed.
 
     ``register_task_env_overrides`` writes under the *raw* task/session id, but
@@ -557,7 +576,7 @@ _IMAGE_KEY_BY_BACKEND = {
 }
 
 
-def _select_image(env_type: str, overrides: Dict[str, Any], config: Dict[str, Any]) -> str:
+def _select_image(env_type: str, overrides: dict[str, Any], config: dict[str, Any]) -> str:
     """Image for *env_type*: per-task override first, then config; "" for imageless backends."""
     key = _IMAGE_KEY_BY_BACKEND.get(env_type)
     if key is None:
@@ -565,7 +584,7 @@ def _select_image(env_type: str, overrides: Dict[str, Any], config: Dict[str, An
     return overrides.get(key) or config[key]
 
 
-def _lookup_active_env(effective_task_id: str, task_id: Optional[str]):
+def _lookup_active_env(effective_task_id: str, task_id: str | None):
     """Return the cached env for the collapsed id, else for the raw task_id, else None.
 
     Caller holds ``_env_lock``. Per-session surfaces (ACP/gateway/dashboard)
@@ -580,7 +599,7 @@ def _lookup_active_env(effective_task_id: str, task_id: Optional[str]):
     return None
 
 
-def _resolve_task_host_cwd(config: Dict[str, Any], task_id: Optional[str]) -> Optional[str]:
+def _resolve_task_host_cwd(config: dict[str, Any], task_id: str | None) -> str | None:
     """Host directory to bind into *task_id*'s container.
 
     Single owner of the cwd-mount policy for every creation site. Shared-
@@ -713,7 +732,7 @@ def _resolve_config_cwd(env_type: str, mount_docker_cwd: bool) -> tuple:
     return cwd, host_cwd
 
 
-def _get_env_config() -> Dict[str, Any]:
+def _get_env_config() -> dict[str, Any]:
     """Resolve the terminal configuration dict from TERMINAL_* env vars."""
     from hermes_cli.config_defaults import DEFAULT_SANDBOX_IMAGE as default_image
     _ensure_terminal_env_bridged()
@@ -853,11 +872,18 @@ def _command_requires_pipe_stdin(command: str) -> bool:
     return normalized.startswith("gh auth login") and "--with-token" in normalized
 
 
-from tools.terminal_tool_guards import (
-    _foreground_background_guidance, _safe_command_preview, _validate_workdir,
-    gateway_lifecycle_block, self_repo_block,
+from tools.terminal_tool_background import (
+    _YIELDED_NOTE,
+    spawn_background_process,
+    yield_to_background_handler,
 )
-from tools.terminal_tool_background import _YIELDED_NOTE, spawn_background_process, yield_to_background_handler
+from tools.terminal_tool_guards import (
+    _foreground_background_guidance,
+    _safe_command_preview,
+    _validate_workdir,
+    gateway_lifecycle_block,
+    self_repo_block,
+)
 from tools.terminal_tool_result import finalize_foreground_result
 
 
@@ -917,11 +943,11 @@ def _container_visible_default(default_cwd: str, env_type: str | None, env=None)
 
 def _resolve_command_cwd(
     *,
-    workdir: Optional[str],
+    workdir: str | None,
     default_cwd: str,
-    session_key: Optional[str] = None,
-    env_type: Optional[str] = None,
-    mounted_host: Optional[str] = None,
+    session_key: str | None = None,
+    env_type: str | None = None,
+    mounted_host: str | None = None,
     env=None,
 ) -> str:
     """cwd for a command: explicit ``workdir`` > the session's own cwd record >
@@ -965,9 +991,9 @@ def _resolve_command_cwd(
     return coerce_ssh_remote_cwd(recorded or _container_visible_default(default_cwd, env_type, env), env_type)
 
 
-def _error_json(error: str, *, exit_code: int = -1, status: Optional[str] = None, **extra) -> str:
+def _error_json(error: str, *, exit_code: int = -1, status: str | None = None, **extra) -> str:
     """The terminal error envelope: ``output``/``exit_code``/``error`` (+ ``status``, extras)."""
-    body: Dict[str, Any] = {"output": "", "exit_code": exit_code, "error": error}
+    body: dict[str, Any] = {"output": "", "exit_code": exit_code, "error": error}
     if status is not None:
         body["status"] = status
     body.update(extra)
@@ -1011,11 +1037,11 @@ class _ApprovalVerdict:
     the clean-interrupt-slate clear before ``env.execute`` so an approved command
     can't be SIGINT-killed by a bit that landed during the approval-wait.
     """
-    note: Optional[str] = None
+    note: str | None = None
     approved_run: bool = False
 
 
-def _run_approval_guards(command: str, env_type: str, config: Dict[str, Any], *, force: bool) -> _ApprovalVerdict:
+def _run_approval_guards(command: str, env_type: str, config: dict[str, Any], *, force: bool) -> _ApprovalVerdict:
     """Run tirith + dangerous-command guards; ``force`` skips them entirely.
     Raises :class:`_Rejected` when the command may not run (denied, or pending
     gateway approval)."""
@@ -1054,16 +1080,16 @@ def _run_approval_guards(command: str, env_type: str, config: Dict[str, Any], *,
 @dataclass
 class _ExecPlan:
     """Per-call execution parameters resolved before any environment is touched."""
-    config: Dict[str, Any]
+    config: dict[str, Any]
     env_type: str
     effective_task_id: str
     image: str
     cwd: str
-    host_cwd: Optional[str]
+    host_cwd: str | None
     effective_timeout: int
     # Set when a foreground call asked for more than FOREGROUND_MAX_TIMEOUT and was promoted to a
     # tracked background process instead of being refused (the requested seconds, for the note).
-    promoted_from_foreground_timeout: Optional[int] = None
+    promoted_from_foreground_timeout: int | None = None
 
 
 _PROMOTED_NOTE = (
@@ -1075,7 +1101,7 @@ _PROMOTED_NOTE = (
 
 
 def _plan_execution(
-    command: Any, *, task_id: Optional[str], timeout: Optional[int],
+    command: Any, *, task_id: str | None, timeout: int | None,
     background: bool, _host_local: bool,
 ) -> _ExecPlan:
     """Resolve backend, env-cache key, image, cwd and timeout for one call.
@@ -1181,7 +1207,7 @@ def _with_promoted_note(result_json: str, requested_timeout: int) -> str:
     return json.dumps(data, ensure_ascii=False)
 
 
-def _acquire_env(plan: _ExecPlan, task_id: Optional[str]) -> Any:
+def _acquire_env(plan: _ExecPlan, task_id: str | None) -> Any:
     """Cached env for the task, else create it under the per-task creation lock.
 
     Concurrent calls for the same task_id wait for the first sandbox instead
@@ -1239,8 +1265,8 @@ def _yield_kwargs(command: str, **ctx) -> dict:
 
 def _run_foreground(
     command: str, env: Any, plan: _ExecPlan, *,
-    task_id: Optional[str], session_id: Optional[str], session_key: str,
-    workdir: Optional[str], approval_note: Optional[str], clear_interrupt: bool,
+    task_id: str | None, session_id: str | None, session_key: str,
+    workdir: str | None, approval_note: str | None, clear_interrupt: bool,
     metered: bool = True,
 ) -> str:
     """Execute in the foreground with retry on transient errors, then finalize. ``metered``
@@ -1313,7 +1339,7 @@ _PRE_EXEC_GUARD_MIN_TIMEOUT_S = 30
 
 def _pre_exec_block(
     command: str, *, env: Any, env_type: str, cwd: str,
-    workdir: Optional[str], session_key: str,
+    workdir: str | None, session_key: str,
 ) -> None:
     """Raise :class:`_Rejected` with the blocked-result JSON when the command must not run.
 
@@ -1345,7 +1371,7 @@ _PTY_DISABLED_REASON = (
 )
 
 
-def _degraded_result(e: EnvironmentConnectionError, task_id: Optional[str]) -> str:
+def _degraded_result(e: EnvironmentConnectionError, task_id: str | None) -> str:
     """Infrastructure failure (SSH host down, Docker daemon unreachable), distinct
     from a nonzero exit. ``terminal.degraded_mode``: warn (default) returns a
     structured degraded result with a retry hint; fail preserves the historical
@@ -1369,14 +1395,14 @@ def _degraded_result(e: EnvironmentConnectionError, task_id: Optional[str]) -> s
 def terminal_tool(
     command: str,
     background: bool = False,
-    timeout: Optional[int] = None,
-    task_id: Optional[str] = None,
-    session_id: Optional[str] = None,
+    timeout: int | None = None,
+    task_id: str | None = None,
+    session_id: str | None = None,
     force: bool = False,
-    workdir: Optional[str] = None,
+    workdir: str | None = None,
     pty: bool = False,
     notify_on_complete: bool = False,
-    watch_patterns: Optional[List[str]] = None,
+    watch_patterns: list[str] | None = None,
     _host_local: bool = False,
     _completion_output_chars: int = 0,
     heartbeat: int = 0,
@@ -1403,7 +1429,9 @@ def terminal_tool(
     ``_host_local`` forces the local backend for Hermes-owned control-plane
     children (kept in a separate env cache from the configured backend).
     """
-    from hermes_cli.observability.shared_metrics_loop import record_terminal_backend as _metered
+    from hermes_cli.observability.shared_metrics_loop import (
+        record_terminal_backend as _metered,
+    )
     plan = None
     try:
         plan = _plan_execution(
@@ -1428,6 +1456,7 @@ def terminal_tool(
         # unconditionally (``force`` cannot bypass them), so the command is
         # refused with a retryable error instead of running unguarded.
         from agent.deadline import run_bounded_sync
+
         from tools.interrupt import acting_for_tid
 
         # The guard chain runs on the deadline worker; keep it answerable to /stop

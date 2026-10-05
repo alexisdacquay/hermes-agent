@@ -3,9 +3,7 @@
 from pathlib import Path
 
 import pytest
-
 from pm.packages import Nodejs
-
 
 _LOADER = (
     "node: error while loading shared libraries: libatomic.so.1: "

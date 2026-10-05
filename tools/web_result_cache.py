@@ -15,8 +15,8 @@ import threading
 import time
 from contextlib import suppress
 from pathlib import Path
-from typing import Dict, Optional, Tuple
 from urllib.parse import urlparse
+
 from utils import atomic_json_write
 
 logger = logging.getLogger(__name__)
@@ -83,15 +83,15 @@ class SearchMemo:
     wait for (and share) the winner's response."""
 
     def __init__(self) -> None:
-        self._store: Dict[tuple, Tuple[float, dict]] = {}  # key -> (expires_at, response)
+        self._store: dict[tuple, tuple[float, dict]] = {}  # key -> (expires_at, response)
         self._store_lock = threading.Lock()
-        self._key_locks: Dict[tuple, threading.Lock] = {}
+        self._key_locks: dict[tuple, threading.Lock] = {}
 
     @staticmethod
     def _key(provider: str, query: str, limit: int) -> tuple:
         return (provider, normalize_query(query), bucket_limit(limit))
 
-    def lookup(self, provider: str, query: str, limit: int) -> Optional[dict]:
+    def lookup(self, provider: str, query: str, limit: int) -> dict | None:
         if not cache_enabled():
             return None
         key = self._key(provider, query, limit)
@@ -157,7 +157,7 @@ def slice_search_response(response: dict, limit: int) -> dict:
 _index_lock = threading.Lock()
 
 
-def _cache_dir() -> Optional[Path]:
+def _cache_dir() -> Path | None:
     try:
         from hermes_constants import get_hermes_dir
         d = get_hermes_dir("cache/web", "web_cache")
@@ -190,13 +190,13 @@ def _save_index(index: dict) -> None:
         logger.debug("Failed to save web extract cache index: %s", exc)
 
 
-def _url_digest(url: str, format: Optional[str], provider: str = "") -> str:
+def _url_digest(url: str, format: str | None, provider: str = "") -> str:
     # format AND provider are part of the key: html != markdown, and one backend's rendering is not another's.
     raw = f"{url}\n{format or 'markdown'}\n{provider or ''}"
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
 
 
-def _entry_file_path(url: str, format: Optional[str], provider: str) -> Optional[Path]:
+def _entry_file_path(url: str, format: str | None, provider: str) -> Path | None:
     """Dedicated cache file per (url, format, provider) — deliberately NOT the truncate-store file
     (keyed on URL alone), which html/markdown or two providers' copies of one URL would overwrite.
 
@@ -258,7 +258,7 @@ def _cacheable(url: str) -> bool:
     return cache_enabled() and not (_is_local_dev_url(url) or _is_cache_exempt_host(url))
 
 
-def extract_cache_get(url: str, format: Optional[str] = None, provider: str = "") -> Optional[dict]:
+def extract_cache_get(url: str, format: str | None = None, provider: str = "") -> dict | None:
     """Return {'url','title','content'} for a fresh cached page, else None."""
     if not _cacheable(url):
         return None
@@ -279,7 +279,7 @@ def extract_cache_get(url: str, format: Optional[str] = None, provider: str = ""
 
 
 def extract_cache_put(
-    url: str, content: str, title: str = "", format: Optional[str] = None, provider: str = ""
+    url: str, content: str, title: str = "", format: str | None = None, provider: str = ""
 ) -> None:
     """Store one successful extraction's full clean text for TTL reuse; pages over the truncate-store
     ceiling are not cached (serving a capped copy back as if whole would silently lose the tail)."""

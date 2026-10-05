@@ -6,20 +6,20 @@ Carry only the explicit selection through a ContextVar, never process env.
 """
 from __future__ import annotations
 
+from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
-from typing import Iterable, Iterator, Optional
 
-_requested: ContextVar[Optional[bool]] = ContextVar("kanban_toolset_requested", default=None)
+_requested: ContextVar[bool | None] = ContextVar("kanban_toolset_requested", default=None)
 
 
-def kanban_toolset_requested() -> Optional[bool]:
+def kanban_toolset_requested() -> bool | None:
     """None outside schema assembly; otherwise whether Kanban was named explicitly."""
     return _requested.get()
 
 
 @contextmanager
-def scoped_kanban_toolset_selection(toolsets: Optional[Iterable[str]]) -> Iterator[None]:
+def scoped_kanban_toolset_selection(toolsets: Iterable[str] | None) -> Iterator[None]:
     """An all/default selection is not an explicit workflow opt-in."""
     token = _requested.set("kanban" in (toolsets or ()))
     try:

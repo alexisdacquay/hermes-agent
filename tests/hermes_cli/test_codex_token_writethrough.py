@@ -12,7 +12,6 @@ from pathlib import Path
 
 import httpx
 import pytest
-
 from hermes_cli import auth, auth_codex
 
 

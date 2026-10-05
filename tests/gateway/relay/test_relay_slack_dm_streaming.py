@@ -22,7 +22,6 @@ snapshot. They drive the REAL ``RelayAdapter`` + ``GatewayStreamConsumer`` +
 from __future__ import annotations
 
 import pytest
-
 from gateway.config import Platform, PlatformConfig
 from gateway.platforms.event import MessageEvent, MessageType
 from gateway.relay.adapter import RelayAdapter

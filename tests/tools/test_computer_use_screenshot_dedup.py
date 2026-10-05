@@ -13,7 +13,6 @@ import struct
 import zlib
 
 import pytest
-
 import tools.computer_use.tool as cu_tool
 from tools.computer_use.backend import CaptureResult
 

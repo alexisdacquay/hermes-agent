@@ -8,7 +8,6 @@ install under ``<HERMES_HOME>/plugins/``.
 import json
 
 import pytest
-
 from tui_gateway import server
 
 

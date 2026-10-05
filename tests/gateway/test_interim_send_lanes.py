@@ -21,8 +21,8 @@ wrap per call site (grep `_interim_metadata(` in gateway/run.py).
 """
 
 import pytest
-
 from gateway.run import _interim_metadata
+
 from tests.gateway.relay.test_relay_live_cards import _connected_adapter
 
 

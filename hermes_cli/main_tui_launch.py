@@ -4,23 +4,22 @@ Split out of ``hermes_cli/main.py``. Names that still live in main (``PROJECT_RO
 are imported lazily inside the functions that use them (avoids an import cycle).
 """
 
-import logging
 import contextlib
 import json
+import logging
 import os
 import shutil
 import subprocess
 import sys
-
 from pathlib import Path
-from typing import Optional
+
 from agent.i18n import t
 
 # Log-record parity with the origin module.
 logger = logging.getLogger("hermes_cli.main")
 
 
-def _read_tui_active_session_file(path: Optional[str]) -> Optional[str]:
+def _read_tui_active_session_file(path: str | None) -> str | None:
     if not path:
         return None
     try:
@@ -30,7 +29,7 @@ def _read_tui_active_session_file(path: Optional[str]) -> Optional[str]:
         return None
 
 
-def _print_tui_exit_summary(session_id: Optional[str], active_session_file: Optional[str] = None) -> None:
+def _print_tui_exit_summary(session_id: str | None, active_session_file: str | None = None) -> None:
     """Print a shell-visible epilogue after TUI exits."""
     from hermes_cli.main import _resolve_last_session
     target = (
@@ -201,7 +200,11 @@ def _make_tui_argv(tui_dir: Path, tui_dev: bool) -> tuple[list[str], Path]:
     if not tui_dev and not _tui_need_rebuild(tui_dir):
         return [_tui_node_bin("node"), "--expose-gc", str(tui_dir / "dist/entry.js")], tui_dir
 
-    from hermes_cli.source_build import build_source_tui, prepare_launch_dependencies, source_build_env
+    from hermes_cli.source_build import (
+        build_source_tui,
+        prepare_launch_dependencies,
+        source_build_env,
+    )
 
     project_root = tui_dir.parent
     env = source_build_env()
@@ -242,7 +245,7 @@ def _normalize_tui_toolsets(toolsets: object) -> list[str]:
         return _split_comma_items(toolsets, split_non_str=False) if toolsets else []
 
 
-def _read_cgroup_memory_limit() -> Optional[int]:
+def _read_cgroup_memory_limit() -> int | None:
     """Container memory limit in bytes, or None if unconstrained (v2 ``memory.max``, then v1).
 
     V8 is NOT cgroup-aware: a flat 8GB heap grows past a smaller container limit
@@ -290,7 +293,7 @@ def _resolve_tui_heap_mb(default_mb: int = 8192) -> int:
     return max(1536, sized) if limit_mb > 2048 else sized
 
 
-def _safe_tui_cwd(env: Optional[dict] = None) -> str:
+def _safe_tui_cwd(env: dict | None = None) -> str:
     """Return a stable cwd value for the Node TUI child environment."""
     from hermes_cli.main import PROJECT_ROOT
     try:
@@ -329,7 +332,12 @@ def _setup_tui_worktree() -> dict:
     """Create the ``--worktree`` checkout for a TUI launch (prune + async pack maintenance); exits on failure."""
     wt_info = None
     try:
-        from cli import _git_repo_root, _maintain_pack_health, _prune_stale_worktrees, _setup_worktree
+        from cli import (
+            _git_repo_root,
+            _maintain_pack_health,
+            _prune_stale_worktrees,
+            _setup_worktree,
+        )
         repo = _git_repo_root()
         if repo:
             _prune_stale_worktrees(repo)
@@ -348,17 +356,18 @@ def _setup_tui_worktree() -> dict:
 
 
 def _launch_tui(
-    resume_session_id: Optional[str] = None, tui_dev: bool = False, native_mode: Optional[bool] = None,
-    model: Optional[str] = None,
-    provider: Optional[str] = None, toolsets: object = None, skills: object = None,
-    verbose: Optional[bool] = None, quiet: bool = False, query: Optional[str] = None,
-    image: Optional[str] = None, worktree: bool = False, checkpoints: bool = False,
-    pass_session_id: bool = False, max_turns: Optional[int] = None, accept_hooks: bool = False):
+    resume_session_id: str | None = None, tui_dev: bool = False, native_mode: bool | None = None,
+    model: str | None = None,
+    provider: str | None = None, toolsets: object = None, skills: object = None,
+    verbose: bool | None = None, quiet: bool = False, query: str | None = None,
+    image: str | None = None, worktree: bool = False, checkpoints: bool = False,
+    pass_session_id: bool = False, max_turns: int | None = None, accept_hooks: bool = False):
     """Replace current process with the TUI."""
     from hermes_cli.main import PROJECT_ROOT
     tui_dir = PROJECT_ROOT / "ui-tui"
 
     import tempfile
+
     # TUI child is a hermes process: propagate the profile-home contract via
     # the single factory; keep secrets (the TUI/agent needs provider creds).
     from tools.environments.local import build_subprocess_env
@@ -386,8 +395,9 @@ def _launch_tui(
     env.setdefault("NODE_ENV", "development" if tui_dev else "production")
     if native_mode is None:
         try:
-            from hermes_cli.config import load_config
             from utils import is_truthy_value
+
+            from hermes_cli.config import load_config
             display = load_config().get("display", {})
             native_mode = is_truthy_value(display.get("tui_native", False)) if isinstance(display, dict) else False
         except Exception:
@@ -445,7 +455,7 @@ def _launch_tui(
         env["HERMES_TUI_RESUME"] = resume_session_id
 
     argv, cwd = _make_tui_argv(tui_dir, tui_dev)
-    code: Optional[int] = None
+    code: int | None = None
     try:
         try:
             code = subprocess.call(argv, cwd=str(cwd), env=env)

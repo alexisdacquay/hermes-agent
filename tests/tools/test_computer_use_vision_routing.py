@@ -16,8 +16,6 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-
-
 # ---------------------------------------------------------------------------
 # _explicit_aux_vision_override
 # ---------------------------------------------------------------------------

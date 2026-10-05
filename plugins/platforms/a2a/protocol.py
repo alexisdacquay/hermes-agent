@@ -12,9 +12,9 @@ import time
 import uuid
 from collections import OrderedDict, defaultdict, deque
 from concurrent.futures import Future
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from gateway.platforms._shared import coerce_port as _coerce_int
 from hermes_constants import get_hermes_home
@@ -53,10 +53,10 @@ def max_pingpong_turns() -> int:
 
 def now_iso() -> str:
     """ISO 8601 UTC timestamp with millisecond precision (A2A v1.0)."""
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
 
-def build_agent_card(*, name: str, url: str, description: str, skills: Optional[list[dict]] = None,
+def build_agent_card(*, name: str, url: str, description: str, skills: list[dict] | None = None,
                      streaming: bool = False, push_notifications: bool = False, auth_required: bool = False,
                      tenant: str = "") -> dict:
     """A2A v1.0 Agent Card. ``tenant`` is the optional multi-tenancy routing key on
@@ -79,7 +79,7 @@ def build_agent_card(*, name: str, url: str, description: str, skills: Optional[
     return card
 
 
-def skills_from_toolsets(toolsets: "list[str] | dict[str, list[str]] | None") -> list[dict]:
+def skills_from_toolsets(toolsets: list[str] | dict[str, list[str]] | None) -> list[dict]:
     """A2A skill descriptors from toolset names or a toolset -> tool-names mapping (tool names
     become tags, max 10)."""
     if not isinstance(toolsets, dict):
@@ -296,7 +296,7 @@ class TaskStore:
     _MAX_TERMINAL = 500
 
     def __init__(self) -> None:
-        self._tasks: "OrderedDict[str, dict[str, Any]]" = OrderedDict()
+        self._tasks: OrderedDict[str, dict[str, Any]] = OrderedDict()
         self._watchers: dict[str, list[Future]] = {}
         self._lock = threading.Lock()
 
@@ -304,12 +304,12 @@ class TaskStore:
     def _in_scope(rec: dict, agent_slug: str = "", tenant: str = "") -> bool:
         return not ((agent_slug and rec.get("agent_slug", "") != agent_slug) or (tenant and rec.get("tenant", "") != tenant))
 
-    def _scoped(self, task_id: str, agent_slug: str = "", tenant: str = "") -> Optional[dict]:
+    def _scoped(self, task_id: str, agent_slug: str = "", tenant: str = "") -> dict | None:
         """Live record if visible in scope. Caller holds the lock."""
         rec = self._tasks.get(task_id)
         return rec if rec and self._in_scope(rec, agent_slug, tenant) else None
 
-    def _push_rec(self, task_id: str, config_id: str = "", agent_slug: str = "", tenant: str = "") -> Optional[dict]:
+    def _push_rec(self, task_id: str, config_id: str = "", agent_slug: str = "", tenant: str = "") -> dict | None:
         """Scoped record that has a push config (matching ``config_id`` if given). Caller holds the lock."""
         rec = self._scoped(task_id, agent_slug, tenant)
         if rec and rec.get("push_url") and (not config_id or rec.get("push_config_id") == config_id):
@@ -333,7 +333,7 @@ class TaskStore:
             if (rec := self._tasks.get(task_id)) and rec["state"] not in TERMINAL_STATES:
                 rec["state"] = state
 
-    def set_push_config(self, task_id: str, url: str, agent_slug: str = "", tenant: str = "") -> Optional[dict]:
+    def set_push_config(self, task_id: str, url: str, agent_slug: str = "", tenant: str = "") -> dict | None:
         """Attach a push notification config; returns the stored config or None."""
         with self._lock:
             if not (rec := self._scoped(task_id, agent_slug, tenant)):
@@ -341,7 +341,7 @@ class TaskStore:
             rec["push_url"], rec["push_config_id"] = url, "cfg-" + uuid.uuid4().hex[:12]
             return self._push_config_view(rec)
 
-    def get_push_config(self, task_id: str, config_id: str = "", agent_slug: str = "", tenant: str = "") -> Optional[dict]:
+    def get_push_config(self, task_id: str, config_id: str = "", agent_slug: str = "", tenant: str = "") -> dict | None:
         with self._lock:
             return self._push_config_view(rec) if (rec := self._push_rec(task_id, config_id, agent_slug, tenant)) else None
 
@@ -363,11 +363,11 @@ class TaskStore:
                 url, rec["push_url"] = rec["push_url"], ""
             return url if rec else ""
 
-    def get(self, task_id: str, agent_slug: str = "", tenant: str = "") -> Optional[dict]:
+    def get(self, task_id: str, agent_slug: str = "", tenant: str = "") -> dict | None:
         with self._lock:
             return dict(rec) if (rec := self._scoped(task_id, agent_slug, tenant)) else None
 
-    def complete(self, task_id: str, state: str, reply: str = "") -> Optional[dict]:
+    def complete(self, task_id: str, state: str, reply: str = "") -> dict | None:
         """Transition a task to a terminal state. Idempotent."""
         with self._lock:
             rec = self._tasks.get(task_id)
@@ -382,7 +382,7 @@ class TaskStore:
                 fut.set_result((state, reply))
         return out
 
-    def watch(self, task_id: str, agent_slug: str = "", tenant: str = "") -> Optional[Future]:
+    def watch(self, task_id: str, agent_slug: str = "", tenant: str = "") -> Future | None:
         with self._lock:
             if not (rec := self._scoped(task_id, agent_slug, tenant)):
                 return None

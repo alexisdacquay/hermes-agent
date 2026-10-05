@@ -9,7 +9,6 @@ from unittest.mock import Mock
 import pm
 import pytest
 
-
 SETUP_PATH = (
     Path(__file__).resolve().parents[2]
     / "skills/productivity/google-workspace/scripts/setup.py"

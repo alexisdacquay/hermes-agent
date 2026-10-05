@@ -14,9 +14,10 @@ import json
 import os
 import re
 import threading
+from collections.abc import Iterator
 from contextvars import ContextVar
 from pathlib import Path
-from typing import Any, Iterator, Optional
+from typing import Any
 
 from tools.registry import tool_error
 
@@ -89,7 +90,7 @@ def _count_key(image_url: str) -> tuple[str, str]:
     return get_session_env("HERMES_SESSION_ID", ""), _image_key(image_url)
 
 
-def repeat_refusal(image_url: str) -> Optional[str]:
+def repeat_refusal(image_url: str) -> str | None:
     """Reserve one native embed of ``image_url`` for the current session; tool-error JSON when the
     per-session cap is already spent, else ``None``. Check and count are ONE lock section: a
     parallel tool batch on the same image (the incident's 4 concurrent calls) must not all pass a
@@ -165,7 +166,7 @@ def native_turn_images(user_message: Any) -> Iterator[None]:
         _native_turn_images.reset(token)
 
 
-def native_turn_duplicate(image_url: str, region: Optional[list]) -> Optional[str]:
+def native_turn_duplicate(image_url: str, region: list | None) -> str | None:
     """Text tool result when ``image_url`` already rides the active user turn natively, else
     ``None``. A native re-embed would put the identical pixels into the same request twice
     (the Telegram case in #76411); a ``region`` crop still embeds because it returns new detail."""

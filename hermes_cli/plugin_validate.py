@@ -21,7 +21,7 @@ import sys
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from hermes_cli.plugin_validate_core_override import check_core_override
 from hermes_cli.plugin_validate_desktop import check_desktop_surface
@@ -40,12 +40,12 @@ _PROBE_SENTINEL = "HERMES_VALIDATE_JSON:"
 class ValidationReport:
     """Result of validating one plugin directory."""
 
-    checks: List[Tuple[str, bool, str]] = field(default_factory=list)
-    warnings: List[str] = field(default_factory=list)
-    isolation: Optional[Dict[str, Any]] = None  # plugin-host readiness; informational, never fails
+    checks: list[tuple[str, bool, str]] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    isolation: dict[str, Any] | None = None  # plugin-host readiness; informational, never fails
 
     @property
-    def failures(self) -> List[str]:
+    def failures(self) -> list[str]:
         return [detail or name for name, ok, detail in self.checks if not ok]
 
     @property
@@ -62,7 +62,7 @@ class ValidationReport:
     def warn(self, message: str) -> None:
         self.warnings.append(message)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "ok": self.ok,
             "checks": [
@@ -133,7 +133,7 @@ def _check_config_spec(report: ValidationReport, manifest: dict) -> None:
     if raw in (None, [], {}):
         report.add("config schema", True, "not declared")
         return
-    problems: List[str] = []
+    problems: list[str] = []
     if not isinstance(raw, dict):
         problems.append("config_schema: must be a mapping of key -> spec")
     else:
@@ -162,7 +162,7 @@ def _check_config_spec(report: ValidationReport, manifest: dict) -> None:
 
 def _check_requires_env(report: ValidationReport, manifest: dict) -> None:
     raw = manifest.get("requires_env") or []
-    problems: List[str] = []
+    problems: list[str] = []
     if not isinstance(raw, list):
         problems.append("requires_env: must be a list")
         raw = []
@@ -325,8 +325,8 @@ def _probe_options(manifest: dict) -> dict:
 
 
 def _run_capability_probe(
-    plugin_dir: Path, manifest: dict, probe: Optional[Tuple[Path, Dict[str, str]]] = None,
-) -> Tuple[Optional[dict], str]:
+    plugin_dir: Path, manifest: dict, probe: tuple[Path, dict[str, str]] | None = None,
+) -> tuple[dict | None, str]:
     """Run the recording probe in a scratch subprocess.
 
     *probe* is ``(interpreter, env)`` of the dependency environment to import the plugin from;
@@ -357,7 +357,7 @@ def _run_capability_probe(
         except subprocess.TimeoutExpired:
             return None, f"capability probe timed out after {_PROBE_TIMEOUT}s"
 
-    payload: Optional[dict] = None
+    payload: dict | None = None
     for line in (result.stdout or "").splitlines():
         if line.startswith(_PROBE_SENTINEL):
             try:
@@ -376,7 +376,7 @@ def _run_capability_probe(
     return payload, ""
 
 
-def _declared_list(manifest: dict, key: str) -> List[str]:
+def _declared_list(manifest: dict, key: str) -> list[str]:
     raw = manifest.get(key) or []
     if not isinstance(raw, list):
         return []
@@ -385,8 +385,8 @@ def _declared_list(manifest: dict, key: str) -> List[str]:
 
 def _check_capabilities(
     report: ValidationReport, manifest: dict, plugin_dir: Path,
-    probe: Optional[Tuple[Path, Dict[str, str]]] = None,
-) -> Optional[dict]:
+    probe: tuple[Path, dict[str, str]] | None = None,
+) -> dict | None:
     """Probe actual registrations and diff against declared capabilities.
 
     Returns the recorded dict (for the built-in collision check) or None
@@ -437,7 +437,7 @@ def _check_capabilities(
     return recorded
 
 
-def _builtin_tool_names() -> List[str]:
+def _builtin_tool_names() -> list[str]:
     """Return the built-in tool registry names (discovery-timing safe).
 
     ``tools.registry`` starts empty — built-in tool modules self-register on
@@ -454,7 +454,7 @@ def _builtin_tool_names() -> List[str]:
 
 
 def _check_builtin_collisions(
-    report: ValidationReport, manifest: dict, recorded: Optional[dict]
+    report: ValidationReport, manifest: dict, recorded: dict | None
 ) -> None:
     candidate_tools = set(_declared_list(manifest, "provides_tools"))
     if recorded:
@@ -479,7 +479,7 @@ def _check_builtin_collisions(
 
 
 def validate_plugin_dir(
-    plugin_dir: Path, probe: Optional[Tuple[Path, Dict[str, str]]] = None,
+    plugin_dir: Path, probe: tuple[Path, dict[str, str]] | None = None,
 ) -> ValidationReport:
     """Run every admission check against *plugin_dir* and return the report. *probe* is
     ``(interpreter, env)`` for the capability probe (see ``_run_capability_probe``)."""
@@ -541,7 +541,7 @@ def validate_plugin_dir(
     return report
 
 
-def _check_trusted_inbound(report: ValidationReport, recorded: Optional[dict]) -> None:
+def _check_trusted_inbound(report: ValidationReport, recorded: dict | None) -> None:
     """Surface ``trusted_inbound`` platforms (their events skip user allowlists and pairing); one
     naming a core platform fails, as the loader refuses it."""
     from gateway.platform_registry import core_ships_platform
@@ -555,7 +555,7 @@ def _check_trusted_inbound(report: ValidationReport, recorded: Optional[dict]) -
 _LOADABLE_ENTRYPOINTS = ("__init__.py", "desktop/plugin.js", "plugin.json")
 
 
-def _check_loadable(report: ValidationReport, plugin_dir: Path, manifest: Optional[dict] = None) -> None:
+def _check_loadable(report: ValidationReport, plugin_dir: Path, manifest: dict | None = None) -> None:
     """A plugin.yaml with nothing beside it that Hermes can load (no ``register()`` module, no
     desktop bundle, no portable manifest, no declared language pack) installs "successfully" and does
     nothing — a pip-layout repo whose code lives under ``src/`` behind an entry point is the usual shape."""
@@ -620,8 +620,9 @@ def _validate_portable_plugin(report: ValidationReport, plugin_dir: Path) -> Val
     diagnostics (schema shape, name, supported subset).
     """
     try:
-        from hermes_cli.agent_plugins import load_agent_plugin
         from hermes_platform.resolver.availability import availability
+
+        from hermes_cli.agent_plugins import load_agent_plugin
 
         with tempfile.TemporaryDirectory() as data_root:
             package = load_agent_plugin(plugin_dir, Path(data_root))

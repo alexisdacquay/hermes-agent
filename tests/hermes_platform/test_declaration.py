@@ -11,10 +11,13 @@ import sys
 from pathlib import Path
 
 import pytest
-
 from hermes_platform.declaration import DeclarationError, parse_declaration
 from hermes_platform.resolver.app import AppDef, AppResolver
-from hermes_platform.resolver.availability import Availability, availability, version_at_least
+from hermes_platform.resolver.availability import (
+    Availability,
+    availability,
+    version_at_least,
+)
 
 WHERE = "test-plugin/plugin.yaml"
 

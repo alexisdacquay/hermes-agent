@@ -16,7 +16,7 @@ import json
 import os
 import threading
 import time
-from typing import Optional
+
 from utils import atomic_json_write
 
 _MAX_ENTRIES = 1000
@@ -62,7 +62,7 @@ def _update(chat_id, message_id, fields: dict) -> None:
             return
 
 
-def record(chat_id, message_id, text: Optional[str]) -> None:
+def record(chat_id, message_id, text: str | None) -> None:
     """Persist ``text`` for ``(chat_id, message_id)``. No-op on any failure."""
     if not text or message_id is None or chat_id is None:
         return
@@ -76,7 +76,7 @@ def record_media(chat_id, message_id, media: list[tuple[str, str]]) -> None:
     _update(chat_id, message_id, {"m": [[str(p), str(mt or "")] for p, mt in media if p]})
 
 
-async def record_async(chat_id, message_id, text: Optional[str]) -> None:
+async def record_async(chat_id, message_id, text: str | None) -> None:
     """``record`` for coroutine callers: the read-modify-write + ``os.replace``
     runs on a worker thread so the event loop is not stalled by the filesystem."""
     await asyncio.to_thread(record, chat_id, message_id, text)
@@ -94,7 +94,7 @@ def _entry(chat_id, message_id) -> dict:
     return entry if isinstance(entry, dict) else {}
 
 
-def lookup(chat_id, message_id) -> Optional[str]:
+def lookup(chat_id, message_id) -> str | None:
     """Return stored text for ``(chat_id, message_id)`` or ``None``."""
     return _entry(chat_id, message_id).get("t") or None
 

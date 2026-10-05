@@ -7,11 +7,14 @@ import logging
 import threading
 import time
 from contextlib import suppress
-from typing import Any, Optional
+from typing import Any
 
-from agent.lazy_forward import forward as _forward, forward_static as _forward_static, lazy_attr as _lazy_attr
 from hermes_cli.timeouts import get_provider_request_timeout
 from utils import base_url_host_matches, env_float
+
+from agent.lazy_forward import forward as _forward
+from agent.lazy_forward import forward_static as _forward_static
+from agent.lazy_forward import lazy_attr as _lazy_attr
 
 logger = logging.getLogger("run_agent")  # origin module's logger name: log records / caplog filters unchanged
 _QWEN_CODE_VERSION = "0.14.1"  # Qwen Portal mimics the QwenCode CLI
@@ -77,7 +80,10 @@ def _swap_fallback_clients(agent, fb_client, fb_provider: str, fb_model: str, fb
     credential = key_provider if callable(key_provider) else fb_client.api_key
     if fb_api_mode == "anthropic_messages":
         from agent.anthropic_adapter import build_anthropic_client
-        from agent.anthropic_credentials import resolve_anthropic_token, anthropic_route_is_oauth
+        from agent.anthropic_credentials import (
+            anthropic_route_is_oauth,
+            resolve_anthropic_token,
+        )
         is_anthropic = fb_provider == "anthropic"
         effective_key = credential or (resolve_anthropic_token(model=getattr(agent, "model", None)) if is_anthropic else None) or ""
         agent.api_key = agent._anthropic_api_key = effective_key
@@ -439,7 +445,7 @@ class ClientLifecycleMixin:
         except Exception as exc:
             logger.debug("%s client abort failed (%s, shared=False) %s error=%s", label, reason, context, exc)
 
-    def _create_request_openai_client(self, *, reason: str, api_kwargs: Optional[dict] = None) -> Any:
+    def _create_request_openai_client(self, *, reason: str, api_kwargs: dict | None = None) -> Any:
         from unittest.mock import Mock
         primary_client = self._ensure_primary_openai_client(reason=reason)
         if self.provider == "moa" or isinstance(primary_client, Mock):
@@ -503,7 +509,10 @@ class ClientLifecycleMixin:
         return anthropic_route_is_oauth(getattr(self, "_anthropic_base_url", None), token, provider=self.provider)
 
     def _build_anthropic_client_for_key(self, key: tuple) -> Any:
-        from agent.anthropic_adapter import build_anthropic_bedrock_client, build_anthropic_client
+        from agent.anthropic_adapter import (
+            build_anthropic_bedrock_client,
+            build_anthropic_client,
+        )
         if key[0] == "bedrock":
             return build_anthropic_bedrock_client(key[1])
         return build_anthropic_client(key[1], key[2], timeout=key[3], drop_context_1m_beta=key[4])
@@ -679,14 +688,15 @@ class ClientLifecycleMixin:
         return self._try_refresh_nous_client_credentials(force=False, require_account=str(account))
 
 
-    def _resolve_env_credentials(self) -> Optional[tuple]:
+    def _resolve_env_credentials(self) -> tuple | None:
         """Current ``.env``-sourced ``(api_key, base_url, default_base)`` for this provider, or ``None``.
 
         Covers registry api-key providers and named custom providers with ``key_env``.
         """
         try:
-            from agent.credential_pool import get_env_prefer_dotenv
             from hermes_cli.auth import PROVIDER_REGISTRY
+
+            from agent.credential_pool import get_env_prefer_dotenv
         except ImportError:
             return None
         pconfig = PROVIDER_REGISTRY.get(self.provider)
@@ -701,7 +711,10 @@ class ClientLifecycleMixin:
             base_url = env_url or default_base
             if self.provider == "actual":
                 from hermes_cli.auth import normalize_actual_base_url
-                from hermes_cli.runtime_provider import _config_base_url_for_provider, _get_model_config
+                from hermes_cli.runtime_provider import (
+                    _config_base_url_for_provider,
+                    _get_model_config,
+                )
                 configured_base = _config_base_url_for_provider(_get_model_config(), "actual")
                 base_url = normalize_actual_base_url(configured_base or base_url)
             elif self.provider in ("kimi-coding", "zai"):
@@ -819,7 +832,11 @@ class ClientLifecycleMixin:
         if not self._is_copilot_provider():
             return False
         try:
-            from hermes_cli.copilot_auth import resolve_copilot_token, get_copilot_api_token, evict_cached_exchanged_token
+            from hermes_cli.copilot_auth import (
+                evict_cached_exchanged_token,
+                get_copilot_api_token,
+                resolve_copilot_token,
+            )
             new_token, token_source = resolve_copilot_token()
         except Exception as exc:
             logger.debug("Copilot credential refresh failed: %s", exc)
@@ -849,7 +866,11 @@ class ClientLifecycleMixin:
         if not self._is_copilot_provider():
             return False
         try:
-            from hermes_cli.copilot_auth import resolve_copilot_token, get_copilot_api_token, evict_cached_exchanged_token
+            from hermes_cli.copilot_auth import (
+                evict_cached_exchanged_token,
+                get_copilot_api_token,
+                resolve_copilot_token,
+            )
             raw_token, token_source = resolve_copilot_token()
             if not isinstance(raw_token, str) or not raw_token.strip():
                 return False
@@ -933,7 +954,9 @@ class ClientLifecycleMixin:
         # Per-provider extra_headers last so they survive swaps/rebuilds. SECURITY: may carry credentials; never log.
         if self.api_mode not in ("anthropic_messages", "bedrock_converse"):
             try:
-                from hermes_cli.config import apply_custom_provider_extra_headers_to_client_kwargs
+                from hermes_cli.config import (
+                    apply_custom_provider_extra_headers_to_client_kwargs,
+                )
                 apply_custom_provider_extra_headers_to_client_kwargs(self._client_kwargs, base_url)
             except Exception:
                 logger.debug("custom-provider extra_headers skipped", exc_info=True)
@@ -943,7 +966,9 @@ class ClientLifecycleMixin:
         Delegates to ``agent.auxiliary_client`` so main and aux clients cannot drift. No-op for Anthropic/Bedrock."""
         if self.api_mode in ("anthropic_messages", "bedrock_converse"):
             return
-        from agent.auxiliary_client import _apply_user_default_headers as _merge_user_headers
+        from agent.auxiliary_client import (
+            _apply_user_default_headers as _merge_user_headers,
+        )
         merged = _merge_user_headers(self._client_kwargs.get("default_headers"))
         if merged:
             self._client_kwargs["default_headers"] = merged
@@ -997,7 +1022,9 @@ class ClientLifecycleMixin:
         self._client_kwargs.pop("ssl_ca_cert", None)
         try:
             from hermes_cli.config import (
-                apply_custom_provider_tls_to_client_kwargs, get_compatible_custom_providers, load_config_readonly,
+                apply_custom_provider_tls_to_client_kwargs,
+                get_compatible_custom_providers,
+                load_config_readonly,
             )
             apply_custom_provider_tls_to_client_kwargs(
                 self._client_kwargs, str(self.base_url or ""), get_compatible_custom_providers(load_config_readonly()),

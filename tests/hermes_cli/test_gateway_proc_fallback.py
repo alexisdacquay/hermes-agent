@@ -9,10 +9,8 @@ See: NousResearch/hermes-agent#7622
 import os
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 import hermes_cli.gateway as gateway_mod
-
+import pytest
 
 # ---------------------------------------------------------------------------
 # Helpers

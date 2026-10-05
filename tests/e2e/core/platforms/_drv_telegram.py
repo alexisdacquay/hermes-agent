@@ -17,8 +17,9 @@ Every adapter driver exposes the same surface (see ``_contract.py``):
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 from tests.fakes.platforms._standin import Call, Fault, Visible
 from tests.fakes.platforms.telegram_standin import MAX_TEXT, TelegramStandin
@@ -49,13 +50,13 @@ class TelegramDriver:
     def stop(self) -> None:
         self.standin.stop()
 
-    def gateway_config(self) -> Dict[str, Any]:
+    def gateway_config(self) -> dict[str, Any]:
         return {"platforms": {"telegram": {"enabled": True, "extra": {
             "base_url": self.standin.api_base, "base_file_url": self.standin.file_base,
             "require_mention": True,
         }}}}
 
-    def gateway_env(self) -> Dict[str, str]:
+    def gateway_env(self) -> dict[str, str]:
         return {"TELEGRAM_BOT_TOKEN": self.standin.token,
                 "TELEGRAM_ALLOWED_USERS": ",".join((self.user_id, *self.stream_users)),
                 "TELEGRAM_HOME_CHANNEL": self.home_channel, "HERMES_TELEGRAM_DISABLE_FALLBACK_IPS": "1",
@@ -66,11 +67,11 @@ class TelegramDriver:
         return bool(self.standin.calls_of("getUpdates"))
 
     # inbound -----------------------------------------------------------------------------------
-    def _wrap(self, update: Dict[str, Any]) -> Inbound:
+    def _wrap(self, update: dict[str, Any]) -> Inbound:
         msg = update["message"]
         return Inbound(str(msg["chat"]["id"]), str(msg["message_id"]), update)
 
-    def dm(self, text: str, user_id: Optional[str] = None) -> Inbound:
+    def dm(self, text: str, user_id: str | None = None) -> Inbound:
         return self._wrap(self.standin.dm(int(user_id or self.user_id), text))
 
     def group(self, text: str, *, mention: bool) -> Inbound:
@@ -82,10 +83,10 @@ class TelegramDriver:
     def document(self, filename: str, data: bytes, mime: str, caption: str = "") -> Inbound:
         return self._wrap(self.standin.dm_document(int(self.user_id), filename, data, mime, caption))
 
-    def buttons(self, chat_id: str) -> List[Dict[str, Any]]:
+    def buttons(self, chat_id: str) -> list[dict[str, Any]]:
         return self.standin.buttons(chat_id)
 
-    def click(self, chat_id: str, button: Dict[str, Any], user_id: Optional[str] = None) -> str:
+    def click(self, chat_id: str, button: dict[str, Any], user_id: str | None = None) -> str:
         update = self.standin.callback(int(user_id or self.user_id), int(chat_id), int(button["message_id"]),
                                        button["callback_data"])
         return update["callback_query"]["id"]
@@ -93,24 +94,24 @@ class TelegramDriver:
     def click_answered(self, handle: str) -> bool:
         return any(str(c.params.get("callback_query_id")) == handle and not c.faulted for c in self.callback_answers())
 
-    def callback_answers(self) -> List[Call]:
+    def callback_answers(self) -> list[Call]:
         return self.standin.calls_of("answerCallbackQuery")
 
     # ground truth ------------------------------------------------------------------------------
-    def visible(self, chat_id: str) -> List[Visible]:
+    def visible(self, chat_id: str) -> list[Visible]:
         return self.standin.visible(chat_id)
 
-    def _ok(self, methods: tuple, chat_id: str) -> List[Call]:
+    def _ok(self, methods: tuple, chat_id: str) -> list[Call]:
         return [c for c in self.standin.calls_of(*methods)
                 if not c.faulted and str(c.params.get("chat_id")) == str(chat_id)]
 
-    def sends(self, chat_id: str) -> List[Call]:
+    def sends(self, chat_id: str) -> list[Call]:
         return self._ok(("sendMessage",), chat_id)
 
-    def edits(self, chat_id: str) -> List[Call]:
+    def edits(self, chat_id: str) -> list[Call]:
         return self._ok(("editMessageText",), chat_id)
 
-    def format_rejections(self, chat_id: str) -> List[Call]:
+    def format_rejections(self, chat_id: str) -> list[Call]:
         return [c for c in self.standin.calls if c.faulted and str(c.params.get("chat_id")) == str(chat_id)
                 and "can't parse entities" in str(c.response)]
 
@@ -118,19 +119,19 @@ class TelegramDriver:
         return self.standin.describe()
 
     # faults ------------------------------------------------------------------------------------
-    def fail_send(self, *, times: int = 1, match: Optional[Callable[[str], bool]] = None) -> List[Fault]:
+    def fail_send(self, *, times: int = 1, match: Callable[[str], bool] | None = None) -> list[Fault]:
         pred = (lambda p: match(str(p.get("text", "")))) if match else None
         return [self.standin.fail("sendMessage", {"ok": False, "error_code": 400,
                                                   "description": "Bad Request: chat not found"},
                                   status=400, times=times, match=pred)]
 
-    def fail_edit(self, *, times: int = 1, match: Optional[Callable[[str], bool]] = None) -> List[Fault]:
+    def fail_edit(self, *, times: int = 1, match: Callable[[str], bool] | None = None) -> list[Fault]:
         pred = (lambda p: match(str(p.get("text", "")))) if match else None
         return [self.standin.fail("editMessageText", {"ok": False, "error_code": 400,
                                                       "description": "Bad Request: message can't be edited"},
                                   status=400, times=times, match=pred)]
 
-    def fail_finalize(self, has_footer: Callable[[str], bool], *, group: bool) -> List[Fault]:
+    def fail_finalize(self, has_footer: Callable[[str], bool], *, group: bool) -> list[Fault]:
         """Reject the call that would complete the streamed reply.
 
         Groups stream by editing one message (editMessageText): every edit carrying the footer is

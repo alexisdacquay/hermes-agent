@@ -2,7 +2,6 @@
 import asyncio
 
 import pytest
-
 from evals.heartbeat_idle_wire import WireAdapter
 from gateway.config import Platform, PlatformConfig
 from gateway.kanban_watchers_notifier import _KanbanNotification, _notifier_collect

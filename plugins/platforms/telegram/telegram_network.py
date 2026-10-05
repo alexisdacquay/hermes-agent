@@ -7,7 +7,7 @@ import asyncio
 import ipaddress
 import logging
 import socket
-from typing import Iterable, Optional
+from collections.abc import Iterable
 
 import httpx
 
@@ -61,7 +61,9 @@ _UNSET = object()
 
 
 def _resolve_proxy_url(target_hosts=None) -> str | None:
-    from gateway.platforms.base import resolve_proxy_url  # env vars + macOS system proxy
+    from gateway.platforms.base import (
+        resolve_proxy_url,  # env vars + macOS system proxy
+    )
     return resolve_proxy_url("TELEGRAM_PROXY", target_hosts=target_hosts)
 
 
@@ -127,10 +129,10 @@ class TelegramFallbackTransport(httpx.AsyncBaseTransport):
         except Exception as exc:  # closing a broken pool must never mask the real error
             logger.debug("[Telegram] Error closing fallback transport %s: %s", ip, exc)
 
-    def _attempt_order(self) -> list[Optional[str]]:
+    def _attempt_order(self) -> list[str | None]:
         """Sticky path first, then IPv4 literals, dual-stack hostname last (a blackholed IPv6 path never
         errors — Happy Eyeballs waits on AAAA until the OS TCP timeout and can pin the loop)."""
-        order: list[Optional[str]] = []
+        order: list[str | None] = []
         if self._sticky_ip is not _UNSET:
             order.append(None if self._sticky_ip is None else str(self._sticky_ip))
         order.extend(ip for ip in self._fallback_ips if ip not in order)

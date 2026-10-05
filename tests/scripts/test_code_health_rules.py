@@ -6,7 +6,6 @@ from __future__ import annotations
 import ast
 
 import pytest
-
 from scripts.code_health.config import RULES_BY_ID
 from scripts.code_health.py_rules import CHECKERS, Ctx, canonical_tree
 from scripts.code_health.py_structure import body_hash, nesting_depth

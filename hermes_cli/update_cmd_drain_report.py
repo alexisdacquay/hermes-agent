@@ -11,8 +11,8 @@ that into progress lines.
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, Optional
 
 # Progress cadence: the gateway refreshes ``active_work`` every 30s; printing faster only repeats it.
 DRAIN_REPORT_INTERVAL_S = 30.0
@@ -26,11 +26,14 @@ def _fmt_elapsed(seconds: object) -> str:
     return f"{total // 60}m{total % 60:02d}s" if total >= 60 else f"{total}s"
 
 
-def _cron_job_name(job_id: str, home: Optional[Path]) -> Optional[str]:
+def _cron_job_name(job_id: str, home: Path | None) -> str | None:
     """``name`` from the profile's ``jobs.json`` (None when unreadable — the id alone still identifies it)."""
     try:
-        from hermes_constants import reset_hermes_home_override, set_hermes_home_override
         from cron.jobs import load_jobs
+        from hermes_constants import (
+            reset_hermes_home_override,
+            set_hermes_home_override,
+        )
 
         token = set_hermes_home_override(home) if home else None
         try:
@@ -45,7 +48,7 @@ def _cron_job_name(job_id: str, home: Optional[Path]) -> Optional[str]:
     return None
 
 
-def describe_active_work_unit(unit: dict, home: Optional[Path] = None) -> str:
+def describe_active_work_unit(unit: dict, home: Path | None = None) -> str:
     """One human line for one ``active_work`` entry; unknown shapes degrade to their ``kind``."""
     kind = str(unit.get("kind") or "work")
     pid = unit.get("pid")
@@ -67,7 +70,7 @@ def describe_active_work_unit(unit: dict, home: Optional[Path] = None) -> str:
     return f"{kind} run{pid_part}{elapsed_part}"
 
 
-def read_active_work(home: Optional[Path] = None) -> Optional[list]:
+def read_active_work(home: Path | None = None) -> list | None:
     """``active_work`` as the gateway last published it, or None (old gateway / not draining / unreadable)."""
     try:
         from gateway.status import read_runtime_status
@@ -79,7 +82,7 @@ def read_active_work(home: Optional[Path] = None) -> Optional[list]:
         return None
 
 
-def format_drain_report(work: Optional[list], *, remaining_s: float, home: Optional[Path] = None) -> str:
+def format_drain_report(work: list | None, *, remaining_s: float, home: Path | None = None) -> str:
     """Multi-line progress block: what the gateway is waiting on plus how to stop waiting."""
     lines = [f"  ⏳ still draining — {max(remaining_s, 0):.0f}s left before the forced restart"]
     if work is None:
@@ -94,7 +97,7 @@ def format_drain_report(work: Optional[list], *, remaining_s: float, home: Optio
     return "\n".join(lines)
 
 
-def drain_progress_reporter(home: Optional[Path] = None, *, budget_s: float,
+def drain_progress_reporter(home: Path | None = None, *, budget_s: float,
                             interval_s: float = DRAIN_REPORT_INTERVAL_S,
                             emit: Callable[[str], None] = print) -> Callable[[], None]:
     """Return a zero-arg callback for ``_wait_for_pid_exit(on_progress=...)`` that prints the drain

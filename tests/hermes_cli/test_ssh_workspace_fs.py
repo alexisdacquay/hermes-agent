@@ -2,7 +2,6 @@ import base64
 import io
 
 import pytest
-
 from hermes_cli import ssh_workspace_fs
 from hermes_cli.ssh_workspace_fs import SshWorkspaceFs, SshWorkspaceFsError
 

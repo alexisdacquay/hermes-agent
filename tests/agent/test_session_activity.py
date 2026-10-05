@@ -3,7 +3,6 @@
 import sys
 
 import pytest
-
 from agent.session_activity import (
     ACTIVITY_DESCRIPTION_MAX,
     ActivityProvenance,
@@ -12,6 +11,7 @@ from agent.session_activity import (
     format_iteration_progress,
     normalize_activity_provenance,
 )
+
 
 @pytest.mark.parametrize(
     "max_iterations, expected",

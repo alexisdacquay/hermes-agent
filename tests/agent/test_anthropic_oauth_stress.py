@@ -24,7 +24,6 @@ from dataclasses import replace as dc_replace
 from pathlib import Path
 
 import pytest
-
 from agent.credential_pool import (
     AUTH_TYPE_OAUTH,
     STATUS_EXHAUSTED,

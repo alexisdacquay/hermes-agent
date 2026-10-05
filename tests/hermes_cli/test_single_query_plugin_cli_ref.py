@@ -8,9 +8,8 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-import pytest
-
 import cli
+import pytest
 from hermes_cli.plugins import get_plugin_manager
 
 

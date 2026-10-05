@@ -4,7 +4,6 @@ the MRO). ``gateway.run`` internals are imported lazily inside method bodies (im
 
 from __future__ import annotations
 
-from pm import install_hint
 import asyncio
 import functools
 import json
@@ -16,9 +15,10 @@ import weakref
 from contextlib import suppress
 from difflib import SequenceMatcher
 from types import SimpleNamespace
-from typing import Dict, List, Optional
 
 from agent.i18n import t
+from pm import install_hint
+
 from gateway.config import Platform
 from gateway.platforms.base import build_auto_tts_output_path
 from gateway.platforms.event import MessageEvent, MessageType
@@ -32,7 +32,7 @@ _VOICE_MODES = {"off", "voice_only", "all"}
 
 
 class GatewayVoiceMixin:
-    def _voice_key(self, platform: Platform, chat_id: str, profile: Optional[str] = None) -> str:
+    def _voice_key(self, platform: Platform, chat_id: str, profile: str | None = None) -> str:
         """``<profile>:<platform>:<chat_id>`` under multiplexing (else two bots in one channel
         share a key and one ``/voice`` flips the other's); default keeps ``<platform>:<chat>``.
 
@@ -56,7 +56,7 @@ class GatewayVoiceMixin:
             adapter._voice_input_callback = functools.partial(
                 self._handle_voice_channel_input, adapter=adapter)
 
-    def _load_voice_modes(self) -> Dict[str, str]:
+    def _load_voice_modes(self) -> dict[str, str]:
         try:
             data = json.loads(self._VOICE_MODE_PATH.read_text(encoding="utf-8-sig"))
         except (FileNotFoundError, json.JSONDecodeError, OSError):
@@ -118,7 +118,9 @@ class GatewayVoiceMixin:
         if not chat_sets:
             return
         try:
-            from hermes_cli.config import load_config  # lazy: no gateway -> hermes_cli module dep
+            from hermes_cli.config import (
+                load_config,  # lazy: no gateway -> hermes_cli module dep
+            )
             auto_tts_default = bool((load_config().get("voice") or {}).get("auto_tts", False))
         except Exception:
             auto_tts_default = False
@@ -139,7 +141,7 @@ class GatewayVoiceMixin:
                          if mode in modes and key.startswith(prefix))
 
     @staticmethod
-    def _get_guild_id(event: MessageEvent) -> Optional[int]:
+    def _get_guild_id(event: MessageEvent) -> int | None:
         raw = getattr(event, "raw_message", None)
         if getattr(raw, "guild_id", None):  # slash command interaction
             return int(raw.guild_id)
@@ -375,7 +377,7 @@ class GatewayVoiceMixin:
                 with suppress(OSError):
                     os.unlink(p)
 
-    async def _deliver_voice_reply(self, event: MessageEvent, audio_paths: List[str]) -> None:
+    async def _deliver_voice_reply(self, event: MessageEvent, audio_paths: list[str]) -> None:
         """Play the files in the connected voice channel, else send them as voice messages."""
         adapter = self._delivery_adapter_for(event.source)
         guild_id = self._get_guild_id(event)

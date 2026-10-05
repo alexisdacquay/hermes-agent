@@ -10,16 +10,26 @@ import logging
 import os
 from typing import Any, Dict, List, Optional
 
+from agent.image_gen_provider import (
+    DEFAULT_ASPECT_RATIO,
+    resolve_aspect_ratio,
+    success_response,
+)
 from agent.secret_scope import get_secret
-from agent.image_gen_provider import DEFAULT_ASPECT_RATIO, resolve_aspect_ratio, success_response
 from plugins.image_gen._common import (
-    StaticImageGenProvider, error_factory, import_openai, load_image_gen_config, materialize_image,
-    prompt_required_error, size_for)
+    StaticImageGenProvider,
+    error_factory,
+    import_openai,
+    load_image_gen_config,
+    materialize_image,
+    prompt_required_error,
+    size_for,
+)
 
 logger = logging.getLogger(__name__)
 
 
-def _live_models() -> Optional[List[Dict[str, Any]]]:
+def _live_models() -> list[dict[str, Any]] | None:
     """Fetch ``image-gen``-tagged models from the DeepInfra catalog."""
     try:
         from hermes_cli.models import _fetch_deepinfra_models_by_tag
@@ -29,12 +39,12 @@ def _live_models() -> Optional[List[Dict[str, Any]]]:
     return _fetch_deepinfra_models_by_tag("image-gen")
 
 
-def _format_catalog_row(item: Dict[str, Any]) -> Dict[str, Any]:
+def _format_catalog_row(item: dict[str, Any]) -> dict[str, Any]:
     """Picker row for a catalog item."""
     mid = item.get("id", "")
     metadata = item.get("metadata")
     metadata = metadata if isinstance(metadata, dict) else {}
-    row: Dict[str, Any] = {
+    row: dict[str, Any] = {
         "id": mid, "display": mid.split("/", 1)[-1], "strengths": metadata.get("description", ""),
     }
     pricing = metadata.get("pricing")
@@ -49,7 +59,7 @@ def _format_catalog_row(item: Dict[str, Any]) -> Dict[str, Any]:
     return row
 
 
-def _resolve_model(catalog: List[Dict[str, Any]], cfg: Dict[str, Any]) -> Optional[str]:
+def _resolve_model(catalog: list[dict[str, Any]], cfg: dict[str, Any]) -> str | None:
     """env > config > first live result, else None (``cfg`` = loaded ``image_gen.deepinfra``)."""
     env_override = os.environ.get("DEEPINFRA_IMAGE_MODEL", "").strip()
     if env_override:
@@ -74,18 +84,18 @@ class DeepInfraImageGenProvider(StaticImageGenProvider):
     def is_available(self) -> bool:
         return bool((get_secret("DEEPINFRA_API_KEY", "") or "").strip())
 
-    def list_models(self) -> List[Dict[str, Any]]:
+    def list_models(self) -> list[dict[str, Any]]:
         return [_format_catalog_row(item) for item in _live_models() or []]
 
-    def default_model(self) -> Optional[str]:
+    def default_model(self) -> str | None:
         rows = self.list_models()
         return rows[0].get("id") if rows else None
 
-    def capabilities(self) -> Dict[str, Any]:
+    def capabilities(self) -> dict[str, Any]:
         """DeepInfra's OpenAI-compatible generation surface is text-only."""
         return {"modalities": ["text"], "max_reference_images": 0}
 
-    def generate(self, prompt: str, aspect_ratio: str = DEFAULT_ASPECT_RATIO, **kwargs: Any) -> Dict[str, Any]:
+    def generate(self, prompt: str, aspect_ratio: str = DEFAULT_ASPECT_RATIO, **kwargs: Any) -> dict[str, Any]:
         prompt = (prompt or "").strip()
         aspect = resolve_aspect_ratio(aspect_ratio)
         fail = error_factory("deepinfra", aspect)

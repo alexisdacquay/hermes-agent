@@ -11,7 +11,6 @@ success does NOT clear it; the recency window is the consumer's call.
 from datetime import datetime
 
 import pytest
-
 from cron.jobs import create_job, get_job, mark_job_run
 
 

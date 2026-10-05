@@ -5,7 +5,6 @@ import subprocess
 import sys
 
 import pytest
-
 from pm.progress import run_contained, verbose_output
 
 

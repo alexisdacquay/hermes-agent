@@ -3,7 +3,6 @@ import logging
 from types import SimpleNamespace
 
 import pytest
-
 from gateway.run_startup import GatewayStartupMixin
 from hermes_cli import session_reset_retirement
 

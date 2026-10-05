@@ -5,9 +5,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-import pytest
-
 import pm.plugins_state as pstate
+import pytest
 
 
 @pytest.fixture

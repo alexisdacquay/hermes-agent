@@ -4,14 +4,14 @@ from __future__ import annotations
 
 import asyncio
 import os
+from collections.abc import Awaitable, Callable
 from pathlib import Path
-from typing import Any, Awaitable, Callable
+from typing import Any
 
 import httpx
-
 from agent.retry_utils import parse_retry_after_seconds
-from tools.microsoft_graph_auth import MicrosoftGraphTokenProvider, format_graph_error
 
+from tools.microsoft_graph_auth import MicrosoftGraphTokenProvider, format_graph_error
 
 DEFAULT_GRAPH_BASE_URL = "https://graph.microsoft.com/v1.0"
 

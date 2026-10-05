@@ -89,7 +89,7 @@ def _norm(s: str) -> str:
 
 
 def slug(name: str, website: str = "") -> str:
-    base = re.sub(r"\.(com|org|net|io|ai|inc|co|us|info|llc)\b", "", (name or "").strip(), flags=re.I)
+    base = re.sub(r"\.(com|org|net|io|ai|inc|co|us|info|llc)\b", "", (name or "").strip(), flags=re.IGNORECASE)
     s = re.sub(r"[^a-z0-9]+", "", base.lower())
     if s:
         return s
@@ -214,7 +214,7 @@ MIN_EXPECTED_CA = 100  # CA registry has ~500+; far fewer => wrong/empty file, w
 
 def fetch(url: str = DEFAULT_URL, timeout: int = 60) -> str:
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
         return resp.read().decode("utf-8", errors="replace")
 
 

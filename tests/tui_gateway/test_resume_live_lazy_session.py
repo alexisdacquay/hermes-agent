@@ -17,7 +17,6 @@ Contract:
 from __future__ import annotations
 
 import pytest
-
 import tui_gateway.server as srv
 
 

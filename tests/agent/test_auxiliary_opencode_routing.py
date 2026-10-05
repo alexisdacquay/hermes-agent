@@ -8,9 +8,8 @@ is stale for every other model.
 from __future__ import annotations
 
 import pytest
-from openai import OpenAI
-
 from agent import auxiliary_client as aux
+from openai import OpenAI
 
 
 @pytest.fixture(autouse=True)

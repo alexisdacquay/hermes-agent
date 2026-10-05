@@ -8,10 +8,9 @@ kind) on every recurring dispatch so `hermes cron list` and
 `hermes cron status` can surface late catch-ups.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
-
 from cron.jobs import (
     _classify_dispatch_lateness,
     get_due_jobs,
@@ -19,7 +18,7 @@ from cron.jobs import (
     save_jobs,
 )
 
-FIXED_NOW = datetime(2026, 9, 1, 9, 31, 0, tzinfo=timezone.utc)
+FIXED_NOW = datetime(2026, 9, 1, 9, 31, 0, tzinfo=UTC)
 
 
 @pytest.fixture()

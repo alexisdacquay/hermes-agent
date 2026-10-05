@@ -4,10 +4,9 @@ import os
 from unittest.mock import MagicMock
 
 import pytest
+from hermes_cli.commands_completion import SlashCommandCompleter, _file_size_label
 from prompt_toolkit.document import Document
 from prompt_toolkit.formatted_text import to_plain_text
-
-from hermes_cli.commands_completion import SlashCommandCompleter, _file_size_label
 
 
 def _display_names(completions):

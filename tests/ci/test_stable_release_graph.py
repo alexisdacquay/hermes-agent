@@ -4,7 +4,6 @@ import subprocess
 from pathlib import Path
 
 from ruamel.yaml import YAML
-
 from tests.ci.desktop_release_roles import gate
 
 ROOT = Path(__file__).resolve().parents[2]

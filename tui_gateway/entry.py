@@ -15,10 +15,9 @@ import time
 import traceback
 from contextlib import suppress
 
+from tui_gateway import server
 from tui_gateway._env import env_float
 from tui_gateway._stdin_recovery import handle_spurious_eof
-
-from tui_gateway import server
 from tui_gateway.event_replay import replay_epoch
 from tui_gateway.server import _CRASH_LOG, _err, dispatch, resolve_skin, write_json
 from tui_gateway.transport import TeeTransport
@@ -175,7 +174,7 @@ def _log_exit(reason: str) -> None:
     print(f"[gateway-exit] {reason}", file=sys.stderr, flush=True)
 
 
-def wait_for_mcp_discovery(timeout: "float | None" = None) -> None:
+def wait_for_mcp_discovery(timeout: float | None = None) -> None:
     """Block until background MCP discovery finishes, up to the resolved bound (config
     ``mcp_discovery_timeout``; ``timeout`` overrides). The agent snapshots its tool list ONCE
     at build time, so this bounded join lets already-spawning servers land."""

@@ -24,7 +24,6 @@ import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 from urllib.parse import urlsplit
 
 from pm.store import hash_url
@@ -46,11 +45,11 @@ def table_path() -> Path:
     return Path(__file__).resolve().parent / TABLE_NAME
 
 
-def load_table(path: Optional[Path] = None) -> dict:
+def load_table(path: Path | None = None) -> dict:
     return json.loads(Path(path or table_path()).read_text(encoding="utf-8-sig"))
 
 
-def save_table(table: dict, path: Optional[Path] = None) -> None:
+def save_table(table: dict, path: Path | None = None) -> None:
     Path(path or table_path()).write_text(
         json.dumps(table, indent=2) + "\n", encoding="utf-8", newline="\n"
     )
@@ -94,7 +93,7 @@ def parse_index(text: str) -> dict[str, PoolPackage]:
     return pool
 
 
-def _package(fields: dict[str, str]) -> Optional[PoolPackage]:
+def _package(fields: dict[str, str]) -> PoolPackage | None:
     name = fields.get("Package")
     filename = fields.get("Filename")
     sha256 = fields.get("SHA256")
@@ -107,7 +106,7 @@ def index() -> dict[str, PoolPackage]:
     return parse_index(_get_text(INDEX_URL))
 
 
-def package_of(url: str) -> Optional[str]:
+def package_of(url: str) -> str | None:
     """The pool package a pinned URL names, or None for any other source."""
     parsed = urlsplit(url)
     if parsed.scheme != "https" or parsed.netloc != POOL_HOST:
@@ -142,7 +141,7 @@ class Retired:
     pin: Pin
     # None: the pool no longer carries the package at all — a rename or a
     # drop, which needs a human, not a repin.
-    replacement: Optional[PoolPackage]
+    replacement: PoolPackage | None
 
 
 def pins(table: dict, lockfile) -> list[Pin]:

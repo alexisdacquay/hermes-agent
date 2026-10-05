@@ -9,14 +9,27 @@ import logging
 import re
 import sqlite3
 import time
-from typing import Any, Callable, Collection, Dict, List, Optional, Tuple
+from collections.abc import Callable, Collection
+from typing import Any
 
 from agent.skill_commands import describe_skill_invocation
 from hermes_state_common import (
-    FTS_CJK_STALE_KEY, FTS_SQL, FTS_STALE_KEY, FTS_STORAGE_VERSION, FTS_TOOL_CONTENT_PREFIX_CHARS,
-    FTS_TRIGRAM_EXCLUDED_SOURCES, FTS_TRIGRAM_SQL,
-    MAX_FTS5_QUERY_CHARS, SCHEMA_VERSION, _FTS_CJK_TRIGGERS,
-    escape_like as _escape_like, fts_rebuild_admission, fts_trigram_session_sql, routed_sessions_setting,
+    _FTS_CJK_TRIGGERS,
+    FTS_CJK_STALE_KEY,
+    FTS_SQL,
+    FTS_STALE_KEY,
+    FTS_STORAGE_VERSION,
+    FTS_TOOL_CONTENT_PREFIX_CHARS,
+    FTS_TRIGRAM_EXCLUDED_SOURCES,
+    FTS_TRIGRAM_SQL,
+    MAX_FTS5_QUERY_CHARS,
+    SCHEMA_VERSION,
+    fts_rebuild_admission,
+    fts_trigram_session_sql,
+    routed_sessions_setting,
+)
+from hermes_state_common import (
+    escape_like as _escape_like,
 )
 
 # Pre-split logger identity so log filtering/capture is unchanged.
@@ -77,7 +90,7 @@ _CJK_RANGES = (
 )
 
 
-def _meta_row(conn, key: str) -> Optional[sqlite3.Row]:
+def _meta_row(conn, key: str) -> sqlite3.Row | None:
     """Point-read one ``state_meta`` row (``None`` when absent)."""
     return conn.execute("SELECT value FROM state_meta WHERE key = ?", (key,)).fetchone()
 
@@ -90,7 +103,7 @@ def _is_cjk(cp: int) -> bool:
     return any(lo <= cp <= hi for lo, hi in _CJK_RANGES)
 
 
-def _non_operator_tokens(raw_query: str) -> List[str]:
+def _non_operator_tokens(raw_query: str) -> list[str]:
     return [t for t in raw_query.split() if t.upper() not in _FTS_OPERATORS]
 
 
@@ -101,7 +114,7 @@ def _quote_fts_tokens(raw_query: str) -> str:
     )
 
 
-def _like_params(term: str) -> List[str]:
+def _like_params(term: str) -> list[str]:
     """One ``%term%`` bind per column of ``_LIKE_ANY_COLUMN_SQL``."""
     return [f"%{_escape_like(term)}%"] * 3
 
@@ -121,7 +134,7 @@ def _strip_cjk_wildcards(raw_query: str) -> str:
     """
     if "*" not in raw_query:
         return raw_query
-    stripped: List[str] = []
+    stripped: list[str] = []
     for token in raw_query.split():
         if token.upper() in _FTS_OPERATORS:
             stripped.append(token)
@@ -145,7 +158,7 @@ def _positive_int(name: str, value: Any) -> None:
         raise ValueError(f"{name} must be greater than zero")
 
 
-def _search_select_sql(snippet_sql: str, from_sql: str, where: List[str], order_by: str, limit_sql: str) -> str:
+def _search_select_sql(snippet_sql: str, from_sql: str, where: list[str], order_by: str, limit_sql: str) -> str:
     """Result-row SELECT shared by the FTS and LIKE routes (SQL text is pinned)."""
     return f"""
             SELECT m.id, m.session_id, m.role,
@@ -160,9 +173,9 @@ def _search_select_sql(snippet_sql: str, from_sql: str, where: List[str], order_
 
 
 def _search_filter_clauses(
-    where: List[str], params: list, *, include_inactive: bool, source_filter: Optional[List[str]],
-    exclude_sources: Optional[List[str]], role_filter: Optional[List[str]],
-    after_ts: Optional[int] = None, before_ts: Optional[int] = None) -> None:
+    where: list[str], params: list, *, include_inactive: bool, source_filter: list[str] | None,
+    exclude_sources: list[str] | None, role_filter: list[str] | None,
+    after_ts: int | None = None, before_ts: int | None = None) -> None:
     """Append the visibility/source/role/session-start predicates every search route shares. Live
     rows (active=1) AND compaction-archived rows (compacted=1) are discoverable; only
     rewind/undo rows (active=0, compacted=0) are hidden. ``after_ts``/``before_ts`` bound
@@ -197,7 +210,7 @@ class SessionSearchMixin:
     )
 
     @classmethod
-    def _search_message_fields(cls, fields: Optional[Collection[str]]) -> Optional[Tuple[str, ...]]:
+    def _search_message_fields(cls, fields: Collection[str] | None) -> tuple[str, ...] | None:
         """Validate and canonically order an optional result projection."""
         if fields is None:
             return None
@@ -226,16 +239,16 @@ class SessionSearchMixin:
 
     # ── Deferred rebuild engine (base + CJK backfills) ─────────────────────
 
-    def fts_rebuild_status(self) -> Optional[Dict[str, Any]]:
+    def fts_rebuild_status(self) -> dict[str, Any] | None:
         """Deferred-rebuild progress ``{"pending", "total", "indexed", "percent"}`` or None. Reads
         via the pooled reader (not get_meta/self._lock) so search never blocks on the writer."""
         return self._rebuild_status("fts_rebuild")
 
-    def fts_cjk_rebuild_status(self) -> Optional[Dict[str, Any]]:
+    def fts_cjk_rebuild_status(self) -> dict[str, Any] | None:
         """CJK-index backfill progress, or None when none is pending."""
         return self._rebuild_status("fts_cjk_rebuild")
 
-    def _rebuild_status(self, prefix: str) -> Optional[Dict[str, Any]]:
+    def _rebuild_status(self, prefix: str) -> dict[str, Any] | None:
         rows = self._read_all("SELECT key, value FROM state_meta WHERE key IN (?, ?)",
                               (f"{prefix}_high_water", f"{prefix}_progress"))
         meta = {r["key"]: r["value"] for r in rows}
@@ -300,7 +313,7 @@ class SessionSearchMixin:
         self._fts_cjk_available = True
         logger.info("CJK FTS index backfill complete — serving CJK search.")
 
-    def _rebuild_finish(self, prefix: str, sweep_sqls: List[Tuple[str, bool]]) -> None:
+    def _rebuild_finish(self, prefix: str, sweep_sqls: list[tuple[str, bool]]) -> None:
         """Sweep a generous window around the high-water boundary, then clear the markers.
         ``(sql, bounded)``: a bounded sweep takes the tool-content prefix_chars param first."""
         def _do(conn):
@@ -333,7 +346,7 @@ class SessionSearchMixin:
         return self._rebuild_step("fts_cjk_rebuild", [insert], finish=self._fts_cjk_rebuild_finish,
                                   fail_msg="CJK FTS rebuild chunk failed (will retry): %s")
 
-    def _rebuild_step(self, prefix: str, insert_sqls: List[str], *, fail_msg: str, finish,
+    def _rebuild_step(self, prefix: str, insert_sqls: list[str], *, fail_msg: str, finish,
                       finish_when_empty: bool = False) -> bool:
         """Shared chunk engine for the base and CJK deferred backfills. ``finish_when_empty``
         finalizes a high_water <= 0 marker (empty messages table) instead of leaving it pending."""
@@ -424,7 +437,7 @@ class SessionSearchMixin:
             )
             return _drop(conn) if cur.rowcount == 0 else True  # True: more trash tables / chunks may remain
 
-        def _drop(conn, marker_key: Optional[str] = None) -> bool:
+        def _drop(conn, marker_key: str | None = None) -> bool:
             """Drained — the DROP is cheap now. True: re-check for more trash."""
             conn.execute(f"DROP TABLE IF EXISTS {tbl}")
             if marker_key is not None:
@@ -630,7 +643,7 @@ class SessionSearchMixin:
             logger.debug("WAL checkpoint (PASSIVE) after optimize VACUUM failed: %s", exc)
         return vacuum_ok
 
-    def _optimize_settle(self, conn) -> Optional[str]:
+    def _optimize_settle(self, conn) -> str | None:
         """Phase 4 (inside the write transaction, so a concurrent writer cannot race a stamp past
         incomplete work): stamp the FTS layout (source of truth for "optimized"), clear the
         "available" flag, advance a lagging schema_version. Returns a refusal reason or None.
@@ -648,8 +661,8 @@ class SessionSearchMixin:
         return None
 
     def optimize_fts_storage(
-        self, *, progress_cb: Optional[Callable[[Dict[str, Any]], None]] = None, vacuum: bool = True
-    ) -> Dict[str, Any]:
+        self, *, progress_cb: Callable[[dict[str, Any]], None] | None = None, vacuum: bool = True
+    ) -> dict[str, Any]:
         """Repair an older FTS layout into the current v23 shape, foreground and to completion:
         legacy-v22 inline -> external-content, or a v23 ``messages_fts_trigram`` that still stores
         ``tool_calls``. Re-running resumes. ``progress_cb`` receives {"phase", "percent",
@@ -730,7 +743,7 @@ class SessionSearchMixin:
 
     def get_anchored_view(
         self, session_id: str, around_message_id: int, window: int = 5, bookend: int = 3,
-        keep_roles: Optional[Tuple[str, ...]] = ("user", "assistant")) -> Dict[str, Any]:
+        keep_roles: tuple[str, ...] | None = ("user", "assistant")) -> dict[str, Any]:
         """Anchored window (``get_messages_around``) plus session bookends, so one call yields the
         goal and the resolution of a long session. ``window`` is filtered to ``keep_roles``
         (None disables) EXCEPT the anchor; ``bookend_start`` / ``bookend_end`` are the
@@ -747,8 +760,8 @@ class SessionSearchMixin:
         if keep_roles is not None:
             keep_set = set(keep_roles)
             filtered_window = [m for m in window_rows if m.get("id") == around_message_id or m.get("role") in keep_set]
-        bookend_start_rows: List[Any] = []
-        bookend_end_rows: List[Any] = []
+        bookend_start_rows: list[Any] = []
+        bookend_end_rows: list[Any] = []
         if bookend > 0:
             role_clause = "" if keep_roles is None else f" AND role IN ({','.join('?' for _ in keep_roles)})"
             role_params = [] if keep_roles is None else list(keep_roles)
@@ -765,7 +778,7 @@ class SessionSearchMixin:
                 # End rows come back DESC for the LIMIT cap; flip to ASC.
                 bookend_end_rows = list(reversed(_bookend(">", window_rows[-1]["id"], "DESC")))
 
-        def _hydrate(row) -> Dict[str, Any]:
+        def _hydrate(row) -> dict[str, Any]:
             return self._row_to_message_dict(row, warn_context="get_anchored_view", summary_flag=False)
         return {
             "window": filtered_window, "messages_before": primitive["messages_before"],
@@ -775,7 +788,7 @@ class SessionSearchMixin:
         }
 
     def list_recent_user_messages(
-        self, session_id: str, limit: int = 20, include_inactive: bool = False) -> List[Dict[str, Any]]:
+        self, session_id: str, limit: int = 20, include_inactive: bool = False) -> list[dict[str, Any]]:
         """The *limit* most-recent real user turns, newest first, as ``{id, timestamp, preview}``
         (80 chars, whitespace collapsed); used by /rewind and ``/undo [N]``. Bookkeeping rows
         (``display_kind`` set) are excluded. Legacy compaction handoffs are role='user' rows
@@ -794,7 +807,7 @@ class SessionSearchMixin:
                 (session_id, int(limit) * 2 + 5),
             ).fetchall()
         from agent.context_compressor import ContextCompressor
-        result: List[Dict[str, Any]] = []
+        result: list[dict[str, Any]] = []
         for row in rows:
             if len(result) >= int(limit):
                 break
@@ -825,7 +838,7 @@ class SessionSearchMixin:
         # left-to-right without backtracking); a leftover unmatched quote becomes whitespace.
         _quoted_parts: list = []
 
-        def _hold(m: "re.Match[str]") -> str:
+        def _hold(m: re.Match[str]) -> str:
             _quoted_parts.append(m.group(0))
             return f"\x00Q{len(_quoted_parts) - 1}\x00"
 
@@ -873,12 +886,12 @@ class SessionSearchMixin:
         return run == 1
 
     @staticmethod
-    def _or_relaxed_query(query: str) -> Optional[str]:
+    def _or_relaxed_query(query: str) -> str | None:
         """The sanitized implicit-AND query rewritten as an any-term OR query, or ``None`` when
         relaxation does not apply: fewer than two searchable units (a single term cannot relax)
         or explicit ``OR``/``NOT`` (the caller expressed exact semantics). Quoted phrases stay
         whole units: ``"docker networking" tls`` -> ``"docker networking" OR tls``."""
-        units: List[str] = []
+        units: list[str] = []
         for raw_token in _LIKE_TOKEN_RE.findall(query):
             upper = raw_token.upper()
             if upper in {"OR", "NOT"}:
@@ -927,7 +940,7 @@ class SessionSearchMixin:
 
     @staticmethod
     def _fts_match_sql(table: str, match_query: str, order_by_sql: str, *, limit: int, offset: int,
-                       **filters) -> Tuple[str, list]:
+                       **filters) -> tuple[str, list]:
         """MATCH query + params against one FTS5 index joined to messages/sessions."""
         where = [f"{table} MATCH ?"]
         params: list = [match_query]
@@ -939,8 +952,8 @@ class SessionSearchMixin:
         )
         return sql, params
 
-    def _match_rows(self, table: str, match_query: str, order_by_sql: str, *, fail_open: Optional[str] = None,
-                    operational_debug: Optional[str] = None, **kwargs) -> Optional[List[Dict[str, Any]]]:
+    def _match_rows(self, table: str, match_query: str, order_by_sql: str, *, fail_open: str | None = None,
+                    operational_debug: str | None = None, **kwargs) -> list[dict[str, Any]] | None:
         """Run one MATCH against *table*; ``None`` when the query cannot execute (tokenizer /
         syntax) so the caller falls back. *fail_open* names the index for the
         substring-capable routes: a corruption-class ``DatabaseError`` there detaches the
@@ -961,16 +974,16 @@ class SessionSearchMixin:
                 fail_open, exc)
             return None
 
-    def _like_rows(self, where: List[str], params: list, *, order_by: str, limit_sql: str) -> List[Dict[str, Any]]:
+    def _like_rows(self, where: list[str], params: list, *, order_by: str, limit_sql: str) -> list[dict[str, Any]]:
         """Canonical-table LIKE scan; ``params[0]`` is the snippet anchor term."""
         sql = _search_select_sql(_LIKE_SNIPPET_SQL, "messages m", where, order_by, limit_sql)
         return [dict(row) for row in self._read_all(sql, params)]
 
     @staticmethod
-    def _compile_like_boolean_query(query: str) -> Tuple[str, List[Any], Optional[str]]:
+    def _compile_like_boolean_query(query: str) -> tuple[str, list[Any], str | None]:
         """Compile the supported FTS boolean subset into LIKE predicates: terms within an OR
         group are ANDed (FTS5's implicit conjunction) and ``NOT`` negates the next term."""
-        groups: List[List[Tuple[str, bool]]] = [[]]
+        groups: list[list[tuple[str, bool]]] = [[]]
         negate_next = False
         for raw_token in _LIKE_TOKEN_RE.findall(query):
             operator = raw_token.upper()
@@ -989,13 +1002,13 @@ class SessionSearchMixin:
                 groups[-1].append((term, negate_next))
                 negate_next = False
 
-        compiled_groups: List[str] = []
-        params: List[Any] = []
-        snippet_term: Optional[str] = None
+        compiled_groups: list[str] = []
+        params: list[Any] = []
+        snippet_term: str | None = None
         for group in groups:
             if not group or not any(not negated for _, negated in group):
                 continue
-            clauses: List[str] = []
+            clauses: list[str] = []
             for term, negated in group:
                 clauses.append(f"NOT {_LIKE_COALESCED_COLUMN_SQL}" if negated else _LIKE_COALESCED_COLUMN_SQL)
                 params.extend(_like_params(term))
@@ -1005,7 +1018,7 @@ class SessionSearchMixin:
         return " OR ".join(compiled_groups), params, snippet_term
 
     def _search_messages_like_fallback(
-        self, query: str, *, limit: int, offset: int, sort: Optional[str], **filters) -> List[Dict[str, Any]]:
+        self, query: str, *, limit: int, offset: int, sort: str | None, **filters) -> list[dict[str, Any]]:
         """Search canonical messages while derived FTS state is stale."""
         predicate, params, snippet_term = self._compile_like_boolean_query(query)
         if not predicate or snippet_term is None:
@@ -1029,7 +1042,7 @@ class SessionSearchMixin:
             self._fts_enabled = self._trigram_available = self._fts_cjk_available = False
 
     def _finalize_search_matches(
-        self, matches: List[Dict[str, Any]], result_fields: Optional[Collection[str]] = None) -> List[Dict[str, Any]]:
+        self, matches: list[dict[str, Any]], result_fields: Collection[str] | None = None) -> list[dict[str, Any]]:
         """Attach neighboring messages in bounded batches, only when context is requested."""
         if result_fields is None or "context" in result_fields:
             for start in range(0, len(matches), 500):
@@ -1060,11 +1073,11 @@ class SessionSearchMixin:
     # ── search_messages ────────────────────────────────────────────────────
 
     def search_messages(
-        self, query: str, source_filter: List[str] = None, exclude_sources: List[str] = None,
-        role_filter: List[str] = None, limit: int = 20, offset: int = 0, sort: str = None,
-        include_inactive: bool = False, fields: Optional[Collection[str]] = None,
-        after_ts: Optional[int] = None, before_ts: Optional[int] = None,
-    ) -> List[Dict[str, Any]]:
+        self, query: str, source_filter: list[str] = None, exclude_sources: list[str] = None,
+        role_filter: list[str] = None, limit: int = 20, offset: int = 0, sort: str = None,
+        include_inactive: bool = False, fields: Collection[str] | None = None,
+        after_ts: int | None = None, before_ts: int | None = None,
+    ) -> list[dict[str, Any]]:
         """:meth:`_search_messages_impl` plus one log line per slow search with the routing
         path taken. Threshold HERMES_SEARCH_SLOW_MS (default 1000; 0 logs every call)."""
         started = time.time()
@@ -1083,11 +1096,11 @@ class SessionSearchMixin:
                             query[: 200])
 
     def _search_messages_impl(
-        self, query: str, source_filter: List[str] = None, exclude_sources: List[str] = None,
-        role_filter: List[str] = None, limit: int = 20, offset: int = 0, sort: str = None,
-        include_inactive: bool = False, fields: Optional[Collection[str]] = None,
-        after_ts: Optional[int] = None, before_ts: Optional[int] = None,
-    ) -> List[Dict[str, Any]]:
+        self, query: str, source_filter: list[str] = None, exclude_sources: list[str] = None,
+        role_filter: list[str] = None, limit: int = 20, offset: int = 0, sort: str = None,
+        include_inactive: bool = False, fields: Collection[str] | None = None,
+        after_ts: int | None = None, before_ts: int | None = None,
+    ) -> list[dict[str, Any]]:
         """FTS5 search across session messages (keywords, ``"phrases"``, AND/OR/NOT, ``prefix*``).
         Returns snippet + session metadata + 1-message context per hit; ``fields`` selects a
         projection. ``sort``: None = BM25 rank; "newest"/"oldest" = timestamp then rank (the
@@ -1188,7 +1201,7 @@ class SessionSearchMixin:
                                            **route) or matches
         return self._finalize_search_matches(matches, result_fields=result_fields)
 
-    def _search_cjk(self, query: str, wants_unindexed_rows: bool, route: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _search_cjk(self, query: str, wants_unindexed_rows: bool, route: dict[str, Any]) -> list[dict[str, Any]]:
         """CJK routing: the unicode61 table splits CJK into single characters (false positives,
         missed phrases). cjk-bigram serves every shape except queries wanting rows the
         substring indexes exclude (role='tool', cron/subagent sources) and LONE
@@ -1217,7 +1230,7 @@ class SessionSearchMixin:
         return self._like_rows(like_where, [non_op_tokens[0], *like_params, route["limit"], route["offset"]],
                                order_by="ORDER BY m.timestamp DESC", limit_sql="LIMIT ? OFFSET ?")
 
-    def _search_unindexed_gap(self, fts_query: str, limit: int, **filters) -> List[Dict[str, Any]]:
+    def _search_unindexed_gap(self, fts_query: str, limit: int, **filters) -> list[dict[str, Any]]:
         """LIKE-scan ids in (fts_rebuild_progress, fts_rebuild_high_water] — rows the deferred
         rebuild hasn't indexed yet. The FTS query degrades to AND-joined substring terms
         (quoted phrases kept whole): recall-over-precision mid-rebuild."""
@@ -1236,7 +1249,7 @@ class SessionSearchMixin:
 
     def search_sessions_by_id(
         self, query: str, limit: int = 20, include_archived: bool = True, source: str = None,
-        sources: List[str] = None, exclude_sources: List[str] = None) -> List[Dict[str, Any]]:
+        sources: list[str] = None, exclude_sources: list[str] = None) -> list[dict[str, Any]]:
         """Search surfaced sessions by exact/prefix/substring session id. Also matches
         ``_lineage_root_id`` so an old compression root id resolves to the live continuation."""
         needle = (query or "").strip().lower()
@@ -1248,7 +1261,7 @@ class SessionSearchMixin:
             source=source, sources=sources, exclude_sources=exclude_sources, limit=max(limit * 4, limit),
             offset=0, include_archived=include_archived, order_by_last_active=True, id_query=needle)
 
-        def score(row: Dict[str, Any]) -> int:
+        def score(row: dict[str, Any]) -> int:
             normalized = [v.lower() for v in (str(row.get("id") or ""), str(row.get("_lineage_root_id") or "")) if v]
             if any(value == needle for value in normalized):
                 return 0
@@ -1267,7 +1280,7 @@ class SessionSearchMixin:
         except sqlite3.DatabaseError:
             return False
 
-    def _present_fts_tables(self) -> List[str]:
+    def _present_fts_tables(self) -> list[str]:
         """Queryable FTS tables (caller holds ``self._lock``)."""
         return [tbl for tbl in self._FTS_TABLES if self._fts_table_exists(tbl)]
 
@@ -1331,7 +1344,7 @@ class SessionSearchMixin:
                         logger.warning("FTS rebuild failed for %s: %s", tbl, exc)
         return rebuilt
 
-    def _merge_fts_incrementally(self, *, max_pages: int, max_commands: Optional[int] = None) -> int:
+    def _merge_fts_incrementally(self, *, max_pages: int, max_commands: int | None = None) -> int:
         """Run bounded FTS5 ``'merge'`` commands against each present index. A positive merge rank
         stops after ~that many output pages, so each command holds the write lock for
         milliseconds regardless of index size (``'optimize'`` takes 9-18 s per index on a

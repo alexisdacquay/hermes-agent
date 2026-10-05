@@ -10,15 +10,23 @@ re-apply the policy at TCP connect and dial the validated IP while preserving Ho
 bypass is mitigated by response hooks re-validating each target (``redirect_target_from_response``).
 """
 
+import asyncio
 import ipaddress
 import logging
 import os
-import socket
-import asyncio
 import re
+import socket
 from contextlib import contextmanager
-from typing import Any, Optional
-from urllib.parse import parse_qsl, quote, unquote, urljoin, urlparse, urlsplit, urlunsplit
+from typing import Any
+from urllib.parse import (
+    parse_qsl,
+    quote,
+    unquote,
+    urljoin,
+    urlparse,
+    urlsplit,
+    urlunsplit,
+)
 
 from hermes_constants import get_hermes_home_override
 from utils import is_truthy_value
@@ -77,7 +85,7 @@ _SENSITIVE_QUERY_PARAM_NAMES = frozenset({
     "x-amz-security-token", "x-amz-signature"})
 
 
-def sensitive_query_param_name(url: str) -> Optional[str]:
+def sensitive_query_param_name(url: str) -> str | None:
     """First credential-named query parameter in ``url`` (with a value), if any. Checked before
     handing URLs to third-party fetch/browser backends: catches opaque magic links, OAuth codes,
     signed-URL signatures and custom ``?token=...`` values that prefix-based redaction misses."""
@@ -222,11 +230,11 @@ def _global_fake_ip_ranges() -> tuple:
     return _cached_fake_ip_ranges
 
 
-def _normalize_hostname(host: Optional[str]) -> str:
+def _normalize_hostname(host: str | None) -> str:
     return (host or "").strip().lower().rstrip(".")
 
 
-def _parse_ip(hostname: str) -> Optional[_IPAddress]:
+def _parse_ip(hostname: str) -> _IPAddress | None:
     """IP object for a literal-IP hostname, else None."""
     try:
         return ipaddress.ip_address(hostname)
@@ -243,7 +251,7 @@ def _iter_resolved_ips(addr_info: Any):
         yield raw, ip_str, _parse_ip(ip_str)
 
 
-def _getaddrinfo(hostname: str, port: Optional[int] = None):
+def _getaddrinfo(hostname: str, port: int | None = None):
     return socket.getaddrinfo(hostname, port, socket.AF_UNSPEC, socket.SOCK_STREAM)
 
 
@@ -326,7 +334,7 @@ def _allows_private_ip_resolution(hostname: str, scheme: str) -> bool:
     return scheme == "https" and hostname in _TRUSTED_PRIVATE_IP_HOSTS
 
 
-def _resolved_ip_block_reason(ip: _IPAddress, allow_private: bool) -> Optional[str]:
+def _resolved_ip_block_reason(ip: _IPAddress, allow_private: bool) -> str | None:
     """Why a resolved answer must be rejected, or None if it may be dialed. The metadata floor
     ignores ``allow_private``; ordinary private/internal classes are blocked only when it is False."""
     if _is_always_blocked_ip(ip):
@@ -569,7 +577,7 @@ def create_ssrf_safe_client(**kwargs: Any) -> Any:
     return client
 
 
-def redirect_target_from_response(response: Any) -> Optional[str]:
+def redirect_target_from_response(response: Any) -> str | None:
     """Redirect target visible from inside an httpx response hook. ``response.next_request`` is
     frequently ``None`` inside hooks (populated later by the follower), which would make an SSRF
     redirect guard silently never fire — so resolve from ``Location`` first, then ``next_request``."""

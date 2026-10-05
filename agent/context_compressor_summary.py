@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import inspect
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
 from agent.auxiliary_client import AuxiliaryExplicitCancellation
 
@@ -28,9 +28,9 @@ def _accepts_keyword_argument(callable_obj: Any, name: str) -> bool:
 
 class SummaryDispatchMixin:
     def _summarize_window(
-        self, messages: List[Dict[str, Any]], turns_to_summarize: List[Dict[str, Any]], scan: "_HandoffScan",
-        focus_topic: Optional[str], memory_context: str, bypass_cooldown: bool,
-    ) -> Optional[str]:
+        self, messages: list[dict[str, Any]], turns_to_summarize: list[dict[str, Any]], scan: _HandoffScan,
+        focus_topic: str | None, memory_context: str, bypass_cooldown: bool,
+    ) -> str | None:
         """Run the summary LLM; a cancellation rolls back the handoff scan's self-heal mutation first.
         A deterministic pin (repeated stall, #112420) skips the LLM: ``None`` lets Phase 3 insert the static
         fallback summary, or abort under ``abort_on_summary_failure`` exactly like a failed summary call."""
@@ -50,7 +50,7 @@ class SummaryDispatchMixin:
                 telemetry["failure_class"] = "stall_deterministic_fallback"
             return None
         # Focus-topic derivation scans user turns; only pay when a summary is generated.
-        summary_kwargs: Dict[str, Any] = {
+        summary_kwargs: dict[str, Any] = {
             "focus_topic": focus_topic or self._derive_auto_focus_topic(messages),
             "memory_context": memory_context,
         }

@@ -2,24 +2,24 @@
 
 import asyncio
 import logging
-import os
 import re
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
+from hermes_constants import display_hermes_home
+from tools.mcp_tool_common import mcp_server_enabled
+from tools.mcp_tool_config import _ENV_VAR_PATTERN
+
+from hermes_cli.colors import Colors, color
 from hermes_cli.config import (
     cfg_get,
+    get_env_value,
+    get_hermes_home,  # noqa: F401 — used by test mocks
     load_config,
     save_config,
-    get_env_value,
     save_env_value,
-    get_hermes_home,  # noqa: F401 — used by test mocks
 )
-from hermes_cli.colors import Colors, color
-from hermes_constants import display_hermes_home
 from hermes_cli.mcp_security import validate_mcp_server_entry
-from tools.mcp_tool_config import _ENV_VAR_PATTERN
-from tools.mcp_tool_common import _env_ref_name, mcp_server_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ _DIGEST_PARAM = (
     rf"(?:{_DIGEST_PARAM_NAMES})\s*=\s*(?:\"[^\"]*\"|'[^']*'|[^\s,]+)"
 )
 _DIGEST_PARAMS = rf"{_DIGEST_PARAM}(?:\s*,\s*{_DIGEST_PARAM})*"
-_PROBE_REDACTION_RES: Optional[Tuple[re.Pattern[str], ...]] = None
+_PROBE_REDACTION_RES: tuple[re.Pattern[str], ...] | None = None
 
 
 def _credential_header_names() -> str:
@@ -52,7 +52,7 @@ def _credential_header_names() -> str:
     return rf"(?:(?:Proxy-)?Authorization|{_SECRET_HEADER_NAMES})"
 
 
-def _probe_redaction_res() -> Tuple[re.Pattern[str], ...]:
+def _probe_redaction_res() -> tuple[re.Pattern[str], ...]:
     global _PROBE_REDACTION_RES
     if _PROBE_REDACTION_RES is not None:
         return _PROBE_REDACTION_RES
@@ -179,7 +179,7 @@ def _redact_probe_exception(exc: BaseException) -> Exception:
     return RuntimeError(safe)
 
 
-_MCP_PRESETS: Dict[str, Dict[str, Any]] = {
+_MCP_PRESETS: dict[str, dict[str, Any]] = {
     "codex": {"command": "codex", "args": ["mcp-server"]},
 }
 
@@ -200,13 +200,13 @@ def _confirm(question: str, default: bool = True) -> bool:
     return val in {"y", "yes"} if val else default
 
 
-def _print_tools(tools: List[Tuple[str, str]], width: int, desc_max: int) -> None:
+def _print_tools(tools: list[tuple[str, str]], width: int, desc_max: int) -> None:
     for tool_name, desc in tools:
         short = desc[:desc_max] + "..." if len(desc) > desc_max else desc
         print(f"    {color(tool_name, Colors.GREEN):{width}s} {short}")
 
 
-def _get_mcp_servers(config: Optional[dict] = None) -> Dict[str, dict]:
+def _get_mcp_servers(config: dict | None = None) -> dict[str, dict]:
     """Return the ``mcp_servers`` dict from config, or empty dict."""
     if config is None:
         config = load_config()
@@ -214,7 +214,7 @@ def _get_mcp_servers(config: Optional[dict] = None) -> Dict[str, dict]:
     return servers if servers and isinstance(servers, dict) else {}
 
 
-def _tool_filters(cfg: dict) -> Tuple[Optional[list], Optional[list]]:
+def _tool_filters(cfg: dict) -> tuple[list | None, list | None]:
     """Return the ``(include, exclude)`` tool lists from a server config; ``None`` = key absent.
 
     An explicit ``include: []`` is a real (block-all) whitelist — the runtime registers nothing
@@ -254,8 +254,8 @@ def _validate_or_warn(name: str, server_config: dict) -> bool:
 
 
 def _lookup_server(
-    name: str, servers: Dict[str, dict], available_label: str = "Available servers"
-) -> Optional[dict]:
+    name: str, servers: dict[str, dict], available_label: str = "Available servers"
+) -> dict | None:
     """Return the named server config, or print the not-found hint and return None."""
     if name in servers:
         return servers[name]
@@ -278,13 +278,13 @@ def _remove_mcp_server(name: str) -> bool:
     return True
 
 
-def _replace_mcp_servers(servers: Dict[str, dict]) -> Tuple[bool, List[str]]:
+def _replace_mcp_servers(servers: dict[str, dict]) -> tuple[bool, list[str]]:
     """Replace the WHOLE ``mcp_servers`` map in config.yaml.
 
     Every entry is validated up front; any suspicious entry rejects the whole save (``(False,
     issues)``) so a bad paste can't be partially applied. An empty map removes the key entirely.
     """
-    issues: List[str] = []
+    issues: list[str] = []
     for name, cfg in servers.items():
         if not isinstance(cfg, dict):
             issues.append(f"Server '{name}': expected an object")
@@ -323,7 +323,7 @@ def _strip_bearer_prefix(token: str) -> str:
     return stripped
 
 
-def _bearer_auth_headers(name: str) -> Dict[str, str]:
+def _bearer_auth_headers(name: str) -> dict[str, str]:
     """Build the persisted Authorization header template for a named MCP server.
 
     The secret lives in the profile's ``.env``; CLI and Dashboard share this so they produce
@@ -332,7 +332,7 @@ def _bearer_auth_headers(name: str) -> Dict[str, str]:
     return {"Authorization": f"Bearer ${{{_env_key_for_server(name)}}}"}
 
 
-def _save_bearer_auth_token(name: str, token: str) -> Dict[str, str]:
+def _save_bearer_auth_token(name: str, token: str) -> dict[str, str]:
     """Persist a normalized Bearer token to ``.env`` and return the header template for config.yaml."""
     normalized = _strip_bearer_prefix(token)
     if not normalized or normalized.lower() == "bearer":
@@ -341,9 +341,9 @@ def _save_bearer_auth_token(name: str, token: str) -> Dict[str, str]:
     return _bearer_auth_headers(name)
 
 
-def _parse_env_assignments(raw_env: Optional[List[str]]) -> Dict[str, str]:
+def _parse_env_assignments(raw_env: list[str] | None) -> dict[str, str]:
     """Parse ``KEY=VALUE`` strings from CLI args into an env dict."""
-    parsed: Dict[str, str] = {}
+    parsed: dict[str, str] = {}
     for item in raw_env or []:
         text = str(item or "").strip()
         if not text:
@@ -363,11 +363,11 @@ def _parse_env_assignments(raw_env: Optional[List[str]]) -> Dict[str, str]:
 def _apply_mcp_preset(
     name: str,
     *,
-    preset_name: Optional[str],
-    url: Optional[str],
-    command: Optional[str],
-    cmd_args: List[str],
-    server_config: Dict[str, Any]) -> tuple[Optional[str], Optional[str], List[str], bool]:
+    preset_name: str | None,
+    url: str | None,
+    command: str | None,
+    cmd_args: list[str],
+    server_config: dict[str, Any]) -> tuple[str | None, str | None, list[str], bool]:
     """Apply a known MCP preset when transport details were omitted."""
     if not preset_name:
         return url, command, cmd_args, False
@@ -399,8 +399,8 @@ def _resolve_mcp_server_config(config: dict) -> dict:
     probe sent the literal placeholder and auth-requiring servers (e.g. n8n) returned 401 — while runtime
     tool loading worked because it interpolates. (#37792)
     """
-    from tools.mcp_tool_config import _interpolate_env_vars
     from agent.secret_scope import current_secret_scope
+    from tools.mcp_tool_config import _interpolate_env_vars
 
     if current_secret_scope() is None:
         try:
@@ -412,8 +412,8 @@ def _resolve_mcp_server_config(config: dict) -> dict:
 
 
 def _probe_single_server(
-    name: str, config: dict, connect_timeout: Optional[float] = None, *, details: Optional[dict] = None
-) -> List[Tuple[str, str]]:
+    name: str, config: dict, connect_timeout: float | None = None, *, details: dict | None = None
+) -> list[tuple[str, str]]:
     """Temporarily connect to one MCP server, list its tools, disconnect.
 
     Returns ``(tool_name, description)`` tuples; raises on connection failure. ``details`` is an
@@ -423,10 +423,10 @@ def _probe_single_server(
     if issues:
         raise ValueError("; ".join(issues))
 
-    from tools.mcp_tool_loop import _ensure_mcp_loop, _run_on_mcp_loop
+    from tools.mcp_tool_common import _parse_boolish
     from tools.mcp_tool_discovery import _connect_server
     from tools.mcp_tool_lifecycle import _stop_mcp_loop_if_idle
-    from tools.mcp_tool_common import _parse_boolish
+    from tools.mcp_tool_loop import _ensure_mcp_loop, _run_on_mcp_loop
 
     config = _resolve_mcp_server_config(config)
     if connect_timeout is None:
@@ -443,7 +443,7 @@ def _probe_single_server(
     config["connect_timeout"] = connect_timeout
 
     _ensure_mcp_loop()
-    tools_found: List[Tuple[str, str]] = []
+    tools_found: list[tuple[str, str]] = []
 
     async def _probe():
         from tools import mcp_tool as _core
@@ -454,7 +454,7 @@ def _probe_single_server(
             details["initialized"] = False
         try:
             server = await asyncio.wait_for(_connect_server(name, config), timeout=connect_timeout)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             # str(TimeoutError()) is '' — printed verbatim it was a blank "Authentication failed:".
             raise TimeoutError(
                 f"Connecting to MCP server '{name}' timed out after {float(connect_timeout):.0f}s "
@@ -475,6 +475,7 @@ def _probe_single_server(
                 # the desktop can estimate per-call token cost. Best-effort, absent on failure.
                 try:
                     import json as _json
+
                     from tools.mcp_tool_schema import _convert_mcp_schema
 
                     details["schema_chars"] = {
@@ -536,7 +537,7 @@ def _unwrap_exception_group(exc: BaseException) -> Exception:
 
 
 def _configure_http_auth(
-    name: str, url: str, auth_type: Optional[str], server_config: Dict[str, Any]
+    name: str, url: str, auth_type: str | None, server_config: dict[str, Any]
 ) -> bool:
     """OAuth or Bearer-token setup for an HTTP server. False when the user cancelled."""
     print()
@@ -576,7 +577,7 @@ def _configure_http_auth(
     return True
 
 
-def _choose_tools(name: str, tools: List[Tuple[str, str]], server_config: Dict[str, Any]) -> Optional[int]:
+def _choose_tools(name: str, tools: list[tuple[str, str]], server_config: dict[str, Any]) -> int | None:
     """Ask enable-all / select / cancel; returns the enabled-tool count or None when cancelled."""
     print()
     _success(f"Connected! Found {len(tools)} tool(s) from '{name}':")
@@ -620,7 +621,7 @@ def cmd_mcp_add(args):
     auth_type = getattr(args, "auth", None)
     raw_connect_timeout = getattr(args, "connect_timeout", None)
 
-    server_config: Dict[str, Any] = {}
+    server_config: dict[str, Any] = {}
     try:
         explicit_env = _parse_env_assignments(getattr(args, "env", None))
         url, command, cmd_args, _preset_applied = _apply_mcp_preset(
@@ -787,7 +788,11 @@ def _probe_failure_reason(exc: BaseException) -> str:
 
 def _probe_failure_next_step(name: str, exc: BaseException) -> str:
     """The one command that fixes the common probe failures (sign-in, missing command, everything else)."""
-    from tools.mcp_tool_errors import _format_connect_error, _is_auth_error, _unwrap_exception_group
+    from tools.mcp_tool_errors import (
+        _format_connect_error,
+        _is_auth_error,
+        _unwrap_exception_group,
+    )
     from tools.mcp_tool_node_abi import NodeAbiMismatchError
     root = _unwrap_exception_group(exc)
     if _is_auth_error(root) or getattr(getattr(root, "response", None), "status_code", None) in (401, 403):
@@ -979,8 +984,8 @@ def cmd_mcp_reauth(args):
 
 
 def _rebuild_exclude_list(
-    name: str, exclude: list, tool_names: List[str], chosen: set, matches_name_filter
-) -> List[str]:
+    name: str, exclude: list, tool_names: list[str], chosen: set, matches_name_filter
+) -> list[str]:
     """New ``tools.exclude`` for an exclude-mode entry after a checklist edit.
 
     Stays in exclude mode rather than demoting the user's dynamic filter to a frozen include list:

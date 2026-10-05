@@ -19,6 +19,7 @@ from unittest.mock import patch
 
 import pytest
 
+
 @pytest.fixture
 def hermes_env(tmp_path, monkeypatch):
     """Isolate HERMES_HOME for each test so jobs/scripts don't leak."""
@@ -30,6 +31,7 @@ def hermes_env(tmp_path, monkeypatch):
     monkeypatch.setenv("HERMES_HOME", str(home))
 
     import importlib
+
     import hermes_constants
     importlib.reload(hermes_constants)
     import cron.jobs
@@ -231,7 +233,7 @@ def _legacy_empty_job(hermes_env):
     return dict(job, prompt="   ")
 
 def test_run_job_fails_closed_and_never_builds_an_agent(hermes_env):
-    import cron.scheduler as scheduler
+    from cron import scheduler
 
     job = _legacy_empty_job(hermes_env)
 
@@ -251,7 +253,7 @@ def test_run_job_fails_closed_and_never_builds_an_agent(hermes_env):
 def test_run_one_job_does_not_resurrect_the_paused_job(hermes_env):
     """The real caller runs post-run bookkeeping (mark_job_run) after run_job
     returns. That must not undo the pause, or the job re-fires every tick."""
-    import cron.scheduler as scheduler
+    from cron import scheduler
     from cron.jobs import get_due_jobs, get_job
 
     job = _legacy_empty_job(hermes_env)
@@ -282,7 +284,7 @@ def _legacy_no_agent_scriptless_job(hermes_env, script_value=None):
 @pytest.mark.parametrize("script_value", [None, "", "   "])
 def test_run_job_pauses_a_legacy_no_agent_job_without_a_script(hermes_env, script_value):
     """Erroring alone left it enabled, so it re-fired every tick."""
-    import cron.scheduler as scheduler
+    from cron import scheduler
     from cron.jobs import get_job
 
     job = _legacy_no_agent_scriptless_job(hermes_env, script_value)
@@ -301,7 +303,7 @@ def test_run_job_pauses_a_legacy_no_agent_job_without_a_script(hermes_env, scrip
 
 def test_run_one_job_does_not_resurrect_the_paused_no_agent_job(hermes_env):
     """Post-run bookkeeping must not put it back in the due queue."""
-    import cron.scheduler as scheduler
+    from cron import scheduler
     from cron.jobs import get_due_jobs, get_job
 
     job = _legacy_no_agent_scriptless_job(hermes_env)
@@ -315,7 +317,7 @@ def test_run_one_job_does_not_resurrect_the_paused_no_agent_job(hermes_env):
 
 def test_run_job_does_not_block_a_valid_no_agent_job(hermes_env):
     """The guard sits after the no_agent short-circuit, which must still run."""
-    import cron.scheduler as scheduler
+    from cron import scheduler
 
     script = hermes_env / "scripts" / "w.sh"
     script.write_text("echo hello\n")
@@ -360,6 +362,7 @@ DESTRUCTIVE_UPDATE_ARGS = {
 
 def _cronjob(**kwargs):
     import json as _json
+
     from tools.cronjob_tools import cronjob
 
     return _json.loads(cronjob(**kwargs))

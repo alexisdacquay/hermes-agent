@@ -20,14 +20,9 @@ Two failures on a Windows desktop install talking to a remote gateway:
 """
 
 import shlex
-from pathlib import Path
 
 import pytest
-
-import tools.bot_mode_dm as bot_mode_dm
-import tools.bot_relay as bot_relay
-import pytest
-
+from tools import bot_mode_dm, bot_relay
 
 ENV = {"id": "d" * 32, "target_handle": "researcher", "target_connection": "ssh-vps"}
 

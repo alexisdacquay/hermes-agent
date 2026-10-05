@@ -29,27 +29,23 @@ cases assert genuine POSIX behaviour and are ``platforms("linux")`` — on that
 host ``_IS_WINDOWS`` is already False, so no patching is needed at all.
 """
 
-import os
 from unittest.mock import patch
 
 import pytest
-
-from tools.environments.base import BaseEnvironment
 from tools.environments import local as local_mod
+from tools.environments.base import BaseEnvironment
 from tools.environments.local import (
     LocalEnvironment,
     _bash_safe_path,
     _git_bash_bin_dirs,
     _make_run_env,
     _msys_to_windows_path,
-    _prepend_git_bash_dirs,
     _quote_bash_path,
     _resolve_safe_cwd,
     _sanitize_subprocess_env,
     _windows_to_msys_path,
     hermes_subprocess_env,
 )
-
 
 # ---------------------------------------------------------------------------
 # _msys_to_windows_path — pure-function unit tests

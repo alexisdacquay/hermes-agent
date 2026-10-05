@@ -3,13 +3,13 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 import re
 import select
 import struct
 import subprocess
 import tempfile
 import time
+from pathlib import Path
 
 
 def run(argv: list[str], env: dict[str, str], cwd: Path) -> subprocess.CompletedProcess:

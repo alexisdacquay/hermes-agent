@@ -7,14 +7,10 @@ kanban_create(board="other-board") / kanban_show(board="other-board")
 silently landed on the caller's own board instead of the requested one —
 exactly the failure mode that stalled t_8239fc9c / t_09015699.
 """
-import os
-import tempfile
 from pathlib import Path
 
 import pytest
-
 from hermes_cli import kanban_db as kb
-from hermes_constants import get_default_hermes_root
 
 
 @pytest.fixture(autouse=True)
@@ -208,7 +204,10 @@ def test_delegated_child_board_arg_stays_pinned(monkeypatch, tmp_path):
     """A delegated child / spawned descendant (HERMES_DELEGATED_CHILD_CONTEXT
     marker) passing an explicit board= resolves through the pin, so
     kanban_path_is_fenced still catches the resolved path."""
-    from agent.delegation_context import DELEGATED_CHILD_ENV_MARKER, kanban_path_is_fenced
+    from agent.delegation_context import (
+        DELEGATED_CHILD_ENV_MARKER,
+        kanban_path_is_fenced,
+    )
 
     pinned = tmp_path / "worker-pinned.db"
     monkeypatch.setenv("HERMES_KANBAN_DB", str(pinned))

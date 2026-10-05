@@ -4,9 +4,7 @@ import threading
 from types import SimpleNamespace
 
 import pytest
-
 from cron import delivery_queue, scheduler
-from cron.scheduler_delivery import _deliver_result
 from gateway.config import GatewayConfig, Platform, PlatformConfig
 
 

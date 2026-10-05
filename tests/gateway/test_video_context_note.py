@@ -3,7 +3,6 @@
 from unittest.mock import patch
 
 import pytest
-
 from gateway.config import GatewayConfig, Platform
 from gateway.platforms.event import MessageEvent, MessageType
 from gateway.run import GatewayRunner

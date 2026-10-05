@@ -6,9 +6,8 @@ import subprocess
 from unittest.mock import MagicMock
 
 import pytest
-
-from tools.environments.ssh import SSHEnvironment
 from tools.environments import ssh as ssh_env
+from tools.environments.ssh import SSHEnvironment
 
 _SSH_HOST = os.getenv("TERMINAL_SSH_HOST", "")
 _SSH_USER = os.getenv("TERMINAL_SSH_USER", "")
@@ -90,7 +89,7 @@ class TestBuildSSHCommand:
     def test_run_bash_forwards_passthrough_by_sendenv_never_in_remote_argv(self, monkeypatch):
         """#14091: allowlisted names travel as ``-o SendEnv=NAME`` with values only in the ssh client env;
         provider credentials on the allowlist stay behind; a .env value fills an unset shell var."""
-        import tools.env_passthrough as env_passthrough
+        from tools import env_passthrough
 
         env = SSHEnvironment(host="h", user="u")
         monkeypatch.setenv("NEXTCLOUD_URL", "https://next.example")
@@ -111,7 +110,7 @@ class TestBuildSSHCommand:
         assert "sk-must-not-forward" not in remote_text
 
     def test_run_bash_without_passthrough_inherits_env_unchanged(self, monkeypatch):
-        import tools.env_passthrough as env_passthrough
+        from tools import env_passthrough
 
         monkeypatch.setattr(env_passthrough, "get_all_passthrough", lambda: frozenset())
         captured = self._capture_run_bash(monkeypatch, SSHEnvironment(host="h", user="u"))

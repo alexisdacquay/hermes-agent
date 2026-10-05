@@ -35,7 +35,6 @@ import threading
 import time
 
 import pytest
-
 from gateway.platforms import helpers
 from gateway.platforms.helpers import ThreadParticipationTracker
 

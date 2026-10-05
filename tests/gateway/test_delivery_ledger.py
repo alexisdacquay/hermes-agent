@@ -16,7 +16,6 @@ import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from gateway import delivery_ledger as dl
 
 

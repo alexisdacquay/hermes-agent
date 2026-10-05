@@ -18,7 +18,7 @@ import base64
 import binascii
 import json
 import re
-from typing import Literal, Optional, Tuple
+from typing import Literal
 from urllib.parse import unquote
 
 from fastapi import Request
@@ -151,25 +151,25 @@ def clear_pkce_cookie(response: Response, *, use_https: bool, prefix: str = "") 
         bare_attrs=_pkce_attrs(use_https=use_https, prefix=prefix))
 
 
-def _read_with_fallback(request: Request, bare_name: str) -> Optional[str]:
+def _read_with_fallback(request: Request, bare_name: str) -> str | None:
     """Try every prefix variant (the reading request may not match the setting request's shape)."""
     return next((v for v in (request.cookies.get(f"{p}{bare_name}") for p in _NAME_VARIANTS)
                  if v is not None), None)
 
 
-def read_session_cookies(request: Request) -> Tuple[Optional[str], Optional[str]]:
+def read_session_cookies(request: Request) -> tuple[str | None, str | None]:
     """Returns (access_token, refresh_token), either may be None."""
     return (
         _read_with_fallback(request, SESSION_AT_COOKIE),
         _read_with_fallback(request, SESSION_RT_COOKIE))
 
 
-def read_session_provider(request: Request) -> Optional[str]:
+def read_session_provider(request: Request) -> str | None:
     """Return the provider routing hint associated with the session cookies."""
     return _read_with_fallback(request, SESSION_PROVIDER_COOKIE)
 
 
-def read_pkce_cookie(request: Request) -> Optional[str]:
+def read_pkce_cookie(request: Request) -> str | None:
     return _read_with_fallback(request, PKCE_COOKIE)
 
 
@@ -205,7 +205,7 @@ def set_sso_attempt_cookie(response: Response, *, use_https: bool, prefix: str =
          use_https=use_https, prefix=prefix)
 
 
-def read_sso_attempt_cookie(request: Request) -> Optional[str]:
+def read_sso_attempt_cookie(request: Request) -> str | None:
     """Return the auto-SSO marker value if present (any variant), else None."""
     return _read_with_fallback(request, SSO_ATTEMPT_COOKIE)
 

@@ -15,7 +15,7 @@ silently generated on FAL.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 from tools.tool_backend_helpers import NOUS_MANAGED_PROVIDER
 
@@ -36,9 +36,10 @@ _PORTAL_DUPLICATE_OF = {
 _FAL_KREA_PREFIX = "fal-ai/krea/"
 
 
-def managed_backend_for_model(model_id: Optional[str]) -> str:
+def managed_backend_for_model(model_id: str | None) -> str:
     """Gateway that serves ``model_id`` under the managed selection (unset → FAL default)."""
     from plugins.image_gen.krea import KREA_MODEL_IDS
+
     from tools.image_generation_catalog import FAL_MODELS
 
     candidate = model_id.strip() if isinstance(model_id, str) else ""
@@ -49,7 +50,7 @@ def managed_backend_for_model(model_id: Optional[str]) -> str:
     return PORTAL
 
 
-def managed_route(provider: Any, model_id: Any) -> Optional[str]:
+def managed_route(provider: Any, model_id: Any) -> str | None:
     """Gateway a request is dispatched to for the stored ``image_gen.provider`` / ``image_gen.model``
     (raw config values; blank or non-string reads as unset).
 
@@ -77,7 +78,7 @@ def _plugin_rows(name: str) -> list:
 
 def managed_image_catalog(
     *, include_krea: bool = True, include_portal: bool = True,
-) -> Tuple[Dict[str, Dict[str, Any]], str]:
+) -> tuple[dict[str, dict[str, Any]], str]:
     """``({model_id: metadata}, default_model)`` for the managed row's model picker.
 
     FAL catalog first (minus the Krea-on-FAL entries), then native Krea, then Portal models
@@ -86,7 +87,7 @@ def managed_image_catalog(
     """
     from tools.image_generation_catalog import DEFAULT_MODEL, FAL_MODELS
 
-    catalog: Dict[str, Dict[str, Any]] = {
+    catalog: dict[str, dict[str, Any]] = {
         mid: {**meta, "backend": FAL} for mid, meta in FAL_MODELS.items()
         if not mid.startswith(_FAL_KREA_PREFIX)}
     if include_krea:

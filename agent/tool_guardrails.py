@@ -10,12 +10,16 @@ from __future__ import annotations
 import hashlib
 import json
 from collections import deque
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field, fields
-from typing import Any, Mapping
+from typing import Any
 
 from utils import safe_json_loads
-from agent.tool_result_classification import file_mutation_result_landed, is_guardrail_refusal
 
+from agent.tool_result_classification import (
+    file_mutation_result_landed,
+    is_guardrail_refusal,
+)
 
 IDEMPOTENT_TOOL_NAMES = frozenset({
     "read_file", "search_files", "web_search", "web_extract", "session_search", "skill_view", "skills_list",
@@ -106,7 +110,7 @@ class LoopCapConfig:
     max_subagents: int = _DEFAULT_MAX_SUBAGENTS_PER_TURN
 
     @classmethod
-    def from_mapping(cls, data: Mapping[str, Any] | None) -> "LoopCapConfig":
+    def from_mapping(cls, data: Mapping[str, Any] | None) -> LoopCapConfig:
         """Build config from the ``tool_loop_guardrails.loop_caps`` section."""
         if not isinstance(data, Mapping):
             return cls()
@@ -134,7 +138,7 @@ class ToolCallGuardrailConfig:
     @classmethod
     def from_mapping(
         cls, data: Mapping[str, Any] | None, *, platform: str | None = None,
-    ) -> "ToolCallGuardrailConfig":
+    ) -> ToolCallGuardrailConfig:
         """Build config from `tool_loop_guardrails`; nested ``warn_after`` / ``hard_stop_after`` win over flat legacy keys."""
         if not isinstance(data, Mapping):
             data = {}
@@ -170,7 +174,7 @@ class ToolCallSignature:
     args_hash: str
 
     @classmethod
-    def from_call(cls, tool_name: str, args: Mapping[str, Any] | None) -> "ToolCallSignature":
+    def from_call(cls, tool_name: str, args: Mapping[str, Any] | None) -> ToolCallSignature:
         return cls(tool_name=tool_name, args_hash=_sha256(canonical_tool_args(args or {})))
 
     def to_metadata(self) -> dict[str, str]:

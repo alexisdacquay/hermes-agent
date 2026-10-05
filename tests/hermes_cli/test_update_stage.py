@@ -17,7 +17,6 @@ import tempfile
 import time
 
 import pytest
-
 from hermes_cli import update_stage
 
 

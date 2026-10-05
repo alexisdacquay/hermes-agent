@@ -15,9 +15,10 @@ import re
 import secrets
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -102,7 +103,7 @@ def artifact_scope_key(scope: Any) -> str:
     if not principal:
         # Fail closed: only an authenticated principal may mint artifacts.
         raise ArtifactError("artifact scope must carry a resolved principal")
-    return hashlib.sha256(f"{principal}\x00{family}".encode("utf-8")).hexdigest()
+    return hashlib.sha256(f"{principal}\x00{family}".encode()).hexdigest()
 
 
 @dataclass
@@ -114,7 +115,7 @@ class _ArtifactEntry:
 class ArtifactStore:
     """Thread-safe, TTL-bounded, scope-bound one-shot artifact store."""
     def __init__(self, root: Path, *, ttl_seconds: float = DEFAULT_ARTIFACT_TTL_SECONDS, max_bytes: int = DEFAULT_MAX_ARTIFACT_BYTES,
-                 allowed_mime_types: frozenset = DEFAULT_ALLOWED_MIME_TYPES, clock: Optional[Callable[[], float]] = None) -> None:
+                 allowed_mime_types: frozenset = DEFAULT_ALLOWED_MIME_TYPES, clock: Callable[[], float] | None = None) -> None:
         self._root = Path(root)
         self._root.mkdir(parents=True, exist_ok=True)
         self._ttl_seconds = max(1.0, float(ttl_seconds))
@@ -222,7 +223,7 @@ class ArtifactStore:
             logger.warning("artifact %s: file removal failed; TTL sweep will retry", artifact_id)
         return data, entry.receipt
 
-    def prune_expired(self, now: Optional[float] = None) -> int:
+    def prune_expired(self, now: float | None = None) -> int:
         """Delete every artifact past its TTL (and stale temp files); return the count removed."""
         now = self._clock() if now is None else float(now)
         with self._lock:
@@ -297,7 +298,7 @@ def _bounded_filename(value: str, limit: int = 160) -> str:
 
 class ArtifactRateLimiter:
     """Sliding-window per-key limiter; the API server keys it by principal."""
-    def __init__(self, *, window_seconds: float = 60.0, max_requests: int = 30, clock: Optional[Callable[[], float]] = None) -> None:
+    def __init__(self, *, window_seconds: float = 60.0, max_requests: int = 30, clock: Callable[[], float] | None = None) -> None:
         self._window_seconds = max(1.0, float(window_seconds))
         self._max_requests = max(1, int(max_requests))
         self._clock = clock if clock is not None else time.time

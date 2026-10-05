@@ -10,7 +10,6 @@ This is the fix for the SSRF bypass described in issue #44731.
 import json
 
 import pytest
-
 from tools import browser_tool
 from tools import browser_tool_cloud as bt_cloud
 from tools import browser_tool_session as bt_session

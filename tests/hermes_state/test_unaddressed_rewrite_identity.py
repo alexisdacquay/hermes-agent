@@ -9,7 +9,6 @@ snapshot remains the compare-and-swap proof for the version we actually loaded.
 from __future__ import annotations
 
 import pytest
-
 from agent.context_compressor import _DB_PERSISTED_MARKER
 from agent.message_metadata import DB_ROW_SNAPSHOT, MESSAGE_UID
 from hermes_state import SessionDB

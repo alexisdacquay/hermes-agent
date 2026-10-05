@@ -24,9 +24,8 @@ import sys
 import time
 from unittest.mock import patch
 
-import pytest
-
 import cron.scheduler as scheduler_mod
+import pytest
 from hermes_constants import hermes_home_key
 
 

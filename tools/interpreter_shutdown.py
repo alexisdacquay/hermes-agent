@@ -13,10 +13,9 @@ module-global daemon or a ``with``-scoped local only finalization can shut down.
 from __future__ import annotations
 
 import sys
-from typing import Optional
 
 
-def interpreter_shutting_down(exc: Optional[BaseException] = None) -> bool:
+def interpreter_shutting_down(exc: BaseException | None = None) -> bool:
     """True when the interpreter is finalizing. ``exc`` lets a caller treat an
     already-raised scheduling error as a shutdown signal: the ``concurrent.futures``
     flag can be set a hair before ``sys.is_finalizing()`` flips."""

@@ -5,23 +5,19 @@ import threading
 from pathlib import Path
 from types import SimpleNamespace
 
-from hermes_cli import web_server
 import hermes_cli.config as _cfg_mod
 import hermes_cli.web_routers.dashboard_ui as _rt_dashboard_ui
 import hermes_cli.web_server_dashboard as _web_server_dashboard
 import hermes_cli.web_server_memory as _web_server_memory
-from hermes_cli import plugins_cmd
-from hermes_cli import plugin_catalog
-from hermes_cli import plugins_cmd_catalog
+from hermes_cli import plugin_catalog, plugins_cmd, plugins_cmd_catalog, web_server
 from tools import registry as tools_registry
-
 
 _PLUGIN_ROW = [("demo", "1.0.0", "demo plugin", "user", "/tmp/demo-plugin", "demo")]
 
 
 def _patch_minimal_hub_dependencies(monkeypatch, *, check_fn, discover_all_plugins=None):
     monkeypatch.setattr(web_server, "_get_dashboard_plugins", lambda force_rescan=False: [])
-    monkeypatch.setattr(_web_server_memory, "_discover_memory_provider_statuses", lambda: [])
+    monkeypatch.setattr(_web_server_memory, "_discover_memory_provider_statuses", list)
     monkeypatch.setattr(_cfg_mod, "get_hermes_home", lambda: Path("/tmp/hermes-home"))
     monkeypatch.setattr(_cfg_mod, "load_config", lambda: {"dashboard": {"hidden_plugins": []}})
 
@@ -32,7 +28,7 @@ def _patch_minimal_hub_dependencies(monkeypatch, *, check_fn, discover_all_plugi
     )
     monkeypatch.setattr(plugins_cmd, "_get_current_context_engine", lambda: "compressor")
     monkeypatch.setattr(plugins_cmd, "_get_current_memory_provider", lambda: "")
-    monkeypatch.setattr(plugins_cmd, "_discover_context_engines", lambda: [])
+    monkeypatch.setattr(plugins_cmd, "_discover_context_engines", list)
     monkeypatch.setattr(plugins_cmd, "_get_disabled_set", lambda: set())
     monkeypatch.setattr(plugins_cmd, "_get_enabled_set", lambda: {"demo"})
     monkeypatch.setattr(plugins_cmd, "_read_manifest", lambda _path: {"provides_tools": ["demo_tool"]})
@@ -141,7 +137,7 @@ def test_plugins_hub_route_builds_catalog_annotations_off_event_loop(monkeypatch
         return "withdrawn by catalog" if name == "demo" else None
 
     monkeypatch.setattr(plugins_cmd_catalog, "removed_annotation", removed_annotation)
-    monkeypatch.setattr(plugin_catalog, "resolved_removed_entries", lambda: [])
+    monkeypatch.setattr(plugin_catalog, "resolved_removed_entries", list)
 
     payload = asyncio.run(_rt_dashboard_ui.get_plugins_hub(object()))
 

@@ -24,9 +24,10 @@ import io
 import itertools
 import re
 import time
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, ContextManager, Dict, Iterator, List, Optional, Tuple
+from typing import Any, ContextManager
 
 from tests.e2e.core._pending_fixes import known_failure
 from tests.e2e.core.platforms._helpers import Director, GatewayUnderTest
@@ -44,8 +45,8 @@ class Rig:
     drv: Any
     director: Director
     llm: FakeLLMServer
-    known: Optional[Tuple[str, str]] = None  # (pattern, reason) for the running scenario's open bug
-    _users: Optional[Iterator[str]] = field(default=None, repr=False)
+    known: tuple[str, str] | None = None  # (pattern, reason) for the running scenario's open bug
+    _users: Iterator[str] | None = field(default=None, repr=False)
 
     def ctx(self) -> str:
         return f"{self.drv.describe()}\n{self.gw.tail(4000)}"
@@ -78,11 +79,11 @@ def norm(text: str) -> str:
     return re.sub(r"\s+", " ", html.unescape(text).replace("\\", "")).strip()
 
 
-def copies(visible: List[Visible], aid: str) -> List[Visible]:
+def copies(visible: list[Visible], aid: str) -> list[Visible]:
     return [v for v in visible if head(aid) in norm(v.text) or foot(aid) in norm(v.text)]
 
 
-def complete(visible: List[Visible], aid: str) -> List[Visible]:
+def complete(visible: list[Visible], aid: str) -> list[Visible]:
     return [v for v in visible if head(aid) in norm(v.text) and foot(aid) in norm(v.text)]
 
 
@@ -92,7 +93,7 @@ def wait_reply(rig: Rig, chat_id: str, aid: str, what: str = "", timeout: float 
                what or f"reply {aid} visible in {chat_id}", timeout=timeout, on_timeout=rig.ctx)
 
 
-def barrier(rig: Rig, token: str, *, group: bool = False, user_id: Optional[str] = None, attempts: int = 1) -> None:
+def barrier(rig: Rig, token: str, *, group: bool = False, user_id: str | None = None, attempts: int = 1) -> None:
     """One more inbound in the same chat, answered: everything queued before it has been handled.
 
     The gateway serializes a chat: an inbound arriving while a turn runs is drained only after that
@@ -166,7 +167,7 @@ def long_body(limit: int, factor: float = 2.4) -> str:
     return " ".join(f"w{i:05d}" for i in range(n))
 
 
-def _words(text: str) -> List[str]:
+def _words(text: str) -> list[str]:
     return re.findall(r"w\d{5}", text)
 
 
@@ -245,7 +246,7 @@ def rejected_finalize_leaves_one_copy(rig: Rig, tag: str, *, group: bool = False
             f"(head shown {shown.count(head(aid))}x)\n{ctx}")
 
 
-def _split_seam(visible: List[Visible], aid: str) -> Optional[str]:
+def _split_seam(visible: list[Visible], aid: str) -> str | None:
     """The seam, as the user reads it, where the answer's ending is cut mid-word across two
     consecutive messages (a continuation that resumed mid-word instead of at a word boundary)."""
     texts, end = [norm(v.text) for v in visible], foot(aid)
@@ -256,11 +257,11 @@ def _split_seam(visible: List[Visible], aid: str) -> Optional[str]:
     return None
 
 
-def _pwords(text: str, prefix: str) -> List[str]:
+def _pwords(text: str, prefix: str) -> list[str]:
     return re.findall(rf"\b{prefix}\d{{3}}\b", text)
 
 
-def _seamless(words: List[str]) -> List[str]:
+def _seamless(words: list[str]) -> list[str]:
     """Collapse a word repeated across a message seam: the edit-fallback continuation backs its cut up
     to the previous word boundary (``_continuation_text``), so the stuck preview's last word can
     reappear at the start of the continuation. Tolerated here: it is not a second copy."""
@@ -325,12 +326,12 @@ def redelivered_inbound_gets_one_reply(rig: Rig, tag: str) -> None:
 
 
 # 7. approval button click: allowlisted user accepted, stranger refused ----------------------------
-def _button(rig: Rig, chat_id: str, label_re: str) -> Dict[str, Any]:
+def _button(rig: Rig, chat_id: str, label_re: str) -> dict[str, Any]:
     def pick() -> Any:
         for b in rig.drv.buttons(chat_id):
             label = str(b.get("text") or b.get("label") or "")
             label = str(label.get("text", "")) if isinstance(label, dict) else label
-            if re.search(label_re, label, re.I):
+            if re.search(label_re, label, re.IGNORECASE):
                 return b
         return None
     return wait_until(pick, f"a {label_re!r} button under the approval prompt", timeout=TURN_TIMEOUT,
@@ -384,7 +385,7 @@ def disabled_toolsets_are_honored(rig: Rig, tag: str) -> None:
     assert not leaked, f"disabled toolset 'file' still offered: {leaked}"
 
 
-def merge(a: Dict[str, Any], b: Dict[str, Any]) -> Dict[str, Any]:
+def merge(a: dict[str, Any], b: dict[str, Any]) -> dict[str, Any]:
     out = dict(a)
     for k, v in b.items():
         out[k] = merge(out[k], v) if isinstance(v, dict) and isinstance(out.get(k), dict) else v
@@ -415,7 +416,7 @@ def _model_saw_image(req: dict) -> bool:
 
 
 def heic_document_reaches_agent_as_image(rig: Rig, tag: str) -> None:
-    got: Dict[str, bool] = {}
+    got: dict[str, bool] = {}
     for fmt, name, mime in (("PNG", "control.png", "image/png"), ("HEIF", "IMG_0001.HEIC", "image/heic")):
         token, aid = f"img-{fmt}-{tag}", f"A-img-{fmt}-{tag}"
         rig.director.script(token, answer(aid, "saw it"))
@@ -442,7 +443,7 @@ def planned_restart_notice_once(rig: Rig, tag: str, restart: Callable[[], None])
     reborn = time.monotonic()
     restart()  # what the supervisor does on exit 75
 
-    def notices() -> List[str]:
+    def notices() -> list[str]:
         texts = [str(c.params.get("text") or c.params.get("content") or c.params) for c in rig.drv.sends(inbound.chat_id)
                  if c.at > reborn]
         return [t for t in texts if "restart" in t.lower() and "<<" not in norm(t)]  # not a scripted reply

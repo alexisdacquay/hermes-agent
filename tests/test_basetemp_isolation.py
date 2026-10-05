@@ -9,9 +9,9 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 
+import hermes_constants
 import pytest
 
-import hermes_constants
 from tests import conftest as suite_conftest
 
 

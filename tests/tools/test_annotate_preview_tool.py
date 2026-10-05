@@ -3,9 +3,9 @@
 import json
 
 import pytest
-
 from tools import annotate_preview_tool as an
 from tools.registry import registry
+
 
 def test_lives_in_the_gui_surface_toolset(monkeypatch):
     """Scoped by toolset, not by the backend's env — same as its siblings."""

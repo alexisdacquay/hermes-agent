@@ -20,7 +20,6 @@ import types
 from pathlib import Path
 
 import pytest
-
 from gateway import run
 
 

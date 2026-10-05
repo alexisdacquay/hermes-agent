@@ -22,9 +22,14 @@ Env: TS_UE_MODEL, TS_BENCH_REPS, TS_UE_MODES (eager,bridge,listing),
 """
 from __future__ import annotations
 
-import json, os, re, shutil, sys, time, traceback
+import json
+import os
+import shutil
+import sys
+import time
+import traceback
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 _THIS_DIR = Path(__file__).resolve().parent
 _WORKTREE_ROOT = _THIS_DIR.parents[1]
@@ -32,12 +37,12 @@ sys.path.insert(0, str(_WORKTREE_ROOT))
 sys.path.insert(0, str(_THIS_DIR))
 
 import tool_search_livetest as base
-from tool_search_livetest_ue import load_epic_tools, _SANITIZE  # reuse loader
+from tool_search_livetest_ue import load_epic_tools  # reuse loader
 
 N_REPS = int(os.environ.get("TS_BENCH_REPS", "2"))
 
 
-def _bridge_call_value(call: Dict[str, Any]) -> Any:
+def _bridge_call_value(call: dict[str, Any]) -> Any:
     """Summarize current batch arguments with legacy transcript fallbacks."""
     args = call.get("args") or {}
     if call["name"] == "tool_search":
@@ -66,7 +71,7 @@ WORLD = {
     "Crate_2": "Actor",
 }
 
-def _mentioned_path(kwargs: Dict[str, Any]) -> str:
+def _mentioned_path(kwargs: dict[str, Any]) -> str:
     blob = json.dumps(kwargs)
     for p in WORLD:
         if p in blob:
@@ -138,7 +143,7 @@ def register_epic_tools_adversarial() -> int:
 # Substrings match against sanitized full tool names, case-insensitive.
 # ---------------------------------------------------------------------------
 
-SCENARIOS: List[Dict[str, Any]] = [
+SCENARIOS: list[dict[str, Any]] = [
     {
         "id": "V1_static_material",
         "prompt": "Assign the material /Game/Mats/M_Stone to slot 0 of the mesh asset at /Game/Meshes/SM_Rock. Then say done.",
@@ -216,18 +221,18 @@ def run_one(scenario, mode, rep, out_dir: Path):
 
     from tools.registry import registry
     original_dispatch = registry.dispatch
-    call_log: List[Dict[str, Any]] = []
+    call_log: list[dict[str, Any]] = []
 
     def logging_dispatch(name, args, **kw):
         call_log.append({"name": name, "args": args})
         return original_dispatch(name, args, **kw)
     registry.dispatch = logging_dispatch
 
-    usage_log: List[Dict[str, Any]] = []
+    usage_log: list[dict[str, Any]] = []
     started = time.time()
     error = None
     final_response = ""
-    messages_out: List[Dict[str, Any]] = []
+    messages_out: list[dict[str, Any]] = []
     _orig_norm = None
     try:
         from run_agent import AIAgent

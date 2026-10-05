@@ -12,9 +12,8 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-import pytest
-
 import agent.file_safety as fs
+import pytest
 
 SECRET_STORES = (
     "auth/google_oauth.json", "cache/bws_cache.json", "vault/vault.key", "browser-profile/Default/Cookies",

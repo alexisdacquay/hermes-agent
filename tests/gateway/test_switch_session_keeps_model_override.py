@@ -9,7 +9,6 @@ conversation boundary and must keep dropping it — otherwise the next turn's
 from unittest.mock import patch
 
 import pytest
-
 from gateway.config import GatewayConfig, Platform
 from gateway.session import SessionSource, SessionStore
 

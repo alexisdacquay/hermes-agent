@@ -14,7 +14,6 @@ otherwise the active profile's adapter would raise ``UnscopedSecretError`` on
 construction and fail to start.
 """
 import pytest
-
 from agent import secret_scope as ss
 from gateway.config import PlatformConfig
 from gateway.platforms.qqbot.adapter import QQAdapter

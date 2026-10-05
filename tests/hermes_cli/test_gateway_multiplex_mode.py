@@ -12,11 +12,11 @@ from __future__ import annotations
 import json
 import os
 import shutil
+from datetime import UTC
 from pathlib import Path
 
-import pytest
-
 import hermes_constants
+import pytest
 from gateway.config import GatewayConfig, load_gateway_config
 from hermes_cli import gateway_migrate as gm
 from hermes_cli import gateway_multiplex_mode as mode
@@ -164,7 +164,7 @@ def test_live_record_outranks_the_raw_flag_for_other_processes(fleet, monkeypatc
     """A CLI process asks the LIVE default gateway (which settled the unset default itself) before
     reading config; a gateway that stayed standalone recorded an empty served set."""
     root, _services, _pids = fleet
-    import gateway.status as status
+    from gateway import status
     monkeypatch.setattr(status, "_read_process_cmdline", lambda pid: "hermes gateway run")
     (root / "gateway.pid").write_text(json.dumps({"pid": os.getpid(), "hermes_home": str(root)}))
     record = {"pid": os.getpid(), "hermes_home": str(root), "gateway_state": "running", "served_profiles": []}
@@ -179,7 +179,10 @@ def test_guard_refusal_is_recorded_in_runtime_status_and_cleared_on_default(tmp_
     """A guard refusal must be visible to `hermes gateway status`, not only in the boot log; a later
     boot that multiplexes clears it (a stale reason would misdescribe the live gateway)."""
     from gateway import status as gw_status
-    from hermes_cli.gateway_multiplex_mode import MultiplexDecision, record_multiplex_decision
+    from hermes_cli.gateway_multiplex_mode import (
+        MultiplexDecision,
+        record_multiplex_decision,
+    )
     monkeypatch.setattr(gw_status, "_get_runtime_status_path", lambda: tmp_path / "gateway_state.json")
     record_multiplex_decision(MultiplexDecision(False, "guard", "profile(s) 'coder' still run their own gateway"))
     assert "coder" in gw_status.read_runtime_status(tmp_path / "gateway_state.json")["multiplex_standalone_reason"]
@@ -189,8 +192,9 @@ def test_guard_refusal_is_recorded_in_runtime_status_and_cleared_on_default(tmp_
 
 def test_recorded_standalone_warning_lines_suppressed_for_dead_or_stale_record(tmp_path, monkeypatch):
     """Dead or stale gateway_state.json must not emit standalone warnings (#120991)."""
+    from datetime import datetime
+
     import gateway.status as gw_status
-    from datetime import datetime, timezone
 
     state_file = tmp_path / "gateway_state.json"
     monkeypatch.setattr(gw_status, "_get_runtime_status_path", lambda: state_file)
@@ -202,7 +206,7 @@ def test_recorded_standalone_warning_lines_suppressed_for_dead_or_stale_record(t
     state_file.write_text(json.dumps({
         "gateway_state": "stopped",
         "pid": os.getpid(),
-        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(UTC).isoformat(),
         "multiplex_standalone_reason": "orphan reason",
     }), encoding="utf-8")
     assert mode.recorded_standalone_warning_lines() == []
@@ -211,7 +215,7 @@ def test_recorded_standalone_warning_lines_suppressed_for_dead_or_stale_record(t
     state_file.write_text(json.dumps({
         "gateway_state": "running",
         "pid": 999999999,
-        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(UTC).isoformat(),
         "multiplex_standalone_reason": "orphan reason",
     }), encoding="utf-8")
     monkeypatch.setattr(gw_status, "runtime_status_pid_is_live", lambda r: False)
@@ -232,7 +236,7 @@ def test_recorded_standalone_warning_lines_suppressed_for_dead_or_stale_record(t
     state_file.write_text(json.dumps({
         "gateway_state": "running",
         "pid": os.getpid(),
-        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(UTC).isoformat(),
         "multiplex_standalone_reason": "real standalone reason",
     }), encoding="utf-8")
     monkeypatch.setattr(gw_status, "runtime_status_pid_is_live", lambda r: True)

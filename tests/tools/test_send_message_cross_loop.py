@@ -13,7 +13,6 @@ import threading
 from types import ModuleType, SimpleNamespace
 
 import pytest
-
 from gateway.config import Platform
 
 

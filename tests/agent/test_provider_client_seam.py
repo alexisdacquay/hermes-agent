@@ -11,9 +11,8 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-import pytest
-
 import providers as _providers
+import pytest
 from providers.base import ProviderProfile
 
 

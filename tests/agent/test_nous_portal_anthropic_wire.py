@@ -19,9 +19,8 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
-
-from hermes_cli import runtime_provider as rp
 from hermes_cli import providers as _providers
+from hermes_cli import runtime_provider as rp
 from hermes_cli.providers import nous_api_mode
 
 
@@ -90,7 +89,7 @@ class TestRuntimeResolution:
 
     @pytest.fixture(autouse=True)
     def _stub_portal_credentials(self, monkeypatch):
-        monkeypatch.setattr(rp, "load_config", lambda: {})
+        monkeypatch.setattr(rp, "load_config", dict)
         monkeypatch.setattr(rp, "resolve_provider", lambda *a, **k: "nous")
         monkeypatch.setattr(rp, "load_pool", lambda p: SimpleNamespace(
             has_credentials=lambda: False,
@@ -182,7 +181,10 @@ class TestClientShape:
     def test_lookalike_host_does_not_get_portal_treatment(self):
         """Substring matching would hand a spoofed host the Portal JWT as a
         Bearer token. Hostname matching must reject it."""
-        from agent.anthropic_endpoints import _is_nous_portal_endpoint, _requires_bearer_auth
+        from agent.anthropic_endpoints import (
+            _is_nous_portal_endpoint,
+            _requires_bearer_auth,
+        )
 
         spoofed = "https://inference-api.nousresearch.com.attacker.test/v1"
         assert not _is_nous_portal_endpoint(spoofed)

@@ -9,11 +9,13 @@ import shlex
 import subprocess
 import threading
 import uuid
+from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import Any, Iterator
+from typing import Any
+
+from tools.environments.ssh import SSHEnvironment
 
 from hermes_cli._subprocess_compat import windows_hide_flags
-from tools.environments.ssh import SSHEnvironment
 
 
 class SshWorkspaceFsError(RuntimeError):
@@ -35,7 +37,7 @@ class _SshFsConfig:
 
 
 _CACHE_LOCK = threading.RLock()
-_BACKENDS: dict[str, tuple[_SshFsConfig, "SshWorkspaceFs"]] = {}
+_BACKENDS: dict[str, tuple[_SshFsConfig, SshWorkspaceFs]] = {}
 
 
 class SshWorkspaceFs:

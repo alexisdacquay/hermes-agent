@@ -7,7 +7,6 @@ import time
 
 import hermes_yaml as yaml
 import pytest
-
 from hermes_cli import plugins as plugins_mod
 from hermes_cli.plugins import PluginManager
 
@@ -202,6 +201,7 @@ def register(ctx):
 @pytest.mark.platforms("any")  # the host is a child process: its env/home resolution is per-OS
 def test_async_plugin_code_calls_back_in_the_callers_session(tmp_path, monkeypatch):
     import contextvars
+
     from tools.registry import registry
 
     session = contextvars.ContextVar("session", default="<unset>")
@@ -250,6 +250,7 @@ def register(ctx):
 @pytest.mark.platforms("posix")  # SIGKILL
 def test_hosted_memory_provider_stays_live_across_a_host_crash(tmp_path, monkeypatch):
     import signal
+
     from plugins.memory import load_memory_provider
     from plugins.memory.config_schema import get_provider_config_schema
 

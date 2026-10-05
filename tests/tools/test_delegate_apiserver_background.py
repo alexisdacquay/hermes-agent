@@ -19,7 +19,6 @@ import time
 from unittest.mock import MagicMock
 
 import pytest
-
 from gateway.session_context import set_session_vars
 from tools.process_registry import process_registry
 

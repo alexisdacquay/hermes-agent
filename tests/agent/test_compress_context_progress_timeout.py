@@ -13,9 +13,8 @@ import threading
 import time
 from unittest.mock import MagicMock
 
-import pytest
-
 import agent.conversation_compression as cc
+import pytest
 from agent.conversation_compression import (
     CompressionCommitFence,
     context_compression_timed_out,
@@ -581,8 +580,8 @@ class TestCompressContextForwarderOwnsTimeout:
         )
 
     def test_owned_total_ceiling_reports_progress_accurately(self, monkeypatch):
-        from run_agent import AIAgent
         from agent.context_compressor import ContextCompressor
+        from run_agent import AIAgent
 
         agent = object.__new__(AIAgent)
         agent.session_id = "s1"

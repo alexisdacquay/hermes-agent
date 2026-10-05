@@ -15,11 +15,12 @@ import re
 import subprocess
 import threading
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
+
+from tools.environments.local import hermes_subprocess_env
 
 from agent.deadline import kill_process_tree
 from agent.transports.hermes_tools_mcp_server import HERMES_TOOLS_MCP_SERVER_NAME
-from tools.environments.local import hermes_subprocess_env
 
 MIN_CODEX_VERSION = (0, 125, 0)
 
@@ -30,7 +31,7 @@ class CodexAppServerError(RuntimeError):
 
     code: int
     message: str
-    data: Optional[Any] = None
+    data: Any | None = None
 
     def __str__(self) -> str:  # pragma: no cover - trivial
         return f"codex app-server error {self.code}: {self.message}"
@@ -89,8 +90,8 @@ class CodexAppServerClient:
     """
 
     def __init__(
-        self, codex_bin: str = "codex", codex_home: Optional[str] = None,
-        extra_args: Optional[list[str]] = None, env: Optional[dict[str, str]] = None,
+        self, codex_bin: str = "codex", codex_home: str | None = None,
+        extra_args: list[str] | None = None, env: dict[str, str] | None = None,
     ) -> None:
         self._codex_bin = codex_bin
         # codex needs LLM provider creds but must not receive Tier-1 Hermes secrets (gateway/GitHub/infra tokens).
@@ -110,8 +111,10 @@ class CodexAppServerClient:
 
         cmd = [codex_bin, "app-server", *(extra_args or [])]
         from agent.delegation_context import (
-            DELEGATED_CHILD_ENV_MARKER, KANBAN_ENV_KEYS,
-            delegated_child_subprocess_env, is_dispatcher_owned_worker_context,
+            DELEGATED_CHILD_ENV_MARKER,
+            KANBAN_ENV_KEYS,
+            delegated_child_subprocess_env,
+            is_dispatcher_owned_worker_context,
         )
         # Native shell children remain unowned. Only Hermes' managed MCP tool
         # endpoint acts for this worker; grant it scope via its existing per-server
@@ -164,7 +167,7 @@ class CodexAppServerClient:
 
     def initialize(
         self, client_name: str = "hermes", client_title: str = "Hermes Agent",
-        client_version: str = "0.1", capabilities: Optional[dict] = None, timeout: float = 10.0,
+        client_version: str = "0.1", capabilities: dict | None = None, timeout: float = 10.0,
     ) -> dict:
         """Send ``initialize`` + ``initialized``; return the server's InitializeResponse."""
         if self._initialized:
@@ -219,13 +222,13 @@ class CodexAppServerClient:
         for _rid, pending in pending_items:
             pending.put_nowait(synthetic)
 
-    def __enter__(self) -> "CodexAppServerClient":
+    def __enter__(self) -> CodexAppServerClient:
         return self
 
-    def __exit__(self, *exc: Any) -> None:
+    def __exit__(self, *exc: object) -> None:
         self.close()
 
-    def request(self, method: str, params: Optional[dict] = None, timeout: float = 30.0) -> dict:
+    def request(self, method: str, params: dict | None = None, timeout: float = 30.0) -> dict:
         """Send a request and block for ``result``; raise CodexAppServerError on ``error``."""
         rid, self._next_id = self._next_id, self._next_id + 1
         q: queue.Queue = queue.Queue(maxsize=1)
@@ -249,7 +252,7 @@ class CodexAppServerClient:
             raise cls(code=err.get("code", -1), message=err.get("message", ""), data=err.get("data"))
         return msg.get("result", {})
 
-    def notify(self, method: str, params: Optional[dict] = None) -> None:
+    def notify(self, method: str, params: dict | None = None) -> None:
         """Send a JSON-RPC notification (no id, no response expected)."""
         self._send({"method": method, "params": params or {}})
 
@@ -257,7 +260,7 @@ class CodexAppServerClient:
         """Reply to a server-initiated request (e.g. approval prompts)."""
         self._send({"id": request_id, "result": result})
 
-    def respond_error(self, request_id: Any, code: int, message: str, data: Optional[Any] = None) -> None:
+    def respond_error(self, request_id: Any, code: int, message: str, data: Any | None = None) -> None:
         """Reply to a server-initiated request with an error."""
         err: dict[str, Any] = {"code": code, "message": message}
         if data is not None:
@@ -265,17 +268,17 @@ class CodexAppServerClient:
         self._send({"id": request_id, "error": err})
 
     @staticmethod
-    def _take(q: queue.Queue, timeout: float) -> Optional[dict]:
+    def _take(q: queue.Queue, timeout: float) -> dict | None:
         try:
             return q.get_nowait() if timeout <= 0 else q.get(timeout=timeout)
         except queue.Empty:
             return None
 
-    def take_notification(self, timeout: float = 0.0) -> Optional[dict]:
+    def take_notification(self, timeout: float = 0.0) -> dict | None:
         """Pop the next streaming notification, or None on timeout (0 = non-blocking)."""
         return self._take(self._notifications, timeout)
 
-    def take_server_request(self, timeout: float = 0.0) -> Optional[dict]:
+    def take_server_request(self, timeout: float = 0.0) -> dict | None:
         """Pop the next server-initiated request (e.g. exec/applyPatch approval)."""
         return self._take(self._server_requests, timeout)
 
@@ -350,7 +353,7 @@ class CodexAppServerClient:
                 self._append_stderr(line.decode("utf-8", "replace").rstrip())
 
 
-def parse_codex_version(output: str) -> Optional[tuple[int, int, int]]:
+def parse_codex_version(output: str) -> tuple[int, int, int] | None:
     """Parse ``codex --version`` output ("codex-cli 0.130.0 ...") into (major, minor, patch)."""
     match = re.search(r"(\d+)\.(\d+)\.(\d+)", output or "")
     return tuple(int(g) for g in match.groups()) if match else None

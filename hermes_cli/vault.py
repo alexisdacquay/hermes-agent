@@ -84,7 +84,11 @@ def _cmd_add(args) -> None:
                 kind="login", label=label, secret=secret, origin=origin
             )
         else:
-            from agent.vault_store import ADDRESS_FIELDS, PAYMENT_FIELDS, REQUIRED_FIELDS
+            from agent.vault_store import (
+                ADDRESS_FIELDS,
+                PAYMENT_FIELDS,
+                REQUIRED_FIELDS,
+            )
 
             fields = PAYMENT_FIELDS if kind == "payment" else ADDRESS_FIELDS
             origin = ""
@@ -142,6 +146,7 @@ def _cmd_sources(args) -> None:
     """Show the detected password managers; `--disable`/`--enable` flip the opt-out (`vault.<name>.enabled`)."""
     from agent.vault_backends import enabled_backends
     from agent.vault_backends.base import external_backend_classes, is_installed
+
     from hermes_cli.config import _ensure_dict, load_config, save_config
 
     c = _console()
@@ -165,7 +170,7 @@ def _cmd_sources(args) -> None:
         if name in enabled:
             status = "[green]detected[/] · the agent asks you to unlock it when it needs a login"
         elif is_installed(name):
-            status = "[dim]turned off[/] (`hermes vault sources --enable {name}` to use it)".format(name=name)
+            status = f"[dim]turned off[/] (`hermes vault sources --enable {name}` to use it)"
         else:
             status = "[dim]not installed[/]"
         c.print(f"  {cls.display_name:<10} {status}")

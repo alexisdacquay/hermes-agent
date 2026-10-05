@@ -20,11 +20,10 @@ import sys
 import uuid
 from pathlib import Path
 
-import pytest
-
 import hermes_state
 import hermes_state_repair
 import hermes_state_wal
+import pytest
 from hermes_state import SessionDB, is_malformed_db_error
 from hermes_state_repair import repair_state_db_schema
 

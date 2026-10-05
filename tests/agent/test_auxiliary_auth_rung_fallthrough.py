@@ -29,17 +29,14 @@ local endpoint, with only the credential sources stubbed (the Nous portal accoun
 probe and the runtime-credential fetch are external boundaries).
 """
 
-import asyncio
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import socket
 import threading
-from typing import Optional
-
-import pytest
-import hermes_yaml as yaml
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import agent.auxiliary_client as aux
+import hermes_yaml as yaml
+import pytest
 
 AUX_MODEL = "z-ai/glm-5.3-flash"
 FALLBACK_MODEL = "fallback-model"
@@ -389,7 +386,6 @@ def test_exhausted_ladder_raises_the_narrowed_error(monkeypatch, hermetic):
     def _no_chain(first_err, route):
         hermetic.append(first_err)
         yield from ()
-        return None
 
     monkeypatch.setattr(aux, "_ladder_provider_fallback", _no_chain)
     failure = _credit_error()

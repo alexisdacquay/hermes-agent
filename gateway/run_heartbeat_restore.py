@@ -26,10 +26,11 @@ async def restore_heartbeat_watches(runner) -> None:
     rather than a second heartbeat routing snapshot, also cover pre-upgrade state.
     Run all storage work off-loop so a cold profile DB cannot block adapters.
     """
-    from gateway.run import _profile_runtime_scope
-    from gateway.run_idle_gates import profile_has_active_heartbeat
     from hermes_cli.heartbeat import HeartbeatManager
     from hermes_constants import get_hermes_home
+
+    from gateway.run import _profile_runtime_scope
+    from gateway.run_idle_gates import profile_has_active_heartbeat
 
     store = runner.session_store
 

@@ -5,17 +5,17 @@ from __future__ import annotations
 import json
 import logging
 import uuid
-from typing import Any, Callable, Dict, List, Optional
+from collections.abc import Callable
+from typing import Any
 
 import acp
 from acp.schema import ToolCallLocation, ToolCallProgress, ToolCallStart, ToolKind
-
 from agent.display import build_tool_preview
 
 logger = logging.getLogger(__name__)
 
 # Hermes tool name -> ACP ToolKind (anything unlisted is "other").
-TOOL_KIND_MAP: Dict[str, ToolKind] = {
+TOOL_KIND_MAP: dict[str, ToolKind] = {
     name: kind
     for kind, names in {
         "read": ("read_file", "skill_view", "skills_list", "browser_snapshot", "browser_vision",
@@ -55,8 +55,8 @@ _POLISHED_TOOLS = {
 }
 
 _EMPTYISH = (None, "", [], {})
-Args = Dict[str, Any]
-_Formatter = Callable[[str, Optional[str], Optional[Args]], Optional[str]]
+Args = dict[str, Any]
+_Formatter = Callable[[str, str | None, Args | None], str | None]
 
 
 def get_tool_kind(tool_name: str) -> ToolKind:
@@ -75,7 +75,7 @@ def _text(content: str) -> Any:
     return acp.tool_content(acp.text_block(content))
 
 
-def _arg(args: Optional[Args], *keys: str, default: str = "") -> str:
+def _arg(args: Args | None, *keys: str, default: str = "") -> str:
     """First truthy ``args[key]`` as a stripped string, else ``default``."""
     return str(_first(args or {}, *keys, default=default)).strip() or default
 
@@ -90,7 +90,7 @@ def _fmt(value: Any, template: str, fallback: str) -> str:
     return template.format(value) if value else fallback
 
 
-def _nonempty(result: Optional[str]) -> Optional[str]:
+def _nonempty(result: str | None) -> str | None:
     return result if isinstance(result, str) and result.strip() else None
 
 
@@ -98,7 +98,7 @@ def _plural(count: int, word: str, suffix: str = "s") -> str:
     return f"{count} {word}{suffix if count != 1 else ''}"
 
 
-def _failure(data: Args, prefix: str) -> Optional[str]:
+def _failure(data: Args, prefix: str) -> str | None:
     """Structured tool-level failure text (``success: false`` or ``error`` set)."""
     failed = data.get("success") is False or data.get("error")
     return f"{prefix}: {data.get('error', 'unknown error')}" if failed else None
@@ -108,8 +108,8 @@ def _structured(text_fallback: bool = False):
     """Completion formatter taking ``(tool_name, data: dict, args: dict)``; the wrapper parses
     ``result`` and returns ``None`` (or the raw text when ``text_fallback``) for non-dict payloads."""
 
-    def deco(fn: Callable[[str, Args, Args], Optional[str]]) -> _Formatter:
-        def wrapper(tool_name: str, result: Optional[str], args: Optional[Args]) -> Optional[str]:
+    def deco(fn: Callable[[str, Args, Args], str | None]) -> _Formatter:
+        def wrapper(tool_name: str, result: str | None, args: Args | None) -> str | None:
             if isinstance(data := _json_loads_maybe(result), dict):
                 return fn(tool_name, data, args or {})
             return _nonempty(result) if text_fallback else None
@@ -137,7 +137,7 @@ def _args_json(arguments: Any) -> str:
         return str(arguments)
 
 
-def _json_loads_maybe(value: Optional[str]) -> Any:
+def _json_loads_maybe(value: str | None) -> Any:
     """Decode a JSON string; non-strings pass through, undecodable strings yield None.
 
     Some Hermes tools append a human hint after the payload (``{...}\\n\\n[Hint: ...]``),
@@ -165,7 +165,7 @@ def _fenced_text(text: str, language: str = "") -> str:
     return f"{fence}{language}\n{text}\n{fence}"
 
 
-def _tool_result_failed(result: Optional[str], tool_name: str | None = None) -> bool:
+def _tool_result_failed(result: str | None, tool_name: str | None = None) -> bool:
     """Return True when a structured Hermes tool result clearly failed.
 
     Deliberately conservative: plain text may legitimately contain "error", so
@@ -201,7 +201,7 @@ def build_tool_title(tool_name: str, args: Args) -> str:
 
 
 @_structured()
-def _format_todo_result(tool_name: str, data: Args, args: Args) -> Optional[str]:
+def _format_todo_result(tool_name: str, data: Args, args: Args) -> str | None:
     if not isinstance(data.get("todos"), list):
         return None
     icon = {"completed": "✅", "in_progress": "🔄", "pending": "⏳", "cancelled": "✗"}
@@ -229,7 +229,7 @@ def _format_todo_result(tool_name: str, data: Args, args: Args) -> Optional[str]
 
 
 @_structured()
-def _format_read_file_result(tool_name: str, data: Args, a: Args) -> Optional[str]:
+def _format_read_file_result(tool_name: str, data: Args, a: Args) -> str | None:
     if data.get("error") and not data.get("content"):
         return f"Read failed: {data.get('error')}"
     if not isinstance(content := data.get("content"), str):
@@ -244,7 +244,7 @@ def _format_read_file_result(tool_name: str, data: Args, a: Args) -> Optional[st
 
 
 @_structured()
-def _format_search_files_result(tool_name: str, data: Args, args: Args) -> Optional[str]:
+def _format_search_files_result(tool_name: str, data: Args, args: Args) -> str | None:
     files, matches = data.get("files"), data.get("matches")
     # Surface file/image attachments as compact text markers. The thread-context fetch is text-only, so
     # without this the agent has no idea prior messages carried images/files at all (#69185, #32315): "@bot
@@ -277,7 +277,7 @@ def _format_search_files_result(tool_name: str, data: Args, args: Args) -> Optio
 
 
 @_structured(text_fallback=True)
-def _format_execute_code_result(tool_name: str, data: Args, args: Args) -> Optional[str]:
+def _format_execute_code_result(tool_name: str, data: Args, args: Args) -> str | None:
     exit_code = data.get("exit_code")
     parts = [f"Exit code: {exit_code}" if exit_code is not None else "Execution complete"]
     if data.get("stdout_truncated"):
@@ -296,7 +296,7 @@ def _format_execute_code_result(tool_name: str, data: Args, args: Args) -> Optio
 
 
 @_structured()
-def _format_skill_view_result(tool_name: str, data: Args, args: Args) -> Optional[str]:
+def _format_skill_view_result(tool_name: str, data: Args, args: Args) -> str | None:
     if data.get("success") is False:
         return f"Skill view failed: {data.get('error', 'unknown error')}"
     content = str(data.get("content") or "")
@@ -316,7 +316,7 @@ def _format_skill_view_result(tool_name: str, data: Args, args: Args) -> Optiona
 
 
 @_structured()
-def _format_skill_manage_result(tool_name: str, data: Args, a: Args) -> Optional[str]:
+def _format_skill_manage_result(tool_name: str, data: Args, a: Args) -> str | None:
     action = _arg(a, "action", default="manage")
     name = str(a.get("name") or data.get("name") or "skill").strip() or "skill"
     file_path = str(a.get("file_path") or data.get("file_path") or "SKILL.md").strip() or "SKILL.md"
@@ -334,7 +334,7 @@ def _format_skill_manage_result(tool_name: str, data: Args, a: Args) -> Optional
 
 
 @_structured()
-def _format_web_search_result(tool_name: str, data: Args, args: Args) -> Optional[str]:
+def _format_web_search_result(tool_name: str, data: Args, args: Args) -> str | None:
     web = data.get("data", {}).get("web") if isinstance(data.get("data"), dict) else data.get("web")
     if not isinstance(web, list):
         return None
@@ -350,7 +350,7 @@ def _format_web_search_result(tool_name: str, data: Args, args: Args) -> Optiona
 
 
 @_structured()
-def _format_web_extract_result(tool_name: str, data: Args, args: Args) -> Optional[str]:
+def _format_web_extract_result(tool_name: str, data: Args, args: Args) -> str | None:
     """Return only web_extract errors for ACP; success stays compact via title."""
     if data.get("success") is False and data.get("error"):
         return f"Web extract failed: {data.get('error')}"
@@ -369,7 +369,7 @@ def _format_web_extract_result(tool_name: str, data: Args, args: Args) -> Option
 
 
 @_structured(text_fallback=True)
-def _format_process_result(tool_name: str, data: Args, args: Args) -> Optional[str]:
+def _format_process_result(tool_name: str, data: Args, args: Args) -> str | None:
     if data.get("success") is False and data.get("error"):
         return f"Process error: {data.get('error')}"
     action = _arg(args, "action", default="process")
@@ -403,7 +403,7 @@ def _format_process_result(tool_name: str, data: Args, args: Args) -> Optional[s
 
 
 @_structured()
-def _format_delegate_result(tool_name: str, data: Args, args: Args) -> Optional[str]:
+def _format_delegate_result(tool_name: str, data: Args, args: Args) -> str | None:
     if not isinstance(results := data.get("results"), list):
         return f"Delegation failed: {data.get('error')}" if data.get("error") else None
     total = data.get("total_duration_seconds")
@@ -429,7 +429,7 @@ def _format_delegate_result(tool_name: str, data: Args, args: Args) -> Optional[
 
 
 @_structured()
-def _format_session_search_result(tool_name: str, data: Args, args: Args) -> Optional[str]:
+def _format_session_search_result(tool_name: str, data: Args, args: Args) -> str | None:
     if data.get("success") is False:
         return f"Session search failed: {data.get('error', 'unknown error')}"
     if not isinstance(results := data.get("results"), list):
@@ -453,7 +453,7 @@ def _format_session_search_result(tool_name: str, data: Args, args: Args) -> Opt
 
 
 @_structured()
-def _format_memory_result(tool_name: str, data: Args, args: Args) -> Optional[str]:
+def _format_memory_result(tool_name: str, data: Args, args: Args) -> str | None:
     action = _arg(args, "action", default="memory")
     target = str(data.get("target") or args.get("target") or "memory")
     if data.get("success") is False:
@@ -474,7 +474,7 @@ def _format_memory_result(tool_name: str, data: Args, args: Args) -> Optional[st
     return "\n".join(lines)
 
 
-def _format_edit_result(tool_name: str, result: Optional[str], args: Optional[Args]) -> Optional[str]:
+def _format_edit_result(tool_name: str, result: str | None, args: Args | None) -> str | None:
     data = _json_loads_maybe(result)
     path = str((args or {}).get("path") or "file").strip()
     done = f"✅ {tool_name} completed" + (f" for `{path}`" if path else "")
@@ -493,7 +493,7 @@ def _format_edit_result(tool_name: str, result: Optional[str], args: Optional[Ar
 
 
 @_structured(text_fallback=True)
-def _format_browser_result(tool_name: str, data: Args, args: Args) -> Optional[str]:
+def _format_browser_result(tool_name: str, data: Args, args: Args) -> str | None:
     if failed := _failure(data, f"{tool_name} failed"):
         return failed
     images = (data.get("images") or data.get("data")) if tool_name == "browser_get_images" else None
@@ -514,14 +514,14 @@ def _format_browser_result(tool_name: str, data: Args, args: Args) -> Optional[s
 
 
 @_structured(text_fallback=True)
-def _format_media_or_cron_result(tool_name: str, data: Args, args: Args) -> Optional[str]:
+def _format_media_or_cron_result(tool_name: str, data: Args, args: Args) -> str | None:
     if failed := _failure(data, f"{tool_name} failed"):
         return failed
     keys = ("file_path", "path", "url", "image_url", "job_id", "id", "status", "message", "next_run")
     return "\n".join([f"✅ {tool_name} completed", *(f"- **{k}:** {data.get(k)}" for k in keys if data.get(k))])
 
 
-def _format_structured_value(key: str, value: Any, *, indent: int = 0, max_depth: int = 3, max_items: int = 8) -> List[str]:
+def _format_structured_value(key: str, value: Any, *, indent: int = 0, max_depth: int = 3, max_items: int = 8) -> list[str]:
     """Render nested JSON-ish values as compact Markdown bullets, not inline blobs."""
     pad = "  " * indent
     bullet = f"{pad}- "
@@ -530,7 +530,7 @@ def _format_structured_value(key: str, value: Any, *, indent: int = 0, max_depth
     def _line(text: str) -> str:
         return f"{bullet}{label} {text}" if label else f"{bullet}{text}"
 
-    def _child(child_key: str, child_value: Any, extra_indent: int) -> List[str]:
+    def _child(child_key: str, child_value: Any, extra_indent: int) -> list[str]:
         return _format_structured_value(child_key, child_value, indent=indent + extra_indent, max_depth=max_depth - 1,
                                         max_items=max_items)
 
@@ -587,7 +587,7 @@ _PRIORITY_KEYS = (
 )
 
 
-def _format_generic_structured_result(tool_name: str, result: Optional[str], *, fallback_to_text: bool = True) -> Optional[str]:
+def _format_generic_structured_result(tool_name: str, result: str | None, *, fallback_to_text: bool = True) -> str | None:
     data = _json_loads_maybe(result)
     if not isinstance(data, (dict, list)):
         return _nonempty(result) if fallback_to_text else None
@@ -617,7 +617,7 @@ def _format_generic_structured_result(tool_name: str, result: Optional[str], *, 
     return _truncate_text("\n".join(lines), limit=7000)
 
 
-_COMPLETION_FORMATTERS: Dict[str, _Formatter] = {
+_COMPLETION_FORMATTERS: dict[str, _Formatter] = {
     "todo": _format_todo_result,
     "read_file": _format_read_file_result,
     "write_file": _format_edit_result,
@@ -636,10 +636,10 @@ _COMPLETION_FORMATTERS: Dict[str, _Formatter] = {
 }
 
 
-def _parse_unified_diff_content(diff_text: str) -> List[Any]:
+def _parse_unified_diff_content(diff_text: str) -> list[Any]:
     """Convert unified diff text into ACP diff content blocks (one per ``---``/``+++`` pair)."""
-    content: List[Any] = []
-    state: Dict[str, Any] = {"old": None, "new": None, "old_lines": [], "new_lines": []}
+    content: list[Any] = []
+    state: dict[str, Any] = {"old": None, "new": None, "old_lines": [], "new_lines": []}
 
     def _flush() -> None:
         old_path, new_path = state["old"], state["new"]
@@ -673,8 +673,8 @@ def _parse_unified_diff_content(diff_text: str) -> List[Any]:
 
 
 def _build_tool_complete_content(
-    tool_name: str, result: Optional[str], *, function_args: Optional[Args] = None, snapshot: Any = None
-) -> List[Any]:
+    tool_name: str, result: str | None, *, function_args: Args | None = None, snapshot: Any = None
+) -> list[Any]:
     """Build structured ACP completion content, falling back to plain text."""
     if tool_name == "skill_manage":
         try:
@@ -697,7 +697,7 @@ def _build_tool_complete_content(
 # --- ToolCallStart / ToolCallProgress events ---------------------------------
 
 
-def _more(items: list, shown: int, unit: str = "") -> List[str]:
+def _more(items: list, shown: int, unit: str = "") -> list[str]:
     """``["... N more<unit>"]`` trailer when ``items`` overflowed the ``shown`` cap, else ``[]``."""
     return [f"... {len(items) - shown} more{unit}"] if len(items) > shown else []
 
@@ -724,7 +724,7 @@ def _start_skill_manage(args: Args) -> Any:
         target = str(args.get("file_path") or "file")
         return acp.tool_diff_content(path=f"skills/{name}/{target}", new_text=str(args.get("file_content") or ""))
     if action in {"delete", "remove_file"}:
-        return f"Removing {str(args.get('file_path') or file_path)} from skill '{name}'"
+        return f"Removing {args.get('file_path') or file_path!s} from skill '{name}'"
     return f"Running skill_manage action '{action}' on skill '{name}' ({file_path})"
 
 
@@ -751,7 +751,7 @@ def _preview(label: str, value: str, limit: int) -> str:
 # Per-tool start-content builders returning text or one ACP content block. ``None`` means the
 # title/location already identify the target (read_file, web_extract): a synthetic content block
 # would make Zed render an unhelpful Output section before completion.
-_START_CONTENT_BUILDERS: Dict[str, Optional[Callable[[Args], Any]]] = {
+_START_CONTENT_BUILDERS: dict[str, Callable[[Args], Any] | None] = {
     "patch": lambda a: (
         f"Preparing {a.get('mode', 'replace')} edit for {a.get('path') or 'patch input'}. Approval prompt shows the diff."
     ),
@@ -815,7 +815,7 @@ def _build_tool_start(tool_call_id: str, tool_name: str, arguments: Args, *, edi
 
 
 def build_tool_complete(
-    tool_call_id: str, tool_name: str, result: Optional[str] = None, function_args: Optional[Args] = None,
+    tool_call_id: str, tool_name: str, result: str | None = None, function_args: Args | None = None,
     snapshot: Any = None, is_error: bool = False,
 ) -> ToolCallProgress:
     """Create a ToolCallUpdate (progress) event for a completed tool call.
@@ -846,7 +846,7 @@ def build_tool_abandoned(tool_call_id: str, tool_name: str) -> ToolCallProgress:
     )
 
 
-def extract_locations(arguments: Args) -> List[ToolCallLocation]:
+def extract_locations(arguments: Args) -> list[ToolCallLocation]:
     """Extract file-system locations from tool arguments."""
     if not (path := arguments.get("path")):
         return []

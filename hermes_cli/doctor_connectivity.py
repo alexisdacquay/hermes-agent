@@ -6,7 +6,6 @@ print and issue strings to append. No printing inside workers — the caller pri
 
 from __future__ import annotations
 
-from pm import install_hint
 import concurrent.futures
 import errno
 import functools
@@ -15,10 +14,12 @@ import socket
 from typing import NamedTuple
 from urllib.parse import urlsplit
 
+from hermes_constants import OPENROUTER_MODELS_URL
+from pm import install_hint
+from utils import base_url_host_matches
+
 from hermes_cli.colors import Colors, color
 from hermes_cli.models import _HERMES_USER_AGENT
-from hermes_constants import OPENROUTER_MODELS_URL
-from utils import base_url_host_matches
 
 _APIKEY_PROVIDERS_CACHE: list | None = None
 
@@ -109,7 +110,7 @@ def _build_apikey_providers_list() -> list:
             if {_normalize_provider(a) for a in (_pp.name, *(_pp.aliases or ()))} & _dedicated_canonical:
                 continue
             # Key vars vs base-URL vars: the first found value goes out as Authorization: Bearer, never a URL.
-            _is_url = lambda v: v.endswith("_BASE_URL") or v.endswith("_URL")  # noqa: E731
+            _is_url = lambda v: v.endswith("_BASE_URL") or v.endswith("_URL")
             _key_vars = tuple(v for v in _pp.env_vars if not _is_url(v))
             if not _key_vars:
                 continue
@@ -157,7 +158,11 @@ def _probe_anthropic() -> ProbeResult:
         return _skip(name)
     try:
         import httpx
-        from agent.anthropic_adapter import _COMMON_BETAS, _OAUTH_ONLY_BETAS, _CONTEXT_1M_BETA
+        from agent.anthropic_adapter import (
+            _COMMON_BETAS,
+            _CONTEXT_1M_BETA,
+            _OAUTH_ONLY_BETAS,
+        )
         from agent.anthropic_credentials import _is_oauth_token
         is_oauth = _is_oauth_token(key)
         headers = {"anthropic-version": "2023-06-01", **({"Authorization": f"Bearer {key}", "anthropic-beta": ",".join(_COMMON_BETAS + _OAUTH_ONLY_BETAS)}
@@ -249,7 +254,10 @@ def _apikey_request(key: str, base_env, default_url) -> tuple:
     # ACCESS_TOKEN_TYPE_UNSUPPORTED (reserved for OAuth 2 tokens); plain keys use ``x-goog-api-key``.
     if url and (base_url_host_matches(url, "generativelanguage.googleapis.com")
                 or base_url_host_matches(url, "aiplatform.googleapis.com")):
-        from agent.gemini_native_adapter import is_vertex_express_base_url, normalize_gemini_base_url
+        from agent.gemini_native_adapter import (
+            is_vertex_express_base_url,
+            normalize_gemini_base_url,
+        )
         root = url.rsplit("/models", 1)[0]
         if base_url_host_matches(url, "generativelanguage.googleapis.com") or is_vertex_express_base_url(root):
             # Normalize guarantees the version segment and completes an explicitly configured express
@@ -265,7 +273,11 @@ def _apikey_request(key: str, base_env, default_url) -> tuple:
 def _probe_bedrock() -> ProbeResult:
     name = "AWS Bedrock"
     try:
-        from agent.bedrock_adapter import has_aws_credentials, resolve_aws_auth_env_var, resolve_bedrock_region
+        from agent.bedrock_adapter import (
+            has_aws_credentials,
+            resolve_aws_auth_env_var,
+            resolve_bedrock_region,
+        )
     except ImportError:
         return _skip(name)
     if not has_aws_credentials():
@@ -308,7 +320,10 @@ def _probe_azure_entra() -> ProbeResult:
         return _skip(name)
     try:
         from agent.azure_identity_adapter import (
-            EntraIdentityConfig, SCOPE_AI_AZURE_DEFAULT, describe_active_credential, has_azure_identity_installed,
+            SCOPE_AI_AZURE_DEFAULT,
+            EntraIdentityConfig,
+            describe_active_credential,
+            has_azure_identity_installed,
         )
     except Exception as exc:
         return _row(name, "warn", f"(adapter import failed: {exc})", [f"Azure Foundry adapter import failed: {exc}"], label=label)

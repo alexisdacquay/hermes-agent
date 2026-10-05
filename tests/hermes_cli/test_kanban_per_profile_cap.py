@@ -86,12 +86,11 @@ def test_capped_tasks_dispatched_on_subsequent_tick(isolated_kanban_home_with_pr
     # Simulate the running task completing — set it back to done so the
     # 'running' count drops
     spawned_id = res1.spawned[0][0]
-    with kbc.connect_closing() as conn:
-        with kb.write_txn(conn):
-            conn.execute(
-                "UPDATE tasks SET status = 'done', claim_lock = NULL WHERE id = ?",
-                (spawned_id,),
-            )
+    with kbc.connect_closing() as conn, kb.write_txn(conn):
+        conn.execute(
+            "UPDATE tasks SET status = 'done', claim_lock = NULL WHERE id = ?",
+            (spawned_id,),
+        )
 
     # Second tick: 1 more alpha should now dispatch
     with kbc.connect_closing() as conn:

@@ -12,9 +12,8 @@ under the stated assumption of `synchronous=FULL` on Ubuntu.
 
 import sqlite3
 
-import pytest
-
 import hermes_state_wal
+import pytest
 from hermes_state import apply_database_pragmas
 from hermes_state_wal import resolve_synchronous_level
 

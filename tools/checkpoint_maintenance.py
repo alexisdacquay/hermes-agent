@@ -4,14 +4,25 @@ import logging
 import os
 import time
 from pathlib import Path
-from typing import Dict, Optional
 
 from hermes_cli.gitlock import clear_stale_tmp_packs
 from utils import rmtree_readonly
+
 from tools.checkpoint_manager import (
-    _GIT_TIMEOUT, _LEGACY_PREFIX, _PRUNE_MARKER_NAME, _REFS_PREFIX, _STORE_DIRNAME,
-    _dir_size_bytes, _index_path, _list_projects, _pre_v2_shadow_repos,
-    _project_meta_path, _ref_name, _resolve_checkpoint_base, _run_git, _store_path,
+    _GIT_TIMEOUT,
+    _LEGACY_PREFIX,
+    _PRUNE_MARKER_NAME,
+    _REFS_PREFIX,
+    _STORE_DIRNAME,
+    _dir_size_bytes,
+    _index_path,
+    _list_projects,
+    _pre_v2_shadow_repos,
+    _project_meta_path,
+    _ref_name,
+    _resolve_checkpoint_base,
+    _run_git,
+    _store_path,
 )
 
 logger = logging.getLogger(__name__)
@@ -35,8 +46,8 @@ def _delete_ref(store: Path, ref: str) -> bool:
 
 def _workdir_is_observably_gone(
     workdir: str,
-    parent_dev: Optional[int] = None,
-    parent_ino: Optional[int] = None,
+    parent_dev: int | None = None,
+    parent_ino: int | None = None,
     require_parent_identity: bool = True,
 ) -> bool:
     """True only when we can positively observe that ``workdir`` was removed.
@@ -136,10 +147,10 @@ def _dir_has_any_entry(directory: Path) -> bool:
 def prune_checkpoints(
     retention_days: int = 7,
     delete_orphans: bool = True,
-    checkpoint_base: Optional[Path] = None,
+    checkpoint_base: Path | None = None,
     max_total_size_mb: int = 0,
-    orphan_allowlist: Optional[set] = None,
-) -> Dict[str, int]:
+    orphan_allowlist: set | None = None,
+) -> dict[str, int]:
     """Delete stale/orphan checkpoints and reclaim store space.
 
     A project entry is deleted when either:
@@ -194,9 +205,9 @@ def prune_checkpoints(
 
 
 def _prune_checkpoints(
-    base: Path, result: Dict[str, int], retention_days: int, delete_orphans: bool,
-    max_total_size_mb: int, orphan_allowlist: Optional[set],
-) -> Dict[str, int]:
+    base: Path, result: dict[str, int], retention_days: int, delete_orphans: bool,
+    max_total_size_mb: int, orphan_allowlist: set | None,
+) -> dict[str, int]:
     size_before = _dir_size_bytes(base)
 
     # --- Legacy pre-v2 per-project shadow repos (kept directly under base) ---
@@ -237,7 +248,7 @@ def _prune_checkpoints(
     for repo in _pre_v2_shadow_repos(base):
         child = repo["path"]
         result["scanned"] += 1
-        reason: Optional[str] = None
+        reason: str | None = None
         if (
             delete_orphans
             and not repo["marker_unreadable"]
@@ -341,7 +352,7 @@ def _prune_checkpoints(
             else:
                 result["deleted_stale"] += 1
 
-        from tools.checkpoint_pruning import Pruner, PruneError
+        from tools.checkpoint_pruning import PruneError, Pruner
 
         pruner = Pruner(_run_git, store, str(base), _GIT_TIMEOUT, _dir_size_bytes, _REFS_PREFIX)
         try:
@@ -365,9 +376,9 @@ def maybe_auto_prune_checkpoints(
     retention_days: int = 7,
     min_interval_hours: int = 24,
     delete_orphans: bool = True,
-    checkpoint_base: Optional[Path] = None,
+    checkpoint_base: Path | None = None,
     max_total_size_mb: int = 0,
-) -> Dict[str, object]:
+) -> dict[str, object]:
     """Idempotent wrapper around ``prune_checkpoints`` for startup hooks.
 
     Writes ``CHECKPOINT_BASE/.last_prune`` on completion so subsequent
@@ -377,7 +388,7 @@ def maybe_auto_prune_checkpoints(
     "error": optional str}``.
     """
     base = checkpoint_base or _resolve_checkpoint_base()
-    out: Dict[str, object] = {"skipped": False}
+    out: dict[str, object] = {"skipped": False}
 
     try:
         if not base.exists():
@@ -421,7 +432,7 @@ def maybe_auto_prune_checkpoints(
     return out
 
 
-def auto_prune_from_config() -> Dict[str, object]:
+def auto_prune_from_config() -> dict[str, object]:
     """``maybe_auto_prune_checkpoints`` driven by the ``checkpoints:`` config section — the one
     startup/housekeeping entry point for the CLI and the gateway. ``delete_orphans`` is never
     honoured unattended: a missing workdir is ambiguous (deleted vs. unmounted share); orphan
@@ -441,7 +452,7 @@ def auto_prune_from_config() -> Dict[str, object]:
         return {"skipped": True, "error": str(exc)}
 
 
-def checkpoint_footprint_notice() -> Optional[str]:
+def checkpoint_footprint_notice() -> str | None:
     """One-line notice when ``/rollback`` checkpoints are on and their store sits at or above
     ``checkpoints.max_total_size_mb``, else None. Checkpoints were on by default for a while
     (Mar–May 2026) and that ``enabled: true`` persisted into user configs; many users carry a
@@ -471,7 +482,7 @@ def checkpoint_footprint_notice() -> Optional[str]:
 # Public helpers for `hermes checkpoints` CLI
 # ---------------------------------------------------------------------------
 
-def store_status(checkpoint_base: Optional[Path] = None) -> Dict:
+def store_status(checkpoint_base: Path | None = None) -> dict:
     """Return a summary of the shadow store.
 
     ``{"base": path, "store_size_bytes": N, "legacy_size_bytes": N,
@@ -486,7 +497,7 @@ def store_status(checkpoint_base: Optional[Path] = None) -> Dict:
     both layouts.
     """
     base = checkpoint_base or _resolve_checkpoint_base()
-    out: Dict = {
+    out: dict = {
         "base": str(base),
         "store_size_bytes": 0,
         "legacy_size_bytes": 0,
@@ -559,7 +570,7 @@ def _rmtree_force(path: Path) -> None:
     rmtree_readonly(path)
 
 
-def clear_all(checkpoint_base: Optional[Path] = None) -> Dict[str, int]:
+def clear_all(checkpoint_base: Path | None = None) -> dict[str, int]:
     """Nuke the entire checkpoint base (store + legacy).  Irreversible.
 
     Returns ``{"bytes_freed": N, "deleted": bool}``.
@@ -581,7 +592,7 @@ def clear_all(checkpoint_base: Optional[Path] = None) -> Dict[str, int]:
     return out
 
 
-def clear_legacy(checkpoint_base: Optional[Path] = None) -> Dict[str, int]:
+def clear_legacy(checkpoint_base: Path | None = None) -> dict[str, int]:
     """Delete all ``legacy-*`` archive directories and report any failures."""
     base = checkpoint_base or _resolve_checkpoint_base()
     out = {"bytes_freed": 0, "deleted": 0, "errors": 0}

@@ -3,16 +3,16 @@ platform home channel ("telegram"), origin (back to where the job was created), 
 
 import logging
 import re
-from pathlib import Path
-from datetime import datetime
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Any
+from datetime import datetime
+from pathlib import Path
+from typing import Any
 
 from hermes_cli.config import get_hermes_home
 
-from .config import Platform, GatewayConfig, PlatformConfig
-from .session import SessionSource
+from .config import GatewayConfig, Platform, PlatformConfig
 from .dead_targets import DeadTargetRegistry, classify_dead_error
+from .session import SessionSource
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +30,7 @@ _SILENCE_NARRATION = re.compile(
 _THREAD_ROUTING_KEYS = ("thread_id", "message_thread_id", "direct_messages_topic_id", "telegram_direct_messages_topic_id")
 
 
-def _is_silence_narration(content: Optional[str]) -> bool:
+def _is_silence_narration(content: str | None) -> bool:
     """True when ``content`` is *only* a silence-narration token (length-guarded)."""
     stripped = content.strip() if content else ""
     return bool(stripped) and len(stripped) <= 64 and bool(_SILENCE_NARRATION.match(stripped))
@@ -49,7 +49,7 @@ class PartialDeliveryError(RuntimeError):
 class DeliveryTransport:
     """Resolved live transport for one logical delivery platform."""
     adapter: Any
-    config: Optional[PlatformConfig]
+    config: PlatformConfig | None
     transport_platform: Platform
 
     @property
@@ -57,14 +57,14 @@ class DeliveryTransport:
         return self.transport_platform == Platform.RELAY
 
     async def send(self, logical_platform: Platform, chat_id: str, content: str,
-                   metadata: Optional[Dict[str, Any]]) -> Any:
+                   metadata: dict[str, Any] | None) -> Any:
         """Send through this transport while preserving the logical platform."""
         return await (self.adapter.send_for_platform(logical_platform, chat_id, content, metadata=metadata)
                       if self.is_relay else self.adapter.send(chat_id, content, metadata=metadata))
 
 
 def resolve_delivery_transport(platform: Platform, config: GatewayConfig,
-                               adapters: Optional[Dict[Platform, Any]]) -> Optional[DeliveryTransport]:
+                               adapters: dict[Platform, Any] | None) -> DeliveryTransport | None:
     """Resolve a logical platform to its live delivery transport. A concrete native adapter always wins;
     Relay is eligible only when its authenticated transport explicitly advertises that it fronts the
     logical platform, so restart-time delivery is independent of per-chat caches without letting Relay
@@ -83,7 +83,7 @@ def resolve_delivery_transport(platform: Platform, config: GatewayConfig,
     return None
 
 
-def looks_like_telegram_private_chat_id(chat_id: Optional[str]) -> bool:
+def looks_like_telegram_private_chat_id(chat_id: str | None) -> bool:
     """True when ``chat_id`` is a positive int — Telegram's private-chat shape (groups/channels are negative).
     Single source of truth, reused by the handoff seed path in ``gateway/run.py`` so handoff-created DM
     topics key the same way as inbound DM-topic messages."""
@@ -93,14 +93,14 @@ def looks_like_telegram_private_chat_id(chat_id: Optional[str]) -> bool:
         return False
 
 
-def _looks_like_int(value: Optional[str]) -> bool:
+def _looks_like_int(value: str | None) -> bool:
     try:
         return int(value) is not None
     except (TypeError, ValueError):
         return False
 
 
-def _send_result_error(result: Any) -> Optional[str]:
+def _send_result_error(result: Any) -> str | None:
     """Error string of a failed SendResult object / plain result dict ("" if none), or None on success."""
     get = result.get if isinstance(result, dict) else (lambda name, default=None: getattr(result, name, default))
     return None if get("success", True) is not False else str(get("error") or "")
@@ -110,18 +110,18 @@ def _send_result_error(result: Any) -> Optional[str]:
 class DeliveryTarget:
     """One target: "origin", "local", "telegram" (home channel) or "telegram:123456[:thread]"."""
     platform: Platform
-    chat_id: Optional[str] = None  # None means use home channel
-    thread_id: Optional[str] = None
+    chat_id: str | None = None  # None means use home channel
+    thread_id: str | None = None
     is_origin: bool = False
     is_explicit: bool = False  # True if chat_id was explicitly specified
     # Raw target string when the platform name is unknown. The platform falls
     # back to LOCAL for routing, but the original name is preserved so
     # deliver() can report {success: False, error: unknown_platform} instead
     # of silently misrouting to local files.
-    unknown_platform: Optional[str] = None
+    unknown_platform: str | None = None
 
     @classmethod
-    def parse(cls, target: str, origin: Optional[SessionSource] = None) -> "DeliveryTarget":
+    def parse(cls, target: str, origin: SessionSource | None = None) -> DeliveryTarget:
         """Parse "origin" | "local" | "<platform>" | "<platform>:<chat_id>[:<thread_id>]"."""
         target = target.strip()
         if target.lower() == "origin":
@@ -164,15 +164,15 @@ async def _ensure_named_dm_topic(adapter: Any, chat_id: str, name: str, *, refre
 class DeliveryRouter:
     """Resolves delivery targets and dispatches messages to platform adapters."""
 
-    def __init__(self, config: GatewayConfig, adapters: Dict[Platform, Any] = None,
-                 dead_targets: Optional[DeadTargetRegistry] = None):  # profile-local registry when omitted
+    def __init__(self, config: GatewayConfig, adapters: dict[Platform, Any] = None,
+                 dead_targets: DeadTargetRegistry | None = None):  # profile-local registry when omitted
         self.config = config
         self.adapters = adapters or {}
         self.output_dir = get_hermes_home() / "cron" / "output"
         self.dead_targets = dead_targets or DeadTargetRegistry()
 
-    async def deliver(self, content: str, targets: List[DeliveryTarget], job_id: Optional[str] = None,
-                      job_name: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    async def deliver(self, content: str, targets: list[DeliveryTarget], job_id: str | None = None,
+                      job_name: str | None = None, metadata: dict[str, Any] | None = None) -> dict[str, Any]:
         """Deliver content to all targets; returns per-target results keyed by target string."""
         results = {}
         for target in targets:
@@ -207,8 +207,8 @@ class DeliveryRouter:
                 results[target.to_string()] = {"success": False, "error": str(e)}
         return results
 
-    def _deliver_local(self, content: str, job_id: Optional[str], job_name: Optional[str],
-                       metadata: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    def _deliver_local(self, content: str, job_id: str | None, job_name: str | None,
+                       metadata: dict[str, Any] | None) -> dict[str, Any]:
         """Save content to local files."""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         output_path = self.output_dir / (job_id or "misc") / f"{timestamp}.md"
@@ -239,7 +239,7 @@ class DeliveryRouter:
         footer pointing to the saved file; ``splits_long_messages`` adapters receive the full payload."""
         if len(content) <= MAX_PLATFORM_OUTPUT:
             return content
-        saved_path: Optional[Path] = None
+        saved_path: Path | None = None
         try:
             saved_path = self._save_full_output(content, job_id)
         except OSError as exc:
@@ -258,9 +258,9 @@ class DeliveryRouter:
         return content[:max(0, MAX_PLATFORM_OUTPUT - len(footer))] + footer
 
     async def _deliver_to_platform(self, target: DeliveryTarget, content: str,
-                                   metadata: Optional[Dict[str, Any]],
-                                   transport: Optional[DeliveryTransport] = None,
-                                   ) -> Dict[str, Any]:
+                                   metadata: dict[str, Any] | None,
+                                   transport: DeliveryTransport | None = None,
+                                   ) -> dict[str, Any]:
         """Deliver content to a messaging platform.
 
         ``transport`` carries an already-authorized transport past resolution:
@@ -298,7 +298,7 @@ class DeliveryRouter:
             send_metadata.update({k: v for k, v in (("user_id", home.user_id), ("scope_id", home.scope_id)) if v})
 
         # Caller-supplied thread routing always wins over target.thread_id.
-        named_topic: Optional[str] = None  # named Telegram private topic created for this send
+        named_topic: str | None = None  # named Telegram private topic created for this send
         thread_id = target.thread_id
         if thread_id and not any(key in send_metadata for key in _THREAD_ROUTING_KEYS):
             send_metadata["thread_id"] = thread_id

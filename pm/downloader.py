@@ -24,18 +24,18 @@ from __future__ import annotations
 import hashlib
 import http.client
 import json
+import logging
 import os
 import re
 import shutil
-import logging
 import threading
 import time
 import urllib.error
 import urllib.request
+from collections.abc import Callable, Sequence
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Optional, Sequence
 
 from pm.network import is_transient, retry_network
 
@@ -205,7 +205,7 @@ def replace_when_released(tmp: Path, dest: Path, *, timeout: float = _RELEASE_WA
             delay = min(delay * 2, 2.0)
 
 
-def _existing_dest_ok(source: "Source") -> bool:
+def _existing_dest_ok(source: Source) -> bool:
     """Pinned destinations are rehashed; unpinned model files are accepted as-is.
 
     Catalog policy does not supply their expected hash or stable length.
@@ -245,8 +245,8 @@ class Download:
         *,
         resume: bool = True,
         connections: int = CONNECTIONS,
-        partials_dir: Optional[Path] = None,
-        pause_event: Optional[threading.Event] = None,
+        partials_dir: Path | None = None,
+        pause_event: threading.Event | None = None,
     ):
         self.sources = [Source(s.url, Path(s.dest), s.sha256, tuple(s.fallbacks)) for s in sources]
         self.resume = resume
@@ -264,7 +264,7 @@ class Download:
         """Request a stop between chunks; run() raises DownloadPaused."""
         self._paused.set()
 
-    def run(self, progress: Optional[ProgressFn] = None) -> list[Path]:
+    def run(self, progress: ProgressFn | None = None) -> list[Path]:
         """Fetch every source; return the moved destination paths."""
         if self._owns_pause_event:
             self._paused.clear()

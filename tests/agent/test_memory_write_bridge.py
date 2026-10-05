@@ -10,7 +10,6 @@ external provider and assert which ``on_memory_write`` calls land.
 import json
 
 import pytest
-
 from agent.memory_manager import MemoryManager
 from agent.memory_provider import MemoryProvider
 
@@ -120,6 +119,7 @@ def test_committed_entry_identity_comes_from_locked_store(
 ):
     target = 'memory'
     from contextlib import contextmanager
+
     from tools import memory_tool_store
     from tools.memory_tool import MemoryStore, memory_tool
 

@@ -9,9 +9,8 @@ nothing to show.
 import shutil
 import subprocess
 
-import pytest
-
 import gateway.run as gateway_run
+import pytest
 import tools.checkpoint_manager as cpm
 from gateway.config import Platform
 from gateway.platforms.event import MessageEvent

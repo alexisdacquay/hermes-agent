@@ -13,9 +13,8 @@ from __future__ import annotations
 
 import os
 
-import pytest
-
 import agent.secret_scope as ss
+import pytest
 
 # Comfortably past the coarsest mtime resolution in common use (FAT32 truncates to two seconds).
 _MTIME_STEP_NS = 10_000_000_000

@@ -11,9 +11,10 @@ import json
 import logging
 import os
 import time
-from typing import Any, Optional, Tuple
+from typing import Any
 
-from agent.secret_scope import get_secret as _get_secret, is_multiplex_active
+from agent.secret_scope import get_secret as _get_secret
+from agent.secret_scope import is_multiplex_active
 
 try:
     import google.auth
@@ -38,7 +39,7 @@ def _ensure_google_auth() -> bool:
         from pm import ensure_import
         ensure_import("vertex")
         import google.auth as _auth  # noqa: F401 — rebinding the module globals below
-        import google.auth.transport.requests  # noqa: F401
+        import google.auth.transport.requests
         from google.oauth2 import service_account as _service_account
     except Exception as exc:
         logger.warning("google-auth package not installed (%s). Cannot use Vertex AI.", exc)
@@ -71,17 +72,17 @@ def _env_or_config(env_var: str, config_key: str) -> str:
     return (_get_secret(env_var) or "").strip() or str(_vertex_config().get(config_key) or "").strip()
 
 
-def _resolve_region(explicit: Optional[str] = None) -> str:
+def _resolve_region(explicit: str | None = None) -> str:
     """Region precedence: explicit arg > VERTEX_REGION env > config.yaml > default."""
     return explicit or _env_or_config("VERTEX_REGION", "region") or DEFAULT_REGION
 
 
-def _resolve_project_override() -> Optional[str]:
+def _resolve_project_override() -> str | None:
     """Project-ID override (VERTEX_PROJECT_ID env > config.yaml), or None to use the creds' embedded project_id."""
     return _env_or_config("VERTEX_PROJECT_ID", "project_id") or None
 
 
-def _resolve_credentials_path(explicit: Optional[str]) -> Optional[str]:
+def _resolve_credentials_path(explicit: str | None) -> str | None:
     if explicit and os.path.exists(explicit):
         return explicit
     # get_secret, not os.environ: under a multiplex gateway os.environ reflects whichever
@@ -93,7 +94,7 @@ def _resolve_credentials_path(explicit: Optional[str]) -> Optional[str]:
     return None
 
 
-def _sa_snapshot(resolved_path: Optional[str]) -> Tuple[Optional[bytes], Tuple[Any, ...]]:
+def _sa_snapshot(resolved_path: str | None) -> tuple[bytes | None, tuple[Any, ...]]:
     """Resolve (bytes-or-None, cache key) for one credential attempt.
 
     - No path (ADC): (None, ("__adc__",)) sentinel key.
@@ -115,7 +116,7 @@ def _sa_snapshot(resolved_path: Optional[str]) -> Tuple[Optional[bytes], Tuple[A
     return raw, (resolved_path, hashlib.sha256(raw).hexdigest())
 
 
-def _load_credentials(resolved_path: Optional[str], sa_raw: Optional[bytes]) -> Optional[Tuple[Any, Optional[str]]]:
+def _load_credentials(resolved_path: str | None, sa_raw: bytes | None) -> tuple[Any, str | None] | None:
     """Build (credentials, project_id) for a cache miss; None when ADC must be refused."""
     if resolved_path:
         if sa_raw is not None:
@@ -145,7 +146,7 @@ def _needs_refresh(creds) -> bool:
     )
 
 
-def get_vertex_credentials(credentials_path: Optional[str] = None) -> Tuple[Optional[str], Optional[str]]:
+def get_vertex_credentials(credentials_path: str | None = None) -> tuple[str | None, str | None]:
     """Return (fresh access_token, project_id) or (None, None); Credentials cached per file content."""
     if not _ensure_google_auth():
         return None, None
@@ -188,8 +189,8 @@ def build_vertex_base_url(project_id: str, region: str = DEFAULT_REGION) -> str:
 
 
 def get_vertex_config(
-    credentials_path: Optional[str] = None, region: Optional[str] = None
-) -> Tuple[Optional[str], Optional[str]]:
+    credentials_path: str | None = None, region: str | None = None
+) -> tuple[str | None, str | None]:
     """Resolve (access_token, base_url) for Vertex AI, or (None, None) on failure."""
     token, project_id = get_vertex_credentials(credentials_path)
     if not token or not project_id:

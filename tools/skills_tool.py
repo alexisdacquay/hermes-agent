@@ -10,23 +10,42 @@ import os
 import time
 from contextlib import suppress
 from pathlib import Path, PurePosixPath, PureWindowsPath
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
-from hermes_constants import get_hermes_home
-from tools.registry import registry, tool_error
+from agent.skill_utils import EXCLUDED_SKILL_DIRS as _EXCLUDED_SKILL_DIRS
+from agent.skill_utils import is_skill_support_path as _is_skill_support_path
 from hermes_cli.config import cfg_get
-from agent.skill_utils import (
-    EXCLUDED_SKILL_DIRS as _EXCLUDED_SKILL_DIRS, is_skill_support_path as _is_skill_support_path)
-from tools.skills_tool_setup import (  # noqa: F401
-    SkillReadinessStatus, _build_setup_note, _capture_required_environment_variables,
-    _get_required_environment_variables, _is_env_var_persisted, _is_remote_env_backend)
-from tools.skills_tool_plugin import (  # noqa: F401
-    MAX_DESCRIPTION_LENGTH, MAX_NAME_LENGTH, _INJECTION_PATTERNS, _fail, _json,
-    _mark_background_review_read, _preprocess_skill, _read_skill_text, _safe_frontmatter,
-    _serve_plugin_skill, _serve_skill_file, _truncate_description)
-from tools.skills_tool_dedup import (  # noqa: F401
-    _check_skill_view_dedup, _record_skill_view, reset_skill_view_dedup)
+from hermes_constants import get_hermes_home
+
+from tools.registry import registry, tool_error
 from tools.skill_provenance import is_background_review
+from tools.skills_tool_dedup import (  # noqa: F401
+    _check_skill_view_dedup,
+    _record_skill_view,
+    reset_skill_view_dedup,
+)
+from tools.skills_tool_plugin import (  # noqa: F401
+    _INJECTION_PATTERNS,
+    MAX_DESCRIPTION_LENGTH,
+    MAX_NAME_LENGTH,
+    _fail,
+    _json,
+    _mark_background_review_read,
+    _preprocess_skill,
+    _read_skill_text,
+    _safe_frontmatter,
+    _serve_plugin_skill,
+    _serve_skill_file,
+    _truncate_description,
+)
+from tools.skills_tool_setup import (
+    SkillReadinessStatus,
+    _build_setup_note,
+    _capture_required_environment_variables,
+    _get_required_environment_variables,
+    _is_env_var_persisted,
+    _is_remote_env_backend,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +98,7 @@ _secret_capture_callback = None
 _LOOKUP_HINT = "Use a skill name or relative path within the skills directory."
 
 
-def _skill_lookup_path_error(name: str) -> Optional[str]:
+def _skill_lookup_path_error(name: str) -> str | None:
     """Error if lookup *name* could escape the search roots it is joined onto. Windows drive
     paths are rejected too: their ``:`` would be misread as a plugin namespace separator."""
     from tools.path_security import has_traversal_component
@@ -93,7 +112,7 @@ def _skill_lookup_path_error(name: str) -> Optional[str]:
     return None
 
 
-def load_env() -> Dict[str, str]:
+def load_env() -> dict[str, str]:
     """Snapshot of HERMES_HOME/.env for the post-skill secret-capture diff (same tokenizer that
     installs the profile scope, so a captured value never differs from the served one)."""
     from agent.secret_scope import load_env_file
@@ -127,7 +146,7 @@ def check_skills_requirements() -> bool:
     return True  # always available: the directory is created on first use
 
 
-def _get_category_from_path(skill_path: Path) -> Optional[str]:
+def _get_category_from_path(skill_path: Path) -> str | None:
     """``~/.hermes/skills/mlops/axolotl/SKILL.md`` -> ``"mlops"``; active profile dir first
     (respects test monkeypatching), then skills.external_dirs."""
     dirs_to_check = [_skills_dir()]
@@ -141,7 +160,7 @@ def _get_category_from_path(skill_path: Path) -> Optional[str]:
     return None
 
 
-def _parse_tags(tags_value) -> List[str]:
+def _parse_tags(tags_value) -> list[str]:
     """Tags from frontmatter: a parsed list, "[a, b]", or "a, b"."""
     if not tags_value:
         return []
@@ -174,7 +193,7 @@ def _is_skill_disabled(*names: str, platform: str = None) -> bool:
         return False
 
 
-def _skill_search_dirs() -> Tuple[List[Tuple[int, Path]], Path]:
+def _skill_search_dirs() -> tuple[list[tuple[int, Path]], Path]:
     """(``(tier, dir)`` roots in precedence order, active_skills_dir) — the shared
     ``agent.skill_utils.get_skill_search_roots`` order with the live profile dir (dropped if absent)."""
     from agent.skill_utils import TIER_LOCAL, get_skill_search_roots
@@ -184,13 +203,18 @@ def _skill_search_dirs() -> Tuple[List[Tuple[int, Path]], Path]:
     return roots, active_skills_dir
 
 
-def _skill_catalog(*, skip_disabled: bool = False, include_hidden: bool = False) -> List[Dict[str, Any]]:
+def _skill_catalog(*, skip_disabled: bool = False, include_hidden: bool = False) -> list[dict[str, Any]]:
     """Every scanned skill resolved by ``agent.skill_utils.resolve_skill_catalog`` (status /
     load_name / tier / path), visible ones only unless *include_hidden*; cached per session.
     Resolution runs over ALL files first — skill_view ignores platform/disabled gates when
     collecting candidates, so it asks for hidden rows too."""
     from agent.skill_utils import (
-        TIER_PROJECT, is_disabled_entry, iter_project_skill_files, iter_skill_index_files, resolve_skill_catalog)
+        TIER_PROJECT,
+        is_disabled_entry,
+        iter_project_skill_files,
+        iter_skill_index_files,
+        resolve_skill_catalog,
+    )
     cache_key = ("with_disabled" if skip_disabled else "filtered", include_hidden)
     disabled = set() if skip_disabled else _get_disabled_skill_names()
     roots, _ = _skill_search_dirs()
@@ -232,7 +256,7 @@ def _skill_catalog(*, skip_disabled: bool = False, include_hidden: bool = False)
     return [dict(s) for s in skills]
 
 
-def _find_all_skills(*, skip_disabled: bool = False) -> List[Dict[str, Any]]:
+def _find_all_skills(*, skip_disabled: bool = False) -> list[dict[str, Any]]:
     """Loadable skills (name, description, category): ``name`` is what skill_view() accepts —
     the declared name, or the exact relative path for a same-tier duplicate. Shadowed and
     unloadable copies are left out. ``skip_disabled=True`` ignores disabled state (config UI)."""
@@ -240,7 +264,7 @@ def _find_all_skills(*, skip_disabled: bool = False) -> List[Dict[str, Any]]:
             for s in _skill_catalog(skip_disabled=skip_disabled) if s["load_name"]]
 
 
-def _sort_skills(skills: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _sort_skills(skills: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Keep every skill listing path ordered the same way."""
     return sorted(skills, key=lambda s: (s.get("category") or "", s["name"]))
 
@@ -288,7 +312,10 @@ def _resolve_plugin_skill(name, file_path, task_id, preprocess):
     pm = get_plugin_manager()
     active_memory_provider = None
     try:
-        from plugins.memory import _get_active_memory_provider, _prune_inactive_memory_provider_skills
+        from plugins.memory import (
+            _get_active_memory_provider,
+            _prune_inactive_memory_provider_skills,
+        )
         active_memory_provider = _get_active_memory_provider()
         _prune_inactive_memory_provider_skills(active_memory_provider)
     except Exception as exc:
@@ -345,10 +372,10 @@ def _collect_skill_candidates(name, local_category_name, all_dirs):
     Every copy is returned so the caller resolves them via ``agent.skill_utils.pick_skill_candidate``
     (cross-tier precedence; a same-tier tie of different skills is refused, never guessed)."""
     from agent.skill_utils import iter_skill_index_files
-    candidates: List[Tuple[Optional[Path], Path]] = []
+    candidates: list[tuple[Path | None, Path]] = []
     seen_md: set = set()
 
-    def _record(sd: Optional[Path], smd: Path) -> None:
+    def _record(sd: Path | None, smd: Path) -> None:
         key = smd
         with suppress(Exception):
             key = smd.resolve()
@@ -390,7 +417,7 @@ _LINKED_FILE_SPECS = (
     ("scripts", ["*.py", "*.sh", "*.bash", "*.js", "*.ts", "*.rb"], False, False))
 
 
-def _skill_linked_files(skill_dir: Optional[Path]) -> dict:
+def _skill_linked_files(skill_dir: Path | None) -> dict:
     """references/templates/assets/scripts of a directory skill (empty groups dropped)."""
     files: dict = {}
     for sub, globs, recursive, files_only in _LINKED_FILE_SPECS if skill_dir else ():
@@ -404,7 +431,7 @@ def _skill_linked_files(skill_dir: Optional[Path]) -> dict:
     return files
 
 
-def _skill_readiness(frontmatter: Dict[str, Any], skill_name: str) -> Tuple[dict, dict]:
+def _skill_readiness(frontmatter: dict[str, Any], skill_name: str) -> tuple[dict, dict]:
     """Resolve required env vars / credential files (prompting for secrets where the surface
     allows) and register what's available for sandboxes. Returns ``(fields, extras)``: fields go
     before ``_source_path`` in the skill_view result, extras after — key order is tool output."""
@@ -461,19 +488,24 @@ def _skill_readiness(frontmatter: Dict[str, Any], skill_name: str) -> Tuple[dict
     return fields, extras
 
 
-def _owning_search_dir(skill_md: Path, all_dirs) -> Optional[Path]:
+def _owning_search_dir(skill_md: Path, all_dirs) -> Path | None:
     """Most specific search dir containing *skill_md*, compared lexically: a symlinked entry
     belongs to the root that exposes it, not to the root its target lives in."""
     owners = [Path(d) for d in all_dirs if skill_md.is_relative_to(d)]
     return max(owners, key=lambda d: len(d.parts), default=None)
 
 
-def _locate_skill(name: str, local_category_name: Optional[str], roots):
+def _locate_skill(name: str, local_category_name: str | None, roots):
     """Unique on-disk skill for *name* over ``(tier, dir)`` *roots*: cross-tier precedence
     (project > local > create_dir > external, shadowed copies logged), same-tier collision refusal,
     same-root identical-copy ranking, quarantine gate, not-found listing. ``(error_json, skill_dir,
     skill_md)``; skill_md set iff no error."""
-    from agent.skill_utils import AMBIGUOUS_SKILL_PREFIX, TIER_PROJECT, pick_skill_candidate, skill_candidate_rank
+    from agent.skill_utils import (
+        AMBIGUOUS_SKILL_PREFIX,
+        TIER_PROJECT,
+        pick_skill_candidate,
+        skill_candidate_rank,
+    )
     all_dirs = [d for _t, d in roots]
     if not all_dirs:
         return _fail(
@@ -523,7 +555,7 @@ def _locate_skill(name: str, local_category_name: Optional[str], roots):
     return None, skill_dir, skill_md
 
 
-def _owned_relative(skill_dir: Optional[Path], skill_md: Path, all_dirs) -> str:
+def _owned_relative(skill_dir: Path | None, skill_md: Path, all_dirs) -> str:
     """Exact load path of a candidate: its skill dir (or flat ``.md`` stem) relative to its root."""
     root = _owning_search_dir(skill_md, all_dirs)
     target = skill_dir if skill_dir is not None else skill_md.with_suffix("")

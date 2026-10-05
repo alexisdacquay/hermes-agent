@@ -12,8 +12,9 @@ Those stay on AIAgent.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from agent.account_usage import AccountUsageSnapshot
@@ -32,7 +33,9 @@ def _profile_user_agent() -> str:
     (OpenCode Zen, etc.) sit behind a WAF that returns 403 for that.
     """
     try:
-        from hermes_cli.version_info import get_version_info  # lazy: avoid layer cycle at import time
+        from hermes_cli.version_info import (
+            get_version_info,  # lazy: avoid layer cycle at import time
+        )
         return f"hermes-cli/{get_version_info().base_version}"
     except Exception:
         return "hermes-cli"

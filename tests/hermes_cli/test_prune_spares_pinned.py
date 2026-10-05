@@ -8,7 +8,6 @@ destroyed pinned conversations. These drive the real SessionDB (temp file DB).
 import time
 
 import pytest
-
 from hermes_state import SessionDB
 
 

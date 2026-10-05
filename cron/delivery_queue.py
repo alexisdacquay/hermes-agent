@@ -16,18 +16,19 @@ import sqlite3
 import threading
 import time
 import uuid
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Callable, Iterator, Optional
 
 from agent.redact import redact_sensitive_text
-from cron.executions import _owner_is_live, _process_start_time
 from hermes_constants import get_hermes_home
 from hermes_time import now as _hermes_now
 
+from cron.executions import _owner_is_live, _process_start_time
+
 logger = logging.getLogger(__name__)
 
-DELIVERY_DB: Optional[Path] = None
+DELIVERY_DB: Path | None = None
 _PROCESS_ID = uuid.uuid4().hex
 _lock = threading.RLock()
 _ACTIVE_DELIVERIES: set[str] = set()
@@ -74,7 +75,7 @@ def _prune_terminal_unlocked(conn: sqlite3.Connection) -> None:
         )
 
 
-def queue_path(home: Optional[Path] = None) -> Path:
+def queue_path(home: Path | None = None) -> Path:
     """The queue file of ``home`` (the active home when None); a test override wins."""
     if DELIVERY_DB is not None:
         return DELIVERY_DB
@@ -203,7 +204,7 @@ def enqueue(
     return dict(row)
 
 
-def get_status(execution_id: str) -> Optional[dict]:
+def get_status(execution_id: str) -> dict | None:
     with _transaction() as conn:
         row = conn.execute(
             "SELECT * FROM deliveries WHERE execution_id=?", (str(execution_id),)
@@ -225,7 +226,7 @@ def get_status(execution_id: str) -> Optional[dict]:
     }
 
 
-def claim_next() -> Optional[dict]:
+def claim_next() -> dict | None:
     """Atomically claim one pending send before touching the transport."""
     pid = os.getpid()
     started = _process_start_time(pid)
@@ -254,7 +255,7 @@ def claim_next() -> Optional[dict]:
     return result
 
 
-def _finish(execution_id: str, *, error: Optional[str], suppressed: bool = False) -> bool:
+def _finish(execution_id: str, *, error: str | None, suppressed: bool = False) -> bool:
     status = "failed" if error else "suppressed" if suppressed else "delivered"
     safe_error = (
         redact_sensitive_text(str(error), force=True, redact_url_credentials=True)
@@ -316,7 +317,7 @@ def recover_abandoned() -> int:
 
 
 def drain(
-    send: Callable[[dict, str, bool], Optional[str]], *, limit: int = 20
+    send: Callable[[dict, str, bool], str | None], *, limit: int = 20
 ) -> int:
     """Deliver pending rows through *send*, terminalizing every claimed row."""
     recover_abandoned()
@@ -393,8 +394,8 @@ def enqueue_and_wait(
     content: str,
     *,
     for_failure: bool = False,
-    timeout: Optional[float] = None,
-) -> Optional[str]:
+    timeout: float | None = None,
+) -> str | None:
     """Queue delivery and wait for a gateway's terminal at-most-once outcome."""
     queued = enqueue(execution_id, job, content, for_failure=for_failure)
     if queued["status"] in _TERMINAL:

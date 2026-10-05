@@ -9,9 +9,8 @@ command, so picker and typed arguments can never diverge.
 
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
-
 import gateway.run as gateway_run
+import pytest
 from gateway.config import Platform
 from gateway.platforms.base import SendResult
 from gateway.platforms.event import MessageEvent
@@ -110,12 +109,12 @@ class TestReasoningChoicePicker:
 class TestFastChoicePicker:
     def _patch_fast_support(self, monkeypatch, tmp_path):
         monkeypatch.setattr(gateway_run, "_hermes_home", tmp_path)
-        monkeypatch.setattr(gateway_run, "_load_gateway_config", lambda: {})
+        monkeypatch.setattr(gateway_run, "_load_gateway_config", dict)
         monkeypatch.setattr(gateway_run, "_resolve_gateway_model", lambda cfg=None: "gpt-5.6")
         # ``/fast`` now resolves the effective session model through
         # ``_resolve_session_agent_runtime``; with no session override that path
         # calls runtime provider resolution, so stub it (no real credentials in CI).
-        monkeypatch.setattr(gateway_run, "_resolve_runtime_agent_kwargs", lambda: {})
+        monkeypatch.setattr(gateway_run, "_resolve_runtime_agent_kwargs", dict)
         import hermes_cli.models as models_mod
         monkeypatch.setattr(models_mod, "model_supports_fast_mode", lambda m: True)
 

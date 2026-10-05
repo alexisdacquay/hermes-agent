@@ -4,27 +4,24 @@ from __future__ import annotations
 import importlib
 import json
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
-
 from pm.lock import Facts
 from pm.runtime import runtime_environment
+
 from tests.pm._fixtures import _wheel
-
-
 
 
 @pytest.mark.parametrize("failure", [None, "missing_distribution", "broken_module"])
 def test_startup_validation_checks_real_ruamel_dependency(tmp_path, failure):
-    from importlib.metadata import distribution
     import venv
+    from importlib.metadata import distribution
 
     import ruamel.yaml
-
     from pm.environments import site_packages
     from pm.package import InstallError
     from pm.recovery import validate_environment
@@ -80,8 +77,7 @@ def recovery_graph(tmp_path):
 
 @pytest.mark.parametrize("failure", [None, "missing_lock", "corrupt_facts", "empty_environment", "missing_extras", "validation", "publication"])
 def test_repair_restores_recorded_plugin_dependencies_without_config(tmp_path, monkeypatch, recovery_graph, failure):
-    import pm.paths as paths
-    import pm.workspace as workspace
+    from pm import paths, workspace
     from pm.environments import selected_venv, site_packages
 
     engine = importlib.import_module("pm.install")
@@ -160,8 +156,8 @@ def test_repair_restores_recorded_plugin_dependencies_without_config(tmp_path, m
 
 
 def test_uncertain_profile_selection_skips_sync_but_not_admission_or_recorded_repair(tmp_path, monkeypatch, recovery_graph, caplog):
-    import pm.paths as paths
     from hermes_cli.plugins_admission import AdmissionRefused, admit_plugin_set_change
+    from pm import paths
     from pm.environments import install_state_dir, selected_venv, site_packages
 
     engine = importlib.import_module("pm.install")

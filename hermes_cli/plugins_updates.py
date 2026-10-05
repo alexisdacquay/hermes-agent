@@ -18,9 +18,10 @@ import importlib.metadata
 import json
 import re
 import subprocess
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any
 
 from packaging.version import InvalidVersion, Version
 
@@ -35,7 +36,7 @@ _MAX_FEED_BYTES = 1 * 1024 * 1024
 _FULL_GIT_SHA_RE = re.compile(r"[0-9a-fA-F]{40}")
 
 
-def _version_is_newer(latest: str, current: str) -> Optional[bool]:
+def _version_is_newer(latest: str, current: str) -> bool | None:
     """Invalid versions are unknown, not evidence of an update."""
     try:
         return Version(latest) > Version(current)
@@ -47,11 +48,11 @@ def _version_is_newer(latest: str, current: str) -> Optional[bool]:
 class CheckResult:
     name: str
     klass: str                      # provenance class value ('git', ...)
-    current: Optional[str] = None
-    latest: Optional[str] = None
-    update_available: Optional[bool] = None   # None = unknown/uncheckable
-    needs_fixing: Optional[str] = None        # mismatch reason when set
-    min_hermes: Optional[str] = None          # feed's version floor, if any
+    current: str | None = None
+    latest: str | None = None
+    update_available: bool | None = None   # None = unknown/uncheckable
+    needs_fixing: str | None = None        # mismatch reason when set
+    min_hermes: str | None = None          # feed's version floor, if any
     reason: str = ""
 
     def to_json(self) -> dict:
@@ -67,7 +68,7 @@ class CheckResult:
         }
 
 
-def _read_manifest_field(plugin_dir: Path, key: str) -> Optional[str]:
+def _read_manifest_field(plugin_dir: Path, key: str) -> str | None:
     """One field from the installed plugin.yaml (claims, not provenance)."""
     import hermes_yaml as yaml
 
@@ -264,7 +265,7 @@ def parse_feed_yml(text: str) -> dict:
     return out
 
 
-def _owning_distribution(ep) -> Optional[str]:
+def _owning_distribution(ep) -> str | None:
     """The name of the distribution the entry point belongs to — metadata,
     never a guess derived from the import module (audit C17)."""
     dist = getattr(ep, "dist", None)
@@ -279,8 +280,8 @@ def _owning_distribution(ep) -> Optional[str]:
 def check_pip_plugins(
     *,
     installed_version: Callable[[str], str],   # dist name -> version
-    pypi_latest: Callable[[str], Optional[str]],  # dist name -> latest
-    entry_points: Optional[list] = None,       # injectable for tests
+    pypi_latest: Callable[[str], str | None],  # dist name -> latest
+    entry_points: list | None = None,       # injectable for tests
 ) -> list[CheckResult]:
     """The pip world, stateless: entry-point dists vs PyPI. Nothing
     recorded, nothing to drift."""
@@ -406,12 +407,12 @@ def default_ls_remote(source: str) -> str:
 def run_checks(
     plugins_dir: Path,
     *,
-    fetch: Optional[Callable[[str], str]] = None,
-    ls_remote: Optional[Callable[[str], str]] = None,
+    fetch: Callable[[str], str] | None = None,
+    ls_remote: Callable[[str], str] | None = None,
     include_pip: bool = True,
     pip_installed_version: Callable[[str], str] = importlib.metadata.version,
-    pip_pypi_latest: Optional[Callable[[str], Optional[str]]] = None,
-    pip_entry_points: Optional[list] = None,
+    pip_pypi_latest: Callable[[str], str | None] | None = None,
+    pip_entry_points: list | None = None,
 ) -> list[CheckResult]:
     """All checks for one plugins dir. NEVER mutates anything.
 
@@ -440,7 +441,7 @@ def run_checks(
     return results
 
 
-def _default_pypi_latest(dist: str) -> Optional[str]:
+def _default_pypi_latest(dist: str) -> str | None:
     """PyPI JSON API — the real fetcher (injectable in tests)."""
     import urllib.request
 

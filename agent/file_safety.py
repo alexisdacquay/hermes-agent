@@ -8,9 +8,8 @@ clear denial for models that respect tool errors plus a visible audit trail.
 from __future__ import annotations
 
 import os
-from pathlib import Path
 from contextlib import suppress
-from typing import Optional
+from pathlib import Path
 
 
 def _constants_path(getter_name: str) -> Path:
@@ -62,7 +61,7 @@ def _is_under(resolved: str | Path, base: str | Path) -> bool:
     return resolved == base or resolved.startswith(str(base) + os.sep)
 
 
-def _resolve_target(path: str) -> Optional[Path]:
+def _resolve_target(path: str) -> Path | None:
     """``Path(expanduser(path)).resolve()``, or None when resolution fails."""
     with suppress(OSError, RuntimeError):
         return Path(os.path.expanduser(str(path))).resolve()
@@ -80,7 +79,11 @@ def _guard_homes(path: str = "") -> set[str]:
     account's home, which joins the set so ``~root/.ssh/authorized_keys`` stays denied."""
     homes = {os.path.expanduser("~")}
     with suppress(Exception):
-        from hermes_constants import get_real_home, get_subprocess_home, _profile_home_path
+        from hermes_constants import (
+            _profile_home_path,
+            get_real_home,
+            get_subprocess_home,
+        )
 
         for candidate in (get_real_home(), get_subprocess_home(), _profile_home_path()):
             if candidate:
@@ -160,7 +163,7 @@ def is_nt_namespace_path(path: str) -> bool:
     return False
 
 
-def get_nt_namespace_error(path: str, *, verb: str = "Access") -> Optional[str]:
+def get_nt_namespace_error(path: str, *, verb: str = "Access") -> str | None:
     """Return an error message when ``path`` uses the NT/device namespace."""
     if not is_nt_namespace_path(path):
         return None
@@ -249,7 +252,7 @@ def build_write_approval_paths(home: str) -> set[str]:
 _HERMES_PROTECTED_SUBPATHS = ("state.db", "sessions", "mcp-tokens", "pairing", "vault", "browser-profile")
 
 
-def _classify_write_denial(path: str, *, entry: bool = False) -> Optional[str]:
+def _classify_write_denial(path: str, *, entry: bool = False) -> str | None:
     """Return ``'credential'``, ``'safe_root'``, ``'nt_namespace'``, or ``None`` if writes are allowed.
 
     ``entry=True`` is for ops that unlink/rename the directory entry itself (a
@@ -277,7 +280,7 @@ def _classify_write_denial(path: str, *, entry: bool = False) -> Optional[str]:
     return _classify_resolved_write_denial(homes, entry_path)
 
 
-def _classify_resolved_write_denial(homes: set[str], resolved: str) -> Optional[str]:
+def _classify_resolved_write_denial(homes: set[str], resolved: str) -> str | None:
     """Credential / protected-subpath / safe-root verdict for an already-resolved path."""
     # Approval-gated paths are allowed at this layer so interactive tools can
     # prompt; checked first so the ``.ssh/`` prefix deny doesn't swallow them.
@@ -309,7 +312,7 @@ def is_write_denied(path: str) -> bool:
     return _classify_write_denial(path) is not None
 
 
-def get_write_denied_error(path: str, *, verb: str = "Write", entry: bool = False) -> Optional[str]:
+def get_write_denied_error(path: str, *, verb: str = "Write", entry: bool = False) -> str | None:
     """Return a user/model-facing error when writes to ``path`` are blocked
     (``entry``: see :func:`_classify_write_denial`)."""
     denial = _classify_write_denial(path, entry=entry)
@@ -365,7 +368,7 @@ _READ_DENIED_DIRS = (
 )
 
 
-def get_read_block_error(path: str) -> Optional[str]:
+def get_read_block_error(path: str) -> str | None:
     """Return an error message when a read targets a denied Hermes path.
 
     Blocked: internal skill-hub caches (prompt-injection carriers), credential
@@ -460,7 +463,7 @@ def _mirror_info(target: Path, mirror_root: Path, inner_path: str) -> dict:
     return {"target_path": str(target), "mirror_root": str(mirror_root), "inner_path": inner_path}
 
 
-def classify_sandbox_mirror_target(path: str) -> Optional[dict]:
+def classify_sandbox_mirror_target(path: str) -> dict | None:
     """Classify a write target as a sandbox-mirror of authoritative Hermes state: ``None``
     for non-mirror paths, else ``target_path`` (resolved), ``mirror_root`` (the
     ``…/home/.hermes`` prefix) and ``inner_path`` (what the agent meant on the host)."""
@@ -478,14 +481,14 @@ def classify_sandbox_mirror_target(path: str) -> Optional[dict]:
     return _mirror_info(target, Path(*parts[: inner_idx + 1]), inner)
 
 
-def _mirror_warning(info: Optional[dict], body: str, bypass: str) -> Optional[str]:
+def _mirror_warning(info: dict | None, body: str, bypass: str) -> str | None:
     """Render ``_SANDBOX_MIRROR_WARNING`` for a classify_* result (``body`` may use ``{inner_path}``)."""
     if info is None:
         return None
     return _SANDBOX_MIRROR_WARNING.format(**info, body=body.format(inner_path=info["inner_path"]), bypass=bypass)
 
 
-def get_sandbox_mirror_warning(path: str) -> Optional[str]:
+def get_sandbox_mirror_warning(path: str) -> str | None:
     """Model-facing soft-guard warning when ``path`` lands in a sandbox mirror, else ``None``;
     the caller surfaces it as a tool-result error and ``cross_profile=True`` bypasses."""
     return _mirror_warning(
@@ -497,7 +500,7 @@ def get_sandbox_mirror_warning(path: str) -> Optional[str]:
     )
 
 
-def classify_container_mirror_target(path: str, mirror_prefix: str | None = None) -> Optional[dict]:
+def classify_container_mirror_target(path: str, mirror_prefix: str | None = None) -> dict | None:
     """Classify a write target as a container-side sandbox mirror. Inside the container
     the bind mount strips the ``sandboxes/`` prefix (the agent sees plain ``/root/.hermes/…``),
     so the caller supplies ``mirror_prefix`` once it knows file tools run in a docker sandbox.
@@ -508,7 +511,7 @@ def classify_container_mirror_target(path: str, mirror_prefix: str | None = None
     return _mirror_info(target, mirror, target.relative_to(mirror).as_posix())
 
 
-def get_container_mirror_warning(path: str, mirror_prefix: str | None = None) -> Optional[str]:
+def get_container_mirror_warning(path: str, mirror_prefix: str | None = None) -> str | None:
     """Model-facing soft-guard warning when ``path`` lands in the container's mirror, else ``None``."""
     return _mirror_warning(
         classify_container_mirror_target(path, mirror_prefix),

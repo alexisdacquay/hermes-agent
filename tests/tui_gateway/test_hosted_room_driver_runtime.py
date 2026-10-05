@@ -10,7 +10,6 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-
 from gateway import hosted_room_driver as state
 from gateway import hosted_rooms
 from tui_gateway.hosted_room_driver import (
@@ -25,7 +24,6 @@ from tui_gateway.hosted_room_peer_transport import (
     PeerHostedRoomTransport,
     PeerMemberRoute,
 )
-
 
 ROOM_ID = "room-1"
 PROFILE = "ops"

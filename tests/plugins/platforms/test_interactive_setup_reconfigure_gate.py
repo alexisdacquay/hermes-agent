@@ -11,9 +11,8 @@ prompting anything else.
 
 import importlib
 
-import pytest
-
 import hermes_cli.setup_platforms as setup_platforms_mod
+import pytest
 
 # (plugin module, primary env var the shared gate keys on)
 _WIZARDS = [

@@ -28,7 +28,6 @@ Design under test:
 """
 
 import pytest
-
 from cron.scheduler import _deliver_result, _resolve_delivery_targets
 from cron.scheduler_delivery import _target_mirror_eligible
 

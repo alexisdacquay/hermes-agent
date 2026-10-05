@@ -10,10 +10,9 @@ reaper on container creation, and the ``terminal.docker_orphan_reaper: false``
 opt-out would silently do nothing.
 """
 
-import os
 from unittest.mock import patch
 
-import tools.terminal_tool as terminal_tool
+from tools import terminal_tool
 
 
 def _reset_reaper_gate():

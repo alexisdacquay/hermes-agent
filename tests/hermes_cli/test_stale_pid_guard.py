@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Regression tests for the fail-closed PID-ownership guard.
 
 Refs #90471 / #89614.  The shared Windows ``taskkill`` boundaries:
@@ -15,9 +14,7 @@ from pathlib import Path
 from unittest import mock
 
 import pytest
-
-from hermes_cli import _subprocess_compat
-from hermes_cli import dashboard_procs
+from hermes_cli import _subprocess_compat, dashboard_procs
 
 
 def _probe_stdout(value: str) -> mock.Mock:

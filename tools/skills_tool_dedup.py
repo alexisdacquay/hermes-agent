@@ -8,9 +8,8 @@ original content with a one-line marker.
 import json
 import os
 import threading
-from typing import Dict
 
-_skill_view_tracker: Dict[str, Dict[tuple, tuple]] = {}
+_skill_view_tracker: dict[str, dict[tuple, tuple]] = {}
 _skill_view_tracker_lock = threading.Lock()
 _SKILL_VIEW_DEDUP_CAP = 200
 

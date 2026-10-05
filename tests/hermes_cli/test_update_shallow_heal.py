@@ -7,13 +7,11 @@ origin/main so merge-base reports orphan divergence (#123346). Real local git re
 
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 
-import os
-
 import pytest
-
 from hermes_cli.gitlock import convert_treeless_checkout, heal_shallow_history
 
 

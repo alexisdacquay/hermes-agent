@@ -5,7 +5,6 @@ The ledger's only consumer is the stop guard; an unconsumed ledger is disk churn
 from pathlib import Path
 
 import pytest
-
 from agent.verification_evidence import (
     mark_workspace_edited,
     record_terminal_result,

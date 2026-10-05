@@ -18,9 +18,10 @@ import logging
 import threading
 import time
 from collections import OrderedDict
+from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import datetime
-from typing import Any, Callable
+from typing import Any
 
 logger = logging.getLogger(__name__)
 

@@ -11,14 +11,27 @@ import hashlib
 import json
 import re
 import sqlite3
+from collections.abc import Mapping
 from contextlib import closing
 from functools import partial
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 from gateway.hosted_rooms_common import (
-    DbPath, bounded_int, canonical_json, clock as _now, compact_json, connect, fenced_update as _fenced_update,
-    identifier, open_sqlite, table_columns, table_exists, transaction, utf8_len)
+    DbPath,
+    bounded_int,
+    canonical_json,
+    compact_json,
+    connect,
+    identifier,
+    open_sqlite,
+    table_columns,
+    table_exists,
+    transaction,
+    utf8_len,
+)
+from gateway.hosted_rooms_common import clock as _now
+from gateway.hosted_rooms_common import fenced_update as _fenced_update
 
 PROTOCOL_VERSION = 2
 MAX_ROOM_ID_CHARS = 128
@@ -149,7 +162,7 @@ _SCHEMA_DDL = (
 # (table, required columns) parsed from the DDL, in the order _schema_is_current probes them.
 _REQUIRED_COLUMNS = tuple(
     (re.search(r"EXISTS (\w+)", ddl).group(1),
-     frozenset(re.findall(r"^\s*(\w+) (?:TEXT|INTEGER|REAL)\b", ddl.split("(", 1)[1], re.M))) for ddl in _SCHEMA_DDL)
+     frozenset(re.findall(r"^\s*(\w+) (?:TEXT|INTEGER|REAL)\b", ddl.split("(", 1)[1], re.MULTILINE))) for ddl in _SCHEMA_DDL)
 _REMOTE_RUN_SCHEMA_COLUMNS = _REQUIRED_COLUMNS[4][1]
 
 # --- SQL fragments (statement text must stay byte-stable after whitespace normalisation) ---

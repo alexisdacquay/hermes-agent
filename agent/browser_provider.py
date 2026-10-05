@@ -21,7 +21,6 @@ regardless of provider::
 from __future__ import annotations
 
 import abc
-from typing import Dict
 
 from agent.provider_base import ProviderBase
 
@@ -41,7 +40,7 @@ class BrowserProvider(ProviderBase):
         ``hermes tools`` paint."""
 
     @abc.abstractmethod
-    def create_session(self, task_id: str) -> Dict[str, object]:
+    def create_session(self, task_id: str) -> dict[str, object]:
         """Create a cloud browser session and return the metadata dict from the module docstring.
         May raise ``ValueError`` (missing credentials) or ``RuntimeError`` (network / API failure);
         the dispatcher surfaces these to the user."""

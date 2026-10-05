@@ -8,7 +8,7 @@ module must never import the facade at module level (import cycle).
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from agent.message_sanitization import coalesce_tool_call_id
 from agent.model_metadata import estimate_messages_tokens_rough
@@ -16,8 +16,8 @@ from agent.model_metadata import estimate_messages_tokens_rough
 logger = logging.getLogger(__name__)
 
 def _ensure_compressed_keeps_last_assistant_reply(
-    original_messages: list, compressed: list, *, session_id: Optional[str] = None,
-) -> Optional[dict]:
+    original_messages: list, compressed: list, *, session_id: str | None = None,
+) -> dict | None:
     """Keep the latest visible assistant reply live across compaction (#118900).
 
     A reply that just finished streaming is the row the user is reading; when an
@@ -45,7 +45,9 @@ def _ensure_compressed_keeps_last_assistant_reply(
     that is not "the reply is already there" is logged here with its reason.
     """
     from agent.context_compressor import (
-        _DB_PERSISTED_MARKER, _fresh_compaction_message_copy, is_compaction_summary_message,
+        _DB_PERSISTED_MARKER,
+        _fresh_compaction_message_copy,
+        is_compaction_summary_message,
     )
     from agent.conversation_compression import _message_text
 
@@ -181,7 +183,7 @@ def _reused_tool_call_ids(messages: list) -> frozenset:
     return frozenset(call_id for call_id, count in seen.items() if count > 1)
 
 
-def _reply_insertion_index(followers: list, compressed: list, *, reused_ids: frozenset = frozenset()) -> Optional[int]:
+def _reply_insertion_index(followers: list, compressed: list, *, reused_ids: frozenset = frozenset()) -> int | None:
     """Chronologically correct slot for the dropped reply inside ``compressed``.
 
     ``followers`` are the ORIGINAL rows after the reply (the next user turn, its

@@ -12,10 +12,8 @@ project_root the running install cannot speak for).
 
 from pathlib import Path
 from subprocess import run as _run
-from unittest.mock import patch
 
 import pytest
-
 from hermes_cli.version_info import VersionInfo, _reset_version_info_cache
 
 

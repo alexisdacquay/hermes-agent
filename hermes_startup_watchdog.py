@@ -34,9 +34,9 @@ import logging
 import os
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +94,7 @@ _FIRING = "firing"
 # gateway.run.main / cli.py --gateway) and the disarm site (GatewayRunner)
 # share no object, and only one gateway startup ever runs per process.
 _handle_lock = threading.Lock()
-_handle: Optional["StartupWatchdogHandle"] = None
+_handle: StartupWatchdogHandle | None = None
 
 
 def _process_hermes_home() -> Path:
@@ -104,7 +104,7 @@ def _process_hermes_home() -> Path:
     return get_process_hermes_home()
 
 
-def get_startup_watchdog_dump_path(home: Optional[Path] = None) -> Path:
+def get_startup_watchdog_dump_path(home: Path | None = None) -> Path:
     """Return ``<HERMES_HOME>/logs/gateway-startup-watchdog.log``."""
     base = home if home is not None else _process_hermes_home()
     return base.joinpath(*_DUMP_RELATIVE)
@@ -144,7 +144,7 @@ def _append_dump(write, failure_msg: str) -> None:
         logger.debug(failure_msg, exc_info=True)
 
 
-def _write_dump_record(record: Dict[str, Any]) -> None:
+def _write_dump_record(record: dict[str, Any]) -> None:
     """Append a one-line JSON metadata record beside the faulthandler dump."""
     _append_dump(
         lambda fh: fh.write(json.dumps(record, default=str) + "\n"),
@@ -185,12 +185,12 @@ class StartupWatchdogHandle:
         self._state_lock = threading.Lock()
         self._deadline = self.armed_at + timeout_s
         self._disarmed_event = threading.Event()
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
         self._extensions = 0
         # Phase-owned progress lease (see lease()): monotonic deadline the
         # current startup phase has claimed for legitimately long sync work.
         self._lease_until = 0.0
-        self._lease_phase: Optional[str] = None
+        self._lease_phase: str | None = None
         self._lease_count = 0
         # Set by _fire() once forensics complete so the exit escort stands down.
         self._fire_done = threading.Event()
@@ -247,14 +247,14 @@ class StartupWatchdogHandle:
     def is_alive(self) -> bool:
         return self._thread is not None and self._thread.is_alive()
 
-    def join(self, timeout: Optional[float] = None) -> None:
+    def join(self, timeout: float | None = None) -> None:
         if self._thread is not None:
             self._thread.join(timeout=timeout)
 
     # ── internals ────────────────────────────────────────────────────────
 
     @staticmethod
-    def _process_cpu_seconds() -> Optional[float]:
+    def _process_cpu_seconds() -> float | None:
         """Process-wide CPU time (user+system, all threads); None on failure."""
         try:
             return time.process_time()
@@ -287,7 +287,7 @@ class StartupWatchdogHandle:
         )
         _write_dump_record(
             {
-                "ts": datetime.now(timezone.utc).isoformat(),
+                "ts": datetime.now(UTC).isoformat(),
                 "tag": "startup_watchdog.fired",
                 "pid": os.getpid(),
                 "timeout_s": self.timeout_s,
@@ -422,10 +422,10 @@ class StartupWatchdogHandle:
 
 
 def arm_startup_watchdog(
-    timeout_s: Optional[float] = None,
+    timeout_s: float | None = None,
     *,
     exit_code: int = SERVICE_RESTART_EXIT_CODE,
-) -> Optional[StartupWatchdogHandle]:
+) -> StartupWatchdogHandle | None:
     """Arm the process-wide startup watchdog. Idempotent; never raises.
 
     Returns the (possibly pre-existing) handle, or ``None`` when disabled via

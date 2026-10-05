@@ -8,15 +8,14 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 from types import SimpleNamespace
 
-import pytest
-
 import pm
+import pytest
 from pm.package import Runner
 
 
@@ -255,8 +254,8 @@ def test_preparation_reuses_only_the_exact_completed_workspace_union(source_chec
 @pytest.mark.platforms("linux")
 @pytest.mark.parametrize("desktop", [False, True])
 def test_update_builds_selected_products_after_one_union_preparation(source_products, desktop):
-    from hermes_cli.source_build import build_update_products
     from hermes_cli.main_web_build import _web_ui_build_needed
+    from hermes_cli.source_build import build_update_products
 
     root, acquired = source_products
     app = root / "apps/desktop/release/linux-unpacked/hermes"
@@ -335,7 +334,7 @@ def test_module_cli_builds_the_requested_products(source_products, desktop, monk
 def test_packaged_desktop_is_reused_only_while_it_names_head(tmp_path, monkeypatch):
     """The update skips the desktop build only when the shipped app's baked commit is HEAD
     and its receipt is current; a moved HEAD or an unreadable stamp means build."""
-    import hermes_cli.main_desktop as main_desktop
+    from hermes_cli import main_desktop
 
     root = tmp_path / "checkout"
     root.mkdir()

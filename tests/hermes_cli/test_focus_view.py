@@ -18,7 +18,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
-
+from hermes_cli.cli_commands_mixin import CLICommandsMixin
 from hermes_cli.focus_view import (
     FOCUS_CONFIG_KEY,
     FOCUS_STATUSBAR_LABEL,
@@ -28,8 +28,6 @@ from hermes_cli.focus_view import (
     resolve_focus_arg,
     would_display_tool_line,
 )
-from hermes_cli.cli_commands_mixin import CLICommandsMixin
-
 
 # =========================================================================
 # Toggle state machine — on | off | status | bare | garbage

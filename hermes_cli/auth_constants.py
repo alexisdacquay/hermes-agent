@@ -6,16 +6,16 @@ Pure leaf: imports nothing from ``hermes_cli.auth`` so the per-provider modules
 from __future__ import annotations
 
 import base64
-import json
-from typing import Any, Callable, Dict, Optional
-
-from hermes_cli.version_info import get_version_info
 
 # httpx is imported lazily (~30ms) because hermes_cli.auth is on the interactive-CLI startup path
 # (credential_pool -> auxiliary_client -> cli_commands_mixin). The proxy resolves on first attribute
 # access; ``from __future__ import annotations`` keeps ``httpx.Client`` annotations unevaluated.
 import importlib as _importlib
-from typing import TYPE_CHECKING
+import json
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
+
+from hermes_cli.version_info import get_version_info
 
 if TYPE_CHECKING:
     import httpx
@@ -121,7 +121,7 @@ DEFAULT_SPOTIFY_SCOPE = " ".join((
     "user-read-recently-played", "playlist-read-private", "playlist-read-collaborative",
     "playlist-modify-public", "playlist-modify-private", "user-library-read", "user-library-modify",
 ))
-SERVICE_PROVIDER_NAMES: Dict[str, str] = {"spotify": "Spotify"}
+SERVICE_PROVIDER_NAMES: dict[str, str] = {"spotify": "Spotify"}
 
 # LM Studio's default no-auth mode still needs *some* non-empty bearer for the API-key code paths to
 # treat the provider as configured. Sent only to LM Studio, never to a remote service.
@@ -137,8 +137,8 @@ class AuthError(RuntimeError):
     """Structured auth error with UX mapping hints."""
 
     def __init__(
-        self, message: str, *, provider: str = "", code: Optional[str] = None, relogin_required: bool = False,
-        retry_after: Optional[float] = None, retryable: Optional[bool] = None,
+        self, message: str, *, provider: str = "", code: str | None = None, relogin_required: bool = False,
+        retry_after: float | None = None, retryable: bool | None = None,
     ) -> None:
         super().__init__(message)
         self.provider = provider
@@ -152,7 +152,7 @@ class AuthError(RuntimeError):
 
 
 def _provider_error_factory(provider: str) -> Callable[..., AuthError]:
-    def factory(message: str, code: Optional[str] = None, *, relogin: bool = False) -> AuthError:
+    def factory(message: str, code: str | None = None, *, relogin: bool = False) -> AuthError:
         return AuthError(message, provider=provider, code=code, relogin_required=relogin)
 
     return factory
@@ -168,7 +168,7 @@ _minimax_err = _provider_error_factory("minimax-oauth")
 _openrouter_err = _provider_error_factory("openrouter")
 
 
-def _decode_jwt_claims(token: Any) -> Dict[str, Any]:
+def _decode_jwt_claims(token: Any) -> dict[str, Any]:
     if not isinstance(token, str) or token.count(".") != 2:
         return {}
     payload = token.split(".")[1]

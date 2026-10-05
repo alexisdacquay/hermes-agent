@@ -5,12 +5,14 @@ and save every unticked row into ``plugins.disabled`` on any exit, so opening an
 Telegram and Slack on the next gateway restart. Drives the real ``cmd_toggle`` (text fallback) through
 real admission.
 """
-import pytest
 import hermes_yaml as yaml
+import pytest
 
 from tests.hermes_cli.plugin_worker_support import (
-    plugin_world as plugin_world,
     isolated_python as isolated_python,
+)
+from tests.hermes_cli.plugin_worker_support import (
+    plugin_world as plugin_world,
 )
 
 
@@ -24,7 +26,7 @@ def run_picker(plugin_world, monkeypatch):
         platform.mkdir(parents=True)
         (platform / "plugin.yaml").write_text(f"name: {leaf}-platform\nkind: platform\n", encoding="utf-8")
     monkeypatch.setattr("hermes_cli.plugins.get_bundled_plugins_dir", lambda: world.core / "plugins")
-    monkeypatch.setattr(plugins_cmd, "_provider_categories", lambda: [])
+    monkeypatch.setattr(plugins_cmd, "_provider_categories", list)
     monkeypatch.setattr(plugins_cmd.sys.stdin, "isatty", lambda: True)
     monkeypatch.setitem(plugins_cmd.sys.modules, "curses", None)
     config_path = world.home / "config.yaml"

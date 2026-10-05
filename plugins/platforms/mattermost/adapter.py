@@ -16,23 +16,22 @@ import mimetypes
 import os
 import re
 from pathlib import Path
+from typing import Any, Optional
 from urllib.parse import unquote as _unquote
-from typing import Any, Dict, List, Optional, Tuple
 
 from gateway.config import Platform, PlatformConfig
-from gateway.platforms.helpers import MessageDeduplicator
-from gateway.platforms.helpers import cancel_task
-from gateway.platforms.base import gateway_trust_env, BasePlatformAdapter, SendResult
+from gateway.platforms._shared import apply_yaml_bridge as _apply_yaml_bridge
+from gateway.platforms._shared import env_is_connected as _env_is_connected
+from gateway.platforms._shared import extra_or_secret as _extra_or_secret
+from gateway.platforms._shared import get_scoped_secret as _get_scoped_secret
+from gateway.platforms._shared import send_error
+from gateway.platforms.base import BasePlatformAdapter, SendResult, gateway_trust_env
 from gateway.platforms.event import MessageEvent, MessageType
-from gateway.platforms._shared import (
-    apply_yaml_bridge as _apply_yaml_bridge, env_is_connected as _env_is_connected,
-    extra_or_secret as _extra_or_secret, get_scoped_secret as _get_scoped_secret,
-    send_error
-)
+from gateway.platforms.helpers import MessageDeduplicator, cancel_task
 
 logger = logging.getLogger(__name__)
 
-_Metadata = Optional[Dict[str, Any]]
+_Metadata = Optional[dict[str, Any]]
 
 # Server default is 16383, but 4000 is the practical limit for readable messages.
 MAX_POST_LENGTH = 4000
@@ -49,7 +48,7 @@ _MEDIA_MSG_TYPES = (("image/", MessageType.PHOTO), ("audio/", MessageType.VOICE)
 _INBOUND_CACHE_EXT = {"image/": ".png", "audio/": ".ogg"}  # mime prefix → default extension for cached media
 
 
-def _with_mentions_disabled(payload: Dict[str, Any]) -> Dict[str, Any]:
+def _with_mentions_disabled(payload: dict[str, Any]) -> dict[str, Any]:
     """Return a post payload that prevents Mattermost from firing mentions."""
     props, disable = payload.get("props"), _MATTERMOST_DISABLE_MENTIONS_PROPS
     payload["props"] = {**props, **disable} if isinstance(props, dict) else dict(disable)
@@ -62,7 +61,7 @@ def _channel_id_set(raw: Any) -> set:
     return {str(c).strip() for c in items if str(c).strip()}
 
 
-def _post_result(data: Dict[str, Any], error: str) -> SendResult:
+def _post_result(data: dict[str, Any], error: str) -> SendResult:
     if not data or "id" not in data:
         return SendResult(success=False, error=error)
     return SendResult(success=True, message_id=data["id"])
@@ -72,7 +71,7 @@ def _url_filename(url: str, fallback: str) -> str:
     return url.rsplit("/", 1)[-1].split("?")[0] or fallback
 
 
-def _url_and_token(config) -> Tuple[str, str]:
+def _url_and_token(config) -> tuple[str, str]:
     """(server URL, token): ``config`` first, MATTERMOST_URL / MATTERMOST_TOKEN env fallback."""
     extra = getattr(config, "extra", {}) or {}
     return (extra.get("url") or _get_scoped_secret("MATTERMOST_URL", ""),
@@ -113,25 +112,25 @@ class MattermostAdapter(BasePlatformAdapter):
         self._bot_user_id = self._bot_username = ""
         self._session: Any = None  # aiohttp.ClientSession
         self._ws: Any = None  # aiohttp.ClientWebSocketResponse
-        self._ws_task: Optional[asyncio.Task] = None
-        self._reconnect_task: Optional[asyncio.Task] = None
+        self._ws_task: asyncio.Task | None = None
+        self._reconnect_task: asyncio.Task | None = None
         self._closing = False
         # Reply mode: "thread" to nest replies, "off" for flat messages.
         self._reply_mode: str = (
             config.extra.get("reply_mode", "") or _get_scoped_secret("MATTERMOST_REPLY_MODE", "off")).lower()
-        self._last_post_status: Optional[int] = None  # POST-only, read by the broken-thread-root fallback
+        self._last_post_status: int | None = None  # POST-only, read by the broken-thread-root fallback
         self._last_post_error: str = ""
         self._dedup = MessageDeduplicator()
 
     # --- HTTP helpers ---
 
-    def _headers(self) -> Dict[str, str]:
+    def _headers(self) -> dict[str, str]:
         return {**self._auth_header(), "Content-Type": "application/json"}
 
-    def _auth_header(self) -> Dict[str, str]:
+    def _auth_header(self) -> dict[str, str]:
         return {"Authorization": f"Bearer {self._token}"}
 
-    async def _api(self, method: str, path: str, payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    async def _api(self, method: str, path: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
         """{method} /api/v4/{path}; POST also records _last_post_status/_last_post_error."""
         import aiohttp
         if ".." in path:
@@ -141,7 +140,7 @@ class MattermostAdapter(BasePlatformAdapter):
         is_post = method == "POST"
         if is_post:
             self._last_post_status, self._last_post_error = None, ""
-        kwargs: Dict[str, Any] = {"headers": self._headers()}
+        kwargs: dict[str, Any] = {"headers": self._headers()}
         if payload is not None:
             kwargs["json"] = payload
         if method != "PUT":  # PUT relies on the session default timeout
@@ -163,10 +162,10 @@ class MattermostAdapter(BasePlatformAdapter):
             logger.error("MM API %s %s network error: %s", method, path, exc)
             return {}
 
-    async def _api_get(self, path: str) -> Dict[str, Any]:
+    async def _api_get(self, path: str) -> dict[str, Any]:
         return await self._api("GET", path)
 
-    async def _api_post(self, path: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+    async def _api_post(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
         return await self._api("POST", path, payload)
 
     def _last_post_failure_is_broken_thread_root(self) -> bool:
@@ -178,7 +177,7 @@ class MattermostAdapter(BasePlatformAdapter):
                 and any(marker in body for marker in ("invalid", "not found", "does not exist", "missing")))
 
     async def _post_preserving_thread(
-        self, chat_id: str, payload: Dict[str, Any], metadata: _Metadata) -> Dict[str, Any]:
+        self, chat_id: str, payload: dict[str, Any], metadata: _Metadata) -> dict[str, Any]:
         """Post once, optionally falling back flat for final notify content."""
         data = await self._api_post("posts", payload)
         if (data or "root_id" not in payload or not (isinstance(metadata, dict) and metadata.get("notify"))
@@ -191,10 +190,10 @@ class MattermostAdapter(BasePlatformAdapter):
         logger.warning("Mattermost: falling back to flat channel delivery for notify-worthy post in %s", chat_id)
         return await self._api_post("posts", flat_payload)
 
-    async def _post_message(self, chat_id: str, message: str, reply_to: Optional[str], metadata: _Metadata,
-                            file_ids: Optional[List[str]] = None) -> Dict[str, Any]:
+    async def _post_message(self, chat_id: str, message: str, reply_to: str | None, metadata: _Metadata,
+                            file_ids: list[str] | None = None) -> dict[str, Any]:
         """Build a mentions-disabled post payload (+ optional root_id) and post it."""
-        base: Dict[str, Any] = {"channel_id": chat_id, "message": message}
+        base: dict[str, Any] = {"channel_id": chat_id, "message": message}
         if file_ids is not None:
             base["file_ids"] = file_ids
         payload = _with_mentions_disabled(base)
@@ -206,13 +205,13 @@ class MattermostAdapter(BasePlatformAdapter):
                 payload["root_id"] = await self._resolve_root_id(str(candidate))
         return await self._post_preserving_thread(chat_id, payload, metadata)
 
-    async def _post_with_file(self, chat_id: str, file_id: str, caption: Optional[str], reply_to: Optional[str],
+    async def _post_with_file(self, chat_id: str, file_id: str, caption: str | None, reply_to: str | None,
                               metadata: _Metadata) -> SendResult:
         return _post_result(await self._post_message(chat_id, caption or "", reply_to, metadata, [file_id]),
                             _POST_WITH_FILE_ERROR)
 
     async def _upload_file(self, channel_id: str, file_data: bytes, filename: str,
-                           content_type: str = "application/octet-stream") -> Optional[str]:
+                           content_type: str = "application/octet-stream") -> str | None:
         """Upload a file and return its file ID, or None on failure."""
         import aiohttp
         form = aiohttp.FormData()
@@ -270,7 +269,7 @@ class MattermostAdapter(BasePlatformAdapter):
         return data["root_id"] if data and data.get("root_id") else post_id
 
     async def send(
-        self, chat_id: str, content: str, reply_to: Optional[str] = None, metadata: _Metadata = None) -> SendResult:
+        self, chat_id: str, content: str, reply_to: str | None = None, metadata: _Metadata = None) -> SendResult:
         """Send a message (or multiple chunks) to a channel; reply_to / metadata["thread_id"] is the root post."""
         if not content:
             return SendResult(success=True)
@@ -281,7 +280,7 @@ class MattermostAdapter(BasePlatformAdapter):
                 break
         return result
 
-    async def get_chat_info(self, chat_id: str) -> Dict[str, Any]:
+    async def get_chat_info(self, chat_id: str) -> dict[str, Any]:
         data = await self._api_get(f"channels/{chat_id}")
         if not data:
             return {"name": chat_id, "type": "channel"}
@@ -297,25 +296,25 @@ class MattermostAdapter(BasePlatformAdapter):
         payload = _with_mentions_disabled({"message": self.format_message(content)})
         return _post_result(await self._api("PUT", f"posts/{message_id}/patch", payload), "Failed to edit post")
 
-    async def send_image(self, chat_id: str, image_url: str, caption: Optional[str] = None,
-                         reply_to: Optional[str] = None, metadata: _Metadata = None) -> SendResult:
+    async def send_image(self, chat_id: str, image_url: str, caption: str | None = None,
+                         reply_to: str | None = None, metadata: _Metadata = None) -> SendResult:
         return await self._send_url_as_file(chat_id, image_url, caption, reply_to, "image", metadata)
 
-    async def send_image_file(self, chat_id: str, image_path: str, caption: Optional[str] = None,
-                              reply_to: Optional[str] = None, metadata: _Metadata = None) -> SendResult:
+    async def send_image_file(self, chat_id: str, image_path: str, caption: str | None = None,
+                              reply_to: str | None = None, metadata: _Metadata = None) -> SendResult:
         return await self._send_local_file(chat_id, image_path, caption, reply_to, metadata=metadata)
 
     async def send_document(
-        self, chat_id: str, file_path: str, caption: Optional[str] = None, file_name: Optional[str] = None,
-        reply_to: Optional[str] = None, metadata: _Metadata = None) -> SendResult:
+        self, chat_id: str, file_path: str, caption: str | None = None, file_name: str | None = None,
+        reply_to: str | None = None, metadata: _Metadata = None) -> SendResult:
         return await self._send_local_file(chat_id, file_path, caption, reply_to, file_name, metadata)
 
-    async def send_voice(self, chat_id: str, audio_path: str, caption: Optional[str] = None,
-                         reply_to: Optional[str] = None, metadata: _Metadata = None, **kwargs: Any) -> SendResult:
+    async def send_voice(self, chat_id: str, audio_path: str, caption: str | None = None,
+                         reply_to: str | None = None, metadata: _Metadata = None, **kwargs: Any) -> SendResult:
         return await self._send_local_file(chat_id, audio_path, caption, reply_to, metadata=metadata)
 
-    async def send_video(self, chat_id: str, video_path: str, caption: Optional[str] = None,
-                         reply_to: Optional[str] = None, metadata: _Metadata = None) -> SendResult:
+    async def send_video(self, chat_id: str, video_path: str, caption: str | None = None,
+                         reply_to: str | None = None, metadata: _Metadata = None) -> SendResult:
         return await self._send_local_file(chat_id, video_path, caption, reply_to, metadata=metadata)
 
     def format_message(self, content: str) -> str:
@@ -324,7 +323,7 @@ class MattermostAdapter(BasePlatformAdapter):
 
     # --- File helpers ---
 
-    async def _send_url_as_file(self, chat_id: str, url: str, caption: Optional[str], reply_to: Optional[str],
+    async def _send_url_as_file(self, chat_id: str, url: str, caption: str | None, reply_to: str | None,
                                 kind: str = "file", metadata: _Metadata = None) -> SendResult:
         """Download a URL and upload it as a file attachment (text fallback with the URL on failure)."""
         from tools.url_safety import is_safe_url
@@ -347,7 +346,7 @@ class MattermostAdapter(BasePlatformAdapter):
                     else:
                         file_data, ct = await resp.read(), resp.content_type or "application/octet-stream"
                         break
-            except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+            except (TimeoutError, aiohttp.ClientError) as exc:
                 if attempt == 2:
                     logger.warning("Mattermost: failed to download %s after %d attempts: %s", url, attempt + 1, exc)
                     return await fallback()
@@ -356,8 +355,8 @@ class MattermostAdapter(BasePlatformAdapter):
         return await self._post_with_file(chat_id, file_id, caption, reply_to, metadata) if file_id else await fallback()
 
     async def _send_local_file(
-        self, chat_id: str, file_path: str, caption: Optional[str], reply_to: Optional[str],
-        file_name: Optional[str] = None, metadata: _Metadata = None) -> SendResult:
+        self, chat_id: str, file_path: str, caption: str | None, reply_to: str | None,
+        file_name: str | None = None, metadata: _Metadata = None) -> SendResult:
         """Upload a local file and attach it to a post."""
         p = Path(file_path)
         if not p.exists():
@@ -370,7 +369,7 @@ class MattermostAdapter(BasePlatformAdapter):
             return SendResult(success=False, error="File upload failed")
         return await self._post_with_file(chat_id, file_id, caption, reply_to, metadata)
 
-    async def _load_batch_image(self, image_url: str, index: int) -> Optional[Tuple[bytes, str, str]]:
+    async def _load_batch_image(self, image_url: str, index: int) -> tuple[bytes, str, str] | None:
         """Read a file:// or remote image for a batch post → (data, filename, content_type), or None to skip."""
         import aiohttp
         if image_url.startswith("file://"):
@@ -395,7 +394,7 @@ class MattermostAdapter(BasePlatformAdapter):
             return None
         return file_data, _url_filename(image_url, f"image_{index}.png"), ct
 
-    async def send_multiple_images(self, chat_id: str, images: List[Tuple[str, str]],
+    async def send_multiple_images(self, chat_id: str, images: list[tuple[str, str]],
                                    metadata: _Metadata = None, human_delay: float = 0.0) -> SendResult:
         """Send a batch of images as one post; chunked at Mattermost's 5-``file_ids`` cap, each chunk
         falling back to the base per-image loop on failure."""
@@ -436,8 +435,9 @@ class MattermostAdapter(BasePlatformAdapter):
 
     async def _ws_loop(self) -> None:
         """Connect to the WebSocket and listen for events, reconnecting on failure."""
-        import aiohttp
         import random
+
+        import aiohttp
         delay = _RECONNECT_BASE_DELAY
         while not self._closing:
             try:
@@ -492,7 +492,7 @@ class MattermostAdapter(BasePlatformAdapter):
                 logger.info("Mattermost: WebSocket closed (%s)", kind)
                 break
 
-    def _apply_channel_gating(self, channel_id: str, message_text: str) -> Optional[str]:
+    def _apply_channel_gating(self, channel_id: str, message_text: str) -> str | None:
         """Mention-gate a non-DM post; return the cleaned text, or None to ignore it. allowed_channels is a
         whitelist checked first (@mentions elsewhere are ignored); require_mention (default true) is
         bypassed in free_response_channels."""
@@ -514,7 +514,7 @@ class MattermostAdapter(BasePlatformAdapter):
                 message_text = re.sub(re.escape(pattern), "", message_text, flags=re.IGNORECASE).strip()
         return message_text
 
-    async def _download_attachments(self, file_ids: List[str]) -> Tuple[List[str], List[str]]:
+    async def _download_attachments(self, file_ids: list[str]) -> tuple[list[str], list[str]]:
         """Download attachments now (URLs need auth headers downstream tools lack) → (paths, mime types)."""
         import aiohttp
         from gateway.platforms.base import (
@@ -547,7 +547,7 @@ class MattermostAdapter(BasePlatformAdapter):
                 logger.warning("Mattermost: error downloading file %s: %s", fid, exc)
         return media_urls, media_types
 
-    async def _handle_ws_event(self, event: Dict[str, Any]) -> None:
+    async def _handle_ws_event(self, event: dict[str, Any]) -> None:
         if event.get("event") != "posted":
             return
         data = event.get("data", {})
@@ -592,8 +592,8 @@ class MattermostAdapter(BasePlatformAdapter):
 
 # --- Plugin standalone-send (out-of-process cron delivery via Mattermost REST) ---
 
-async def _standalone_send(pconfig, chat_id: str, message: str, *, thread_id: Optional[str] = None,
-                           media_files: Optional[list] = None, force_document: bool = False) -> Dict[str, Any]:
+async def _standalone_send(pconfig, chat_id: str, message: str, *, thread_id: str | None = None,
+                           media_files: list | None = None, force_document: bool = False) -> dict[str, Any]:
     """Send via the Mattermost v4 REST API without a live gateway adapter (out-of-process cron).
 
     Token/URL: ``pconfig`` with env fallback. ``media_files`` upload via ``POST /files`` and attach by
@@ -612,10 +612,10 @@ async def _standalone_send(pconfig, chat_id: str, message: str, *, thread_id: Op
     headers = {**upload_headers, "Content-Type": "application/json"}
     try:
         # One ClientSession (with proxy) covers the optional uploads + final post.
-        from gateway.platforms.base import resolve_proxy_url, proxy_kwargs_for_aiohttp
+        from gateway.platforms.base import proxy_kwargs_for_aiohttp, resolve_proxy_url
         _sess_kw, _req_kw = proxy_kwargs_for_aiohttp(resolve_proxy_url(platform_env_var="MATTERMOST_PROXY"))
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=60), **_sess_kw) as session:
-            file_ids: List[str] = []
+            file_ids: list[str] = []
             for media in media_files or []:
                 file_path = media.get("path") if isinstance(media, dict) else media
                 if not file_path or not os.path.exists(file_path):
@@ -631,7 +631,7 @@ async def _standalone_send(pconfig, chat_id: str, message: str, *, thread_id: Op
                         return send_error(f"Mattermost file upload failed ({upload_resp.status}): {body[:400]}")
                     upload_data = await upload_resp.json()
                     file_ids.extend(info["id"] for info in upload_data.get("file_infos", []) if info.get("id"))
-            payload: Dict[str, Any] = {"channel_id": chat_id, "message": message}
+            payload: dict[str, Any] = {"channel_id": chat_id, "message": message}
             if thread_id:
                 payload["root_id"] = thread_id
             if file_ids:
@@ -652,8 +652,8 @@ async def _standalone_send(pconfig, chat_id: str, message: str, *, thread_id: Op
 
 def interactive_setup() -> None:
     """Guide the user through Mattermost bot setup (URL + token, allowlist, home channel)."""
+    from hermes_cli.cli_output import print_header, print_info, print_success, prompt
     from hermes_cli.config import remove_env_value, save_env_value
-    from hermes_cli.cli_output import prompt, print_header, print_info, print_success
     from hermes_cli.setup_platforms import declines_reconfigure
 
     def info(*lines: str) -> None:

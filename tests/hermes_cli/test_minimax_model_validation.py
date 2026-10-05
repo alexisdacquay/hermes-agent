@@ -7,7 +7,6 @@ must validate against the static catalog instead of probing the live API.
 from unittest.mock import patch
 
 import pytest
-
 from hermes_cli.models_validate import validate_requested_model
 
 

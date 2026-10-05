@@ -3,7 +3,6 @@ import struct
 import tarfile
 
 import pytest
-
 from pm import Lockfile, Store, get_package, paths
 from pm.store import ALL_TARGETS
 from scripts.bundles.native import _bundle_package_names

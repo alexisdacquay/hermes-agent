@@ -9,13 +9,12 @@ picks (appended after the curated list) appear on Discord — they previously
 fell off the 25-option cliff.
 """
 
-from types import SimpleNamespace
 
 from gateway.platforms.base import utf16_len
 from plugins.platforms.discord.adapter import ModelPickerView
 
 
-def _all_options(view: "ModelPickerView"):
+def _all_options(view: ModelPickerView):
     """Flatten every model select menu's options into (label, value).
 
     Detect selects by their ``model_model_select*`` custom_id (and presence of

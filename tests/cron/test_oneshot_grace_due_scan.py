@@ -16,9 +16,9 @@ These tests pin the due-scan grace gate:
   - re-triggered  -> due again (the Run button still works)
 """
 
-import pytest
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
+import pytest
 from cron.jobs import (
     get_due_jobs,
     load_jobs,
@@ -26,7 +26,7 @@ from cron.jobs import (
     trigger_job,
 )
 
-FIXED_NOW = datetime(2026, 6, 22, 12, 0, 0, tzinfo=timezone.utc)
+FIXED_NOW = datetime(2026, 6, 22, 12, 0, 0, tzinfo=UTC)
 
 
 @pytest.fixture()

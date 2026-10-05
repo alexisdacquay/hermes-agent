@@ -16,7 +16,6 @@ from __future__ import annotations
 import asyncio
 
 import pytest
-
 from gateway.run import (
     _gateway_loop_exception_handler,
     _is_transient_network_error,

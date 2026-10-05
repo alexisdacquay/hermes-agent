@@ -12,8 +12,8 @@ nothing (no delivery flags).
 import asyncio
 
 import pytest
-
 from gateway.stream_consumer import GatewayStreamConsumer, StreamConsumerConfig
+
 from tests.gateway.relay.test_relay_live_cards import _connected_adapter
 
 

@@ -14,7 +14,6 @@ from __future__ import annotations
 import types
 
 import pytest
-
 from hermes_cli.model_switch import ModelSwitchResult
 
 
@@ -104,8 +103,9 @@ def test_acp_set_session_model_runs_switch_model_off_the_event_loop(monkeypatch)
 def test_acp_set_session_model_rejected_while_turn_running(monkeypatch):
     """The picker swaps state.agent wholesale; mid-turn that strands the running agent and
     makes _finish_turn emit a spurious compression-rotation update."""
-    import acp
     import asyncio
+
+    import acp
 
     called = {}
     monkeypatch.setattr(

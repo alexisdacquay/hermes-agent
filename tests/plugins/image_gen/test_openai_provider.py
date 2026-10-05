@@ -6,10 +6,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 import plugins.image_gen.openai as openai_plugin
-
+import pytest
 
 # 1×1 transparent PNG — valid bytes for save_b64_image()
 _PNG_HEX = (
@@ -165,8 +163,8 @@ class TestEndpointConfig:
         ``httpx._utils``; ExceptionsList dropped): with a system proxy visible and no proxy env var,
         ``generate()`` must hand ``openai.OpenAI`` a client with no ``HTTPProxy`` mount, while a plain
         ``httpx.Client()`` under the same conditions (control) does pick the proxy up (#64888)."""
-        import httpx
         import hermes_yaml as yaml
+        import httpx
         for key in ("HTTPS_PROXY", "HTTP_PROXY", "ALL_PROXY", "https_proxy", "http_proxy", "all_proxy",
                     "NO_PROXY", "no_proxy"):
             monkeypatch.delenv(key, raising=False)

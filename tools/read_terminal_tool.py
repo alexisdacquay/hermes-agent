@@ -7,13 +7,13 @@ gateway's blocking-prompt bridge (as `clarify` does): tui_gateway emits
 ``desktop_ui`` toolset, enabled only for desktop-sourced sessions.
 """
 
-from typing import Callable, Optional
+from collections.abc import Callable
 
 from tools.desktop_ui import passthrough_json
 from tools.registry import registry, tool_error
 
 
-def read_pane(callback: Optional[Callable], window, errors: tuple) -> str:
+def read_pane(callback: Callable | None, window, errors: tuple) -> str:
     """Shared body of the read_terminal / read_preview / read_window bridges. ``window`` is
     ``((key, value, floor), ...)`` (None omitted, else int-coerced and floored); ``errors`` =
     (not_desktop, not_integers, fail_prefix, empty)."""
@@ -33,9 +33,9 @@ def read_pane(callback: Optional[Callable], window, errors: tuple) -> str:
 
 
 def read_terminal_tool(
-    start_line: Optional[int] = None,
-    count: Optional[int] = None,
-    callback: Optional[Callable] = None,
+    start_line: int | None = None,
+    count: int | None = None,
+    callback: Callable | None = None,
 ) -> str:
     """Return the in-app terminal's contents (+ line metadata) as a JSON string."""
     return read_pane(callback, (("start", start_line, 0), ("count", count, 1)), (

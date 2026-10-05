@@ -24,9 +24,9 @@ import logging
 import os
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Callable, Dict, List, Optional
 
 from hermes_constants import get_hermes_home, hermes_home_key, secure_parent_dir
 
@@ -48,16 +48,16 @@ class HumanHasControl(RuntimeError):
 @dataclass
 class Lease:
     holder: str = AGENT
-    viewer_id: Optional[str] = None
+    viewer_id: str | None = None
     since: float = field(default_factory=time.time)
     reason: str = ""
     epoch: int = 0
 
-    def as_dict(self) -> Dict[str, object]:
+    def as_dict(self) -> dict[str, object]:
         return asdict(self)
 
 
-def public_view(lease: Lease) -> Dict[str, object]:
+def public_view(lease: Lease) -> dict[str, object]:
     """The lease as anything outside the gateway may see it (RPC results, the ``display.lease`` broadcast,
     the CLI): the holder's viewer id is a capability — whoever presents it co-drives or releases the lease —
     so it is replaced by a short hash the holder can match against its own id to know it is in control."""
@@ -69,10 +69,10 @@ def public_view(lease: Lease) -> Dict[str, object]:
 
 
 _lock = threading.Condition()
-_listeners: List[Callable[[str, Lease], None]] = []
+_listeners: list[Callable[[str, Lease], None]] = []
 
 
-def _path(profile_key: Optional[str]) -> Path:
+def _path(profile_key: str | None) -> Path:
     """``profile_key`` is the HERMES_HOME path of the profile whose lease is meant (the RFB bridge
     serves several profiles from one process); ``None`` means the current profile."""
     home = Path(profile_key) if profile_key else get_hermes_home()
@@ -132,7 +132,7 @@ class _locked:
         if fcntl is None:
             return self
         _private_dir(self._lockfile)
-        self._fh = open(self._lockfile, "a+", encoding="utf-8", opener=_open_private)  # noqa: SIM115 — closed in __exit__
+        self._fh = open(self._lockfile, "a+", encoding="utf-8", opener=_open_private)
         fcntl.flock(self._fh.fileno(), fcntl.LOCK_EX)
         return self
 
@@ -143,7 +143,7 @@ class _locked:
         self._fh.close()
 
 
-def get(profile_key: Optional[str] = None) -> Lease:
+def get(profile_key: str | None = None) -> Lease:
     return _read(_path(profile_key))
 
 
@@ -161,14 +161,14 @@ def on_change(listener: Callable[[str, Lease], None]) -> Callable[[], None]:
 
 
 def _notify(key: str, lease: Lease) -> None:
-    for cb in list(_listeners):
+    for cb in _listeners:
         try:
             cb(key, lease)
         except Exception:  # a broken subscriber must not wedge the handoff
             pass
 
 
-def _transition(profile_key: Optional[str], mutate: Callable[[Lease], bool]) -> Lease:
+def _transition(profile_key: str | None, mutate: Callable[[Lease], bool]) -> Lease:
     key, path = hermes_home_key(profile_key) if profile_key else hermes_home_key(), _path(profile_key)
     with _locked(path):
         lease = _read(path)
@@ -182,7 +182,7 @@ def _transition(profile_key: Optional[str], mutate: Callable[[Lease], bool]) -> 
     return lease
 
 
-def acquire(viewer_id: str, *, profile_key: Optional[str] = None, reason: str = "") -> Lease:
+def acquire(viewer_id: str, *, profile_key: str | None = None, reason: str = "") -> Lease:
     """Human ``viewer_id`` takes control. Last writer wins: a second viewer evicts the first, and the
     RFB bridge closes the evicted socket so its UI drops to view-only."""
     def _m(lease: Lease) -> bool:
@@ -196,7 +196,7 @@ def acquire(viewer_id: str, *, profile_key: Optional[str] = None, reason: str = 
     return _transition(profile_key, _m)
 
 
-def release(viewer_id: Optional[str] = None, *, profile_key: Optional[str] = None,
+def release(viewer_id: str | None = None, *, profile_key: str | None = None,
             unless_human: bool = False) -> Lease:
     """Return control to the agent. With ``viewer_id`` only that holder may release (a stale viewer
     closing its window must not yank control from the one who took over after it). ``unless_human``
@@ -221,16 +221,16 @@ def release(viewer_id: Optional[str] = None, *, profile_key: Optional[str] = Non
     return _transition(profile_key, _m)
 
 
-def human_holds(profile_key: Optional[str] = None) -> bool:
+def human_holds(profile_key: str | None = None) -> bool:
     return get(profile_key).holder == HUMAN
 
 
-def viewer_may_send_input(viewer_id: str, *, profile_key: Optional[str] = None) -> bool:
+def viewer_may_send_input(viewer_id: str, *, profile_key: str | None = None) -> bool:
     lease = get(profile_key)
     return lease.holder == HUMAN and lease.viewer_id == viewer_id
 
 
-def assert_agent_may_act(profile_key: Optional[str] = None) -> Lease:
+def assert_agent_may_act(profile_key: str | None = None) -> Lease:
     """The lease as of now, or ``HumanHasControl``. Callers keep the returned ``epoch`` and compare it
     with ``get().epoch`` after an admitted action: a change means a human took over mid-flight."""
     lease = get(profile_key)

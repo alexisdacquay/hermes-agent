@@ -17,9 +17,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
-
 from tools import tool_backend_helpers as tbh
-
 
 MANAGED = SimpleNamespace(
     nous_user_token="managed-token",

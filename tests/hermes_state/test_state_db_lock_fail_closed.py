@@ -28,14 +28,11 @@ the primitive and the behavior level.
 """
 
 import sqlite3
-import sys
 from pathlib import Path
 
-import pytest
-
-import hermes_state
-import hermes_state_repair
 import hermes_state_common
+import hermes_state_repair
+import pytest
 from hermes_state import SessionDB
 from hermes_state_repair import repair_state_db_schema
 

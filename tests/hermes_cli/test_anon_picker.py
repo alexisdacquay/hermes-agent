@@ -12,7 +12,6 @@ import os
 from pathlib import Path
 
 import pytest
-
 from hermes_cli.auth import _save_auth_store
 
 GUEST_STATE = {
@@ -36,8 +35,8 @@ def guest_home(monkeypatch, tmp_path):
 
     # No network from any lap: models.dev, the Portal catalog, and Ollama Cloud all stubbed.
     from agent import models_dev
-    from hermes_cli import models as models_mod
     from hermes_cli import model_switch_providers as msp
+    from hermes_cli import models as models_mod
     monkeypatch.setattr(models_dev, "fetch_models_dev", lambda *a, **k: {})
     monkeypatch.setattr(models_mod, "get_curated_nous_model_ids", lambda *a, **k: ["anthropic/claude-x", "openai/gpt-y"])
     monkeypatch.setattr(models_mod, "fetch_ollama_cloud_models", lambda *a, **k: [])

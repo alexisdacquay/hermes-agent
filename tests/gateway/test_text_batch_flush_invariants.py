@@ -7,10 +7,9 @@ adapter that still overrides the flush (Telegram keeps a hold-queue variant) for
 """
 
 import asyncio
-from typing import Any, Dict
+from typing import Any
 
 import pytest
-
 from gateway.config import Platform, PlatformConfig
 from gateway.platforms.base import BasePlatformAdapter
 from gateway.platforms.event import MessageEvent, MessageType
@@ -35,7 +34,7 @@ class _Adapter(BasePlatformAdapter):
     async def send(self, *a: Any, **k: Any) -> None:
         pass
 
-    async def get_chat_info(self, chat_id: str) -> Dict[str, Any]:
+    async def get_chat_info(self, chat_id: str) -> dict[str, Any]:
         return {}
 
     async def handle_message(self, event: MessageEvent) -> None:

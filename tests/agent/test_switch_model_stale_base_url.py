@@ -6,9 +6,8 @@ new base_url for a genuine provider change.
 from unittest.mock import MagicMock, patch
 
 import pytest
-
-from run_agent import AIAgent
 from agent.context_compressor import ContextCompressor
+from run_agent import AIAgent
 
 
 def _make_agent_with_compressor(provider="copilot", base_url="https://api.githubcopilot.com") -> AIAgent:

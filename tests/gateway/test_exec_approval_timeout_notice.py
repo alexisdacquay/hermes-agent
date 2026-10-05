@@ -10,10 +10,9 @@ from __future__ import annotations
 
 import asyncio
 from types import SimpleNamespace
-from typing import Any, List
+from typing import Any
 
 import pytest
-
 from gateway.platforms.base import SendResult
 from tools import approval as _approval
 from tools.approval_gateway_wait import _ApprovalEntry
@@ -28,10 +27,10 @@ class _ButtonAdapter:
     typed_command_prefix = "/"
 
     def __init__(self, *, editable: bool = True) -> None:
-        self.sends: List[str] = []
-        self.edits: List[tuple] = []
-        self.card_metadata: List[Any] = []
-        self.send_metadata: List[Any] = []
+        self.sends: list[str] = []
+        self.edits: list[tuple] = []
+        self.card_metadata: list[Any] = []
+        self.send_metadata: list[Any] = []
         self._editable = editable
 
     def pause_typing_for_chat(self, chat_id: str) -> None:

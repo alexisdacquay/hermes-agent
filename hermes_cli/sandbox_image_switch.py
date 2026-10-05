@@ -19,7 +19,6 @@ from __future__ import annotations
 import logging
 import os
 from dataclasses import dataclass, field
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -31,12 +30,17 @@ class PendingSwitch:
     containers: list[str] = field(default_factory=list)   # names, for the notice
 
 
-def pending() -> Optional[PendingSwitch]:
+def pending() -> PendingSwitch | None:
     """The switch this profile still has to decide, or None: backend is docker, the image is the
     unpinned default, and a container labeled for this profile runs another image. ``docker`` is
     consulted (one ``ps``); any failure is "nothing pending"."""
+    from tools.environments.docker import (
+        _container_identity,
+        _docker_query,
+        find_docker,
+    )
+
     from hermes_cli.config import load_config_readonly
-    from tools.environments.docker import _container_identity, _docker_query, find_docker
 
     terminal = (load_config_readonly() or {}).get("terminal") or {}
     if terminal.get("backend") != "docker":
@@ -71,8 +75,9 @@ def _image_pinned(terminal_cfg: dict) -> bool:
     (a routed profile: recomputed per turn, never the launch profile's ``os.environ``); else the
     launch env, where an operator's ``TERMINAL_DOCKER_IMAGE`` differing from the effective value
     is their choice."""
-    from hermes_cli.config import read_raw_config
     from tools.terminal_scope import get_terminal_scope
+
+    from hermes_cli.config import read_raw_config
     raw = read_raw_config().get("terminal")
     if isinstance(raw, dict) and "docker_image" in raw:
         return True
@@ -115,7 +120,7 @@ def explain_lines(switch: PendingSwitch) -> list[str]:
     ]
 
 
-def offer_interactive(*, cprint, ask=input) -> Optional[bool]:
+def offer_interactive(*, cprint, ask=input) -> bool | None:
     """TTY startup offer. Either answer pins an image, so the question is asked once. Returns the
     decision, or None when nothing was pending / the user skipped (asked again next start)."""
     switch = pending()

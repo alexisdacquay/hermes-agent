@@ -3,6 +3,7 @@
 import sys
 
 from agent.i18n import t
+
 from hermes_cli.colors import Colors, color
 from hermes_cli.secret_prompt import masked_secret_prompt
 

@@ -3,34 +3,29 @@
 import json
 
 import pytest
-
 from hermes_cli.auth import (
+    KIMI_CODE_BASE_URL,
     PROVIDER_REGISTRY,
-    resolve_provider,
+    STEPFUN_STEP_PLAN_INTL_BASE_URL,
+    AuthError,
+    _resolve_kimi_base_url,
     get_api_key_provider_status,
     resolve_api_key_provider_credentials,
-    AuthError,
-    KIMI_CODE_BASE_URL,
-    STEPFUN_STEP_PLAN_INTL_BASE_URL,
-    _resolve_kimi_base_url,
+    resolve_provider,
 )
-from hermes_cli.copilot_auth import _try_gh_cli_token
-
 
 # =============================================================================
 # Provider Registry tests
 # =============================================================================
-
-
 # =============================================================================
 # Provider Resolution tests
 # =============================================================================
-
 # Derived from the live PROVIDER_REGISTRY so the list can never drift when a
 # new provider (and its env var) is added — a hand-maintained tuple here was
 # missing HF_TOKEN/DEEPINFRA_API_KEY, which made the auto-detection tests
 # env-dependent (they failed on any machine with HF_TOKEN exported).
 from hermes_cli.auth import PROVIDER_REGISTRY as _REGISTRY
+from hermes_cli.copilot_auth import _try_gh_cli_token
 
 _EXTRA_ENV_VARS = (
     # Checked directly in resolve_provider("auto"), not via the registry.
@@ -54,7 +49,7 @@ PROVIDER_ENV_VARS = tuple(
 def _clear_provider_env(monkeypatch):
     for key in PROVIDER_ENV_VARS:
         monkeypatch.delenv(key, raising=False)
-    monkeypatch.setattr("hermes_cli.auth._load_auth_store", lambda: {})
+    monkeypatch.setattr("hermes_cli.auth._load_auth_store", dict)
 
 
 class TestResolveProvider:
@@ -98,9 +93,9 @@ class TestResolveProvider:
     def test_alias_chatgpt_every_alias_table(self):
         """Issue #95794: the runtime (providers.py), the /model parser (models_catalog_static via
         parse_model_input) and ``hermes auth login`` all resolve the ChatGPT alias, not just auth."""
-        from hermes_cli.providers import normalize_provider
-        from hermes_cli.models import parse_model_input
         from hermes_cli.auth_commands import _normalize_provider
+        from hermes_cli.models import parse_model_input
+        from hermes_cli.providers import normalize_provider
 
         assert normalize_provider("chatgpt") == "openai-codex"
         assert normalize_provider("chatgpt-codex") == "openai-codex"
@@ -525,7 +520,6 @@ class TestZaiEndpointAutoDetect:
         def _never_called(*a, **kw):
             nonlocal probe_called
             probe_called = True
-            return None
 
         monkeypatch.setattr("hermes_cli.auth.detect_zai_endpoint", _never_called)
         creds = resolve_api_key_provider_credentials("zai")
@@ -668,8 +662,8 @@ class TestHuggingFaceModels:
 
     def test_model_metadata_has_context_lengths(self):
         """Every HF model should have a context length entry."""
-        from hermes_cli.models import _PROVIDER_MODELS
         from agent.model_metadata import DEFAULT_CONTEXT_LENGTHS
+        from hermes_cli.models import _PROVIDER_MODELS
         lower_keys = {k.lower() for k in DEFAULT_CONTEXT_LENGTHS}
         hf_models = _PROVIDER_MODELS["huggingface"]
         for model in hf_models:
@@ -811,7 +805,7 @@ class TestFetchDeepInfraModels:
                     {"id": "stabilityai/stable-diffusion-xl-base-1.0", "metadata": {}},
                 ]}).encode()
 
-        import hermes_cli.models as models
+        from hermes_cli import models
         monkeypatch.setattr(
             models, "_urlopen_model_catalog_request", lambda *a, **kw: _Resp()
         )
@@ -827,7 +821,7 @@ class TestFetchDeepInfraModels:
 
 
     def test_catalog_uses_credential_safe_opener(self, monkeypatch):
-        import hermes_cli.models as models
+        from hermes_cli import models
 
         seen = {}
 
@@ -896,8 +890,8 @@ class TestDeepInfraTagFiltering:
             # null metadata — stub model, must be skipped
             {"id": "stub-model", "metadata": None},
         ]}
-        from hermes_cli.models import _fetch_deepinfra_models_by_tag
         import hermes_cli.models as _m
+        from hermes_cli.models import _fetch_deepinfra_models_by_tag
 
         for surface in ("chat", "image-gen", "tts", "stt", "embed"):
             monkeypatch.setattr(
@@ -949,7 +943,7 @@ class TestDeepInfraPricingFetcher:
             # non-chat — must not appear
             {"id": "vendor/model-image", "metadata": {"tags": ["image-gen"], "pricing": {"per_image_unit": 0.05}}},
         ]}
-        import hermes_cli.models as models
+        from hermes_cli import models
         monkeypatch.setattr(
             models,
             "_urlopen_model_catalog_request",
@@ -971,11 +965,11 @@ class TestDeepInfraProviderProfile:
     """plugins/model-providers/deepinfra registration + aux resolution."""
 
     def test_profile_registered_with_alias_and_aux(self):
-        from providers import get_provider_profile
         from agent.auxiliary_client import _get_aux_model_for_provider
         from hermes_cli.auth import resolve_provider
         from hermes_cli.config import OPTIONAL_ENV_VARS
         from hermes_cli.models import CANONICAL_PROVIDERS
+        from providers import get_provider_profile
 
         profile = get_provider_profile("deepinfra")
         assert profile is not None

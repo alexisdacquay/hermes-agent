@@ -17,7 +17,6 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
-
 from gateway import status
 from gateway.config import GatewayConfig
 

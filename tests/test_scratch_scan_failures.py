@@ -3,9 +3,8 @@
 import os
 import time
 
-import pytest
-
 import hermes_constants_scratch as scratch
+import pytest
 
 
 @pytest.mark.parametrize("failed_probe", ["root-stat", "directory-scan", "child-stat"])

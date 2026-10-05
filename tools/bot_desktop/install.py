@@ -21,11 +21,12 @@ import shutil
 import signal
 import subprocess
 import threading
-from pathlib import Path
 import time
-from typing import Callable, Optional
+from collections.abc import Callable
+from pathlib import Path
 
 from hermes_constants import hermes_home_key
+
 from tools.bot_desktop import runtime
 
 logger = logging.getLogger(__name__)
@@ -124,7 +125,7 @@ def _sudo_nopasswd() -> bool:
 def _run(cmd: str, *, ask_password: Callable[[], str], on_line: Callable[[str], None],
          timeout_seconds: float) -> int:
     argv = shlex.split(cmd)
-    stdin_payload: Optional[str] = None
+    stdin_payload: str | None = None
     if argv[0] == "sudo":
         if shutil.which("sudo") is None:
             # Minimal containers ship no sudo: a password card would be a dead end. Hand the human the

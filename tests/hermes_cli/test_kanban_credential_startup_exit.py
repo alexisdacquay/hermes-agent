@@ -1,10 +1,9 @@
 """Credential rejection before a turn must retain the Kanban exit contract."""
 from types import SimpleNamespace
 
-import pytest
-
 import cli
-from hermes_cli.auth import AuthError, CODEX_RATE_LIMITED_CODE
+import pytest
+from hermes_cli.auth import CODEX_RATE_LIMITED_CODE, AuthError
 from hermes_cli.cli_agent_setup_mixin import CLIAgentSetupMixin
 
 

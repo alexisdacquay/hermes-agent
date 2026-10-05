@@ -13,17 +13,16 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import re
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 from gateway.platforms._shared import (
-    decode_json_list_literal as _decode_json_list_literal, extra_or_secret as _extra_or_wsecret,
-    get_scoped_secret as _get_wsecret
+    decode_json_list_literal as _decode_json_list_literal,
 )
+from gateway.platforms._shared import extra_or_secret as _extra_or_wsecret
+from gateway.platforms._shared import get_scoped_secret as _get_wsecret
 from gateway.platforms.access_policy_mixin import OwnAccessPolicyMixin
-
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +109,7 @@ class WhatsAppBehaviorMixin(OwnAccessPolicyMixin):
         return {str(part).strip() for part in parts if str(part).strip()}
 
     @staticmethod
-    def _select_allowlist(extra: Dict[str, Any], config_keys, env_keys, read_env) -> tuple[Optional[str], Any]:
+    def _select_allowlist(extra: dict[str, Any], config_keys, env_keys, read_env) -> tuple[str | None, Any]:
         """``(source, raw)`` by key *presence*: a config key wins (an explicit empty list stays authoritative),
         then the first truthy env carrier; ``(None, None)`` when neither is set."""
         for key in config_keys:
@@ -122,7 +121,7 @@ class WhatsAppBehaviorMixin(OwnAccessPolicyMixin):
                 return env, raw
         return None, None
 
-    def _select_dm_allowlist(self, extra: Dict[str, Any], env_keys, read_env) -> Any:
+    def _select_dm_allowlist(self, extra: dict[str, Any], env_keys, read_env) -> Any:
         """Raw DM allowlist; records the winning source in ``_dm_allowlist_source`` so live DM checks keep
         the same precedence."""
         self._dm_allowlist_source, raw = self._select_allowlist(extra, ("allow_from", "allowFrom"), env_keys, read_env)
@@ -143,7 +142,7 @@ class WhatsAppBehaviorMixin(OwnAccessPolicyMixin):
 
     # ------------------------------------------------------------------ JID helpers
     @staticmethod
-    def _normalize_whatsapp_id(value: Optional[str]) -> str:
+    def _normalize_whatsapp_id(value: str | None) -> str:
         if not value:
             return ""
         # Device-qualified ids (`<user>:<device>@lid`) must equal their bare form.
@@ -166,7 +165,10 @@ class WhatsAppBehaviorMixin(OwnAccessPolicyMixin):
             return False
         if candidate in allow_from:
             return True
-        from gateway.whatsapp_identity import expand_whatsapp_aliases, normalize_whatsapp_identifier
+        from gateway.whatsapp_identity import (
+            expand_whatsapp_aliases,
+            normalize_whatsapp_identifier,
+        )
         candidate_aliases = expand_whatsapp_aliases(candidate)
         if not candidate_aliases:
             return False
@@ -210,14 +212,14 @@ class WhatsAppBehaviorMixin(OwnAccessPolicyMixin):
             logger.info("[%s] Loaded %d WhatsApp mention pattern(s)", self.name, len(compiled))
         return compiled
 
-    def _bot_ids_from_message(self, data: Dict[str, Any]) -> set[str]:
+    def _bot_ids_from_message(self, data: dict[str, Any]) -> set[str]:
         return {nid for c in (data.get("botIds") or []) if (nid := self._normalize_whatsapp_id(c))}
 
-    def _message_is_reply_to_bot(self, data: Dict[str, Any]) -> bool:
+    def _message_is_reply_to_bot(self, data: dict[str, Any]) -> bool:
         quoted_participant = self._normalize_whatsapp_id(data.get("quotedParticipant"))
         return bool(quoted_participant) and quoted_participant in self._bot_ids_from_message(data)
 
-    def _message_mentions_bot(self, data: Dict[str, Any]) -> bool:
+    def _message_mentions_bot(self, data: dict[str, Any]) -> bool:
         bot_ids = self._bot_ids_from_message(data)
         if not bot_ids:
             return False
@@ -230,11 +232,11 @@ class WhatsAppBehaviorMixin(OwnAccessPolicyMixin):
             for bare in (bot_id.split("@", 1)[0].lower() for bot_id in bot_ids)
         )
 
-    def _message_matches_mention_patterns(self, data: Dict[str, Any]) -> bool:
+    def _message_matches_mention_patterns(self, data: dict[str, Any]) -> bool:
         body = str(data.get("body") or "")
         return any(pattern.search(body) for pattern in self._mention_patterns or ())
 
-    def _clean_bot_mention_text(self, text: str, data: Dict[str, Any]) -> str:
+    def _clean_bot_mention_text(self, text: str, data: dict[str, Any]) -> str:
         if not text:
             return text
         cleaned = text
@@ -244,7 +246,7 @@ class WhatsAppBehaviorMixin(OwnAccessPolicyMixin):
                 cleaned = re.sub(rf"@{re.escape(bare_id)}\b[,:\-]*\s*", "", cleaned)
         return cleaned.strip() or text
 
-    def _should_process_message(self, data: Dict[str, Any]) -> bool:
+    def _should_process_message(self, data: dict[str, Any]) -> bool:
         chat_id = str(data.get("chatId") or "")
         # Broadcast pseudo-chats are filtered even in self-chat mode (fromMe events).
         if self._is_broadcast_chat(chat_id):
@@ -290,6 +292,7 @@ def resolve_whatsapp_bridge_dir() -> Path:
     """Bridge directory for CLI and adapter. A read-only install tree (e.g. Docker
     /opt/hermes) is mirrored to HERMES_HOME so npm install works."""
     import shutil
+
     from hermes_constants import get_hermes_home
     install_bridge = Path(__file__).resolve().parents[2] / "scripts" / "whatsapp-bridge"
     hermes_home_bridge = get_hermes_home() / "scripts" / "whatsapp-bridge"

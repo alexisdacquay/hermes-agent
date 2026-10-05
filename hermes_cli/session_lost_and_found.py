@@ -11,16 +11,26 @@ import shutil
 import sqlite3
 import subprocess
 import tempfile
+from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Any, Callable, Optional, Sequence
+from typing import Any
 
-from hermes_cli.session_schema_history import SCHEMA_HISTORY, reachable_physical_layouts
-
-from hermes_state_ids import is_known_session_id  # every minted id shape: sentinel for schema-less rows
-from hermes_cli.session_recovery import (
-    _AUXILIARY_TABLE_SCHEMAS, _AUXILIARY_TABLES, _CANONICAL_TABLES, _DANGLING_TOOL_PIN, _count_rows,
-    _immediate_transaction, _placeholder_titles, _quoted_columns, _table_columns,
+from hermes_state_ids import (
+    is_known_session_id,  # every minted id shape: sentinel for schema-less rows
 )
+
+from hermes_cli.session_recovery import (
+    _AUXILIARY_TABLE_SCHEMAS,
+    _AUXILIARY_TABLES,
+    _CANONICAL_TABLES,
+    _DANGLING_TOOL_PIN,
+    _count_rows,
+    _immediate_transaction,
+    _placeholder_titles,
+    _quoted_columns,
+    _table_columns,
+)
+from hermes_cli.session_schema_history import SCHEMA_HISTORY, reachable_physical_layouts
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +94,9 @@ SQLITE3_CLI_GUIDANCE = (
 # The predicate lives in hermes_cli.sqlite_runtime (stdlib-only, shared with
 # the installer/update gates) so the embedded runtime and the salvage shell
 # can never disagree about which versions are safe.
-from hermes_cli.sqlite_runtime import is_sqlite_wal_reset_vulnerable as _wal_reset_vulnerable  # noqa: E502
+from hermes_cli.sqlite_runtime import (
+    is_sqlite_wal_reset_vulnerable as _wal_reset_vulnerable,
+)
 
 _WAL_RESET_VULNERABLE_GUIDANCE = (
     "salvage against a Hermes database with the WAL-reset bug "
@@ -100,7 +112,7 @@ class LostAndFoundError(RuntimeError):
     """Raised when the CLI .recover pass cannot produce a usable database."""
 
 
-def _parse_sqlite3_cli_version(binary: str) -> Optional[tuple[int, int, int]]:
+def _parse_sqlite3_cli_version(binary: str) -> tuple[int, int, int] | None:
     """Version of the sqlite3 CLI at *binary* via ``--version``, or None when it cannot run or be parsed."""
     try:
         probe = subprocess.run([binary, "--version"], capture_output=True, timeout=30)
@@ -123,7 +135,7 @@ def find_sqlite3_cli_refusal() -> dict[str, Any]:
     return dict(_last_cli_refusal)
 
 
-def find_sqlite3_cli() -> Optional[str]:
+def find_sqlite3_cli() -> str | None:
     """A salvage-safe ``.recover``-capable sqlite3 CLI path, or None.
 
     PATH presence is not enough, and neither is ``.recover`` support alone: (1) distro builds can lack the
@@ -307,7 +319,7 @@ def _looks_like_source(value: Any) -> bool:
     )
 
 
-def classify_lost_and_found_row(nfield: int, cells: tuple[Any, ...]) -> Optional[str]:
+def classify_lost_and_found_row(nfield: int, cells: tuple[Any, ...]) -> str | None:
     """Classify one lost_and_found record by field count + sentinel values."""
     if len(cells) >= 3 and cells[0] is None:
         # Rowid-alias tables store their INTEGER PRIMARY KEY as NULL; messages is the only canonical
@@ -337,7 +349,7 @@ def _heuristic_started_at(cells: tuple[Any, ...]) -> float:
 
 def _insert_prefix_row(
     dest: sqlite3.Connection, table: str, dest_columns: list[str], values: list[Any],
-    notnull_substitutes: Optional[dict[int, Any]] = None,
+    notnull_substitutes: dict[int, Any] | None = None,
 ) -> bool:
     if notnull_substitutes:
         values = [
@@ -534,7 +546,7 @@ class LayoutEvidence:
             self.rows_by_width.setdefault(len(cells), []).append(cells)
 
 
-def infer_physical_layouts(evidence: LayoutEvidence, dest_types: dict[str, str]) -> dict[int, list[Optional[str]]]:
+def infer_physical_layouts(evidence: LayoutEvidence, dest_types: dict[str, str]) -> dict[int, list[str | None]]:
     """Infer which source column each record position holds, per field count.
 
     Salvaged records carry no schema. Every layout a real store can have is,
@@ -569,7 +581,7 @@ def infer_physical_layouts(evidence: LayoutEvidence, dest_types: dict[str, str])
 
     # The invariant verdict depends only on where a candidate puts the two handoff columns, and most
     # candidates of one width agree on that — memoise so the rows are not rescanned per candidate.
-    invariant_verdicts: dict[tuple[int, Optional[int], Optional[int]], bool] = {}
+    invariant_verdicts: dict[tuple[int, int | None, int | None], bool] = {}
 
     def invariants_hold(layout: tuple[str, ...]) -> bool:
         same_width = evidence.rows_by_width.get(len(layout))
@@ -600,7 +612,7 @@ def infer_physical_layouts(evidence: LayoutEvidence, dest_types: dict[str, str])
         if bucket is not None and layout not in bucket:
             bucket.append(layout)
 
-    result: dict[int, list[Optional[str]]] = {}
+    result: dict[int, list[str | None]] = {}
     for width, survivors in survivors_by_width.items():
         if not survivors:
             continue
@@ -609,7 +621,7 @@ def infer_physical_layouts(evidence: LayoutEvidence, dest_types: dict[str, str])
         # evidence — the destination's own declared order included. Leave
         # such positions alone rather than guess; the cells there are, by
         # construction, values several columns could legitimately hold.
-        consensus: list[Optional[str]] = []
+        consensus: list[str | None] = []
         for index in range(width):
             names = {layout[index] for layout in survivors}
             consensus.append(names.pop() if len(names) == 1 else None)
@@ -620,11 +632,11 @@ def infer_physical_layouts(evidence: LayoutEvidence, dest_types: dict[str, str])
 def _insert_named_row(
     dest: sqlite3.Connection,
     table: str,
-    layout: Sequence[Optional[str]],
+    layout: Sequence[str | None],
     cells: tuple[Any, ...],
     dest_columns: list[str],
     notnull_substitutes: dict[int, Any],
-    overrides: Optional[dict[str, Any]] = None,
+    overrides: dict[str, Any] | None = None,
 ) -> bool:
     """INSERT salvaged cells by source column name, never by position.
 

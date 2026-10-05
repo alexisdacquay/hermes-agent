@@ -25,7 +25,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
 from agent.turn_context import build_turn_context
 from hermes_state import SessionDB
 from run_agent import AIAgent

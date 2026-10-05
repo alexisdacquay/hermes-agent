@@ -4,11 +4,19 @@ Cron owns which persisted fields are *authored* (create_job) versus *advanced by
 scheduler* (next_run_at, state, run counters...). Callers merging an authored store
 into a live one (profile distributions) import this rather than duplicating the list.
 """
-from typing import Any, Dict
+from typing import Any
 
-from cron.jobs import _apply_schedule_update, _jobs_lock, is_job_runnable, load_jobs, parse_schedule, save_jobs
-from cron.quota_hold import clear_state as _clear_quota_hold
 from hermes_time import now as _hermes_now
+
+from cron.jobs import (
+    _apply_schedule_update,
+    _jobs_lock,
+    is_job_runnable,
+    load_jobs,
+    parse_schedule,
+    save_jobs,
+)
+from cron.quota_hold import clear_state as _clear_quota_hold
 
 JOB_DEFINITION_FIELDS = frozenset({
     "name", "prompt", "skills", "skill", "model", "provider", "base_url",
@@ -18,7 +26,7 @@ JOB_DEFINITION_FIELDS = frozenset({
 })
 
 
-def merge_job_definition(local: Dict[str, Any], authored: Dict[str, Any]) -> Dict[str, Any]:
+def merge_job_definition(local: dict[str, Any], authored: dict[str, Any]) -> dict[str, Any]:
     """Refresh authored fields while preserving this store's scheduler-owned state.
 
     Raises ValueError when the authored schedule cannot be scheduled (unparseable string,
@@ -45,7 +53,7 @@ def merge_job_definition(local: Dict[str, Any], authored: Dict[str, Any]) -> Dic
     return merged
 
 
-def import_job_definitions(shipped: Dict[str, Dict[str, Any]], *, paused_reason: str) -> None:
+def import_job_definitions(shipped: dict[str, dict[str, Any]], *, paused_reason: str) -> None:
     """Merge *shipped* (job id -> authored record) into the active store under its lock.
 
     Unknown ids arrive with the marker set ``create_job(paused=True)`` writes; known ids keep
@@ -70,7 +78,7 @@ def import_job_definitions(shipped: Dict[str, Dict[str, Any]], *, paused_reason:
         save_jobs(merged)
 
 
-def _merge_or_name(local: Dict[str, Any], authored: Dict[str, Any]) -> Dict[str, Any]:
+def _merge_or_name(local: dict[str, Any], authored: dict[str, Any]) -> dict[str, Any]:
     try:
         return merge_job_definition(local, authored)
     except ValueError as exc:

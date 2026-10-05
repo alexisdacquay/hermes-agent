@@ -64,7 +64,11 @@ def _project_root() -> Path:
 def release_channel(config: dict[str, Any]) -> str:
     """The channel this install follows: a package's baked channel, a source install's channel
     record, else the checkout's branch (``main`` for main/master, ``dev`` for any other)."""
-    from hermes_cli.update_channel import _package_channel, _read_stamp, resolve_update_channel
+    from hermes_cli.update_channel import (
+        _package_channel,
+        _read_stamp,
+        resolve_update_channel,
+    )
 
     root = _project_root()
     resolved = resolve_update_channel(config, root)
@@ -87,8 +91,9 @@ def version_age_bucket(now: float | None = None) -> str:
 
 def behind_bucket(home: Path | None = None, now: float | None = None) -> str:
     """Commits/releases behind, from the update check's cached result for this exact revision."""
-    from hermes_cli.update_channel import install_id
     from hermes_constants import get_hermes_home
+
+    from hermes_cli.update_channel import install_id
 
     root = _project_root()
     cache_file = (home or get_hermes_home()) / "source-checks" / f"{install_id(root)}.json"
@@ -150,7 +155,8 @@ def _slot_is_local(slot: Any) -> bool:
         return True
     if _is_local_endpoint(_sub(slot, "base_url")):
         return True
-    from .shared_metrics_catalog import CUSTOM, _safe as catalog_safe, user_named_model_providers
+    from .shared_metrics_catalog import CUSTOM, user_named_model_providers
+    from .shared_metrics_catalog import _safe as catalog_safe
 
     if provider in catalog_safe(user_named_model_providers) - {CUSTOM}:
         return True

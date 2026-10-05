@@ -6,10 +6,10 @@ lazily per function so ``hermes_cli.auth.<helper>`` patches still intercept and 
 
 from __future__ import annotations
 
-import logging
 import hashlib
+import logging
 import time
-from typing import Dict, Optional
+
 from hermes_cli.auth_constants import httpx
 
 logger = logging.getLogger("hermes_cli.auth")
@@ -17,7 +17,7 @@ logger = logging.getLogger("hermes_cli.auth")
 # In-process negative cache for Z.AI endpoint detection, keyed by key hash: a failed probe is not
 # retried for this long (a success persists to auth.json instead).
 _ZAI_PROBE_FAILURE_TTL_SECONDS = 300
-_zai_probe_failed_until: Dict[str, float] = {}
+_zai_probe_failed_until: dict[str, float] = {}
 
 # "sk-kimi-" keys only work on api.kimi.com/coding; legacy moonshot keys use the old default.
 # NO /v1 suffix: the anthropic SDK appends "/v1/messages" itself ("/coding/v1" would 404).
@@ -46,7 +46,7 @@ ZAI_ENDPOINTS = [
 ]
 
 
-def _probe_single_zai_endpoint(api_key: str, endpoint: tuple, timeout: float) -> Optional[Dict[str, str]]:
+def _probe_single_zai_endpoint(api_key: str, endpoint: tuple, timeout: float) -> dict[str, str] | None:
     """Probe one Z.AI endpoint, trying its candidate models in order; None when none succeeds."""
     ep_id, base_url, probe_models, label = endpoint
     for model in probe_models:
@@ -66,7 +66,7 @@ def _probe_single_zai_endpoint(api_key: str, endpoint: tuple, timeout: float) ->
     return None
 
 
-def detect_zai_endpoint(api_key: str, timeout: float = 8.0) -> Optional[Dict[str, str]]:
+def detect_zai_endpoint(api_key: str, timeout: float = 8.0) -> dict[str, str] | None:
     """Probe z.ai endpoints in parallel; first working one in ZAI_ENDPOINTS priority order, or None."""
     from concurrent.futures import ThreadPoolExecutor, as_completed
     # No `with`: it would join ALL probes on exit, defeating the early return below.
@@ -74,9 +74,9 @@ def detect_zai_endpoint(api_key: str, timeout: float = 8.0) -> Optional[Dict[str
     try:
         futures = {pool.submit(_probe_single_zai_endpoint, api_key, ep, timeout): ep[0] for ep in ZAI_ENDPOINTS}
         by_id = {ep_id: f for f, ep_id in futures.items()}
-        results: Dict[str, Dict[str, str]] = {}
+        results: dict[str, dict[str, str]] = {}
 
-        def _first_ready(require_done: bool) -> Optional[Dict[str, str]]:
+        def _first_ready(require_done: bool) -> dict[str, str] | None:
             # Walk endpoints in PRIORITY order; a lower-priority success only wins once every
             # higher-priority probe has finished without success.
             for ep in ZAI_ENDPOINTS:
@@ -107,7 +107,14 @@ def _resolve_zai_base_url(api_key: str, default_url: str, env_override: str) -> 
     The detected endpoint is cached in provider state (auth.json) keyed on a hash of the API key so
     subsequent starts skip the probe.
     """
-    from hermes_cli.auth import _auth_store_lock, _load_auth_store, _load_provider_state, _save_auth_store, _store_provider_state, detect_zai_endpoint
+    from hermes_cli.auth import (
+        _auth_store_lock,
+        _load_auth_store,
+        _load_provider_state,
+        _save_auth_store,
+        _store_provider_state,
+        detect_zai_endpoint,
+    )
     if env_override:
         return env_override
     # No key -> don't probe (N×M 401s); auxiliary-client auto-detection hits this for everyone.

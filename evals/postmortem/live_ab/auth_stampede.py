@@ -7,7 +7,13 @@ STALE JWT that expires in 30 s and each fires one API call concurrently. Count 4
 
 Usage: python stampede_ab.py <repo_root> <n_agents>
 """
-import base64, json, os, sys, tempfile, threading, time
+import base64
+import json
+import os
+import sys
+import tempfile
+import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 root, n = sys.argv[1], int(sys.argv[2])
@@ -18,7 +24,7 @@ os.environ["HERMES_STREAM_RETRIES"] = "0"
 
 def jwt(exp, sub="acct-A"):
     # `sub` matters: pre-expiry adoption (#103526 round 2) only swaps to a key for the SAME account.
-    b = lambda o: base64.urlsafe_b64encode(json.dumps(o).encode()).rstrip(b"=").decode()  # noqa: E731
+    b = lambda o: base64.urlsafe_b64encode(json.dumps(o).encode()).rstrip(b"=").decode()
     return f"{b({'alg':'none'})}.{b({'exp':exp,'sub':sub})}.s"
 
 
@@ -42,7 +48,7 @@ class H(BaseHTTPRequestHandler):
             self.send_response(200)
         else:
             if os.environ.get("TRACE401"):
-                import traceback; sys.stderr.write("401 path: "+self.path+"\n")
+                sys.stderr.write("401 path: "+self.path+"\n")
             body = json.dumps({"error": {"type": "authentication_error", "message": "Your API key is invalid, blocked or out of funds. Please go visit the portal to sort that out: https://portal.nousresearch.com "}}).encode()
             with lock: hits["401"] += 1
             self.send_response(401)
@@ -53,8 +59,10 @@ srv = ThreadingHTTPServer(("127.0.0.1", 0), H); threading.Thread(target=srv.serv
 base = f"http://127.0.0.1:{srv.server_address[1]}/v1"
 
 import hermes_cli.auth as auth_mod
+
 auth_mod.resolve_nous_runtime_credentials = lambda **kw: {"api_key": FRESH, "base_url": base}
 import hermes_cli.nous_auth_keepalive as ka
+
 ka.start_nous_auth_keepalive = lambda **kw: None  # thread itself is out of scope here; we test adoption
 
 from run_agent import AIAgent

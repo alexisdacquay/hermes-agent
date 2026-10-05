@@ -12,14 +12,12 @@ from copy import deepcopy
 from types import SimpleNamespace
 
 import pytest
-
 from agent.chat_completion_helpers import rewrite_prompt_model_identity
 from agent.conversation_loop import (
     _redecorate_prompt_cache_for_provider,
     _sync_failover_system_message,
 )
 from agent.prompt_caching import apply_anthropic_cache_control
-
 
 _PROMPT = (
     "You are a helpful assistant.\n"

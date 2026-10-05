@@ -5,10 +5,9 @@ disposition) and `hermes cron status` calls out jobs whose last dispatch
 was a late/missed-fire catch-up.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
-
 from cron.jobs import create_job, load_jobs, save_jobs
 from hermes_cli.cron import (
     _dispatch_display,
@@ -16,6 +15,7 @@ from hermes_cli.cron import (
     _print_active_jobs_summary,
     cron_list,
 )
+
 
 @pytest.fixture()
 def tmp_cron_dir(tmp_path, monkeypatch):
@@ -32,7 +32,7 @@ def _stamp_last_dispatch(job_id, stamp):
     save_jobs(jobs)
 
 def _catch_up_stamp(late_seconds=1860.0, kind="catch_up"):
-    scheduled = datetime(2026, 9, 1, 9, 0, tzinfo=timezone.utc)
+    scheduled = datetime(2026, 9, 1, 9, 0, tzinfo=UTC)
     return {
         "scheduled_at": scheduled.isoformat(),
         "dispatched_at": (scheduled + timedelta(seconds=late_seconds)).isoformat(),

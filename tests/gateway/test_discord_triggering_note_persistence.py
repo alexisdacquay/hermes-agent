@@ -6,7 +6,6 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from gateway.config import GatewayConfig, Platform
 from gateway.platforms.event import MessageEvent
 from gateway.run import GatewayRunner

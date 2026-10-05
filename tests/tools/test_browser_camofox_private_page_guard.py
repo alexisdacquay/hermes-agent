@@ -11,10 +11,8 @@ private/internal page the terminal itself can't reach.
 import json
 
 import pytest
-
 from tools import browser_camofox
 from tools import browser_tool_eval_policy as bt_eval_policy
-
 
 PRIVATE_URL = "http://169.254.169.254/latest/meta-data/"
 
@@ -28,7 +26,6 @@ def _session(monkeypatch):
 
 def _block_active(monkeypatch):
     """Make the SSRF guard active and the current page resolve to a private URL."""
-    from tools import browser_tool
 
     monkeypatch.setattr(bt_eval_policy, "_eval_ssrf_guard_active", lambda task_id: True)
     monkeypatch.setattr(
@@ -38,7 +35,6 @@ def _block_active(monkeypatch):
 
 def _block_inactive_guard(monkeypatch):
     """SSRF guard inactive (local backend / allow_private_urls)."""
-    from tools import browser_tool
 
     monkeypatch.setattr(bt_eval_policy, "_eval_ssrf_guard_active", lambda task_id: False)
 
@@ -49,7 +45,6 @@ def _block_inactive_guard(monkeypatch):
 
 
 def _public_page(monkeypatch):
-    from tools import browser_tool
 
     monkeypatch.setattr(bt_eval_policy, "_eval_ssrf_guard_active", lambda task_id: True)
     monkeypatch.setattr(

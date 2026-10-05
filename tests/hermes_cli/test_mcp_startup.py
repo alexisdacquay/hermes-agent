@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
-from argparse import Namespace
-from contextlib import nullcontext
 import sys
 import threading
 import time
 import types
+from argparse import Namespace
+from contextlib import nullcontext
 
 import pytest
-
 from hermes_cli import main as main_mod
 from hermes_cli import mcp_startup
 
@@ -62,7 +61,7 @@ def test_prepare_agent_startup_backgrounds_blocking_mcp_for_chat(monkeypatch):
         "hermes_cli.config",
         types.SimpleNamespace(
             read_raw_config=lambda: {"mcp_servers": {"demo": {"transport": "stdio"}}},
-            load_config=lambda: {},
+            load_config=dict,
         ),
     )
     monkeypatch.setitem(
@@ -129,7 +128,7 @@ def test_prepare_agent_startup_skips_discovery_when_chat_resolves_to_tui(
         "hermes_cli.config",
         types.SimpleNamespace(
             read_raw_config=lambda: {"mcp_servers": {"demo": {"transport": "stdio"}}},
-            load_config=lambda: {},
+            load_config=dict,
         ),
     )
     monkeypatch.setitem(
@@ -171,7 +170,7 @@ def test_prepare_agent_startup_keeps_discovery_for_non_chat_commands(
         "hermes_cli.config",
         types.SimpleNamespace(
             read_raw_config=lambda: {"mcp_servers": {"demo": {"transport": "stdio"}}},
-            load_config=lambda: {},
+            load_config=dict,
         ),
     )
     monkeypatch.setitem(
@@ -239,7 +238,11 @@ def test_background_mcp_discovery_suppresses_interactive_oauth(monkeypatch):
 
 def test_background_mcp_discovery_propagates_profile_secret_scope(monkeypatch):
     """A dashboard-profile discovery thread must retain that profile's secrets."""
-    from agent.secret_scope import current_secret_scope, reset_secret_scope, set_secret_scope
+    from agent.secret_scope import (
+        current_secret_scope,
+        reset_secret_scope,
+        set_secret_scope,
+    )
 
     seen = []
     monkeypatch.setitem(
@@ -282,7 +285,7 @@ def test_portable_only_mcp_configuration_opens_startup_gate(monkeypatch):
     monkeypatch.setitem(
         sys.modules,
         "hermes_cli.config",
-        types.SimpleNamespace(read_raw_config=lambda: {}),
+        types.SimpleNamespace(read_raw_config=dict),
     )
     monkeypatch.setitem(
         sys.modules,

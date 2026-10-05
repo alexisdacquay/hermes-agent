@@ -6,8 +6,8 @@ after accept). Mount as ``@app.websocket("/api/ws") async def ws(ws): await hand
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import concurrent.futures
+import contextlib
 import json
 import logging
 import socket
@@ -15,8 +15,9 @@ import threading
 import time
 from typing import Any
 
-from tui_gateway import server
 from agent.message_sanitization import _sanitize_surrogates
+
+from tui_gateway import server
 from tui_gateway.event_replay import replay_epoch
 from tui_gateway.transport import serialize_frame
 
@@ -203,7 +204,7 @@ class WSTransport:
                 payload = _sanitize_ws_text(line)
                 try:
                     await asyncio.wait_for(self._ws.send_text(payload), timeout=_WS_SEND_DEADLINE_S)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     # The loop is responsive (the timer fired) but the socket never drained: unlike the
                     # loop-stall wait in write(), this is a dead peer. Latch under the writer lock so queued
                     # batches bail, and close the socket so handle_ws's read loop ends and its teardown

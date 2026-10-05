@@ -2,7 +2,6 @@
 from urllib.parse import unquote, urlparse
 
 import pytest
-
 from pm import packages, update
 
 

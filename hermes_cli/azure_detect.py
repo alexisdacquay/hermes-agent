@@ -10,8 +10,9 @@ from __future__ import annotations
 import json
 import logging
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Optional
+from typing import Any, Optional
 from urllib import request as urllib_request
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
@@ -40,7 +41,7 @@ class DetectionResult:
     """Everything auto-detection could gather from a base URL + API key."""
 
     #: ``"chat_completions"``, ``"anthropic_messages"``, or ``None`` when detection failed.
-    api_mode: Optional[str] = None
+    api_mode: str | None = None
     #: Deployment / model IDs returned by ``/models`` (best effort; empty when not exposed).
     models: list[str] = field(default_factory=list)
     #: Lowercased host from the base URL (used for display messages).
@@ -53,7 +54,7 @@ class DetectionResult:
     is_anthropic: bool = False
 
 
-def _resolve_credential(api_key: Any, token_provider: TokenProvider = None) -> tuple[Optional[str], str]:
+def _resolve_credential(api_key: Any, token_provider: TokenProvider = None) -> tuple[str | None, str]:
     """Coerce wizard inputs into ``(token_or_None, mode)``.
 
     ``mode`` is ``"entra_id"`` when a callable token provider was supplied (the token is a freshly
@@ -74,7 +75,7 @@ def _resolve_credential(api_key: Any, token_provider: TokenProvider = None) -> t
 
 
 def _authed_request(url: str, api_key: Any, token_provider, *, method: str = "GET",
-                    data: Optional[bytes] = None) -> urllib_request.Request:
+                    data: bytes | None = None) -> urllib_request.Request:
     """Build a request carrying the right auth headers for the credential mode."""
     token, mode = _resolve_credential(api_key, token_provider)
     req = urllib_request.Request(url, method=method, data=data)
@@ -96,7 +97,7 @@ def _read_limited_response_body(resp: Any, limit: int, *, label: str) -> bytes:
 
 
 def _http_get_json(url: str, api_key: Any, timeout: float = 6.0, *,
-                   token_provider: TokenProvider = None) -> tuple[int, Optional[dict]]:
+                   token_provider: TokenProvider = None) -> tuple[int, dict | None]:
     """GET with auth headers; return ``(status_code, parsed_json_or_None)``. Never raises."""
     req = _authed_request(url, api_key, token_provider)
     try:
@@ -245,7 +246,7 @@ def detect(base_url: str, api_key: Any = "", *, token_provider: TokenProvider = 
 
 
 def lookup_context_length(model: str, base_url: str, api_key: Any = "", *,
-                          token_provider: TokenProvider = None) -> Optional[int]:
+                          token_provider: TokenProvider = None) -> int | None:
     """``get_model_context_length`` that returns None when only the fallback default would fire, so
     the wizard can distinguish "we actually know this" from "we guessed".
     """
@@ -253,7 +254,10 @@ def lookup_context_length(model: str, base_url: str, api_key: Any = "", *,
     if not model_id:
         return None
     try:
-        from agent.model_metadata import DEFAULT_FALLBACK_CONTEXT, get_model_context_length
+        from agent.model_metadata import (
+            DEFAULT_FALLBACK_CONTEXT,
+            get_model_context_length,
+        )
     except Exception:
         return None
 

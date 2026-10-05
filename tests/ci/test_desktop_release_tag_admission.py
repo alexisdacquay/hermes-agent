@@ -21,10 +21,16 @@ import sys
 from pathlib import Path
 
 import pytest
-
 from tests.ci.desktop_release_roles import (
-    DOWNLOADABLE_DISPATCHES, DRY_DISPATCH, SHA, admitted, credential_gate, evaluate, gate,
-    native_builds, needs_of,
+    DOWNLOADABLE_DISPATCHES,
+    DRY_DISPATCH,
+    SHA,
+    admitted,
+    credential_gate,
+    evaluate,
+    gate,
+    native_builds,
+    needs_of,
 )
 
 _REPO = Path(__file__).resolve().parents[2]

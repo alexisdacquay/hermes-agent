@@ -1,7 +1,6 @@
 import threading
 
 import pytest
-
 from hermes_cli import plugins_loader
 
 

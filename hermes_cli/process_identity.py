@@ -17,9 +17,9 @@ import platform
 import sys
 import threading
 import time
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Optional, Sequence
 
 from utils import atomic_json_write
 
@@ -41,7 +41,7 @@ _JOB_HANDLE = None
 _LEDGER_LOCK = threading.Lock()
 
 
-def install_id(project_root: Optional[Path] = None) -> str:
+def install_id(project_root: Path | None = None) -> str:
     """Stable 12-hex identifier for THIS install (derived from its path)."""
     if project_root is None:
         try:
@@ -57,7 +57,7 @@ def install_id(project_root: Optional[Path] = None) -> str:
     return hashlib.sha256(canonical.encode("utf-8", "replace")).hexdigest()[:12]
 
 
-def _process_create_time(pid: Optional[int] = None) -> Optional[float]:
+def _process_create_time(pid: int | None = None) -> float | None:
     """``psutil`` create time for ``pid`` (default: this process); ``None`` when psutil can't say."""
     try:
         import psutil
@@ -75,22 +75,22 @@ class SpawnTag:
     install: str
     purpose: str
     spawner_pid: int
-    spawner_create: Optional[float]
+    spawner_create: float | None
 
 
-def build_spawn_tag(purpose: str, *, project_root: Optional[Path] = None) -> str:
+def build_spawn_tag(purpose: str, *, project_root: Path | None = None) -> str:
     """Value for the child's ``HERMES_SPAWN`` env var, stamped by the spawner."""
     create = _process_create_time()
     create_part = f"{create:.3f}" if create is not None else "-"
     return ":".join((_TAG_VERSION, install_id(project_root), purpose, str(os.getpid()), create_part))
 
 
-def spawn_env(purpose: str, *, project_root: Optional[Path] = None) -> dict[str, str]:
+def spawn_env(purpose: str, *, project_root: Path | None = None) -> dict[str, str]:
     """Env fragment a spawner merges into a child's environment."""
     return {SPAWN_ENV_VAR: build_spawn_tag(purpose, project_root=project_root)}
 
 
-def parse_spawn_tag(raw: object) -> Optional[SpawnTag]:
+def parse_spawn_tag(raw: object) -> SpawnTag | None:
     """Parse a ``HERMES_SPAWN`` value; ``None`` for anything malformed."""
     parts = raw.split(":") if isinstance(raw, str) else []
     if len(parts) != 5 or parts[0] != _TAG_VERSION:
@@ -112,17 +112,17 @@ def parse_spawn_tag(raw: object) -> Optional[SpawnTag]:
 @dataclass
 class LedgerEntry:
     pid: int
-    create_time: Optional[float]
+    create_time: float | None
     purpose: str
     install: str
-    spawner_pid: Optional[int]
-    spawner_create: Optional[float]
+    spawner_pid: int | None
+    spawner_create: float | None
     registered_at: float
     argv: str
     # Structured launch identity a relauncher needs after an update, without parsing argv. Empty
     # for purposes that don't supply it; readers must use .get() — older ledger files predate these.
     host: str = ""
-    port: Optional[int] = None
+    port: int | None = None
     profile: str = ""
     hermes_home: str = ""
     # `serve --isolated`: opted out of the host singleton (Desktop's SSH backend for another
@@ -142,7 +142,7 @@ def _ledger_path() -> Path:
         return Path(get_hermes_home()) / LEDGER_FILENAME
 
 
-def _read_ledger(path: Path) -> Optional[list[dict]]:
+def _read_ledger(path: Path) -> list[dict] | None:
     """Entries list, ``[]`` for empty/missing, ``None`` for CORRUPT (never silently an empty roster).
 
     Mirrors the #89298 contract: corrupt is a distinct state that must never be silently treated as an empty
@@ -163,7 +163,7 @@ def _read_ledger(path: Path) -> Optional[list[dict]]:
     return [e for e in parsed if isinstance(e, dict)] if isinstance(parsed, list) else None
 
 
-def _read_ledger_or_quarantine(path: Path) -> Optional[list[dict]]:
+def _read_ledger_or_quarantine(path: Path) -> list[dict] | None:
     """Ledger entries; ``None`` after parking a corrupt file. Caller holds ``_LEDGER_LOCK``."""
     entries = _read_ledger(path)
     if entries is None:
@@ -176,12 +176,12 @@ def _read_ledger_or_quarantine(path: Path) -> Optional[list[dict]]:
     return entries
 
 
-def _same_incarnation(proc, create_time: Optional[float]) -> bool:
+def _same_incarnation(proc, create_time: float | None) -> bool:
     """Does the live ``proc`` match a recorded ``create_time`` (2 s tolerance; ``None`` matches)?"""
     return create_time is None or abs(float(proc.create_time()) - float(create_time)) < 2.0
 
 
-def _pid_alive_matches(pid: int, create_time: Optional[float], *, strict: bool = False) -> Optional[bool]:
+def _pid_alive_matches(pid: int, create_time: float | None, *, strict: bool = False) -> bool | None:
     """True/False when provable; ``None`` when psutil can't say."""
     try:
         import psutil
@@ -203,7 +203,7 @@ def _pid_alive_matches(pid: int, create_time: Optional[float], *, strict: bool =
         return None
 
 
-def register_self(purpose: str, *, project_root: Optional[Path] = None, detail: Optional[dict] = None) -> bool:
+def register_self(purpose: str, *, project_root: Path | None = None, detail: dict | None = None) -> bool:
     """Record this process in the machine spawn ledger. Best-effort.
 
     Called at the top of every long-lived entry point; dead ``(pid, create_time)`` entries are
@@ -236,7 +236,7 @@ def register_self(purpose: str, *, project_root: Optional[Path] = None, detail: 
     return _append_entry(entry)
 
 
-def is_desktop_owned_backend(argv: Optional[Sequence[str]] = None) -> bool:
+def is_desktop_owned_backend(argv: Sequence[str] | None = None) -> bool:
     """Whether this process is the backend Desktop spawned and owns.
 
     ``HERMES_DESKTOP=1`` is inherited by every shell and agent child the app launches, so the
@@ -255,7 +255,7 @@ def is_desktop_owned_backend(argv: Optional[Sequence[str]] = None) -> bool:
     return is_desktop_ssh_backend_argv(list(sys.argv[1:] if argv is None else argv))
 
 
-def _desktop_spawner_identity() -> tuple[Optional[int], Optional[float]]:
+def _desktop_spawner_identity() -> tuple[int | None, float | None]:
     """Spawner ``(pid, create_time)`` from the Electron app's HERMES_PARENT_PID (+ optional
     ``winms:<ms>`` start marker) parent-death watchdog vars, so ledger lineage works with every
     Desktop version without a TS change. ``(None, None)`` when absent/malformed."""
@@ -275,8 +275,8 @@ def _desktop_spawner_identity() -> tuple[Optional[int], Optional[float]]:
 
 
 def _new_entry(
-    pid: int, create_time: Optional[float], purpose: str, project_root: Optional[Path],
-    spawner_pid: Optional[int], spawner_create: Optional[float],
+    pid: int, create_time: float | None, purpose: str, project_root: Path | None,
+    spawner_pid: int | None, spawner_create: float | None,
 ) -> LedgerEntry:
     return LedgerEntry(
         pid, create_time, purpose, install_id(project_root), spawner_pid, spawner_create, time.time(), argv=""
@@ -314,7 +314,7 @@ def _append_entry(entry: LedgerEntry) -> bool:
             return False
 
 
-def register_child(pid: int, purpose: str, *, project_root: Optional[Path] = None) -> bool:
+def register_child(pid: int, purpose: str, *, project_root: Path | None = None) -> bool:
     """Record a CHILD process this process just spawned. Best-effort.
 
     Mirror of :func:`register_self` for children that cannot register themselves (stdio MCP
@@ -340,7 +340,7 @@ def register_child(pid: int, purpose: str, *, project_root: Optional[Path] = Non
 
 
 def ledger_entries(
-    *, project_root: Optional[Path] = None, all_installs: bool = False, verified_only: bool = False,
+    *, project_root: Path | None = None, all_installs: bool = False, verified_only: bool = False,
 ) -> list[dict]:
     """Ledger entries for this install, or all installs when explicitly requested.
 
@@ -366,7 +366,7 @@ def ledger_entries(
     ]
 
 
-def spawner_is_dead(entry: dict) -> Optional[bool]:
+def spawner_is_dead(entry: dict) -> bool | None:
     """Is the recorded spawner of this entry provably gone? ``None`` when unrecorded/unprovable."""
     spawner_pid = entry.get("spawner_pid")
     if not isinstance(spawner_pid, int) or spawner_pid <= 0:
@@ -375,7 +375,7 @@ def spawner_is_dead(entry: dict) -> Optional[bool]:
     return None if alive is None else not alive
 
 
-def reap_orphaned_mcp_helpers(*, project_root: Optional[Path] = None, kill_fn=None) -> list[int]:
+def reap_orphaned_mcp_helpers(*, project_root: Path | None = None, kill_fn=None) -> list[int]:
     """Kill ledger-registered stdio MCP helpers whose spawner is provably dead.
 
     Ledger-driven startup-sweep rung (not cmdline-heuristic): a helper is reaped ONLY when it has a

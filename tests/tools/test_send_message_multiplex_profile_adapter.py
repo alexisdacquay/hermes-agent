@@ -8,7 +8,6 @@ when the profile has no adapter for that platform — never the default bot.
 from pathlib import Path
 
 import pytest
-
 from gateway.config import Platform
 from gateway.run import GatewayRunner, _profile_runtime_scope
 from tools.send_message_senders import _live_adapter

@@ -4,8 +4,8 @@ import time
 from unittest.mock import MagicMock
 
 import pytest
-
 from gateway.platforms import api_server
+
 
 def test_room_grant_secret_stays_gateway_owned_on_named_profile(
     tmp_path, monkeypatch

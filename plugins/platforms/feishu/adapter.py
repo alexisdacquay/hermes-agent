@@ -18,7 +18,6 @@ Session keys prefer union_id (user_id_alt) over open_id (user_id) for stability.
 
 from __future__ import annotations
 
-from pm import install_hint
 import asyncio
 import collections
 import concurrent.futures
@@ -35,14 +34,17 @@ import threading
 import time
 import uuid
 from collections import OrderedDict
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Dict, List, Literal, Optional, Sequence
+from typing import Any, Literal
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
+
+from pm import install_hint
 
 # aiohttp/websockets are independent optional deps — import outside lark_oapi
 # so they remain available for tests and webhook mode even if lark_oapi is missing.
@@ -83,23 +85,26 @@ _lark_import_lock = threading.Lock()
 FEISHU_WEBSOCKET_AVAILABLE = websockets is not None
 FEISHU_WEBHOOK_AVAILABLE = aiohttp is not None
 
-from gateway.config import Platform, PlatformConfig
 from agent.i18n import t
+from gateway.config import Platform, PlatformConfig
+from gateway.platforms._shared import apply_yaml_bridge as _apply_yaml_bridge
+from gateway.platforms._shared import extra_or_secret as _shared_extra_or_secret
+from gateway.platforms._shared import get_scoped_secret as _get_scoped_secret
+from gateway.platforms._shared import send_error
 from gateway.platforms.base import (
-    BasePlatformAdapter, ExecApprovalPrompt, SendResult,
-    SUPPORTED_DOCUMENT_TYPES, cache_document_from_bytes_async, cache_image_from_url,
-    cache_audio_from_bytes_async, cache_image_from_bytes_async,
+    SUPPORTED_DOCUMENT_TYPES,
+    BasePlatformAdapter,
+    ExecApprovalPrompt,
+    SendResult,
+    cache_audio_from_bytes_async,
+    cache_document_from_bytes_async,
+    cache_image_from_bytes_async,
+    cache_image_from_url,
 )
 from gateway.platforms.event import MessageEvent, MessageType, ProcessingOutcome
 from gateway.status import acquire_scoped_lock, release_scoped_lock
 from hermes_constants import get_hermes_home
 from utils import atomic_json_write, env_float, env_int
-
-from gateway.platforms._shared import (
-    apply_yaml_bridge as _apply_yaml_bridge, extra_or_secret as _shared_extra_or_secret,
-    get_scoped_secret as _get_scoped_secret, send_error
-)
-
 
 logger = logging.getLogger(__name__)
 
@@ -164,11 +169,11 @@ _FEISHU_WEBHOOK_ANOMALY_THRESHOLD = 25             # consecutive error responses
 _FEISHU_WEBHOOK_ANOMALY_TTL_SECONDS = 6 * 60 * 60  # anomaly tracker TTL (6 hours) — matches openclaw
 _FEISHU_CARD_ACTION_DEDUP_TTL_SECONDS = 15 * 60    # card action token dedup window (15 min)
 
-_APPROVAL_CHOICE_MAP: Dict[str, str] = {
+_APPROVAL_CHOICE_MAP: dict[str, str] = {
     "approve_once": "once", "approve_session": "session", "approve_always": "always", "deny": "deny",
 }
 # choice → catalog key of the resolved-card title; looked up through ``t()`` at resolve time.
-_APPROVAL_LABEL_KEYS: Dict[str, str] = {
+_APPROVAL_LABEL_KEYS: dict[str, str] = {
     "once": "platform.feishu.approval.resolved_once", "session": "platform.feishu.approval.resolved_session",
     "always": "platform.feishu.approval.resolved_always", "deny": "platform.feishu.approval.resolved_deny",
 }
@@ -270,8 +275,8 @@ class _FeishuBotIdentity:
 @dataclass(frozen=True)
 class FeishuPostParseResult:
     text_content: str
-    image_keys: List[str] = field(default_factory=list)
-    media_refs: List[FeishuPostMediaRef] = field(default_factory=list)
+    image_keys: list[str] = field(default_factory=list)
+    media_refs: list[FeishuPostMediaRef] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -279,11 +284,11 @@ class FeishuNormalizedMessage:
     raw_type: str
     text_content: str
     preferred_message_type: str = "text"
-    image_keys: List[str] = field(default_factory=list)
-    media_refs: List[FeishuPostMediaRef] = field(default_factory=list)
-    mentions: List[FeishuMentionRef] = field(default_factory=list)
+    image_keys: list[str] = field(default_factory=list)
+    media_refs: list[FeishuPostMediaRef] = field(default_factory=list)
+    mentions: list[FeishuMentionRef] = field(default_factory=list)
     relation_kind: str = "plain"
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -312,11 +317,11 @@ class FeishuAdapterSettings:
     webhook_path: str
     ws_reconnect_nonce: int = 30
     ws_reconnect_interval: int = 120
-    ws_ping_interval: Optional[int] = None
-    ws_ping_timeout: Optional[int] = None
+    ws_ping_interval: int | None = None
+    ws_ping_timeout: int | None = None
     admins: frozenset[str] = frozenset()
     default_group_policy: str = ""
-    group_rules: Dict[str, FeishuGroupRule] = field(default_factory=dict)
+    group_rules: dict[str, FeishuGroupRule] = field(default_factory=dict)
     allow_bots: str = "none"  # "none" | "mentions" | "all"
     require_mention: bool = True
     allow_all_dm: bool = False  # resolved per-profile so multiplexed adapters honor their own .env
@@ -329,14 +334,14 @@ class FeishuGroupRule:
     policy: str  # "open" | "allowlist" | "blacklist" | "admin_only" | "disabled"
     allowlist: set[str] = field(default_factory=set)
     blacklist: set[str] = field(default_factory=set)
-    require_mention: Optional[bool] = None  # None = inherit global
+    require_mention: bool | None = None  # None = inherit global
 
 
 @dataclass
 class FeishuBatchState:
-    events: Dict[str, MessageEvent] = field(default_factory=dict)
-    tasks: Dict[str, asyncio.Task] = field(default_factory=dict)
-    counts: Dict[str, int] = field(default_factory=dict)
+    events: dict[str, MessageEvent] = field(default_factory=dict)
+    tasks: dict[str, asyncio.Task] = field(default_factory=dict)
+    counts: dict[str, int] = field(default_factory=dict)
 
 
 # --- Admission: policy types ---
@@ -367,7 +372,7 @@ def _to_boolean(value: Any) -> bool:
     return value is True or value == 1 or value == "true"
 
 
-def _is_style_enabled(style: Dict[str, Any] | None, key: str) -> bool:
+def _is_style_enabled(style: dict[str, Any] | None, key: str) -> bool:
     if not style:
         return False
     return _to_boolean(style.get(key))
@@ -387,7 +392,7 @@ def _sanitize_fence_language(language: str) -> str:
 _TEXT_STYLE_WRAPPERS = (("bold", "**", "**"), ("italic", "*", "*"), ("underline", "<u>", "</u>"), ("strikethrough", "~~", "~~"))
 
 
-def _render_text_element(element: Dict[str, Any]) -> str:
+def _render_text_element(element: dict[str, Any]) -> str:
     text = str(element.get("text", "") or "")
     style = element.get("style")
     style_dict = style if isinstance(style, dict) else None
@@ -405,7 +410,7 @@ def _render_text_element(element: Dict[str, Any]) -> str:
     return rendered
 
 
-def _render_code_block_element(element: Dict[str, Any]) -> str:
+def _render_code_block_element(element: dict[str, Any]) -> str:
     language = _sanitize_fence_language(str(element.get("language", "") or "") or str(element.get("lang", "") or ""))
     code = (str(element.get("text", "") or "") or str(element.get("content", "") or "")).replace("\r\n", "\n")
     trailing_newline = "" if code.endswith("\n") else "\n"
@@ -424,7 +429,7 @@ def _strip_markdown_to_plain_text(text: str) -> str:
     return strip_markdown(plain)
 
 
-def _coerce_int(value: Any, default: Optional[int] = None, min_value: int = 0) -> Optional[int]:
+def _coerce_int(value: Any, default: int | None = None, min_value: int = 0) -> int | None:
     """Coerce value to int with optional default and minimum constraint."""
     try:
         parsed = int(value)
@@ -445,7 +450,7 @@ def _build_markdown_post_payload(content: str) -> str:
     return json.dumps({"zh_cn": {"content": rows}}, ensure_ascii=False)
 
 
-def _build_markdown_post_rows(content: str) -> List[List[Dict[str, str]]]:
+def _build_markdown_post_rows(content: str) -> list[list[dict[str, str]]]:
     """Build Feishu post rows, giving each fenced code block its own row.
 
     Feishu's `md` renderer can swallow trailing content when a fence sits inside one
@@ -456,8 +461,8 @@ def _build_markdown_post_rows(content: str) -> List[List[Dict[str, str]]]:
     if "```" not in content:
         return [[{"tag": "md", "text": content}]]
 
-    rows: List[List[Dict[str, str]]] = []
-    current: List[str] = []
+    rows: list[list[dict[str, str]]] = []
+    current: list[str] = []
     in_code_block = False
 
     def _flush_current() -> None:
@@ -482,14 +487,14 @@ def _build_markdown_post_rows(content: str) -> List[List[Dict[str, str]]]:
 
 
 def parse_feishu_post_payload(
-    payload: Any, *, mentions_map: Optional[Dict[str, FeishuMentionRef]] = None,
+    payload: Any, *, mentions_map: dict[str, FeishuMentionRef] | None = None,
 ) -> FeishuPostParseResult:
     resolved = _resolve_post_payload(payload)
     if not resolved:
         return FeishuPostParseResult(text_content=FALLBACK_POST_TEXT)
-    image_keys: List[str] = []
-    media_refs: List[FeishuPostMediaRef] = []
-    parts: List[str] = []
+    image_keys: list[str] = []
+    media_refs: list[FeishuPostMediaRef] = []
+    parts: list[str] = []
     title = _normalize_feishu_text(str(resolved.get("title", "")).strip())
     if title:
         parts.append(title)
@@ -518,7 +523,7 @@ def parse_feishu_post_payload(
     )
 
 
-def _resolve_post_payload(payload: Any) -> Dict[str, Any]:
+def _resolve_post_payload(payload: Any) -> dict[str, Any]:
     direct = _to_post_payload(payload)
     if direct:
         return direct
@@ -527,7 +532,7 @@ def _resolve_post_payload(payload: Any) -> Dict[str, Any]:
     return _resolve_locale_payload(payload.get("post")) or _resolve_locale_payload(payload)
 
 
-def _resolve_locale_payload(payload: Any) -> Dict[str, Any]:
+def _resolve_locale_payload(payload: Any) -> dict[str, Any]:
     direct = _to_post_payload(payload)
     if direct:
         return direct
@@ -541,7 +546,7 @@ def _resolve_locale_payload(payload: Any) -> Dict[str, Any]:
     return {}
 
 
-def _to_post_payload(candidate: Any) -> Dict[str, Any]:
+def _to_post_payload(candidate: Any) -> dict[str, Any]:
     if not isinstance(candidate, dict):
         return {}
     content = candidate.get("content")
@@ -559,8 +564,8 @@ _STATIC_POST_TAGS = {"br": "\n", "hr": "\n\n---\n\n", "divider": "\n\n---\n\n"}
 
 
 def _render_post_element(
-    element: Any, image_keys: List[str], media_refs: List[FeishuPostMediaRef],
-    mentions_map: Optional[Dict[str, FeishuMentionRef]] = None,
+    element: Any, image_keys: list[str], media_refs: list[FeishuPostMediaRef],
+    mentions_map: dict[str, FeishuMentionRef] | None = None,
 ) -> str:
     if isinstance(element, str):
         return element
@@ -629,8 +634,8 @@ def _join_nested_posts(values: Any, image_keys: Any, media_refs: Any, mentions_m
 
 
 def _render_nested_post(
-    value: Any, image_keys: List[str], media_refs: List[FeishuPostMediaRef],
-    mentions_map: Optional[Dict[str, FeishuMentionRef]] = None,
+    value: Any, image_keys: list[str], media_refs: list[FeishuPostMediaRef],
+    mentions_map: dict[str, FeishuMentionRef] | None = None,
 ) -> str:
     if isinstance(value, str):
         return _escape_markdown_text(value)
@@ -645,7 +650,7 @@ def _render_nested_post(
 # --- Message normalization ---
 
 def normalize_feishu_message(
-    *, message_type: str, raw_content: str, mentions: Optional[Sequence[Any]] = None,
+    *, message_type: str, raw_content: str, mentions: Sequence[Any] | None = None,
     bot: _FeishuBotIdentity = _FeishuBotIdentity(),
 ) -> FeishuNormalizedMessage:
     normalized_type = str(message_type or "").strip().lower()
@@ -704,7 +709,7 @@ def normalize_feishu_message(
     return FeishuNormalizedMessage(raw_type=normalized_type, text_content="")
 
 
-def _load_feishu_payload(raw_content: str) -> Dict[str, Any]:
+def _load_feishu_payload(raw_content: str) -> dict[str, Any]:
     try:
         parsed = json.loads(raw_content) if raw_content else {}
     except json.JSONDecodeError:
@@ -712,7 +717,7 @@ def _load_feishu_payload(raw_content: str) -> Dict[str, Any]:
     return parsed if isinstance(parsed, dict) else {"content": parsed}
 
 
-def _normalize_merge_forward_message(payload: Dict[str, Any]) -> FeishuNormalizedMessage:
+def _normalize_merge_forward_message(payload: dict[str, Any]) -> FeishuNormalizedMessage:
     title = _first_text_field(payload, "title", "summary", "preview", deep=("title", "summary", "preview", "description"))
     entries = _collect_forward_entries(payload)
     lines = ([title] if title else []) + entries[:8]
@@ -722,7 +727,7 @@ def _normalize_merge_forward_message(payload: Dict[str, Any]) -> FeishuNormalize
     )
 
 
-def _normalize_share_chat_message(payload: Dict[str, Any]) -> FeishuNormalizedMessage:
+def _normalize_share_chat_message(payload: dict[str, Any]) -> FeishuNormalizedMessage:
     chat_name = _first_text_field(payload, "chat_name", "name", "title", deep=("chat_name", "name", "title"))
     share_id = _first_text_field(payload, "chat_id", "open_chat_id", "share_chat_id")
     lines = [f"Shared chat: {chat_name}" if chat_name else FALLBACK_SHARE_CHAT_TEXT]
@@ -734,7 +739,7 @@ def _normalize_share_chat_message(payload: Dict[str, Any]) -> FeishuNormalizedMe
     )
 
 
-def _normalize_interactive_message(message_type: str, payload: Dict[str, Any]) -> FeishuNormalizedMessage:
+def _normalize_interactive_message(message_type: str, payload: dict[str, Any]) -> FeishuNormalizedMessage:
     card_payload = payload.get("card") if isinstance(payload.get("card"), dict) else payload
     title = _first_non_empty_text(
         _find_header_title(card_payload), payload.get("title"),
@@ -753,13 +758,13 @@ def _normalize_interactive_message(message_type: str, payload: Dict[str, Any]) -
 
 # --- Content extraction utilities (card / forward / text walking) ---
 
-def _collect_forward_entries(payload: Dict[str, Any]) -> List[str]:
-    candidates: List[Any] = []
+def _collect_forward_entries(payload: dict[str, Any]) -> list[str]:
+    candidates: list[Any] = []
     for key in ("messages", "items", "message_list", "records", "content"):
         value = payload.get(key)
         if isinstance(value, list):
             candidates.extend(value)
-    entries: List[str] = []
+    entries: list[str] = []
     for item in candidates:
         if not isinstance(item, dict):
             text = _normalize_feishu_text(str(item or ""))
@@ -782,14 +787,14 @@ def _collect_forward_entries(payload: Dict[str, Any]) -> List[str]:
     return _unique_lines(entries)
 
 
-def _collect_card_lines(payload: Any) -> List[str]:
+def _collect_card_lines(payload: Any) -> list[str]:
     lines = _collect_text_segments(payload, in_rich_block=False)
     normalized = [_normalize_feishu_text(line) for line in lines]
     return _unique_lines([line for line in normalized if line])
 
 
-def _collect_action_labels(payload: Any) -> List[str]:
-    labels: List[str] = []
+def _collect_action_labels(payload: Any) -> list[str]:
+    labels: list[str] = []
     for item in _walk_nodes(payload):
         if not isinstance(item, dict):
             continue
@@ -802,7 +807,7 @@ def _collect_action_labels(payload: Any) -> List[str]:
     return _unique_lines(labels)
 
 
-def _collect_text_segments(value: Any, *, in_rich_block: bool) -> List[str]:
+def _collect_text_segments(value: Any, *, in_rich_block: bool) -> list[str]:
     if isinstance(value, str):
         return [_normalize_feishu_text(value)] if in_rich_block else []
     if isinstance(value, list):
@@ -811,7 +816,7 @@ def _collect_text_segments(value: Any, *, in_rich_block: bool) -> List[str]:
         return []
     tag = str(value.get("tag", "") or value.get("type", "")).strip().lower()
     next_in_rich_block = in_rich_block or tag in _RICH_BLOCK_TAGS
-    segments: List[str] = []
+    segments: list[str] = []
     if next_in_rich_block:
         for key in _SUPPORTED_CARD_TEXT_KEYS:
             item = value.get(key)
@@ -823,7 +828,7 @@ def _collect_text_segments(value: Any, *, in_rich_block: bool) -> List[str]:
     return segments
 
 
-def _build_media_ref_from_payload(payload: Dict[str, Any], *, resource_type: str) -> FeishuPostMediaRef:
+def _build_media_ref_from_payload(payload: dict[str, Any], *, resource_type: str) -> FeishuPostMediaRef:
     file_key = str(payload.get("file_key", "") or "").strip()
     file_name = _first_text_field(payload, "file_name", "title", "text")
     effective_type = resource_type if resource_type in {"audio", "video"} else "file"
@@ -881,7 +886,7 @@ def _first_non_empty_text(*values: Any) -> str:
     return ""
 
 
-def _first_text_field(payload: Dict[str, Any], *keys: str, deep: tuple[str, ...] = ()) -> str:
+def _first_text_field(payload: dict[str, Any], *keys: str, deep: tuple[str, ...] = ()) -> str:
     """``_first_non_empty_text`` over ``payload[key]`` for each key, then a deep ``_find_first_text``."""
     values = [payload.get(key) for key in keys]
     if deep:
@@ -891,8 +896,8 @@ def _first_text_field(payload: Dict[str, Any], *keys: str, deep: tuple[str, ...]
 
 # --- General text utilities ---
 
-def _normalize_feishu_text(text: str, mentions_map: Optional[Dict[str, FeishuMentionRef]] = None) -> str:
-    def _sub(match: "re.Match[str]") -> str:
+def _normalize_feishu_text(text: str, mentions_map: dict[str, FeishuMentionRef] | None = None) -> str:
+    def _sub(match: re.Match[str]) -> str:
         ref = (mentions_map or {}).get(match.group(0))
         return " " if ref is None else f"@{ref.name or ref.open_id or 'user'}"
 
@@ -905,9 +910,9 @@ def _normalize_feishu_text(text: str, mentions_map: Optional[Dict[str, FeishuMen
     return cleaned.strip()
 
 
-def _unique_lines(lines: List[str]) -> List[str]:
+def _unique_lines(lines: list[str]) -> list[str]:
     seen: set[str] = set()
-    unique: List[str] = []
+    unique: list[str] = []
     for line in lines:
         if not line or line in seen:
             continue
@@ -929,8 +934,8 @@ def _extract_mention_ids(mention: Any) -> tuple[str, str]:
     return str(getattr(mention_id, "open_id", "") or ""), str(getattr(mention_id, "user_id", "") or "")
 
 
-def _build_mentions_map(mentions: Optional[Sequence[Any]], bot: _FeishuBotIdentity) -> Dict[str, FeishuMentionRef]:
-    result: Dict[str, FeishuMentionRef] = {}
+def _build_mentions_map(mentions: Sequence[Any] | None, bot: _FeishuBotIdentity) -> dict[str, FeishuMentionRef]:
+    result: dict[str, FeishuMentionRef] = {}
     for mention in mentions or []:
         key = str(getattr(mention, "key", "") or "")
         if not key:
@@ -946,7 +951,7 @@ def _build_mentions_map(mentions: Optional[Sequence[Any]], bot: _FeishuBotIdenti
 
 
 def _build_mention_hint(mentions: Sequence[FeishuMentionRef]) -> str:
-    parts: List[str] = []
+    parts: list[str] = []
     seen: set = set()
     for ref in mentions:
         if ref.is_self:
@@ -1117,14 +1122,14 @@ def _run_official_feishu_ws_client(ws_client: Any, adapter: Any) -> None:
 
     def _apply_runtime_ws_overrides() -> None:
         try:
-            setattr(ws_client, "_reconnect_nonce", adapter._ws_reconnect_nonce)
-            setattr(ws_client, "_reconnect_interval", adapter._ws_reconnect_interval)
+            ws_client._reconnect_nonce = adapter._ws_reconnect_nonce
+            ws_client._reconnect_interval = adapter._ws_reconnect_interval
             if adapter._ws_ping_interval is not None:
-                setattr(ws_client, "_ping_interval", adapter._ws_ping_interval)
+                ws_client._ping_interval = adapter._ws_ping_interval
             # SDK observer (lark-oapi ``Client.on_reconnecting``, fired first thing in ``_reconnect()``):
             # on the live link ``_auto_reconnect`` is on, so the ladder runs *inside* the receive loop
             # and the thread never dies — without this the supervisor's ``retrying`` is never published.
-            setattr(ws_client, "on_reconnecting", _on_reconnecting)
+            ws_client.on_reconnecting = _on_reconnecting
         except Exception:
             logger.debug("[Feishu] Failed to apply websocket runtime overrides", exc_info=True)
 
@@ -1160,7 +1165,7 @@ def _run_official_feishu_ws_client(ws_client: Any, adapter: Any) -> None:
         return result
 
     if original_configure is not None:
-        setattr(ws_client, "_configure", _configure_with_overrides)
+        ws_client._configure = _configure_with_overrides
     _apply_runtime_ws_overrides()
     try:
         ws_client.start()
@@ -1172,7 +1177,7 @@ def _run_official_feishu_ws_client(ws_client: Any, adapter: Any) -> None:
         _ws_isolation_state.on_link_up = None
         _ws_isolation_state.adapter = None
         if original_configure is not None:
-            setattr(ws_client, "_configure", original_configure)
+            ws_client._configure = original_configure
         pending = [t for t in asyncio.all_tasks(loop) if not t.done()]
         for task in pending:
             task.cancel()
@@ -1195,7 +1200,7 @@ def _load_lark_oapi() -> bool:
             return True
         import importlib
         try:
-            bound: Dict[str, Any] = {"lark": importlib.import_module("lark_oapi")}
+            bound: dict[str, Any] = {"lark": importlib.import_module("lark_oapi")}
             for module_name, names in _LARK_SDK_IMPORTS:
                 module = importlib.import_module(module_name)
                 bound.update({name: getattr(module, name) for name in names})
@@ -1240,7 +1245,7 @@ def check_feishu_requirements() -> bool:
         return False
 
 
-def _tenant_get_request(uri: str, *, queries: Optional[List[tuple[str, str]]] = None) -> Any:
+def _tenant_get_request(uri: str, *, queries: list[tuple[str, str]] | None = None) -> Any:
     """Raw ``BaseRequest`` GET with the tenant access token (bot/v3 endpoints have no typed SDK request)."""
     builder = BaseRequest.builder().http_method(HttpMethod.GET).uri(uri)
     if queries is not None:
@@ -1256,13 +1261,13 @@ def _build_lark_client(app_id: str, app_secret: str, sdk_domain: Any) -> Any:
     return lark.Client.builder().app_id(app_id).app_secret(app_secret).domain(sdk_domain).log_level(lark.LogLevel.WARNING).build()
 
 
-def _card_button(label: str, btn_type: str, value: Dict[str, Any]) -> Dict[str, Any]:
+def _card_button(label: str, btn_type: str, value: dict[str, Any]) -> dict[str, Any]:
     return {"tag": "button", "text": {"tag": "plain_text", "content": label}, "type": btn_type, "value": value}
 
 
-def _card(title: str, template: str, markdown: str, *, actions: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+def _card(title: str, template: str, markdown: str, *, actions: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     """Wide interactive card: colored header + one markdown block (+ an optional button row)."""
-    elements: List[Dict[str, Any]] = [{"tag": "markdown", "content": markdown}]
+    elements: list[dict[str, Any]] = [{"tag": "markdown", "content": markdown}]
     if actions is not None:
         elements.append({"tag": "action", "actions": actions})
     return {
@@ -1299,37 +1304,37 @@ class FeishuAdapter(BasePlatformAdapter):
         super().__init__(config, Platform.FEISHU)
         self._settings = self._load_settings(config.extra or {})
         self._apply_settings(self._settings)
-        self._client: Optional[Any] = None
+        self._client: Any | None = None
         # Adapter-owned pool for blocking SDK calls, recreated on demand: a torn-down default
         # executor can no longer wedge sends with "Executor shutdown has been called".
         # See issue #10849.
         self._sdk_executor_lock = threading.Lock()
-        self._sdk_executor: Optional[concurrent.futures.ThreadPoolExecutor] = None
+        self._sdk_executor: concurrent.futures.ThreadPoolExecutor | None = None
         self._sdk_executor_closing = False  # set on disconnect so a real teardown isn't resurrected
         self._ws_client = self._ws_future = self._ws_supervisor = self._ws_thread_loop = None
         self._ws_restart_backoff = 5.0
-        self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._loop: asyncio.AbstractEventLoop | None = None
         self._webhook_runner = self._webhook_site = self._event_handler = None
-        self._seen_message_ids: Dict[str, float] = {}  # message_id → seen_at (time.time())
-        self._seen_message_order: List[str] = []
+        self._seen_message_ids: dict[str, float] = {}  # message_id → seen_at (time.time())
+        self._seen_message_order: list[str] = []
         self._dedup_state_path = get_hermes_home() / "feishu_seen_message_ids.json"
         self._dedup_lock = threading.Lock()
         # Serializes the offloaded dedup-state flushes so two concurrent
         # inbound messages cannot land their writes out of order.
         self._dedup_persist_lock = asyncio.Lock()
-        self._sender_name_cache: Dict[str, tuple[str, float]] = {}  # sender_id → (name, expire_at)
-        self._webhook_rate_counts: Dict[str, tuple[int, float]] = {}  # rate_key → (count, window_start)
-        self._webhook_anomaly_counts: Dict[str, tuple[int, str, float]] = {}  # ip → (count, last_status, first_seen)
-        self._card_action_tokens: Dict[str, float] = {}  # token → first_seen_time
+        self._sender_name_cache: dict[str, tuple[str, float]] = {}  # sender_id → (name, expire_at)
+        self._webhook_rate_counts: dict[str, tuple[int, float]] = {}  # rate_key → (count, window_start)
+        self._webhook_anomaly_counts: dict[str, tuple[int, str, float]] = {}  # ip → (count, last_status, first_seen)
+        self._card_action_tokens: dict[str, float] = {}  # token → first_seen_time
         # Inbound events that arrived before the loop was ready; one drainer thread replays them.
-        self._pending_inbound_events: List[Any] = []
+        self._pending_inbound_events: list[Any] = []
         self._pending_inbound_lock = threading.Lock()
         self._pending_drain_scheduled = False
         self._pending_inbound_max_depth = 1000  # cap queue; drop oldest beyond
-        self._chat_locks: "collections.OrderedDict[str, asyncio.Lock]" = collections.OrderedDict()  # chat_id → lock (per-chat serial processing, LRU-bounded)
-        self._chat_info_cache: Dict[str, Dict[str, Any]] = {}
-        self._message_text_cache: "OrderedDict[str, Optional[str]]" = OrderedDict()
-        self._app_lock_identity: Optional[str] = None
+        self._chat_locks: collections.OrderedDict[str, asyncio.Lock] = collections.OrderedDict()  # chat_id → lock (per-chat serial processing, LRU-bounded)
+        self._chat_info_cache: dict[str, dict[str, Any]] = {}
+        self._message_text_cache: OrderedDict[str, str | None] = OrderedDict()
+        self._app_lock_identity: str | None = None
         self._text_batch_state = FeishuBatchState()
         self._pending_text_batches = self._text_batch_state.events
         self._pending_text_batch_tasks = self._text_batch_state.tasks
@@ -1338,16 +1343,16 @@ class FeishuAdapter(BasePlatformAdapter):
         self._pending_media_batches = self._media_batch_state.events
         self._pending_media_batch_tasks = self._media_batch_state.tasks
         # Button-card state: id → {session_key, message_id, chat_id}
-        self._approval_state: Dict[int, Dict[str, str]] = {}
+        self._approval_state: dict[int, dict[str, str]] = {}
         self._approval_counter = itertools.count(1)
-        self._update_prompt_state: Dict[int, Dict[str, str]] = {}
+        self._update_prompt_state: dict[int, dict[str, str]] = {}
         self._update_prompt_counter = itertools.count(1)
         # Reaction deletion needs the opaque reaction_id from create, cached per message_id.
-        self._pending_processing_reactions: "OrderedDict[str, str]" = OrderedDict()
+        self._pending_processing_reactions: OrderedDict[str, str] = OrderedDict()
         self._load_seen_message_ids()
 
     @staticmethod
-    def _load_settings(extra: Dict[str, Any]) -> FeishuAdapterSettings:
+    def _load_settings(extra: dict[str, Any]) -> FeishuAdapterSettings:
         def _id_set(values: Any) -> set[str]:
             return {str(u).strip() for u in values if str(u).strip()}
 
@@ -1360,7 +1365,7 @@ class FeishuAdapter(BasePlatformAdapter):
         _extra_or_env = _extra_or_secret
 
         raw_group_rules = extra.get("group_rules", {})
-        group_rules: Dict[str, FeishuGroupRule] = {}
+        group_rules: dict[str, FeishuGroupRule] = {}
         if isinstance(raw_group_rules, dict):
             for chat_id, rule_cfg in raw_group_rules.items():
                 if not isinstance(rule_cfg, dict):
@@ -1582,7 +1587,7 @@ class FeishuAdapter(BasePlatformAdapter):
                 # A CLOSE frame is one control frame; if 5s isn't enough the link is already wedged.
                 await asyncio.wait_for(asyncio.wrap_future(future), timeout=5.0)
                 logger.debug("[Feishu] Sent WebSocket CLOSE frame to Feishu")
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.warning(
                     "[Feishu] CLOSE frame not acknowledged within 5s — "
                     "Feishu may briefly route messages to the stale "
@@ -1609,14 +1614,14 @@ class FeishuAdapter(BasePlatformAdapter):
                 logger.debug("[Feishu] Waiting for websocket thread to exit (timeout=10s)")
                 await asyncio.wait_for(asyncio.shield(ws_future), timeout=10.0)
                 logger.debug("[Feishu] Websocket thread exited cleanly")
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.warning("[Feishu] Websocket thread did not exit within 10s - may be stuck")
             except asyncio.CancelledError:
                 logger.debug("[Feishu] Websocket thread cancelled during disconnect")
             except Exception as exc:
                 logger.debug("[Feishu] Websocket thread exited with error: %s", exc, exc_info=True)
 
-    async def _cancel_pending_tasks(self, tasks: Dict[str, asyncio.Task]) -> None:
+    async def _cancel_pending_tasks(self, tasks: dict[str, asyncio.Task]) -> None:
         pending = [task for task in tasks.values() if task and not task.done()]
         for task in pending:
             task.cancel()
@@ -1633,7 +1638,7 @@ class FeishuAdapter(BasePlatformAdapter):
         if self._ws_client is None:
             return
         try:
-            setattr(self._ws_client, "_auto_reconnect", False)
+            self._ws_client._auto_reconnect = False
         except Exception:
             pass
         finally:
@@ -1650,7 +1655,7 @@ class FeishuAdapter(BasePlatformAdapter):
 
     # --- Outbound — send / edit / send_image / send_voice / … ---
     async def send(
-        self, chat_id: str, content: str, reply_to: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None,
+        self, chat_id: str, content: str, reply_to: str | None = None, metadata: dict[str, Any] | None = None,
     ) -> SendResult:
         """Send a Feishu message."""
         if not self._client:
@@ -1754,17 +1759,17 @@ class FeishuAdapter(BasePlatformAdapter):
 
     # Resolved per call (not at class-body time) so the active language applies.
     @property
-    def _EA_REASON_LABEL(self) -> str:  # noqa: N802 — base class attr name
+    def _EA_REASON_LABEL(self) -> str:
         return f"**{t('gateway.exec_approval.reason_label')}:** "
 
     @property
-    def _EA_SMART_DENY_LINE(self) -> str:  # noqa: N802
+    def _EA_SMART_DENY_LINE(self) -> str:
         line = t("gateway.exec_approval.smart_deny_line")
         label, sep, rest = line.partition(":")
         return "\n\n" + (f"**{label}{sep}**{rest}" if sep else line)
 
     @property
-    def _EA_ACTION_LABELS(self) -> Dict[str, str]:  # noqa: N802
+    def _EA_ACTION_LABELS(self) -> dict[str, str]:
         return {"once": "✅ " + t("gateway.exec_approval.action_once"),
                 "session": "✅ " + t("platform.feishu.approval.action_session"),
                 "always": "✅ " + t("platform.feishu.approval.action_always"),
@@ -1792,8 +1797,8 @@ class FeishuAdapter(BasePlatformAdapter):
             return SendResult(success=False, error=str(exc))
 
     async def _send_interactive_card(
-        self, chat_id: str, card: Dict[str, Any], metadata: Optional[Dict[str, Any]], failure_message: str, *,
-        state_map: Dict[int, Dict[str, str]], state_id: int, session_key: str,
+        self, chat_id: str, card: dict[str, Any], metadata: dict[str, Any] | None, failure_message: str, *,
+        state_map: dict[int, dict[str, str]], state_id: int, session_key: str,
     ) -> SendResult:
         """Send a button card and, on success, remember where it went so a click can be validated."""
         response = await self._feishu_send_with_retry(
@@ -1810,7 +1815,7 @@ class FeishuAdapter(BasePlatformAdapter):
         return result
 
     @staticmethod
-    def _build_update_prompt_card(*, prompt: str, default: str, prompt_id: int) -> Dict[str, Any]:
+    def _build_update_prompt_card(*, prompt: str, default: str, prompt_id: int) -> dict[str, Any]:
         default_hint = t("platform.feishu.update_prompt.default_hint", default=default) if default else ""
 
         def _btn(label: str, answer: str, btn_type: str) -> dict:
@@ -1822,7 +1827,7 @@ class FeishuAdapter(BasePlatformAdapter):
 
     async def send_update_prompt(
         self, chat_id: str, prompt: str, default: str = "", session_key: str = "",
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> SendResult:
         """Send an interactive update prompt with Yes/No buttons."""
         if not self._client:
@@ -1839,7 +1844,7 @@ class FeishuAdapter(BasePlatformAdapter):
             return SendResult(success=False, error=str(exc))
 
     @staticmethod
-    def _build_resolved_approval_card(*, choice: str, user_name: str) -> Dict[str, Any]:
+    def _build_resolved_approval_card(*, choice: str, user_name: str) -> dict[str, Any]:
         """Raw card JSON shown in place of the buttons once an approval is resolved."""
         icon = "❌" if choice == "deny" else "✅"
         key = _APPROVAL_LABEL_KEYS.get(choice, "platform.feishu.approval.resolved_fallback")
@@ -1848,7 +1853,7 @@ class FeishuAdapter(BasePlatformAdapter):
                      t("platform.feishu.approval.resolved_by_user", icon=icon, label=label, user=user_name))
 
     @staticmethod
-    def _build_resolved_update_prompt_card(*, answer: str, user_name: str) -> Dict[str, Any]:
+    def _build_resolved_update_prompt_card(*, answer: str, user_name: str) -> dict[str, Any]:
         yes = answer == "y"
         title = t("platform.feishu.update_prompt.answered_title", icon="✅" if yes else "❌",
                   answer=t("platform.feishu.update_prompt.word_yes" if yes else "platform.feishu.update_prompt.word_no"))
@@ -1862,12 +1867,12 @@ class FeishuAdapter(BasePlatformAdapter):
         tmp_path.replace(response_path)
 
     async def send_voice(
-        self, chat_id: str, audio_path: str, caption: Optional[str] = None, reply_to: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None, **kwargs,
+        self, chat_id: str, audio_path: str, caption: str | None = None, reply_to: str | None = None,
+        metadata: dict[str, Any] | None = None, **kwargs,
     ) -> SendResult:
         """Native voice message (Feishu only accepts Opus): non-opus audio is transcoded via ffmpeg
         first; without ffmpeg the original file goes out as a file attachment."""
-        transcoded_path: Optional[str] = None
+        transcoded_path: str | None = None
         ext = Path(audio_path).suffix.lower()
         if ext not in _FEISHU_OPUS_UPLOAD_EXTENSIONS:
             from gateway.platforms.base import transcode_to_ogg_opus
@@ -1887,8 +1892,8 @@ class FeishuAdapter(BasePlatformAdapter):
                     pass
 
     async def send_document(
-        self, chat_id: str, file_path: str, caption: Optional[str] = None, file_name: Optional[str] = None,
-        reply_to: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None, **kwargs,
+        self, chat_id: str, file_path: str, caption: str | None = None, file_name: str | None = None,
+        reply_to: str | None = None, metadata: dict[str, Any] | None = None, **kwargs,
     ) -> SendResult:
         """Send a document/file attachment to Feishu."""
         return await self._send_uploaded_file_message(
@@ -1897,8 +1902,8 @@ class FeishuAdapter(BasePlatformAdapter):
         )
 
     async def send_video(
-        self, chat_id: str, video_path: str, caption: Optional[str] = None, reply_to: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None, **kwargs,
+        self, chat_id: str, video_path: str, caption: str | None = None, reply_to: str | None = None,
+        metadata: dict[str, Any] | None = None, **kwargs,
     ) -> SendResult:
         """Send a video file to Feishu."""
         return await self._send_uploaded_file_message(
@@ -1907,8 +1912,8 @@ class FeishuAdapter(BasePlatformAdapter):
         )
 
     async def send_image_file(
-        self, chat_id: str, image_path: str, caption: Optional[str] = None, reply_to: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None, **kwargs,
+        self, chat_id: str, image_path: str, caption: str | None = None, reply_to: str | None = None,
+        metadata: dict[str, Any] | None = None, **kwargs,
     ) -> SendResult:
         """Send a local image file to Feishu."""
         if not self._client:
@@ -1941,11 +1946,11 @@ class FeishuAdapter(BasePlatformAdapter):
 
     async def send_typing(self, chat_id: str, metadata=None) -> None:
         """Feishu bot API does not expose a typing indicator."""
-        return None
+        return
 
     async def send_image(
-        self, chat_id: str, image_url: str, caption: Optional[str] = None, reply_to: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        self, chat_id: str, image_url: str, caption: str | None = None, reply_to: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> SendResult:
         """Download a remote image then send it through the native Feishu image flow."""
         try:
@@ -1960,8 +1965,8 @@ class FeishuAdapter(BasePlatformAdapter):
         )
 
     async def send_animation(
-        self, chat_id: str, animation_url: str, caption: Optional[str] = None, reply_to: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        self, chat_id: str, animation_url: str, caption: str | None = None, reply_to: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> SendResult:
         """Feishu has no native GIF bubble; degrade to a downloadable file."""
         try:
@@ -1981,7 +1986,7 @@ class FeishuAdapter(BasePlatformAdapter):
             reply_to=reply_to, metadata=metadata,
         )
 
-    async def get_chat_info(self, chat_id: str) -> Dict[str, Any]:
+    async def get_chat_info(self, chat_id: str) -> dict[str, Any]:
         """Return real chat metadata from Feishu when available."""
         fallback = {"chat_id": chat_id, "name": chat_id, "type": "dm"}
         if not self._client:
@@ -2056,7 +2061,7 @@ class FeishuAdapter(BasePlatformAdapter):
         max_wait_seconds = 120.0  # safety cap: drop queue after 2 minutes
         waited = 0.0
 
-        def _take_all() -> List[Any]:
+        def _take_all() -> list[Any]:
             with self._pending_inbound_lock:
                 batch = self._pending_inbound_events[:]
                 self._pending_inbound_events.clear()
@@ -2166,7 +2171,9 @@ class FeishuAdapter(BasePlatformAdapter):
 
     def _on_meeting_invited_event(self, data: Any) -> None:
         """vc.bot.meeting_invited_v1 → feishu_meeting_invite.handle_meeting_invited_event."""
-        from plugins.platforms.feishu.feishu_meeting_invite import handle_meeting_invited_event
+        from plugins.platforms.feishu.feishu_meeting_invite import (
+            handle_meeting_invited_event,
+        )
         self._submit_if_ready("meeting invite event", lambda: handle_meeting_invited_event(self, data))
 
     def _on_reaction_event(self, event_type: str, data: Any) -> None:
@@ -2238,7 +2245,7 @@ class FeishuAdapter(BasePlatformAdapter):
         return "*" in allowed_ids or normalized in allowed_ids
 
     @staticmethod
-    def _card_response(card_data: Optional[Dict[str, Any]] = None) -> Any:
+    def _card_response(card_data: dict[str, Any] | None = None) -> Any:
         """Synchronous card-callback response; ``card_data`` updates the card inline."""
         if P2CardActionTriggerResponse is None:
             return None
@@ -2251,8 +2258,8 @@ class FeishuAdapter(BasePlatformAdapter):
         return response
 
     def _validate_card_action(
-        self, *, event: Any, state: Dict[str, str], label: str, ident: Any,
-    ) -> Optional[tuple[str, str, str]]:
+        self, *, event: Any, state: dict[str, str], label: str, ident: Any,
+    ) -> tuple[str, str, str] | None:
         """Shared operator/chat checks for approval + update-prompt clicks.
 
         Returns ``(open_id, callback_chat_id, user_name)`` or None (already logged).
@@ -2272,7 +2279,7 @@ class FeishuAdapter(BasePlatformAdapter):
             return None
         return open_id, callback_chat_id, self._get_cached_sender_name(open_id) or open_id
 
-    def _handle_approval_card_action(self, *, event: Any, action_value: Dict[str, Any], loop: Any) -> Any:
+    def _handle_approval_card_action(self, *, event: Any, action_value: dict[str, Any], loop: Any) -> Any:
         """Schedule approval resolution and build the synchronous callback response."""
         approval_id = action_value.get("approval_id")
         if approval_id is None:
@@ -2294,7 +2301,7 @@ class FeishuAdapter(BasePlatformAdapter):
             return self._card_response()
         return self._card_response(self._build_resolved_approval_card(choice=choice, user_name=user_name))
 
-    def _handle_update_prompt_card_action(self, *, event: Any, action_value: Dict[str, Any], loop: Any) -> Any:
+    def _handle_update_prompt_card_action(self, *, event: Any, action_value: dict[str, Any], loop: Any) -> Any:
         """Schedule update prompt resolution and build the synchronous callback response."""
         prompt_id = action_value.get("update_prompt_id")
         if prompt_id is None:
@@ -2318,9 +2325,9 @@ class FeishuAdapter(BasePlatformAdapter):
         return self._card_response(self._build_resolved_update_prompt_card(answer=answer, user_name=user_name))
 
     def _pop_validated_prompt_state(
-        self, *, states: Dict[int, Dict[str, str]], ident: Any, label: str, open_id: str, chat_id: str,
+        self, *, states: dict[int, dict[str, str]], ident: Any, label: str, open_id: str, chat_id: str,
         unauthorized_fmt: str, operator_repr: str,
-    ) -> Optional[Dict[str, str]]:
+    ) -> dict[str, str] | None:
         """Re-validate on the loop thread (state may have changed since the callback) and pop."""
         state = states.get(ident)
         if not state:
@@ -2537,13 +2544,16 @@ class FeishuAdapter(BasePlatformAdapter):
             logger.warning("[Feishu] %s reaction %s on %s raised", verb, ident, message_id, exc_info=True)
         return None
 
-    async def _add_reaction(self, message_id: str, emoji_type: str) -> Optional[str]:
+    async def _add_reaction(self, message_id: str, emoji_type: str) -> str | None:
         """Return the reaction_id on success, else None. The id is needed later for deletion."""
         if not self._client or not message_id or not emoji_type:
             return None
 
         def _build() -> Any:  # lazy SDK import stays inside the guarded call
-            from lark_oapi.api.im.v1 import CreateMessageReactionRequest, CreateMessageReactionRequestBody
+            from lark_oapi.api.im.v1 import (
+                CreateMessageReactionRequest,
+                CreateMessageReactionRequestBody,
+            )
             body = CreateMessageReactionRequestBody.builder().reaction_type({"emoji_type": emoji_type}).build()
             return CreateMessageReactionRequest.builder().message_id(message_id).request_body(body).build()
 
@@ -2727,7 +2737,7 @@ class FeishuAdapter(BasePlatformAdapter):
         )
 
     @staticmethod
-    async def _delayed_flush(task_map: Dict[str, asyncio.Task], key: str, delay: float, flush_now: Any) -> None:
+    async def _delayed_flush(task_map: dict[str, asyncio.Task], key: str, delay: float, flush_now: Any) -> None:
         """Sleep ``delay`` then flush; drop our own task handle from ``task_map`` (not a successor's)."""
         current_task = asyncio.current_task()
         try:
@@ -2791,8 +2801,8 @@ class FeishuAdapter(BasePlatformAdapter):
             return [FeishuAdapter._namespace_from_mapping(item) for item in value]
         return value
 
-    def _webhook_reject(self, remote_ip: str, anomaly: str, status: int, text: Optional[str] = None,
-                        json_msg: Optional[str] = None) -> Any:
+    def _webhook_reject(self, remote_ip: str, anomaly: str, status: int, text: str | None = None,
+                        json_msg: str | None = None) -> Any:
         """Record an anomaly for ``remote_ip`` and build the matching aiohttp error response."""
         self._record_webhook_anomaly(remote_ip, anomaly)
         if json_msg is not None:
@@ -2826,7 +2836,7 @@ class FeishuAdapter(BasePlatformAdapter):
         except ValueError:
             logger.warning("[Feishu] Webhook body exceeds limit from %s", remote_ip)
             return self._webhook_reject(remote_ip, "413", 413, "Request body too large")
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning("[Feishu] Webhook body read timed out after %ds from %s", _FEISHU_WEBHOOK_BODY_TIMEOUT_SECONDS, remote_ip)
             return self._webhook_reject(remote_ip, "408", 408, "Request Timeout")
         except Exception:
@@ -2898,7 +2908,7 @@ class FeishuAdapter(BasePlatformAdapter):
             return False
         try:
             body_str = body_bytes.decode("utf-8", errors="replace")
-            computed = hashlib.sha256(f"{timestamp}{nonce}{self._encrypt_key}{body_str}".encode("utf-8")).hexdigest()
+            computed = hashlib.sha256(f"{timestamp}{nonce}{self._encrypt_key}{body_str}".encode()).hexdigest()
             # Compare as bytes: compare_digest raises TypeError on non-ASCII str, and the header is remote input.
             return hmac.compare_digest(computed.encode(), signature.encode())
         except Exception:
@@ -2986,13 +2996,13 @@ class FeishuAdapter(BasePlatformAdapter):
         self._reschedule_batch_task(self._pending_text_batch_tasks, key, self._flush_text_batch)
 
     @staticmethod
-    def _reschedule_batch_task(task_map: Dict[str, asyncio.Task], key: str, flush_fn: Any) -> None:
+    def _reschedule_batch_task(task_map: dict[str, asyncio.Task], key: str, flush_fn: Any) -> None:
         prior_task = task_map.get(key)
         if prior_task and not prior_task.done():
             prior_task.cancel()
         task_map[key] = asyncio.create_task(flush_fn(key))
 
-    def _pop_text_batch(self, key: str) -> Optional[MessageEvent]:
+    def _pop_text_batch(self, key: str) -> MessageEvent | None:
         self._pending_text_batch_counts.pop(key, None)
         return self._pending_text_batches.pop(key, None)
 
@@ -3007,7 +3017,7 @@ class FeishuAdapter(BasePlatformAdapter):
 
     async def _extract_message_content(
         self, message: Any
-    ) -> tuple[str, MessageType, List[str], List[str], List[bool], List[FeishuMentionRef]]:
+    ) -> tuple[str, MessageType, list[str], list[str], list[bool], list[FeishuMentionRef]]:
         raw_content = getattr(message, "content", "") or ""
         raw_type = getattr(message, "message_type", "") or ""
         message_id = str(getattr(message, "message_id", "") or "")
@@ -3018,8 +3028,8 @@ class FeishuAdapter(BasePlatformAdapter):
         )
         inbound_type = self._resolve_normalized_message_type(normalized, media_types)
         text = normalized.text_content
-        media_text_inlined: List[bool] = []
-        inlined_parts: List[str] = []
+        media_text_inlined: list[bool] = []
+        inlined_parts: list[str] = []
         for media_url, media_type in zip(media_urls, media_types):
             extracted = await self._maybe_extract_text_document(media_url, media_type)
             media_text_inlined.append(bool(extracted))
@@ -3032,9 +3042,9 @@ class FeishuAdapter(BasePlatformAdapter):
 
     async def _download_feishu_message_resources(
         self, *, message_id: str, normalized: FeishuNormalizedMessage,
-    ) -> tuple[List[str], List[str]]:
-        media_urls: List[str] = []
-        media_types: List[str] = []
+    ) -> tuple[list[str], list[str]]:
+        media_urls: list[str] = []
+        media_types: list[str] = []
 
         def _collect(cached_path: str, media_type: str) -> None:
             if cached_path:
@@ -3061,7 +3071,7 @@ class FeishuAdapter(BasePlatformAdapter):
             return MessageType.VIDEO
         return default
 
-    def _resolve_normalized_message_type(self, normalized: FeishuNormalizedMessage, media_types: List[str]) -> MessageType:
+    def _resolve_normalized_message_type(self, normalized: FeishuNormalizedMessage, media_types: list[str]) -> MessageType:
         preferred = normalized.preferred_message_type
         if preferred == "audio":
             # Lark's native "audio" is an in-app voice recording (uploaded audio arrives as
@@ -3239,13 +3249,13 @@ class FeishuAdapter(BasePlatformAdapter):
         return "group" if normalized == "group" else "dm"
 
     @staticmethod
-    def _resolve_source_chat_type(*, chat_info: Dict[str, Any], event_chat_type: str) -> str:
+    def _resolve_source_chat_type(*, chat_info: dict[str, Any], event_chat_type: str) -> str:
         resolved = str(chat_info.get("type") or "").strip().lower()
         if resolved in {"group", "forum"}:
             return resolved
         return "dm" if event_chat_type == "p2p" else "group"
 
-    async def _resolve_sender_profile(self, sender_id: Any, *, is_bot: bool = False) -> Dict[str, Optional[str]]:
+    async def _resolve_sender_profile(self, sender_id: Any, *, is_bot: bool = False) -> dict[str, str | None]:
         """Map Feishu's ID tiers onto SessionSource: user_id (tenant) > open_id (app) as primary,
         union_id (developer-scoped, cross-app stable) as user_id_alt — session keys prefer the alt."""
         open_id = getattr(sender_id, "open_id", None) or None
@@ -3256,7 +3266,7 @@ class FeishuAdapter(BasePlatformAdapter):
         display_name = await self._resolve_sender_name_from_api(name_lookup_id, is_bot=is_bot)
         return {"user_id": primary_id, "user_name": display_name, "user_id_alt": union_id}
 
-    def _get_cached_sender_name(self, sender_id: Optional[str]) -> Optional[str]:
+    def _get_cached_sender_name(self, sender_id: str | None) -> str | None:
         """Return a cached sender name only while its TTL is still valid."""
         cached = self._sender_name_cache.get(sender_id) if sender_id else None
         if cached is None:
@@ -3267,7 +3277,7 @@ class FeishuAdapter(BasePlatformAdapter):
         self._sender_name_cache.pop(sender_id, None)
         return None
 
-    async def _resolve_sender_name_from_api(self, sender_id: Optional[str], *, is_bot: bool = False) -> Optional[str]:
+    async def _resolve_sender_name_from_api(self, sender_id: str | None, *, is_bot: bool = False) -> str | None:
         """Bots go via bot/basic_batch (contact API has no bot names). Failures are silent — never block the pipeline."""
         trimmed = sender_id.strip() if sender_id and self._client else ""
         if not trimmed:
@@ -3302,12 +3312,12 @@ class FeishuAdapter(BasePlatformAdapter):
             logger.debug("[Feishu] Failed to resolve sender name for %s", sender_id, exc_info=True)
         return None
 
-    async def _tenant_get_raw(self, uri: str, *, queries: Optional[List[tuple[str, str]]] = None) -> Any:
+    async def _tenant_get_raw(self, uri: str, *, queries: list[tuple[str, str]] | None = None) -> Any:
         """GET ``uri`` with the tenant token via the raw client; returns the raw response content."""
         resp = await self._run_blocking(self._client.request, _tenant_get_request(uri, queries=queries))
         return getattr(getattr(resp, "raw", None), "content", None)
 
-    async def _fetch_bot_names(self, bot_ids: List[str]) -> Optional[Dict[str, str]]:
+    async def _fetch_bot_names(self, bot_ids: list[str]) -> dict[str, str] | None:
         if not self._client or not bot_ids:
             return None
         try:
@@ -3325,7 +3335,7 @@ class FeishuAdapter(BasePlatformAdapter):
             logger.debug("[Feishu] Failed to fetch bot names for %s", bot_ids, exc_info=True)
             return None
 
-    async def _fetch_message_text(self, message_id: str) -> Optional[str]:
+    async def _fetch_message_text(self, message_id: str) -> str | None:
         if not self._client or not message_id:
             return None
         if message_id in self._message_text_cache:
@@ -3357,8 +3367,8 @@ class FeishuAdapter(BasePlatformAdapter):
             return None
 
     def _extract_text_from_raw_content(
-        self, *, msg_type: str, raw_content: str, mentions: Optional[Sequence[Any]] = None,
-    ) -> Optional[str]:
+        self, *, msg_type: str, raw_content: str, mentions: Sequence[Any] | None = None,
+    ) -> str | None:
         normalized = self._normalize(msg_type, raw_content, mentions)
         if normalized.text_content:
             return normalized.text_content
@@ -3380,7 +3390,7 @@ class FeishuAdapter(BasePlatformAdapter):
             logger.exception("[Feishu] Background inbound processing failed")
 
     # --- Inbound admission ---
-    def _admit(self, sender: Any, message: Any) -> Optional[RejectReason]:
+    def _admit(self, sender: Any, message: Any) -> RejectReason | None:
         sender_ids = _sender_identity(sender)
         self_ids = frozenset(v for v in (self._bot_open_id, self._bot_user_id) if v)
         is_bot = _is_bot_sender(sender)
@@ -3426,7 +3436,9 @@ class FeishuAdapter(BasePlatformAdapter):
         """
         if self._warned_empty_allowlist_deny:
             return
-        from plugins.platforms.feishu.feishu_admission_diagnostics import empty_allowlist_drop_warning
+        from plugins.platforms.feishu.feishu_admission_diagnostics import (
+            empty_allowlist_drop_warning,
+        )
         text = empty_allowlist_drop_warning(
             chat_id=chat_id, group_rules=self._group_rules,
             default_group_policy=self._default_group_policy, allowed_group_users=self._allowed_group_users,
@@ -3474,7 +3486,7 @@ class FeishuAdapter(BasePlatformAdapter):
         normalized = self._normalize(getattr(message, "message_type", "") or "", raw_content, getattr(message, "mentions", None))
         return self._post_mentions_bot(normalized.mentions)
 
-    def _message_mentions_bot(self, mentions: List[Any]) -> bool:
+    def _message_mentions_bot(self, mentions: list[Any]) -> bool:
         # Same precedence as _FeishuBotIdentity.matches (open_id > user_id > name); a non-empty
         # bot_name here only matches an exact stripped name, while an empty bot_name never matches.
         bot = self._bot_identity()
@@ -3488,7 +3500,7 @@ class FeishuAdapter(BasePlatformAdapter):
                 return True
         return False
 
-    def _post_mentions_bot(self, mentions: List[FeishuMentionRef]) -> bool:
+    def _post_mentions_bot(self, mentions: list[FeishuMentionRef]) -> bool:
         return any(m.is_self for m in mentions)
 
     def _bot_identity(self) -> _FeishuBotIdentity:
@@ -3560,7 +3572,7 @@ class FeishuAdapter(BasePlatformAdapter):
         now = time.time()
         ttl = _FEISHU_DEDUP_TTL_SECONDS
         if isinstance(seen_data, list):  # legacy format: plain list of IDs, no timestamps
-            entries: Dict[str, float] = {str(item).strip(): 0.0 for item in seen_data if str(item).strip()}
+            entries: dict[str, float] = {str(item).strip(): 0.0 for item in seen_data if str(item).strip()}
         elif isinstance(seen_data, dict):
             entries = {}
             for key, value in seen_data.items():
@@ -3572,7 +3584,7 @@ class FeishuAdapter(BasePlatformAdapter):
         else:
             return
         # Drop TTL-expired entries; ts=0.0 (legacy) is immortal for one migration cycle.
-        valid: Dict[str, float] = {m: ts for m, ts in entries.items() if ts == 0.0 or ttl <= 0 or now - ts < ttl}
+        valid: dict[str, float] = {m: ts for m, ts in entries.items() if ts == 0.0 or ttl <= 0 or now - ts < ttl}
         # Size cap keeps the most recently seen IDs.
         sorted_ids = sorted(valid, key=lambda k: valid[k], reverse=True)[:self._dedup_cache_size]
         self._seen_message_order = list(reversed(sorted_ids))
@@ -3654,8 +3666,8 @@ class FeishuAdapter(BasePlatformAdapter):
             return 0
 
     async def _send_uploaded_file_message(
-        self, *, chat_id: str, file_path: str, reply_to: Optional[str], metadata: Optional[Dict[str, Any]],
-        caption: Optional[str] = None, file_name: Optional[str] = None, outbound_message_type: str = "file",
+        self, *, chat_id: str, file_path: str, reply_to: str | None, metadata: dict[str, Any] | None,
+        caption: str | None = None, file_name: str | None = None, outbound_message_type: str = "file",
     ) -> SendResult:
         if not self._client:
             return SendResult(success=False, error="Not connected")
@@ -3714,8 +3726,8 @@ class FeishuAdapter(BasePlatformAdapter):
             return SendResult(success=False, error=str(exc))
 
     async def _send_uploaded_key(
-        self, *, chat_id: str, reply_to: Optional[str], metadata: Optional[Dict[str, Any]], caption: Optional[str],
-        key_msg_type: str, key_payload: Dict[str, str], media_tag: Dict[str, str],
+        self, *, chat_id: str, reply_to: str | None, metadata: dict[str, Any] | None, caption: str | None,
+        key_msg_type: str, key_payload: dict[str, str], media_tag: dict[str, str],
     ) -> Any:
         """Send an uploaded image/file key: as a captioned ``post`` or as a bare key message."""
         if caption:
@@ -3728,7 +3740,7 @@ class FeishuAdapter(BasePlatformAdapter):
             chat_id=chat_id, msg_type=msg_type, payload=payload, reply_to=reply_to, metadata=metadata,
         )
 
-    async def _fetch_last_message_in_thread(self, thread_id: str) -> Optional[str]:
+    async def _fetch_last_message_in_thread(self, thread_id: str) -> str | None:
         """Fetch the last message_id in a thread for reply-based routing."""
         if not self._client or not thread_id:
             return None
@@ -3745,7 +3757,7 @@ class FeishuAdapter(BasePlatformAdapter):
         return None
 
     async def _send_raw_message(
-        self, *, chat_id: str, msg_type: str, payload: str, reply_to: Optional[str], metadata: Optional[Dict[str, Any]],
+        self, *, chat_id: str, msg_type: str, payload: str, reply_to: str | None, metadata: dict[str, Any] | None,
     ) -> Any:
         thread_id = (metadata or {}).get("thread_id")
         effective_reply_to = reply_to or ((metadata or {}).get("reply_to_message_id") if thread_id else None)
@@ -3778,7 +3790,7 @@ class FeishuAdapter(BasePlatformAdapter):
         return getattr(data, field_name, None) if data else None
 
     def _response_error_result(
-        self, response: Any, *, default_message: str, override_error: Optional[str] = None,
+        self, response: Any, *, default_message: str, override_error: str | None = None,
     ) -> SendResult:
         if override_error:
             return SendResult(success=False, error=override_error, raw_response=response)
@@ -3826,7 +3838,7 @@ class FeishuAdapter(BasePlatformAdapter):
         See #73779.
         """
         backoff = initial_backoff = float(self._ws_restart_backoff)
-        last_dead: Optional[asyncio.Future] = None
+        last_dead: asyncio.Future | None = None
         while self._running:
             ws_future = self._ws_future
             if ws_future is None:
@@ -3923,12 +3935,12 @@ class FeishuAdapter(BasePlatformAdapter):
         return _build_lark_client(self._app_id, self._app_secret, domain)
 
     async def _feishu_send_with_retry(
-        self, *, chat_id: str, msg_type: str, payload: str, reply_to: Optional[str], metadata: Optional[Dict[str, Any]],
+        self, *, chat_id: str, msg_type: str, payload: str, reply_to: str | None, metadata: dict[str, Any] | None,
     ) -> Any:
-        last_error: Optional[Exception] = None
+        last_error: Exception | None = None
         active_reply_to = reply_to
 
-        async def _raw(reply_target: Optional[str]) -> Any:
+        async def _raw(reply_target: str | None) -> Any:
             return await self._send_raw_message(
                 chat_id=chat_id, msg_type=msg_type, payload=payload, reply_to=reply_target, metadata=metadata,
             )
@@ -4041,7 +4053,7 @@ class FeishuAdapter(BasePlatformAdapter):
     def _build_file_upload_body(*, file_type: str, file_name: str, file: Any, duration: int = 0) -> Any:
         if CreateFileRequestBody is None:
             return SimpleNamespace(file_type=file_type, file_name=file_name, file=file, duration=duration)
-        fields: Dict[str, Any] = {"file_type": file_type, "file_name": file_name, "file": file}
+        fields: dict[str, Any] = {"file_type": file_type, "file_name": file_name, "file": file}
         if duration > 0:
             fields["duration"] = duration
         return _sdk_build(CreateFileRequestBody, **fields)
@@ -4050,7 +4062,7 @@ class FeishuAdapter(BasePlatformAdapter):
     def _build_file_upload_request(request_body: Any) -> Any:
         return _sdk_build(CreateFileRequest, request_body=request_body)
 
-    def _build_media_post_payload(self, *, caption: str, media_tag: Dict[str, str]) -> str:
+    def _build_media_post_payload(self, *, caption: str, media_tag: dict[str, str]) -> str:
         payload = json.loads(_build_markdown_post_payload(caption))
         content = payload.setdefault("zh_cn", {}).setdefault("content", [])
         content.append([media_tag])
@@ -4080,7 +4092,7 @@ def _onboard_open_base_url(domain: str) -> str:
     return _ONBOARD_OPEN_URLS.get(domain, _ONBOARD_OPEN_URLS["feishu"])
 
 
-def _post_registration(base_url: str, body: Dict[str, str]) -> dict:
+def _post_registration(base_url: str, body: dict[str, str]) -> dict:
     """POST form data to the registration endpoint; parse JSON even on 4xx (poll's pending is a 400)."""
     req = Request(
         f"{base_url}{_REGISTRATION_PATH}", data=urlencode(body).encode("utf-8"),
@@ -4126,7 +4138,7 @@ def _begin_registration(domain: str = "feishu") -> dict:
     }
 
 
-def _poll_registration(*, device_code: str, interval: int, expire_in: int, domain: str = "feishu") -> Optional[dict]:
+def _poll_registration(*, device_code: str, interval: int, expire_in: int, domain: str = "feishu") -> dict | None:
     """Poll until scan (→ {app_id, app_secret, domain, open_id}), or None on denial/timeout."""
     deadline = time.monotonic() + expire_in
     current_domain = domain
@@ -4194,7 +4206,7 @@ def _render_qr(url: str) -> bool:
         return False
 
 
-def probe_bot(app_id: str, app_secret: str, domain: str) -> Optional[dict]:
+def probe_bot(app_id: str, app_secret: str, domain: str) -> dict | None:
     """Probe /open-apis/bot/v3/info → {"bot_name", "bot_open_id"} (app-scoped open_id, NOT app_id) or None.
 
     Onboarding runs before connect(), so load the SDK here instead of always falling back to HTTP.
@@ -4209,7 +4221,7 @@ def _build_onboard_client(app_id: str, app_secret: str, domain: str) -> Any:
     return _build_lark_client(app_id, app_secret, _sdk_domain(domain))
 
 
-def _parse_bot_response(data: dict) -> Optional[dict]:
+def _parse_bot_response(data: dict) -> dict | None:
     # /bot/v3/info returns bot.app_name; legacy paths used bot_name — accept both.
     if data.get("code") != 0:
         return None
@@ -4220,7 +4232,7 @@ def _parse_bot_response(data: dict) -> Optional[dict]:
     }
 
 
-def _probe_bot_sdk(app_id: str, app_secret: str, domain: str) -> Optional[dict]:
+def _probe_bot_sdk(app_id: str, app_secret: str, domain: str) -> dict | None:
     """Probe bot info using lark_oapi SDK."""
     try:
         resp = _build_onboard_client(app_id, app_secret, domain).request(_tenant_get_request("/open-apis/bot/v3/info"))
@@ -4231,11 +4243,11 @@ def _probe_bot_sdk(app_id: str, app_secret: str, domain: str) -> Optional[dict]:
         return None
 
 
-def _probe_bot_http(app_id: str, app_secret: str, domain: str) -> Optional[dict]:
+def _probe_bot_http(app_id: str, app_secret: str, domain: str) -> dict | None:
     """Fallback probe using raw HTTP (when lark_oapi is not installed)."""
     base_url = _onboard_open_base_url(domain)
 
-    def _get_json(path: str, *, data: Optional[bytes] = None, extra_headers: Optional[Dict[str, str]] = None) -> dict:
+    def _get_json(path: str, *, data: bytes | None = None, extra_headers: dict[str, str] | None = None) -> dict:
         headers = {**(extra_headers or {}), "Content-Type": "application/json"}
         with urlopen(Request(f"{base_url}{path}", data=data, headers=headers), timeout=_ONBOARD_REQUEST_TIMEOUT_S) as resp:
             return json.loads(resp.read().decode("utf-8"))
@@ -4255,7 +4267,7 @@ def _probe_bot_http(app_id: str, app_secret: str, domain: str) -> Optional[dict]
         return None
 
 
-def qr_register(*, initial_domain: str = "feishu", timeout_seconds: int = 600) -> Optional[dict]:
+def qr_register(*, initial_domain: str = "feishu", timeout_seconds: int = 600) -> dict | None:
     """Scan-to-create flow → {app_id, app_secret, domain, open_id, bot_name, bot_open_id}.
 
     None on expected failures (network, denied, timeout); unexpected errors propagate.
@@ -4267,7 +4279,7 @@ def qr_register(*, initial_domain: str = "feishu", timeout_seconds: int = 600) -
         return None
 
 
-def _qr_register_inner(*, initial_domain: str, timeout_seconds: int) -> Optional[dict]:
+def _qr_register_inner(*, initial_domain: str, timeout_seconds: int) -> dict | None:
     """Run init → begin → poll → probe. Raises on network/protocol errors."""
     print("  Connecting to Feishu / Lark...", end="", flush=True)
     _init_registration(initial_domain)
@@ -4347,9 +4359,15 @@ async def _standalone_send(pconfig, chat_id, message, *, thread_id=None, media_f
 
 def interactive_setup() -> None:
     """Interactive setup for Feishu / Lark — scan-to-create or manual creds (CLI helpers lazy-imported)."""
+    from hermes_cli.cli_output import (
+        print_header,
+        print_info,
+        print_success,
+        print_warning,
+        prompt,
+    )
     from hermes_cli.config import remove_env_value, save_env_value
     from hermes_cli.setup import prompt_choice
-    from hermes_cli.cli_output import prompt, print_header, print_info, print_success, print_warning
     from hermes_cli.setup_platforms import declines_reconfigure
 
     print_header("Feishu / Lark")

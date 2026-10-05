@@ -5,10 +5,13 @@ from __future__ import annotations
 import os
 import shlex
 import subprocess
-from typing import Callable, Iterable
+from collections.abc import Callable, Iterable
 
 from tools.environments.base_session_env import _SHELL_ENV_NAME_RE
-from tools.environments.local_env_policy import _is_hermes_internal_secret, _is_provider_env_blocklisted
+from tools.environments.local_env_policy import (
+    _is_hermes_internal_secret,
+    _is_provider_env_blocklisted,
+)
 
 
 def load_hermes_env_vars() -> dict[str, str]:
@@ -35,10 +38,12 @@ def resolve_passthrough_env(explicit_forward: Iterable[str] = (),
     passthrough_keys: set[str] = set()
     resolve_passthrough_value = None
     multiplex_active = False
-    is_global_env = lambda _name: False  # noqa: E731
+    is_global_env = lambda _name: False
     try:
+        from agent.secret_scope import _is_global_env as is_global_env
+        from agent.secret_scope import is_multiplex_active
+
         from tools.env_passthrough import get_all_passthrough, resolve_passthrough_value
-        from agent.secret_scope import _is_global_env as is_global_env, is_multiplex_active
         multiplex_active = is_multiplex_active()
         passthrough_keys = set(get_all_passthrough())
     except Exception:

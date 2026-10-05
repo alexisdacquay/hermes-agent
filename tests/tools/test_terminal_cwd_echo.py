@@ -8,10 +8,8 @@ diagnostics after directory changes.
 
 import json
 import os
-import tempfile
 
 import pytest
-
 from tools.terminal_tool import terminal_tool
 
 

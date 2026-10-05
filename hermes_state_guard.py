@@ -8,7 +8,7 @@ import sys
 import threading
 import weakref
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 try:  # Hard dependency, but tolerate scaffold-phase imports before pip install.
     import psutil
@@ -23,7 +23,7 @@ except ImportError:  # pragma: no cover - stripped/scaffold installs only
 _STATE_DB_GUARD_BYPASS_ENV = "HERMES_STATE_DB_GUARD_BYPASS"
 
 
-def _real_platform_state_root() -> Optional[Path]:
+def _real_platform_state_root() -> Path | None:
     """The REAL platform-default Hermes root. Avoids ``Path.home()`` /
     ``hermes_constants`` (tests monkeypatch Path.home to a tempdir); ``expanduser``
     reads HOME/passwd, which the conftest never rewrites."""
@@ -65,7 +65,7 @@ def _running_under_pytest() -> bool:
 _PYTEST_LAUNCHER_NAMES = frozenset({"pytest", "py.test", "pytest.exe", "py.test.exe"})
 
 #: Memoised ancestry answer: the tree above us doesn't change; keep the hot path free.
-_PYTEST_ANCESTOR: Optional[bool] = None
+_PYTEST_ANCESTOR: bool | None = None
 
 
 def _process_looks_like_pytest(proc: Any) -> bool:
@@ -138,7 +138,7 @@ def _is_production_state_db(resolved: Path, root: Path) -> bool:
 # Population is gated on the isolation marker (exported by tests/conftest.py
 # before any test module imports). Production processes never populate it;
 # do not "simplify" the gate away. WeakSet membership never pins an instance.
-_test_instance_registry: "weakref.WeakSet[Any]" = weakref.WeakSet()
+_test_instance_registry: weakref.WeakSet[Any] = weakref.WeakSet()
 
 
 def _register_test_instance(db: Any) -> None:
@@ -152,11 +152,11 @@ def _register_test_instance(db: Any) -> None:
 
 # Last SessionDB() init error, per-process; surfaced by /resume-style slash
 # commands so users know WHY. Only SessionDB.__init__ writes it.
-_last_init_error: Optional[str] = None
+_last_init_error: str | None = None
 _last_init_error_lock = threading.Lock()
 
 
-def _set_last_init_error(msg: Optional[str]) -> None:
+def _set_last_init_error(msg: str | None) -> None:
     """Record (or clear with None) the most recent init failure. __init__ never
     clears on success: a concurrent open would erase the cause another thread's
     /resume is about to format."""
@@ -165,6 +165,6 @@ def _set_last_init_error(msg: Optional[str]) -> None:
         _last_init_error = msg
 
 
-def get_last_init_error() -> Optional[str]:
+def get_last_init_error() -> str | None:
     """Most recent state.db init failure (None if none/never attempted)."""
     return _last_init_error

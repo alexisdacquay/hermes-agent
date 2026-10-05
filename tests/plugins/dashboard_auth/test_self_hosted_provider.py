@@ -19,16 +19,15 @@ import base64
 import json
 import time
 import urllib.parse
-from typing import Any, Dict
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import httpx
 import jwt
+import plugins.dashboard_auth.self_hosted as oidc_plugin
 import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
-
-import plugins.dashboard_auth.self_hosted as oidc_plugin
 from hermes_cli.dashboard_auth import (
     InvalidCodeError,
     ProviderError,
@@ -54,7 +53,7 @@ _DISCOVERY_DOC = {
 
 
 @pytest.fixture(scope="module")
-def rsa_keypair() -> Dict[str, Any]:
+def rsa_keypair() -> dict[str, Any]:
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     private_pem = key.private_bytes(
         encoding=serialization.Encoding.PEM,
@@ -86,7 +85,7 @@ def rsa_keypair() -> Dict[str, Any]:
 
 
 def _mint_id_token(
-    rsa_keypair: Dict[str, Any],
+    rsa_keypair: dict[str, Any],
     *,
     iss: str = _ISSUER,
     aud: str = _CLIENT_ID,
@@ -96,10 +95,10 @@ def _mint_id_token(
     groups: Any = None,
     org_id: str | None = None,
     ttl_seconds: int = 900,
-    extra_claims: Dict[str, Any] | None = None,
+    extra_claims: dict[str, Any] | None = None,
 ) -> str:
     now = int(time.time())
-    claims: Dict[str, Any] = {
+    claims: dict[str, Any] = {
         "iss": iss,
         "aud": aud,
         "sub": sub,
@@ -138,7 +137,7 @@ def _make_provider(
     doc (pass a list, or ``None`` to omit the key entirely); left unset, the
     discovery doc carries no auth-methods key (the absent-key default).
     """
-    kwargs: Dict[str, Any] = {"issuer": _ISSUER, "client_id": _CLIENT_ID}
+    kwargs: dict[str, Any] = {"issuer": _ISSUER, "client_id": _CLIENT_ID}
     if scopes is not None:
         kwargs["scopes"] = scopes
     if client_secret is not None:
@@ -252,9 +251,8 @@ class TestDiscovery:
         )
         with patch(
             "plugins.dashboard_auth.self_hosted.httpx.get", return_value=resp
-        ):
-            with pytest.raises(ProviderError, match="origin"):
-                p._fetch_discovery()
+        ), pytest.raises(ProviderError, match="origin"):
+            p._fetch_discovery()
 
     def test_redirect_landing_on_cleartext_rejected(self):
         p = self._provider()
@@ -263,9 +261,8 @@ class TestDiscovery:
         )
         with patch(
             "plugins.dashboard_auth.self_hosted.httpx.get", return_value=resp
-        ):
-            with pytest.raises(ProviderError, match="origin"):
-                p._fetch_discovery()
+        ), pytest.raises(ProviderError, match="origin"):
+            p._fetch_discovery()
 
     def test_same_origin_redirect_allowed(self):
         """Canonicalisation redirects on the issuer's own origin still pass."""
@@ -522,27 +519,25 @@ class TestCompleteLogin:
         )
         with patch(
             "plugins.dashboard_auth.self_hosted.httpx.post", return_value=mock_resp
-        ):
-            with pytest.raises(ProviderError, match="id_token"):
-                provider.complete_login(
-                    code="x",
-                    state="s",
-                    code_verifier="v",
-                    redirect_uri="https://hermes.example/auth/callback",
-                )
+        ), pytest.raises(ProviderError, match="id_token"):
+            provider.complete_login(
+                code="x",
+                state="s",
+                code_verifier="v",
+                redirect_uri="https://hermes.example/auth/callback",
+            )
 
     def test_400_raises_invalid_code(self, provider):
         mock_resp = _mock_post(400, {"error": "invalid_grant"})
         with patch(
             "plugins.dashboard_auth.self_hosted.httpx.post", return_value=mock_resp
-        ):
-            with pytest.raises(InvalidCodeError, match="invalid_grant"):
-                provider.complete_login(
-                    code="bad",
-                    state="s",
-                    code_verifier="v",
-                    redirect_uri="https://hermes.example/auth/callback",
-                )
+        ), pytest.raises(InvalidCodeError, match="invalid_grant"):
+            provider.complete_login(
+                code="bad",
+                state="s",
+                code_verifier="v",
+                redirect_uri="https://hermes.example/auth/callback",
+            )
 
 
 # ---------------------------------------------------------------------------

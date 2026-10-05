@@ -4,15 +4,15 @@ import time
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
-
 import gateway.run as gateway_run
+import pytest
 from agent.i18n import t
 from gateway.platforms.event import MessageEvent, MessageType
 from gateway.restart import (
     DEFAULT_GATEWAY_SIGNAL_INTERRUPT_GRACE_TIMEOUT,
 )
 from gateway.session import SessionEntry, build_session_key
+
 from tests.gateway.restart_test_helpers import make_restart_runner, make_restart_source
 
 
@@ -318,7 +318,7 @@ async def test_windows_detached_restart_scrubs_gateway_marker(monkeypatch, tmp_p
     monkeypatch.setattr(
         subprocess_compat,
         "windows_detach_popen_kwargs",
-        lambda: {},
+        dict,
     )
 
     def fake_popen(cmd, **kwargs):
@@ -335,8 +335,9 @@ async def test_windows_detached_restart_scrubs_gateway_marker(monkeypatch, tmp_p
     assert kwargs["env"].get("_HERMES_GATEWAY") is None
     # The watcher is an installation-bound command: PM's bootstrap selects the
     # dependency generation at child start, no venv is captured in its env.
-    from hermes_cli._launchers import runtime_command
     from pathlib import Path
+
+    from hermes_cli._launchers import runtime_command
     assert cmd[:3] == runtime_command(Path(gateway_run.__file__).resolve().parent.parent)[:3]
     assert kwargs["stdout"] is subprocess.DEVNULL
     assert kwargs["stderr"] is subprocess.DEVNULL
@@ -425,8 +426,8 @@ async def test_drain_suppress_skips_home_channel_keeps_session_ping(tmp_path, mo
     "your task was interrupted, message me to resume" hint). This is the core
     drain-notification-suppression contract.
     """
-    from gateway.config import HomeChannel, Platform
     import gateway.drain_control as dc
+    from gateway.config import HomeChannel, Platform
 
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
 
@@ -561,7 +562,7 @@ async def test_request_restart_skips_wait_for_cron_run_past_inflight_allowance(m
 
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
     monkeypatch.delenv("HERMES_AGENT_TIMEOUT", raising=False)
-    monkeypatch.setattr("cron.jobs.load_jobs", lambda: [])
+    monkeypatch.setattr("cron.jobs.load_jobs", list)
     runner, _adapter = make_restart_runner()
     runner.stop = AsyncMock()
     runner._restart_after_turn_timeout = 300.0  # would hang the test without the wedge bypass
@@ -638,7 +639,7 @@ async def test_request_restart_skips_wait_for_scope_isolated_cron_worker(monkeyp
     import cron.scheduler as sched
 
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
-    monkeypatch.setattr("cron.jobs.load_jobs", lambda: [])
+    monkeypatch.setattr("cron.jobs.load_jobs", list)
     runner, _adapter = make_restart_runner()
     runner.stop = AsyncMock()
     runner._restart_after_turn_timeout = 300.0  # would hang the test without the scope bypass
@@ -672,7 +673,7 @@ async def test_request_restart_still_waits_for_worker_without_its_own_scope(monk
     import cron.scheduler as sched
 
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
-    monkeypatch.setattr("cron.jobs.load_jobs", lambda: [])
+    monkeypatch.setattr("cron.jobs.load_jobs", list)
     runner, _adapter = make_restart_runner()
     runner._restart_after_turn_timeout = 300.0
     runner._scale_to_zero_status = MagicMock()
@@ -706,7 +707,7 @@ def test_same_job_id_scoped_in_one_profile_does_not_hide_degraded_in_another(mon
     """
     import cron.scheduler as sched
 
-    monkeypatch.setattr("cron.jobs.load_jobs", lambda: [])
+    monkeypatch.setattr("cron.jobs.load_jobs", list)
     runner, _adapter = make_restart_runner()
     home_a, home_b = tmp_path / "profile-a", tmp_path / "profile-b"
     try:
@@ -735,7 +736,7 @@ def test_same_job_id_wedged_in_one_profile_does_not_hide_live_run_in_another(mon
     import cron.scheduler as sched
 
     monkeypatch.delenv("HERMES_AGENT_TIMEOUT", raising=False)
-    monkeypatch.setattr("cron.jobs.load_jobs", lambda: [])
+    monkeypatch.setattr("cron.jobs.load_jobs", list)
     runner, _adapter = make_restart_runner()
     home_a, home_b = tmp_path / "profile-a", tmp_path / "profile-b"
     try:

@@ -9,7 +9,6 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from agent.conversation_compression_manual import compress_now, parse_compress_args
 
 

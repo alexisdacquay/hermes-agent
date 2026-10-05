@@ -33,7 +33,6 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
-
 from hermes_cli import main as m
 
 

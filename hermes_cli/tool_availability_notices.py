@@ -8,7 +8,7 @@ appear as secondary detail for toolsets with a single obvious key.
 
 from __future__ import annotations
 
-from typing import Callable, Iterable, Optional
+from collections.abc import Callable, Iterable
 
 # Toolsets whose ``env_vars`` list is a multi-provider dump that means nothing to a user; render one
 # sentence per toolset instead. Provider names must exist under plugins/web/ (or be the Nous-managed row).
@@ -55,13 +55,13 @@ def current_terminal_backend() -> str:
     return str(_get_env_config().get("env_type") or "local")
 
 
-def _terminal_line(backend: str, reason: Optional[str]) -> str:
+def _terminal_line(backend: str, reason: str | None) -> str:
     detail = f" ({reason})" if reason else ""
     return (f"[yellow]⚠ Terminal tool disabled:[/] the '{backend}' backend is not usable{detail}. "
             "Run [bold]hermes doctor[/] for details, or [bold]hermes setup terminal[/] to pick another backend.")
 
 
-def tool_availability_warning_lines(unavailable: list[dict], *, terminal_reason: Optional[str],
+def tool_availability_warning_lines(unavailable: list[dict], *, terminal_reason: str | None,
                                     terminal_backend: str = "local") -> list[str]:
     """Rich-markup lines to print at CLI startup for *unavailable* toolsets; ``[]`` when there is nothing
     worth saying. ``terminal_reason`` is ``terminal_backend_unavailable_reason()`` (None when unknown)."""

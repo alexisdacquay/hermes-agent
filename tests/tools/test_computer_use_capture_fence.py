@@ -7,7 +7,6 @@ import base64
 import json
 
 import pytest
-
 from tools.bot_desktop import lease
 from tools.computer_use import tool
 from tools.computer_use.backend import ActionResult, CaptureResult

@@ -3,15 +3,14 @@ service (no BotFather copy-paste); the raw Telegram token is saved locally after
 
 from __future__ import annotations
 
-from pm import install_hint
 import os
 import re
 import sys
 import time
 from dataclasses import dataclass
-from typing import Optional
 
 import httpx
+from pm import install_hint
 
 # Nous-hosted pairing API; override for PoC/staging with TELEGRAM_ONBOARDING_URL.
 DEFAULT_API_URL = "https://setup.hermes-agent.nousresearch.com"
@@ -64,6 +63,7 @@ def render_qr_terminal(url: str) -> str:
     """Render a URL as a QR code string suitable for terminal output."""
     try:
         import io
+
         import qrcode  # type: ignore[import-untyped]
     except ImportError:
         return ""
@@ -127,7 +127,7 @@ def poll_pairing_result_once(
 
 def poll_for_setup_result(
     api_url: str | None, pairing: TelegramPairing, timeout: float = DEFAULT_POLL_TIMEOUT,
-    interval: float = POLL_INTERVAL, on_tick=None) -> Optional[TelegramBotSetupResult]:
+    interval: float = POLL_INTERVAL, on_tick=None) -> TelegramBotSetupResult | None:
     """Poll the pairing API until setup metadata is available or timeout. ``on_tick(elapsed_s)``
     runs before each attempt (progress display)."""
     start = time.monotonic()
@@ -146,8 +146,8 @@ def poll_for_setup_result(
 
 def auto_setup_telegram_bot_result(
     api_url: str | None = None, manager_bot: str = "HermesSetupBot",
-    profile_name: Optional[str] = None, poll_timeout: float = DEFAULT_POLL_TIMEOUT,
-) -> Optional[TelegramBotSetupResult]:
+    profile_name: str | None = None, poll_timeout: float = DEFAULT_POLL_TIMEOUT,
+) -> TelegramBotSetupResult | None:
     """Run the full automatic Telegram bot creation flow."""
     _ = manager_bot, profile_name  # accepted for callers; the service decides both
     resolved_api_url = _api_url(api_url)

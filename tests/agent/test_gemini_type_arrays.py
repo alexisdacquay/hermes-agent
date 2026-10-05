@@ -2,7 +2,6 @@
 import copy
 
 import pytest
-
 from agent.gemini_native_adapter import _translate_tools_to_gemini
 
 

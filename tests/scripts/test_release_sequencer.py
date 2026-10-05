@@ -6,6 +6,7 @@ it; already-resolvable older green claims still make progress.
 """
 import hashlib
 import json
+from datetime import UTC
 
 import pytest
 
@@ -69,11 +70,11 @@ def test_a_running_newer_claim_does_not_flush_a_held_draft():
 
 
 def test_unstarted_claim_waits_for_its_grace_period_before_burning():
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
     from scripts.releases.sequencer import classify_runs
 
-    claimed = datetime(2026, 9, 22, 1, 0, tzinfo=timezone.utc)
+    claimed = datetime(2026, 9, 22, 1, 0, tzinfo=UTC)
     assert classify_runs([], claimed_at=claimed, now=claimed + timedelta(minutes=59)) == (
         "running", None,
     )
@@ -108,7 +109,7 @@ def test_failed_run_retries_twice_before_burning():
 @pytest.mark.parametrize(("attempt", "reruns"), [(1, True), (3, False)])
 def test_the_pass_that_observes_a_failure_reruns_it_unless_burned(attempt, reruns):
     """No cron re-wakes the reconciler, so the failure event's own pass must rerun."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from scripts.releases.sequencer import reconcile
 
@@ -117,7 +118,7 @@ def test_the_pass_that_observes_a_failure_reruns_it_unless_burned(attempt, rerun
     failed = {
         "id": 42, "status": "completed", "conclusion": "failure", "run_attempt": attempt,
         # Completed this instant: the pass observing the failure event.
-        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(UTC).isoformat(),
         "head_branch": "rc.1-v0.21.5", "head_sha": commit,
     }
     discover_run = _discover_run(tags, workflow_runs=[failed])

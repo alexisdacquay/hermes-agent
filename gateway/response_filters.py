@@ -7,7 +7,7 @@ not what should be persisted in conversation history.
 from __future__ import annotations
 
 import unicodedata
-from typing import Any, Optional
+from typing import Any
 
 # Exact whole-response markers meaning "the agent intentionally chose not to
 # reply". Keep small and explicit; arbitrary empty output remains an
@@ -123,12 +123,12 @@ def is_machinery_display_kind(display_kind: Any) -> bool:
     return display_kind in MACHINERY_DISPLAY_KINDS
 
 
-def silence_allowed(display_kind: Any, reply_expected: Optional[bool] = None) -> bool:
+def silence_allowed(display_kind: Any, reply_expected: bool | None = None) -> bool:
     """Whether a successful bare silence marker may remain silent for this turn."""
     return is_machinery_display_kind(display_kind) or reply_expected is False
 
 
-def reply_expected_metadata(reply_expected: Optional[bool]) -> dict:
+def reply_expected_metadata(reply_expected: bool | None) -> dict:
     """The persisted user row's ``reply_expected`` key, only when the adapter knew; crash recovery
     reads it back to judge a silence marker as the live turn did."""
     return {} if reply_expected is None else {"reply_expected": reply_expected}

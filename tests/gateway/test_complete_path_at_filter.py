@@ -23,7 +23,6 @@ import os
 from pathlib import Path
 
 import pytest
-
 from tui_gateway import server
 
 

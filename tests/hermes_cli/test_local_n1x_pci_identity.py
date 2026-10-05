@@ -13,7 +13,6 @@ from dataclasses import replace
 from types import SimpleNamespace
 
 import pytest
-
 from hermes_cli.local_runtime import catalog, hardware
 
 

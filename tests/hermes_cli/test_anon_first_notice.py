@@ -5,7 +5,6 @@ import json
 import time
 
 import pytest
-
 from hermes_cli import anon_auth
 from hermes_cli.auth import _auth_store_lock, _load_auth_store, _save_auth_store
 from hermes_cli.cli_agent_setup_mixin import CLIAgentSetupMixin

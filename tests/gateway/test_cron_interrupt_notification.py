@@ -16,10 +16,11 @@ saw cron work because cron runs outside ``_running_agents`` (#60432).
 from unittest.mock import patch
 
 import pytest
-
 from gateway.config import Platform
-from tests.gateway.restart_test_helpers import make_restart_runner
 from tools import browser_tool_lifecycle as bt_lifecycle
+
+from tests.gateway.restart_test_helpers import make_restart_runner
+
 
 @pytest.fixture(autouse=True)
 def _reset_cron_running_set():

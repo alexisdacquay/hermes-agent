@@ -12,7 +12,6 @@ export consumers (trace upload, context guard) read the transcript as-is.
 """
 
 import pytest
-
 from hermes_state import SessionDB
 
 

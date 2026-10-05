@@ -14,8 +14,13 @@ def _cu_install(args) -> int:
 
 def _cu_status(args) -> int:
     import os as _os
-    from hermes_cli.tools_config_cua import _cua_driver_contract_status, _cua_version_summary
+
     from tools.computer_use.cua_backend_driver import resolve_cua_driver_cmd
+
+    from hermes_cli.tools_config_cua import (
+        _cua_driver_contract_status,
+        _cua_version_summary,
+    )
 
     path = resolve_cua_driver_cmd()
     override = _os.environ.get("HERMES_CUA_DRIVER_CMD", "").strip()
@@ -63,7 +68,12 @@ def _cu_doctor(args) -> None:
 
 def _cu_perms_status(args) -> None:
     import json as _json
-    from tools.computer_use.permissions import TCC_FIELDS, computer_use_status, stale_tcc_grant_hint
+
+    from tools.computer_use.permissions import (
+        TCC_FIELDS,
+        computer_use_status,
+        stale_tcc_grant_hint,
+    )
     st = computer_use_status()
     if bool(getattr(args, "json", False)):
         print(_json.dumps(st, indent=2, sort_keys=True))
@@ -74,7 +84,7 @@ def _cu_perms_status(args) -> None:
     if not st["installed"]:
         print("cua-driver: not installed. Run: hermes computer-use install")
         sys.exit(1)
-    glyph = lambda v: "✅" if v is True else ("❌" if v is False else "•")  # noqa: E731
+    glyph = lambda v: "✅" if v is True else ("❌" if v is False else "•")
     print(f"cua-driver: {st['version'] or 'installed'} ({st['platform']})")
     if st["can_grant"]:  # macOS TCC permissions
         print(f"  {glyph(st['accessibility'])} Accessibility")

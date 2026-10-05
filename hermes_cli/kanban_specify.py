@@ -17,12 +17,11 @@ import logging
 import os
 import re
 from dataclasses import dataclass
-from typing import Optional
+
+from utils import env_int
 
 from hermes_cli import kanban_db as kb
 from hermes_cli import kanban_db_connect as kbc
-
-from utils import env_int
 
 HERMES_KANBAN_SPECIFY_MAX_TOKENS = max(1500, env_int("HERMES_KANBAN_SPECIFY_MAX_TOKENS", 6000))
 
@@ -75,7 +74,7 @@ class SpecifyOutcome:
     task_id: str
     ok: bool
     reason: str = ""
-    new_title: Optional[str] = None
+    new_title: str | None = None
 
 
 def _truncate(text: str, limit: int) -> str:
@@ -88,7 +87,7 @@ def _truncate(text: str, limit: int) -> str:
 _FENCE_RE = re.compile(r"^\s*```(?:json)?\s*|\s*```\s*$", re.IGNORECASE)
 
 
-def _extract_json_blob(raw: str, fence_re: re.Pattern = _FENCE_RE) -> Optional[dict]:
+def _extract_json_blob(raw: str, fence_re: re.Pattern = _FENCE_RE) -> dict | None:
     """Lenient JSON object extraction: strip code fences, take the first ``{``
     to the last ``}``. None if nothing parses to a dict."""
     if not raw:
@@ -105,11 +104,11 @@ def _extract_json_blob(raw: str, fence_re: re.Pattern = _FENCE_RE) -> Optional[d
     return val if isinstance(val, dict) else None
 
 
-def _nonblank(v) -> Optional[str]:
+def _nonblank(v) -> str | None:
     return v if isinstance(v, str) and v.strip() else None
 
 
-def _title_body(parsed: dict) -> tuple[Optional[str], Optional[str]]:
+def _title_body(parsed: dict) -> tuple[str | None, str | None]:
     """``(title, body)`` from an LLM reply: title stripped, body verbatim,
     either None when missing/blank."""
     title = _nonblank(parsed.get("title"))
@@ -123,7 +122,7 @@ def _profile_author(default: str = "specifier") -> str:
     return current_profile_name() or os.environ.get("USER") or default
 
 
-def _load_triage_task(task_id: str) -> tuple[Optional[kb.Task], str]:
+def _load_triage_task(task_id: str) -> tuple[kb.Task | None, str]:
     """``(task, "")`` when the task exists and is in triage, else ``(None, reason)``."""
     with kbc.connect_closing() as conn:
         task = kb.get_task(conn, task_id)
@@ -144,7 +143,7 @@ def _task_prompt_fields(task: kb.Task) -> dict[str, str]:
 
 
 def _call_aux(verb: str, task_id: str, *, aux_task: str, system: str, user: str,
-              max_tokens: int, timeout: int, log: logging.Logger = logger) -> tuple[Optional[str], str]:
+              max_tokens: int, timeout: int, log: logging.Logger = logger) -> tuple[str | None, str]:
     """One auxiliary LLM call; ``(reply_text, "")`` or ``(None, reason)``.
 
     ``call_llm`` applies all ``auxiliary.<aux_task>.*`` config (provider/model/
@@ -161,7 +160,11 @@ def _call_aux(verb: str, task_id: str, *, aux_task: str, system: str, user: str,
     # OpenRouter/Portal sticky key) are omitted — the OpenCode Go relay rejects that with 400
     # MissingSessionID (#112043). Declare a per-task scope, but only when none is already bound so an
     # in-turn caller keeps its conversation's key.
-    from agent.portal_tags import get_affinity_scope, reset_affinity_scope, set_affinity_scope
+    from agent.portal_tags import (
+        get_affinity_scope,
+        reset_affinity_scope,
+        set_affinity_scope,
+    )
     affinity_token = None if get_affinity_scope() else set_affinity_scope(f"kanban:{task_id}")
     try:
         # Route through call_llm so auxiliary.triage_specifier.* config (provider/model/base_url,
@@ -190,8 +193,8 @@ def _call_aux(verb: str, task_id: str, *, aux_task: str, system: str, user: str,
 def specify_task(
     task_id: str,
     *,
-    author: Optional[str] = None,
-    timeout: Optional[int] = None,
+    author: str | None = None,
+    timeout: int | None = None,
 ) -> SpecifyOutcome:
     """Specify one triage task and promote it to ``todo``. Expected failures
     (not in triage, no aux client, API error, malformed reply) surface as
@@ -234,7 +237,7 @@ def specify_task(
     return SpecifyOutcome(task_id, True, "specified", new_title=new_title)
 
 
-def list_triage_ids(*, tenant: Optional[str] = None) -> list[str]:
+def list_triage_ids(*, tenant: str | None = None) -> list[str]:
     """Task ids in the triage column; ``tenant`` narrows the sweep."""
     with kbc.connect_closing() as conn:
         tasks = kb.list_tasks(conn, status="triage", tenant=tenant, include_archived=False)

@@ -16,7 +16,6 @@ Covers the copilot-acp fix class:
 import os
 
 import pytest
-
 from hermes_cli.auth import (
     get_auth_status,
     get_external_process_provider_status,

@@ -14,7 +14,7 @@ with the sentinel split + no-elements guidance note.
 from __future__ import annotations
 
 import base64
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import pytest
 
@@ -31,11 +31,11 @@ class _FakeSession:
 
     def __init__(
         self,
-        windows: Optional[List[Dict[str, Any]]] = None,
-        desktop_image: Optional[str] = _PNG_B64,
+        windows: list[dict[str, Any]] | None = None,
+        desktop_image: str | None = _PNG_B64,
         capture_scope: str = "window",
     ):
-        self.calls: List[tuple] = []
+        self.calls: list[tuple] = []
         self._windows = windows or []
         self._desktop_image = desktop_image
         self._scope = capture_scope
@@ -44,7 +44,7 @@ class _FakeSession:
     def _has_tool(self, name: str) -> bool:
         return name in {"get_desktop_state", "screenshot", "list_windows"}
 
-    def call_tool(self, name: str, args: Dict[str, Any], timeout: float = 30.0):
+    def call_tool(self, name: str, args: dict[str, Any], timeout: float = 30.0):
         self.calls.append((name, dict(args or {})))
         if name == "get_config":
             return {
@@ -83,7 +83,7 @@ class _FakeSession:
             }
         raise AssertionError(f"unexpected tool call: {name}")
 
-    def called(self, name: str) -> List[Dict[str, Any]]:
+    def called(self, name: str) -> list[dict[str, Any]]:
         return [a for (n, a) in self.calls if n == name]
 
 
@@ -208,8 +208,8 @@ class TestDesktopShellLane:
 class TestNoteInSummary:
     def test_capture_response_appends_note_line(self, tmp_path, monkeypatch):
         import hermes_constants
-        from tools.computer_use.backend import CaptureResult
         from tools.computer_use import tool as cu_tool
+        from tools.computer_use.backend import CaptureResult
 
         monkeypatch.setattr(hermes_constants, "get_hermes_dir",
                             lambda *a, **k: tmp_path)

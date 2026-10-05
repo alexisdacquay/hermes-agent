@@ -13,9 +13,8 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-import pytest
-
 import hermes_constants as hc
+import pytest
 
 
 def _uncached(path=None) -> str:

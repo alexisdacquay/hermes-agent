@@ -1,7 +1,6 @@
 """Tests for gh-copilot CLI deprecation detection and GitHub Models Azure URL mapping."""
 
 import pytest
-
 from agent.copilot_acp_client import _is_gh_copilot_deprecation_message
 
 

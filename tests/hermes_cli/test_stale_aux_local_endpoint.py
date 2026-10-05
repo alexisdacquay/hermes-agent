@@ -1,7 +1,6 @@
 """Aux pins on local/LAN endpoints are not "stale" — they never bill a provider (#106228)."""
 
 import pytest
-
 from agent.model_metadata import is_local_endpoint
 from hermes_cli.web_server_config import _stale_aux_pins
 

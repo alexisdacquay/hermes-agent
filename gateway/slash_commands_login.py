@@ -13,9 +13,10 @@ from typing import Any
 from uuid import uuid4
 
 from agent.i18n import t
+from hermes_cli import anon_auth
+
 from gateway.run_agent_cache import _first_agent
 from gateway.slash_access import policy_for_runner_source
-from hermes_cli import anon_auth
 
 logger = logging.getLogger("gateway.run")
 

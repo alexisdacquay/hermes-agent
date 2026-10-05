@@ -15,11 +15,12 @@ notifier, slash command and dispatcher keep working without a new service.
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
 import json
 import sqlite3
 import time
-from typing import Any, Iterable, Optional
+from collections.abc import Iterable
+from dataclasses import asdict, dataclass, field
+from typing import Any
 
 from hermes_cli import kanban_db as kb
 
@@ -35,7 +36,7 @@ class SwarmWorkerSpec:
     body: str
     skills: list[str] = field(default_factory=list)
     priority: int = 0
-    max_runtime_seconds: Optional[int] = None
+    max_runtime_seconds: int | None = None
 
 
 @dataclass(frozen=True)
@@ -110,15 +111,15 @@ def create_swarm(
     workers: Iterable[SwarmWorkerSpec],
     verifier_assignee: str,
     synthesizer_assignee: str,
-    root_title: Optional[str] = None,
+    root_title: str | None = None,
     verifier_title: str = "Verify swarm outputs",
     synthesizer_title: str = "Synthesize swarm outputs",
-    tenant: Optional[str] = None,
+    tenant: str | None = None,
     created_by: str = "swarm-orchestrator",
-    workspace_kind: Optional[str] = None,
-    workspace_path: Optional[str] = None,
+    workspace_kind: str | None = None,
+    workspace_path: str | None = None,
     priority: int = 0,
-    idempotency_key: Optional[str] = None,
+    idempotency_key: str | None = None,
 ) -> SwarmCreated:
     """Atomically create a durable, immediately dispatchable Kanban swarm."""
     activation_summary = "Swarm topology planned; root remains the shared blackboard."
@@ -164,9 +165,9 @@ def create_swarm(
 
 def _create_swarm_uncommitted(
     conn: sqlite3.Connection, *, goal: str, workers: Iterable[SwarmWorkerSpec],
-    verifier_assignee: str, synthesizer_assignee: str, root_title: Optional[str],
-    verifier_title: str, synthesizer_title: str, tenant: Optional[str], created_by: str,
-    workspace_kind: Optional[str], workspace_path: Optional[str], priority: int, idempotency_key: Optional[str],
+    verifier_assignee: str, synthesizer_assignee: str, root_title: str | None,
+    verifier_title: str, synthesizer_title: str, tenant: str | None, created_by: str,
+    workspace_kind: str | None, workspace_path: str | None, priority: int, idempotency_key: str | None,
 ) -> SwarmCreated:
     """Create the swarm graph inside the caller's transaction: planning root
     (``blocked`` until the caller activates it), parallel workers, a verifier

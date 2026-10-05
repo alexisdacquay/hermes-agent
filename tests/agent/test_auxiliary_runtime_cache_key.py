@@ -6,9 +6,8 @@
 """
 
 
-import pytest
-
 import agent.auxiliary_client as aux
+import pytest
 
 
 @pytest.fixture(autouse=True)

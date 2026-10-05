@@ -9,14 +9,11 @@ wrappers (git/gh can block).
 import asyncio
 import shutil
 import time
-from typing import Optional
 
 from fastapi import APIRouter, HTTPException
 
 from hermes_cli import web_git as _web_git
 from hermes_cli._subprocess_compat import bounded_probe_run
-from hermes_cli.web_deps import late
-from hermes_cli.web_server_files import _fs_path
 from hermes_cli.web_models import (
     GitBranchSwitchBody,
     GitCommitBody,
@@ -26,6 +23,7 @@ from hermes_cli.web_models import (
     GitWorktreeAddBody,
     GitWorktreeRemoveBody,
 )
+from hermes_cli.web_server_files import _fs_path
 
 router = APIRouter()
 
@@ -55,8 +53,8 @@ async def git_status_route(path: str):
 # gh-CLI skills are the better integration), so the pill offers `/github-auth` —
 # only to users who aren't already authenticated.
 _GH_AUTH_TTL_S = 300.0
-_gh_auth_cache: Optional[tuple] = None  # (monotonic_ts, payload)
-_gh_auth_probe_task: Optional[asyncio.Task] = None
+_gh_auth_cache: tuple | None = None  # (monotonic_ts, payload)
+_gh_auth_probe_task: asyncio.Task | None = None
 _gh_auth_probe_started = 0.0  # monotonic start of _gh_auth_probe_task
 
 
@@ -121,13 +119,13 @@ async def git_base_branches_route(path: str):
 
 
 @router.get("/api/git/review/list")
-async def git_review_list_route(path: str, scope: str = "uncommitted", base: Optional[str] = None):
+async def git_review_list_route(path: str, scope: str = "uncommitted", base: str | None = None):
     return await _git_op(_web_git.review_list, _git_path(path), scope, base)
 
 
 @router.get("/api/git/review/diff")
 async def git_review_diff_route(
-    path: str, file: str, scope: str = "uncommitted", base: Optional[str] = None, staged: bool = False
+    path: str, file: str, scope: str = "uncommitted", base: str | None = None, staged: bool = False
 ):
     return {"diff": await _git_op(_web_git.review_diff, _git_path(path), file, scope, base, staged)}
 
@@ -143,7 +141,7 @@ async def git_commit_context_route(path: str):
 
 
 @router.get("/api/git/review/rev-parse")
-async def git_rev_parse_route(path: str, ref: Optional[str] = None):
+async def git_rev_parse_route(path: str, ref: str | None = None):
     return {"sha": await _git_op(_web_git.review_rev_parse, _git_path(path), ref)}
 
 

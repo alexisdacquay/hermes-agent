@@ -9,9 +9,8 @@ import json
 import os
 import sqlite3
 
-import pytest
-
 import hermes_cli.browser_connect as bc
+import pytest
 
 _LOCKED = ("Login Data", "Login Data For Account", "Web Data")
 

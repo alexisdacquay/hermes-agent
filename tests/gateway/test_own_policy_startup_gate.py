@@ -1,7 +1,6 @@
 """Regression tests for own-policy open startup gate in gateway/run.py."""
 
 import pytest
-
 from gateway.config import GatewayConfig, Platform, PlatformConfig
 from gateway.run import GatewayRunner
 

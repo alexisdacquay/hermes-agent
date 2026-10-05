@@ -30,14 +30,11 @@ Claude Code witness lives in ``test_anthropic_oauth_stress.py``.
 
 from __future__ import annotations
 
-from typing import Dict
-
 import threading
 import time
 from dataclasses import replace as dc_replace
 
 import pytest
-
 from agent.credential_pool import (
     AUTH_TYPE_OAUTH,
     STATUS_EXHAUSTED,
@@ -69,7 +66,7 @@ def _fake_pool_store(monkeypatch):
     other's persisted writes (exactly what the real cross-process recovery
     path depends on), without touching the real filesystem.
     """
-    store: Dict[str, list] = {}
+    store: dict[str, list] = {}
 
     def _write(provider, entries, *, removed_ids=None, status_cleared_ids=None, token_bases=None):
         store[provider] = list(entries)

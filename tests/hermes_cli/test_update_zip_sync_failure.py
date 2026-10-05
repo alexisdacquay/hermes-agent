@@ -1,10 +1,9 @@
 """ZIP and Git-error fallback return the completion owner's exact failure."""
-from types import SimpleNamespace
 import subprocess
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
-
 from hermes_cli import main, update_cmd, update_cmd_zip
 
 

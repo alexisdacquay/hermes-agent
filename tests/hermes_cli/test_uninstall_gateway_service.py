@@ -13,9 +13,7 @@ from __future__ import annotations
 import platform
 
 import pytest
-
-import hermes_cli.gateway as gateway
-import hermes_cli.uninstall as uninstall
+from hermes_cli import gateway, uninstall
 
 
 @pytest.fixture

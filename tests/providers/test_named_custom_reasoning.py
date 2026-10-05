@@ -1,7 +1,7 @@
 """Named custom routes use the same reasoning contract as bare custom."""
+from agent.transports.chat_completions import ChatCompletionsTransport
 from providers import get_provider_profile, register_provider
 from providers.base import ProviderProfile
-from agent.transports.chat_completions import ChatCompletionsTransport
 
 
 def test_named_custom_route_keeps_final_reasoning_effort():

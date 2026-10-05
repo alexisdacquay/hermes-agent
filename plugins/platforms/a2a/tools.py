@@ -10,9 +10,10 @@ import logging
 import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any, Optional
+from typing import Any
 
-from gateway.platforms._shared import coerce_port as _coerce_int, get_scoped_secret as _get_scoped_secret
+from gateway.platforms._shared import coerce_port as _coerce_int
+from gateway.platforms._shared import get_scoped_secret as _get_scoped_secret
 
 from . import protocol, security
 
@@ -37,7 +38,7 @@ def _peer_from_entry(entry: dict, **extra: Any) -> dict:
             "timeout": int(entry.get("timeout", _DEFAULT_TIMEOUT)), **extra}
 
 
-def _resolve_peer(agent: str) -> Optional[dict]:
+def _resolve_peer(agent: str) -> dict | None:
     """Peer name -> {url, auth, timeout, capabilities, tenant}, or treat ``agent`` as a URL."""
     if agent.startswith(("http://", "https://")):
         return {"url": agent, "auth": {}, "timeout": _DEFAULT_TIMEOUT, "capabilities": []}
@@ -49,9 +50,9 @@ def _auth_header(auth: dict) -> dict:
     return {"Authorization": f"Bearer {auth['token']}"} if auth and auth.get("type") == "bearer" and auth.get("token") else {}
 
 
-def _http_json(url: str, headers: dict, timeout: int, method: str, data: Optional[bytes] = None) -> dict:
+def _http_json(url: str, headers: dict, timeout: int, method: str, data: bytes | None = None) -> dict:
     req = urllib.request.Request(url, data=data, headers=headers, method=method)
-    with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310 (configured peers)
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
         return json.loads(resp.read().decode("utf-8"))
 
 
@@ -75,7 +76,7 @@ def _fetch_card(base_url: str, headers: dict, timeout: int) -> dict:
     return _http_get_json(base + "/.well-known/agent.json", headers, timeout)
 
 
-def _select_jsonrpc_interface(card: Optional[dict]) -> Optional[dict]:
+def _select_jsonrpc_interface(card: dict | None) -> dict | None:
     if isinstance(card, dict):
         for iface in card.get("supportedInterfaces", []) or []:
             if isinstance(iface, dict) and iface.get("protocolBinding") == "JSONRPC" and iface.get("url"):
@@ -83,7 +84,7 @@ def _select_jsonrpc_interface(card: Optional[dict]) -> Optional[dict]:
     return None
 
 
-def _rpc_url(base_url: str, card: Optional[dict]) -> str:
+def _rpc_url(base_url: str, card: dict | None) -> str:
     """Card's JSONRPC interface (v1.0 supportedInterfaces) > card's legacy top-level url > base."""
     if iface := _select_jsonrpc_interface(card):
         return str(iface["url"])

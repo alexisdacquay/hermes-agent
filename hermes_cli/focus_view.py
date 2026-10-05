@@ -5,8 +5,6 @@ hint and a persistent ``focus`` status-bar segment."""
 
 from __future__ import annotations
 
-from typing import Optional
-
 FOCUS_CONFIG_KEY = "display.focus_view"  # plain boolean under ``display``, like /battery /timestamps /footer
 FOCUS_TOOL_PROGRESS_MODE = "off"  # the SAME value ``/verbose off`` uses so both features share one suppression path
 # Modes in which the CLI commits a per-tool scrollback line. Mirrors the gate in
@@ -34,7 +32,7 @@ def normalize_tool_progress_mode(mode: object, default: str = "all") -> str:
     return text if text in TOOL_PROGRESS_MODES or text == "log" else default
 
 
-def resolve_focus_arg(arg: str, current: bool) -> tuple[str, Optional[bool]]:
+def resolve_focus_arg(arg: str, current: bool) -> tuple[str, bool | None]:
     """Map a ``/focus`` argument onto ``(action, target)``: action is ``"set"``, ``"status"`` or ``"usage"``;
     target is the requested enabled-state for ``"set"`` and ``None`` otherwise."""
     text = str(arg or "").strip().lower()
@@ -43,7 +41,7 @@ def resolve_focus_arg(arg: str, current: bool) -> tuple[str, Optional[bool]]:
     return _FOCUS_WORDS.get(text, ("usage", None))
 
 
-def would_display_tool_line(mode: object, function_name: str, last_tool_name: Optional[str] = None) -> bool:
+def would_display_tool_line(mode: object, function_name: str, last_tool_name: str | None = None) -> bool:
     """Would the CLI have committed a scrollback line for this tool call? Counts honestly: with ``/verbose off``
     focus view hides nothing extra and must not claim otherwise. ``new`` mode skips consecutive repeats of the
     same tool, so the counter does too."""
@@ -53,7 +51,7 @@ def would_display_tool_line(mode: object, function_name: str, last_tool_name: Op
     return normalized in TOOL_PROGRESS_VISIBLE_MODES and not (normalized == "new" and function_name == last_tool_name)
 
 
-def format_hidden_line(count: int) -> Optional[str]:
+def format_hidden_line(count: int) -> str | None:
     """Dim post-turn recovery line, or ``None`` when nothing was hidden."""
     try:
         n = int(count)

@@ -9,6 +9,7 @@ E2E-over-mocks discipline for file-touching code.
 """
 import threading
 import time
+from datetime import UTC
 
 import pytest
 
@@ -24,7 +25,7 @@ def temp_home(tmp_path, monkeypatch):
 def test_claim_succeeds_once_then_blocks(temp_home):
     """First claim for a fire wins; a second claim for the same fire loses, and
     next_run_at is advanced (a re-delivery for the old time can't re-fire)."""
-    from cron.jobs import create_job, claim_job_for_fire, get_job
+    from cron.jobs import claim_job_for_fire, create_job, get_job
 
     job = create_job(prompt="x", schedule="every 5m", name="t")
     jid = job["id"]
@@ -37,7 +38,7 @@ def test_claim_succeeds_once_then_blocks(temp_home):
 
 def test_claim_oneshot_cannot_be_double_claimed(temp_home):
     """A one-shot can't be double-claimed (the fresh claim blocks the retry)."""
-    from cron.jobs import create_job, claim_job_for_fire
+    from cron.jobs import claim_job_for_fire, create_job
 
     job = create_job(prompt="x", schedule="in 30m", name="o")
     assert claim_job_for_fire(job["id"]) is True
@@ -52,7 +53,7 @@ def test_claim_unknown_job_returns_false(temp_home):
 
 def test_claim_paused_job_returns_false(temp_home):
     """A paused job can't be claimed."""
-    from cron.jobs import create_job, claim_job_for_fire, pause_job
+    from cron.jobs import claim_job_for_fire, create_job, pause_job
 
     job = create_job(prompt="x", schedule="every 5m", name="p")
     pause_job(job["id"])
@@ -62,7 +63,7 @@ def test_claim_paused_job_returns_false(temp_home):
 def test_forced_claim_atomically_resumes_paused_job(temp_home):
     """Explicit manual fire may resume a paused job without exposing a due
     intermediate state to the ticker."""
-    from cron.jobs import create_job, claim_job_for_fire, get_job, pause_job
+    from cron.jobs import claim_job_for_fire, create_job, get_job, pause_job
 
     job = create_job(prompt="x", schedule="every 5m", name="manual")
     pause_job(job["id"])
@@ -79,7 +80,7 @@ def test_forced_claim_atomically_resumes_paused_job(temp_home):
 def test_stale_claim_is_reclaimable(temp_home, monkeypatch):
     """A claim older than the TTL is overwritten — the fire isn't stuck forever
     if the winning machine crashed before mark_job_run cleared the claim."""
-    from cron.jobs import create_job, claim_job_for_fire
+    from cron.jobs import claim_job_for_fire, create_job
 
     job = create_job(prompt="x", schedule="every 5m", name="s")
     jid = job["id"]
@@ -91,7 +92,7 @@ def test_stale_claim_is_reclaimable(temp_home, monkeypatch):
 def test_mark_job_run_clears_claim(temp_home):
     """After a recurring job completes, its claim is cleared so the next fire
     can be claimed again."""
-    from cron.jobs import create_job, claim_job_for_fire, mark_job_run, get_job
+    from cron.jobs import claim_job_for_fire, create_job, get_job, mark_job_run
 
     job = create_job(prompt="x", schedule="every 5m", name="c")
     jid = job["id"]
@@ -107,7 +108,7 @@ def test_mark_job_run_clears_claim(temp_home):
 def test_fire_claim_heartbeat_refreshes_only_expected_owner(temp_home, monkeypatch):
     from datetime import datetime, timedelta
 
-    import cron.jobs as jobs
+    from cron import jobs
 
     job = jobs.create_job(prompt="x", schedule="every 5m", name="heartbeat")
     assert jobs.claim_job_for_fire(job["id"]) is True
@@ -135,7 +136,7 @@ def test_fire_claim_heartbeat_refreshes_only_expected_owner(temp_home, monkeypat
 def test_reclaimed_fire_uses_new_owner_token(temp_home, monkeypatch):
     from datetime import datetime, timedelta
 
-    import cron.jobs as jobs
+    from cron import jobs
 
     job = jobs.create_job(prompt="x", schedule="every 5m", name="reclaim")
     assert jobs.claim_job_for_fire(job["id"]) is True
@@ -158,7 +159,7 @@ def test_reclaimed_fire_uses_new_owner_token(temp_home, monkeypatch):
 
 
 def test_stale_fire_owner_cannot_mark_replacement_run(temp_home):
-    import cron.jobs as jobs
+    from cron import jobs
 
     job = jobs.create_job(prompt="x", schedule="every 5m", name="fenced")
     assert jobs.claim_job_for_fire(job["id"]) is True
@@ -219,7 +220,7 @@ def test_fire_claim_fence_rejects_stale_owner(temp_home):
 
 def test_same_process_fire_fence_refuses_second_claim_after_timeout(temp_home, monkeypatch):
     """A wedged local holder must not indefinitely block another claimant."""
-    import cron.jobs as jobs
+    from cron import jobs
 
     job = jobs.create_job(prompt="x", schedule="every 5m", name="local-fence-timeout")
     monkeypatch.setattr(jobs, "_JOBS_LOCK_TIMEOUT_SECONDS", 0.1)
@@ -244,7 +245,7 @@ def test_same_process_fire_fence_refuses_second_claim_after_timeout(temp_home, m
 
 def test_same_thread_fire_fence_reentrancy_preserves_ownership(temp_home):
     """Nested same-thread callers retain the existing fire fence."""
-    import cron.jobs as jobs
+    from cron import jobs
 
     job = jobs.create_job(prompt="x", schedule="every 5m", name="local-fence-reentrant")
     completed = threading.Event()
@@ -273,7 +274,7 @@ def test_manual_claim_does_not_stamp_a_future_occurrence(temp_home):
     when it arrives — silently, with no error and no dispatch record. ``manual=True``
     is the caller's declaration that this is an off-tick fire.
     """
-    from cron.jobs import create_job, claim_job_for_fire, get_job
+    from cron.jobs import claim_job_for_fire, create_job, get_job
 
     job = create_job(prompt="x", schedule="every 5m", name="m")
     pending = get_job(job["id"])["next_run_at"]
@@ -287,7 +288,7 @@ def test_manual_claim_does_not_stamp_a_future_occurrence(temp_home):
 def test_unclassified_off_tick_claim_does_not_stamp_a_future_occurrence(temp_home, monkeypatch):
     from datetime import datetime, timedelta
 
-    import cron.jobs as jobs
+    from cron import jobs
 
     job = jobs.create_job(prompt="x", schedule="every 5m", name="off-tick")
     pending = jobs.get_job(job["id"])["next_run_at"]
@@ -303,10 +304,9 @@ def test_unclassified_off_tick_claim_does_not_stamp_a_future_occurrence(temp_hom
 def test_claim_seconds_before_the_slot_owns_it_once(temp_home, monkeypatch):
     """A hosted fire arriving seconds early (provider clock skew) IS the fire for the armed
     slot: it must carry the slot identity so the misfire backstop cannot run the slot again."""
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
-    import cron.executions as executions
-    import cron.jobs as jobs
+    from cron import executions, jobs
     from cron.occurrences import scheduled_instant
 
     monkeypatch.setattr(executions, "EXECUTIONS_FILE", temp_home / "cron" / "executions.db")
@@ -323,7 +323,7 @@ def test_claim_seconds_before_the_slot_owns_it_once(temp_home, monkeypatch):
     executions.finish_execution(row["id"], success=True)
     jobs.mark_job_run(job["id"], True)
 
-    backstop = slot_dt.astimezone(timezone.utc) + timedelta(minutes=11)
+    backstop = slot_dt.astimezone(UTC) + timedelta(minutes=11)
     monkeypatch.setattr(jobs, "_hermes_now", lambda: backstop)
     monkeypatch.setattr(executions, "_hermes_now", lambda: backstop)
     assert jobs.claim_job_for_fire(job["id"], return_job=True) is False, (
@@ -334,7 +334,7 @@ def test_claim_seconds_before_the_slot_owns_it_once(temp_home, monkeypatch):
 def test_manual_claim_still_refuses_a_paused_job(temp_home):
     """``manual=True`` suppresses only the occurrence stamp — unlike ``force=True`` it
     must not resume a paused job, which the run-now tool relies on to refuse it."""
-    from cron.jobs import create_job, claim_job_for_fire, get_job, pause_job
+    from cron.jobs import claim_job_for_fire, create_job, get_job, pause_job
 
     job = create_job(prompt="x", schedule="every 5m", name="mp")
     pause_job(job["id"])
@@ -377,7 +377,7 @@ def test_fresh_claim_from_a_dead_same_host_owner_is_reclaimable(temp_home):
 def test_heartbeat_does_not_wait_on_the_fence_its_own_run_holds(temp_home, monkeypatch):
     """The run thread holds the per-job fire fence across delivery; the heartbeat thread must
     refresh the claim without taking it, or every long run reads as a false ownership loss."""
-    import cron.jobs as jobs
+    from cron import jobs
 
     job = jobs.create_job(prompt="x", schedule="every 5m", name="long-run")
     assert jobs.claim_job_for_fire(job["id"]) is True

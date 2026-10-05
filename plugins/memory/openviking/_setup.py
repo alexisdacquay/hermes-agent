@@ -11,7 +11,6 @@ from __future__ import annotations
 import os
 import sys
 from pathlib import Path
-from typing import Optional
 
 _SETUP_CANCELLED = object()
 _CANCEL_OPTION = ("Cancel setup", "no changes saved")
@@ -269,7 +268,7 @@ def _profile_display_name(profile) -> str:
     return {"env": _ov()._OVCLI_CONFIG_ENV, "active": "ovcli.conf"}.get(profile.source, profile.name)
 
 
-def _print_openviking_ready(message: str, path: Optional[Path] = None) -> None:
+def _print_openviking_ready(message: str, path: Path | None = None) -> None:
     print("\n  OpenViking memory is ready")
     _say(message)
     if path is not None:
@@ -366,7 +365,12 @@ def _run_create_profile_setup(*, prompt, select, cancelled, config: dict, provid
 def run_setup(hermes_home: str, config: dict) -> None:
     """Entry point for ``OpenVikingMemoryProvider.post_setup``."""
     from hermes_cli.config import save_config
-    from hermes_cli.memory_setup import _CANCELLED, _curses_select, _print_cancelled_setup, _prompt
+    from hermes_cli.memory_setup import (
+        _CANCELLED,
+        _curses_select,
+        _print_cancelled_setup,
+        _prompt,
+    )
 
     env_path = Path(hermes_home) / ".env"
     if not isinstance(config.get("memory"), dict):

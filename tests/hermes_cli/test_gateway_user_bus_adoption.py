@@ -2,9 +2,8 @@
 
 import os
 
-import pytest
-
 import hermes_cli.gateway as gw
+import pytest
 
 
 class _BootReached(Exception):

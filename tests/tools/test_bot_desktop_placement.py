@@ -12,7 +12,6 @@ import json
 import subprocess
 
 import pytest
-
 from tools.bot_desktop import placement, runtime
 from tools.environments import streams
 
@@ -197,7 +196,7 @@ def test_sandbox_screen_that_cannot_come_up_is_an_error_not_a_host_browser(monke
 
     _placed(monkeypatch, "terminal", "docker")
     monkeypatch.setattr(runtime, "sandbox_screen_running", lambda: False)
-    monkeypatch.setattr(runtime, "published_env", lambda: {})
+    monkeypatch.setattr(runtime, "published_env", dict)
 
     def _boom(**kw):
         raise RuntimeError("Bot Desktop needs Xvnc inside the terminal backend's sandbox")
@@ -323,8 +322,8 @@ def test_forward_port_carries_bytes_both_ways_through_the_exec_stream(monkeypatc
 
 
 def test_sandbox_cdp_endpoint_is_rewritten_to_the_forwarded_local_port(monkeypatch):
-    from tools import browser_use_cli as buc
     from tools import browser_tool_session as bts
+    from tools import browser_use_cli as buc
 
     monkeypatch.setattr(bts, "_browser_in_sandbox", lambda: True)
     monkeypatch.setattr(runtime, "_sandbox_env", lambda *, create: _FakeDocker())

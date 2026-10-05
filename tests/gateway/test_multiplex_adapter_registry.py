@@ -1,6 +1,6 @@
 """Phase 3: secondary-profile adapter registry + same-token conflict detection."""
-import logging
 import asyncio
+import logging
 import threading
 import time
 import types
@@ -8,9 +8,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
-
 import gateway.run as gateway_run
+import pytest
 from gateway.config import GatewayConfig, Platform, PlatformConfig
 from gateway.platforms.helpers import MessageDeduplicator
 from gateway.run import GatewayRunner
@@ -304,7 +303,7 @@ class TestSecondaryProfileFatalRecovery:
         )
         monkeypatch.setattr(runner, "_connect_adapter_with_timeout", connect)
         monkeypatch.setattr(runner, "_connect_initial_adapter_with_timeout", connect)
-        monkeypatch.setattr(gateway_run, "_load_gateway_config", lambda: {})
+        monkeypatch.setattr(gateway_run, "_load_gateway_config", dict)
         monkeypatch.setattr(runner, "_snapshot_profile_busy_modes", lambda *a, **k: None)
         monkeypatch.setattr("hermes_cli.plugins.discover_plugins", lambda: None)
         if entry == "startup":
@@ -338,7 +337,7 @@ class TestSecondaryProfileFatalRecovery:
         synced = []
         runner._sync_voice_mode_state_to_adapter = synced.append
         monkeypatch.setattr("hermes_cli.env_loader.hydrate_profile_secret_sources", lambda h: {})
-        monkeypatch.setattr(gateway_run, "_load_gateway_config", lambda: {})
+        monkeypatch.setattr(gateway_run, "_load_gateway_config", dict)
         monkeypatch.setattr(runner, "_snapshot_profile_busy_modes", lambda *a, **k: None)
         monkeypatch.setattr("hermes_cli.plugins.discover_plugins", lambda: None)
 
@@ -834,6 +833,7 @@ class TestSecondaryProfileConfigHandling:
     @pytest.mark.asyncio
     async def test_multiplexer_skips_bad_profile_and_continues(self, monkeypatch, caplog):
         from pathlib import Path
+
         from gateway.config import GatewayConfig
 
         runner = GatewayRunner.__new__(GatewayRunner)
@@ -891,6 +891,7 @@ class TestSecondaryProfileConfigHandling:
         ``served_profiles`` survived into a later single-profile run and every `hermes -p X` surface
         kept treating X as served (exit 78 on start, "running via multiplexer" on status)."""
         import json
+
         from gateway.status import read_runtime_status
 
         monkeypatch.setenv("HERMES_HOME", str(tmp_path))
@@ -906,6 +907,7 @@ class TestSecondaryProfileConfigHandling:
     @pytest.mark.asyncio
     async def test_multiplexer_propagates_security_config_error(self, monkeypatch):
         from pathlib import Path
+
         from gateway.config import GatewayConfig
         from gateway.run import MultiplexConfigError
 
@@ -1159,7 +1161,6 @@ class TestFeishuPortBindingConditional:
     @pytest.mark.asyncio
     async def test_feishu_websocket_mode_not_rejected(self, monkeypatch):
         """Feishu in websocket mode (the default) should NOT raise MultiplexConfigError."""
-        from gateway.run import MultiplexConfigError
         from gateway.config import GatewayConfig, Platform, PlatformConfig
 
         runner = GatewayRunner.__new__(GatewayRunner)

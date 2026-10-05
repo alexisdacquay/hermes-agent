@@ -14,13 +14,11 @@ semantics cannot be mocked.
 
 import os
 import signal
-import sys
 import textwrap
 import threading
 import time
 
 import pytest
-
 from agent.shell_hooks import ShellHookSpec, _spawn
 
 pytestmark = pytest.mark.platforms("posix")  # POSIX process-group semantics

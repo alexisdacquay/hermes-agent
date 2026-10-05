@@ -11,14 +11,14 @@ import contextlib
 import os
 import shutil
 import sys
+from pathlib import Path
+from typing import Any
 
 from agent.i18n import t
 from hermes_constants import get_hermes_home
 from hermes_state_ids import new_session_id
-from pathlib import Path
 from rich.console import Console
 from rich.markup import escape as _escape
-from typing import Any, Dict, List, Optional
 
 
 def _user_turn_indices(history: list) -> list[int]:
@@ -109,7 +109,7 @@ def _reset_model_to_config_default(cli, silent: bool) -> None:
         logger.debug("/new model reset to config default failed", exc_info=True)
 
 
-def _apply_new_session_title(cli, title: str) -> Optional[str]:
+def _apply_new_session_title(cli, title: str) -> str | None:
     """Sanitize + persist a /new title; returns the stored title or None (untitled)."""
     from cli import _cprint
     from hermes_state import SessionDB
@@ -173,7 +173,10 @@ class CLISessionMixin:
         try:
             from hermes_state import SessionDB
             from tools.approval import (
-                _YOLO_MODE_FROZEN, enable_session_yolo, is_session_yolo_enabled)
+                _YOLO_MODE_FROZEN,
+                enable_session_yolo,
+                is_session_yolo_enabled,
+            )
         except Exception:
             return
         if _YOLO_MODE_FROZEN or not SessionDB.session_yolo_enabled(session_meta):
@@ -186,8 +189,9 @@ class CLISessionMixin:
 
     def _render_resume_history_panel_lines(self, panel) -> list[str]:
         """Render the resume panel at the current terminal width for resize replay."""
-        from cli import _suspend_output_history
         from io import StringIO
+
+        from cli import _suspend_output_history
 
         buf = StringIO()
         console = Console(
@@ -316,8 +320,9 @@ class CLISessionMixin:
         if not self._session_db:
             return []
         try:
-            from hermes_cli.session_listing import query_session_listing
             from hermes_state_sessions import INTERNAL_LISTING_SOURCES
+
+            from hermes_cli.session_listing import query_session_listing
 
             return query_session_listing(
                 self._session_db, source="cli", current_session_id=self.session_id,
@@ -445,7 +450,7 @@ class CLISessionMixin:
             else:
                 invoke_hook(event_type, **context)
 
-    def _discard_session_if_empty(self, session_id: Optional[str]) -> bool:
+    def _discard_session_if_empty(self, session_id: str | None) -> bool:
         """Drop a just-ended session row that never gained content (quit-immediately, /new,
         /clear) so it doesn't clutter ``/resume``. ``SessionDB.delete_session_if_empty`` only
         removes rows with no messages, no title and no children (gemini-cli#27770 port)."""
@@ -465,7 +470,7 @@ class CLISessionMixin:
             return False
 
     def _launch_session_boundary_memory_flush(
-        self, history_snapshot: list, *, session_id: Optional[str] = None) -> Optional[list]:
+        self, history_snapshot: list, *, session_id: str | None = None) -> list | None:
         """Stage old-session memory extraction so /new stays responsive.
 
         The context-engine ``on_session_end`` is delivered synchronously here: cheap (no LLM)
@@ -495,8 +500,12 @@ class CLISessionMixin:
     def new_session(self, silent=False, title=None):
         """Start a fresh session with a new session ID and cleared agent state."""
         from cli import (
-            CLI_CONFIG, _parse_service_tier_config,
-            _sync_process_session_id, datetime)
+            CLI_CONFIG,
+            _parse_service_tier_config,
+            _sync_process_session_id,
+            datetime,
+        )
+
         from hermes_cli.cli_model_switch_mixin import _resolve_cli_reasoning
         old_session_id = self.session_id
         _boundary_snapshot = None
@@ -630,8 +639,13 @@ class CLISessionMixin:
         redaction pass before writing.
         """
         from cli import datetime
+
         from hermes_cli.session_export import (
-            SAVE_USAGE, load_save_snapshot, normalize_save_format, render_session_for_save)
+            SAVE_USAGE,
+            load_save_snapshot,
+            normalize_save_format,
+            render_session_for_save,
+        )
 
         parts = cmd.split()[1:]
         redact = bool(parts) and parts[-1].lower() in ("redact", "--redact")
@@ -730,7 +744,9 @@ class CLISessionMixin:
             return None
 
         from agent.context_compressor import (
-            history_before_user_originated_turn, retryable_user_text)
+            history_before_user_originated_turn,
+            retryable_user_text,
+        )
         from agent.memory_manager import sanitize_context
 
         warm_history = list(self.conversation_history)
@@ -860,7 +876,10 @@ class CLISessionMixin:
             return
         try:
             from tools.approval import (
-                disable_session_yolo, enable_session_yolo, is_session_yolo_enabled)
+                disable_session_yolo,
+                enable_session_yolo,
+                is_session_yolo_enabled,
+            )
         except Exception:
             return
         if is_session_yolo_enabled(old_session_id):
@@ -895,9 +914,14 @@ class CLISessionMixin:
         key, so the bypass applies to the very next dangerous command.
         """
         from cli import _cprint
-        from hermes_cli.colors import Colors as _Colors
         from tools.approval import (
-            _YOLO_MODE_FROZEN, disable_session_yolo, enable_session_yolo, is_session_yolo_enabled)
+            _YOLO_MODE_FROZEN,
+            disable_session_yolo,
+            enable_session_yolo,
+            is_session_yolo_enabled,
+        )
+
+        from hermes_cli.colors import Colors as _Colors
 
         # A frozen process-level bypass short-circuits the approval gate ahead of the session
         # check — toggling "OFF" would be a false safety claim. Say so instead.
@@ -943,9 +967,16 @@ class CLISessionMixin:
         No ``compression_enabled`` gate: that flag disables *automatic* compaction only, and
         the context-overflow error path directs users here when it is off.
         """
-        from agent.conversation_compression import finalize_context_engine_compression_notification
+        from agent.conversation_compression import (
+            finalize_context_engine_compression_notification,
+        )
         from agent.conversation_compression_manual import (
-            AGGRESSIVE_UNSUPPORTED, MIN_MESSAGES, compress_now, parse_compress_args, render_compress_result)
+            AGGRESSIVE_UNSUPPORTED,
+            MIN_MESSAGES,
+            compress_now,
+            parse_compress_args,
+            render_compress_result,
+        )
 
         if len(self.conversation_history or ()) < MIN_MESSAGES:
             print(t("cli.session.compress_too_short", min=MIN_MESSAGES))
@@ -1007,7 +1038,7 @@ class CLISessionMixin:
     def _persist_prompt_summary(self, icon: str, label: str, detail: str, outcome: str) -> None:
         """Print a one-line scrollback summary of a resolved modal prompt (approval/clarify
         panels vanish on repaint); gated by ``display.persist_prompts``."""
-        from cli import CLI_CONFIG, _DIM, _RST, _cprint
+        from cli import _DIM, _RST, CLI_CONFIG, _cprint
         if not CLI_CONFIG.get("display", {}).get("persist_prompts", True):
             return
         detail, outcome = (_squash(s) for s in (detail, outcome))

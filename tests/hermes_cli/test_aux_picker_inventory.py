@@ -21,8 +21,8 @@ guard the seam itself, not the kwargs at any one site.
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
 import hermes_yaml as yaml
+import pytest
 
 CONFIG = {
     "model": {"provider": "openrouter", "default": "anthropic/claude-opus-4.6"},

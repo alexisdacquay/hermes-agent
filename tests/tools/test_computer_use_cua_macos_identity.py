@@ -2,13 +2,10 @@
 
 from __future__ import annotations
 
-import os
 import subprocess
 
 import pytest
-
-from tools.computer_use import cua_backend
-from tools.computer_use import cua_backend_daemon
+from tools.computer_use import cua_backend, cua_backend_daemon
 
 
 def _codesign_proc(
@@ -100,7 +97,7 @@ def test_driver_signature_still_requires_exact_bundle_identifier(monkeypatch):
 
 def test_driver_signature_rejects_unsigned_by_default(monkeypatch):
     _patch_codesign(monkeypatch, _codesign_proc(team_id="not set"))
-    monkeypatch.setattr(cua_backend, "_computer_use_cfg", lambda: {})
+    monkeypatch.setattr(cua_backend, "_computer_use_cfg", dict)
 
     with pytest.raises(RuntimeError, match="signed by team"):
         cua_backend_daemon._validate_cua_driver_app_signature("/Applications/CuaDriver.app")

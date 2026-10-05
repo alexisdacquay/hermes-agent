@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 import hermes_yaml as yaml
 
@@ -21,7 +21,7 @@ def _write_plugin(
     root: Path,
     name: str,
     *,
-    manifest_extra: Dict[str, Any] | None = None,
+    manifest_extra: dict[str, Any] | None = None,
     register_body: str = "pass",
 ) -> Path:
     plugin_dir = root / name
@@ -57,9 +57,8 @@ def _enable(hermes_home: Path, name: str) -> None:
 
 class TestRegisterTranscriptionProvider:
     def test_accepts_valid_provider(self):
-        from hermes_cli.plugins import PluginManager
-
         from agent import transcription_registry
+        from hermes_cli.plugins import PluginManager
         transcription_registry._reset_for_tests()
 
         hermes_home = Path(os.environ["HERMES_HOME"])
@@ -89,9 +88,8 @@ class TestRegisterTranscriptionProvider:
         transcription_registry._reset_for_tests()
 
     def test_rejects_non_provider(self, caplog):
-        from hermes_cli.plugins import PluginManager
-
         from agent import transcription_registry
+        from hermes_cli.plugins import PluginManager
         transcription_registry._reset_for_tests()
 
         hermes_home = Path(os.environ["HERMES_HOME"])
@@ -113,9 +111,8 @@ class TestRegisterTranscriptionProvider:
         transcription_registry._reset_for_tests()
 
     def test_rejects_builtin_shadow(self, caplog):
-        from hermes_cli.plugins import PluginManager
-
         from agent import transcription_registry
+        from hermes_cli.plugins import PluginManager
         transcription_registry._reset_for_tests()
 
         hermes_home = Path(os.environ["HERMES_HOME"])

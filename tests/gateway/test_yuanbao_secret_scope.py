@@ -7,7 +7,6 @@ not inherit the default profile's process-env authorization config.
 """
 
 import pytest
-
 from agent import secret_scope
 from gateway.config import PlatformConfig
 from gateway.platforms.yuanbao import AccessPolicy, YuanbaoAdapter

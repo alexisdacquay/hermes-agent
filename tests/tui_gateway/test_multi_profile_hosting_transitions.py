@@ -17,9 +17,8 @@ import threading
 from pathlib import Path
 
 import pytest
-
-import tui_gateway.server as server
 from tui_gateway import launch_profile_policy as lpp
+from tui_gateway import server
 
 A_VAL = "a-only-secret-0001"
 B_VAL = "b-only-secret-0002"

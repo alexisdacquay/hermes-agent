@@ -2,7 +2,6 @@
 server-owned deadline as a constant, wake on every change."""
 
 import pytest
-
 from tools.connectors import contract as c
 from tools.connectors import operation as op
 

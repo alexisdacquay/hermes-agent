@@ -10,7 +10,6 @@ import threading
 import types
 
 import pytest
-
 from tools.bot_relay import DeliveryAuthor
 from tui_gateway import server as srv
 

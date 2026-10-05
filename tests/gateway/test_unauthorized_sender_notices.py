@@ -5,15 +5,13 @@ the log and, once, in the home channel."""
 import logging
 
 import pytest
-
 from gateway.config import HomeChannel, Platform
 from gateway.pairing import PairingStore
 from gateway.run import GatewayRunner
 from gateway.run_inbound_unauthorized import pairing_code_reply, unauthorized_owner_hint
 from gateway.session import SessionSource
+
 from tests.gateway.restart_test_helpers import make_restart_runner
-
-
 
 
 def test_pairing_reply_pins_profile_in_approve_command():

@@ -9,16 +9,12 @@ import json
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from agent import trace_upload
 from agent.trace_upload import (
     build_trace_jsonl,
     load_session_messages,
     upload_session_trace,
-    _resolve_hf_token,
-    _do_upload,
 )
-
 
 # ---------------------------------------------------------------------------
 # Converter

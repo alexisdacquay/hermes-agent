@@ -11,7 +11,6 @@ from __future__ import annotations
 import sqlite3
 
 import pytest
-
 from hermes_cli import session_schema_history as history
 from hermes_state_common import SCHEMA_SQL
 

@@ -6,7 +6,6 @@ reads back as the enabled set, and ``_describe_toolsets`` reports the same pin. 
 """
 
 import pytest
-
 from tui_gateway.methods_profiles import _describe_toolsets, _save_toolset_pin
 
 

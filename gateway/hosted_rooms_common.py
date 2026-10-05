@@ -12,9 +12,9 @@ import json
 import re
 import sqlite3
 import time
+from collections.abc import Callable, Iterator, Mapping
 from pathlib import Path
-from typing import Any, Callable, Iterator, Mapping
-
+from typing import Any
 
 IDENTIFIER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]*$")
 DbPath = Path | str

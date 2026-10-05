@@ -3,7 +3,6 @@ import sys
 from types import SimpleNamespace
 
 import pytest
-
 from hermes_cli import curses_ui
 
 

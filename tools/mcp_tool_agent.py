@@ -2,11 +2,9 @@
 AIAgent's tools/tool names, preserving the cached tools[] prefix across rebuilds,
 and re-injecting post-build tools."""
 
-import logging
 import json
+import logging
 import threading
-from typing import Optional
-from tools.mcp_tool_common import _core
 
 logger = logging.getLogger("tools.mcp_tool")
 
@@ -46,7 +44,7 @@ def _tool_defs_content_changed(agent, new_defs: list) -> bool:
     """Byte-level diff of the serialized tool arrays (dynamic schemas change CONTENT under
     stable names); False if either side fails to serialize."""
     try:
-        dump = lambda defs: json.dumps(defs, sort_keys=True, separators=(",", ":"), default=str)  # noqa: E731
+        dump = lambda defs: json.dumps(defs, sort_keys=True, separators=(",", ":"), default=str)
         return dump(_agent_tool_defs(agent)) != dump(new_defs)
     except Exception:  # noqa: BLE001
         return False
@@ -62,7 +60,7 @@ def _drop_side_agent_tools(agent, new_defs: list, new_names: set) -> tuple:
 
 def _publish_tool_snapshot(
     agent, new_defs: list, new_names: set, *, snapshot_generation: int,
-    staged_engine_names: set, content_aware: bool, prefix_registered: Optional[set]) -> Optional[set]:
+    staged_engine_names: set, content_aware: bool, prefix_registered: set | None) -> set | None:
     """Single atomic read-diff-publish under ``_agent_tools_lock`` so ``added`` matches what
     was published and a stale (older-generation) rebuild can't overwrite a newer one. Returns
     the added names, or None when nothing was published (unchanged, or a newer snapshot won)."""
@@ -111,6 +109,7 @@ def refresh_agent_mcp_tools(
     carried forward (``check_fn`` gates exposure, never invocation), a deregistered tool is
     dropped, new tools append at the tail. The caller owns the prompt-cache contract."""
     from model_tools import get_tool_definitions
+
     from tools.registry import registry
     enabled, disabled = _resolve_refresh_toolsets(agent, enabled_override, disabled_override)
     # Generation captured BEFORE the slow get_tool_definitions call (a slower caller holding an
@@ -123,7 +122,7 @@ def refresh_agent_mcp_tools(
     _reinject_authorized_dynamic_tools(agent, new_defs, new_names)
     # Registry membership is read OUTSIDE ``_agent_tools_lock``: taking ``registry._lock``
     # under the tools lock would be the first nesting of the two.
-    prefix_registered: Optional[set] = None
+    prefix_registered: set | None = None
     if preserve_prefix:
         try:
             prefix_registered = {entry.name for entry in registry.get_all_entries()}
@@ -143,6 +142,7 @@ def reprobe_tool_availability() -> None:
     cache AND the ``get_tool_definitions`` memo (keyed on registry generation, so it would
     otherwise replay the stale verdicts)."""
     from model_tools import _clear_tool_defs_cache
+
     from tools.registry import invalidate_check_fn_cache
     invalidate_check_fn_cache()
     _clear_tool_defs_cache()
@@ -166,7 +166,7 @@ def persist_agent_tool_names(agent) -> None:
         return
     try:
         db.update_session_tool_names(session_id, {"version": tool_pin_version(), "tools": _agent_tool_defs(agent)})
-    except Exception:  # noqa: BLE001
+    except Exception:
         logger.debug("tool_names persist skipped", exc_info=True)
 
 
@@ -268,7 +268,11 @@ def _reinject_authorized_dynamic_tools(agent, tools_list: list, name_set: set) -
     """``message_agent`` is injected by an auth gate, never registered, so a registry-derived
     rebuild drops it. Scrub any stale copy from the STAGED pair and re-add it only when the live
     gate re-authorizes, so the publisher exposes a coherent ``(tools, valid_tool_names)``."""
-    from tools.bot_mode_dm import MESSAGE_AGENT_TOOL_NAME, message_agent_authorized, message_agent_tool_schema
+    from tools.bot_mode_dm import (
+        MESSAGE_AGENT_TOOL_NAME,
+        message_agent_authorized,
+        message_agent_tool_schema,
+    )
 
     tools_list[:] = [entry for entry in tools_list if _def_name(entry) != MESSAGE_AGENT_TOOL_NAME]
     name_set.discard(MESSAGE_AGENT_TOOL_NAME)
@@ -298,7 +302,9 @@ def _reinject_post_build_tools(agent, tools_list: list, name_set: set) -> set:
     try:
         get_mem_schemas = _schema_getter("_memory_manager", "get_all_tool_schemas")
         if get_mem_schemas is not None:
-            from agent.memory_manager import memory_provider_tools_enabled  # same gate inject_memory_provider_tools uses
+            from agent.memory_manager import (
+                memory_provider_tools_enabled,  # same gate inject_memory_provider_tools uses
+            )
             if memory_provider_tools_enabled(
                     enabled, getattr(agent, "disabled_toolsets", None), memory_tool_present="memory" in name_set):
                 for schema in get_mem_schemas():

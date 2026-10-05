@@ -84,12 +84,14 @@ def test_uv_bionic_row_matches_supplier(lock):
 ])
 def test_registered_bionic_stage_preserves_host_facts(tmp_path, monkeypatch, lock, name, main, on_path):
     import hashlib
+
     from pm import paths
     from pm.install import stage_only
     from pm.lock import Lockfile
     from pm.package import InstallError
     from pm.registry import get_package
     from pm.store import Store
+
     from tests.termux_fixtures import build_deb
 
     target = "linux-arm64-bionic"
@@ -137,6 +139,7 @@ def test_registered_bionic_stage_preserves_host_facts(tmp_path, monkeypatch, loc
 
 def test_deb_rejects_traversal_before_touching_outside(tmp_path):
     from pm.package import DebPackage, InstallError
+
     from tests.termux_fixtures import build_deb
 
     sentinel = tmp_path / "escape"

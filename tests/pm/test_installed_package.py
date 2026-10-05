@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import os
 
-import pytest
-
 import pm
+import pytest
 from pm import paths
 from pm.install import ensure
 from pm.lock import Lockfile
+
 from tests.pm.test_pm_authority import core_env, pm_env, served  # noqa: F401
 
 

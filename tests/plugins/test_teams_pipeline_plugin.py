@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import asyncio
-from types import SimpleNamespace
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
-
 from gateway.config import GatewayConfig, Platform, PlatformConfig
 from plugins.teams_pipeline.meetings import (
     TeamsMeetingError,

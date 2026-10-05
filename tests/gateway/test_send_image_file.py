@@ -12,7 +12,6 @@ import sys
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from gateway.config import PlatformConfig
 from gateway.platforms.base import BasePlatformAdapter
 
@@ -42,7 +41,7 @@ class TestExtractMediaImages:
 # ---------------------------------------------------------------------------
 # Telegram send_image_file tests
 # ---------------------------------------------------------------------------
-from plugins.platforms.telegram.adapter import TelegramAdapter  # noqa: E402
+from plugins.platforms.telegram.adapter import TelegramAdapter
 
 
 class TestTelegramSendImageFile:
@@ -105,8 +104,8 @@ def _ensure_discord_mock():
 
 _ensure_discord_mock()
 
-import discord as discord_mod_ref  # noqa: E402
-from plugins.platforms.discord.adapter import DiscordAdapter  # noqa: E402
+import discord as discord_mod_ref
+from plugins.platforms.discord.adapter import DiscordAdapter
 
 
 class TestDiscordSendImageFile:
@@ -193,7 +192,7 @@ def _ensure_slack_mock():
 
 _ensure_slack_mock()
 
-from plugins.platforms.slack.adapter import SlackAdapter  # noqa: E402
+from plugins.platforms.slack.adapter import SlackAdapter
 
 
 class TestSlackSendImageFile:
@@ -223,8 +222,9 @@ class TestScreenshotCleanup:
     def test_cleanup_removes_old_screenshots(self, tmp_path):
         """_cleanup_old_screenshots should remove files older than max_age_hours."""
         import time
-        from tools.browser_tool_lifecycle import _cleanup_old_screenshots
+
         from tools.browser_tool import _last_screenshot_cleanup_by_dir
+        from tools.browser_tool_lifecycle import _cleanup_old_screenshots
 
         _last_screenshot_cleanup_by_dir.clear()
 
@@ -245,8 +245,9 @@ class TestScreenshotCleanup:
 
     def test_cleanup_is_throttled_per_directory(self, tmp_path):
         import time
-        from tools.browser_tool_lifecycle import _cleanup_old_screenshots
+
         from tools.browser_tool import _last_screenshot_cleanup_by_dir
+        from tools.browser_tool_lifecycle import _cleanup_old_screenshots
 
         _last_screenshot_cleanup_by_dir.clear()
 

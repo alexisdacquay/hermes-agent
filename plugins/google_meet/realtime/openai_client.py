@@ -12,9 +12,9 @@ import json
 import threading
 import time
 import uuid
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Optional
-
+from typing import Any
 
 REALTIME_URL = "wss://api.openai.com/v1/realtime"
 
@@ -33,7 +33,7 @@ class RealtimeSession:
     may run on different threads — a lock serializes WebSocket writes."""
 
     def __init__(self, api_key: str, model: str = "gpt-realtime", voice: str = "alloy",
-                 instructions: str = "", audio_sink_path: Optional[Path] = None, sample_rate: int = 24000) -> None:
+                 instructions: str = "", audio_sink_path: Path | None = None, sample_rate: int = 24000) -> None:
         self.api_key = api_key
         self.model = model
         self.voice = voice
@@ -43,7 +43,7 @@ class RealtimeSession:
         self._ws: Any = None
         self._send_lock = threading.Lock()
         self.audio_bytes_out: int = 0  # public counters for status reporting
-        self.last_audio_out_at: Optional[float] = None
+        self.last_audio_out_at: float | None = None
 
     def connect(self) -> None:
         """Open the WS and send ``session.update`` with voice + instructions."""
@@ -116,7 +116,7 @@ class RealtimeSession:
         with self._send_lock:
             self._ws.send(json.dumps(payload))
 
-    def _recv_frame(self, deadline: float, timeout: float) -> Optional[dict]:
+    def _recv_frame(self, deadline: float, timeout: float) -> dict | None:
         """Next dict frame before *deadline* (monotonic), ``None`` once the peer closes.
         Non-dict / unparseable frames are skipped; TimeoutError past the deadline."""
         assert self._ws is not None
@@ -140,7 +140,7 @@ class RealtimeSpeaker:
     """JSONL queue (``{"id", "text"}`` per line) wrapper around :class:`RealtimeSession`; processed
     lines are appended to ``processed_path`` (if set) and removed from the queue."""
 
-    def __init__(self, session: RealtimeSession, queue_path: Path, processed_path: Optional[Path] = None) -> None:
+    def __init__(self, session: RealtimeSession, queue_path: Path, processed_path: Path | None = None) -> None:
         self.session = session
         self.queue_path = Path(queue_path)
         self.processed_path = Path(processed_path) if processed_path else None

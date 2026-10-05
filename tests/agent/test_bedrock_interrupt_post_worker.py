@@ -12,7 +12,6 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
-
 from agent import chat_completion_helpers as cch
 
 

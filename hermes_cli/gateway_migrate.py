@@ -27,10 +27,10 @@ import logging
 import os
 import sys
 import time
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Callable, Iterator, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -47,20 +47,20 @@ class ProfileGateway:
     """One profile's standalone gateway footprint: live PID and/or installed service."""
     name: str
     home: Path
-    pid: Optional[int] = None
+    pid: int | None = None
     # EVERY installed unit: [("systemd", system), ("launchd", False)]. A profile can carry a user AND a
     # system unit at once; recording only the first found left the other live beside the multiplexer.
     services: list[tuple[str, bool]] = field(default_factory=list)
-    run_as_user: Optional[str] = None  # User= recorded by a system-scope systemd unit
-    uid: Optional[int] = None  # owner of the gateway process/unit; None = unknown (never "different")
-    runtime_home: Optional[Path] = None  # HERMES_HOME the installed unit pins, when it differs from ``home``
+    run_as_user: str | None = None  # User= recorded by a system-scope systemd unit
+    uid: int | None = None  # owner of the gateway process/unit; None = unknown (never "different")
+    runtime_home: Path | None = None  # HERMES_HOME the installed unit pins, when it differs from ``home``
 
     @property
     def is_default(self) -> bool:
         return self.name == "default"
 
     @property
-    def service(self) -> Optional[tuple[str, bool]]:
+    def service(self) -> tuple[str, bool] | None:
         """The unit the default gateway is (re)started through; None when nothing is installed."""
         return self.services[0] if self.services else None
 
@@ -109,12 +109,12 @@ class MigrationPlan:
     default_home: Path
     profiles: list[ProfileGateway]
     multiplex_flag_on: bool
-    live_served: Optional[list[str]]  # served_profiles the live default gateway recorded, if any
+    live_served: list[str] | None  # served_profiles the live default gateway recorded, if any
     # The migration manifest on disk, when one exists. Its PRESENCE is the "this host is already
     # mid-migration, with units removed" signal that turns every later gate from a refusal into a
     # finding (see :func:`apply_migration`): a resume compensates a destructive state, it never
     # initiates one.
-    manifest: Optional[dict] = None
+    manifest: dict | None = None
     # A manifest with the flag on and no LIVE default gateway: an earlier apply died between flipping
     # the flag and the multiplexer confirming it is up (#110850). An installed unit is not proof of
     # anything — `systemd_install` writes the unit before the start that can still fail or be killed.
@@ -159,14 +159,14 @@ class MigrationPlan:
     def blocked(self) -> bool:
         return bool(self.blockers)
 
-    def target_service_kind(self) -> Optional[tuple[str, bool]]:
+    def target_service_kind(self) -> tuple[str, bool] | None:
         """Service manager the default gateway should end up on: its own, else the one the
         secondaries used (so a systemd-managed fleet stays systemd-managed)."""
         if self.default.service is not None:
             return self.default.service
         return next((p.service for p in self.secondaries if p.service is not None), None)
 
-    def target_run_as_user(self) -> Optional[str]:
+    def target_run_as_user(self) -> str | None:
         """Preserve the system unit identity that the default unit replaces."""
         if self.default.run_as_user:
             return self.default.run_as_user
@@ -211,11 +211,14 @@ def _home_env(home: Path) -> Iterator[None]:
     a routed home and take only ``home``'s own secrets — with the env var swapped, the routed-home
     checks read ``home`` as the launch profile and handed the launch profile's credentials to the
     default gateway."""
-    from hermes_constants import (
-        get_routing_process_hermes_home, pin_process_hermes_home, process_hermes_home_is_pinned,
-        reset_hermes_home_override, set_hermes_home_override,
-    )
     import hermes_constants
+    from hermes_constants import (
+        get_routing_process_hermes_home,
+        pin_process_hermes_home,
+        process_hermes_home_is_pinned,
+        reset_hermes_home_override,
+        set_hermes_home_override,
+    )
     previous = os.environ.get("HERMES_HOME")
     pinned_here = not process_hermes_home_is_pinned()
     if pinned_here:
@@ -246,7 +249,7 @@ def _profile_homes() -> list[tuple[str, Path]]:
     return list(profiles_to_serve(multiplex=True, include_parked=True))
 
 
-def _live_gateway_pid(home: Path) -> Optional[int]:
+def _live_gateway_pid(home: Path) -> int | None:
     """Verified PID of a gateway SERVING ``home``, else None (never raises: a probe failure must
     not abort a migration plan).
 
@@ -269,7 +272,7 @@ def _host_gateway_owner():
     return None
 
 
-def _own_gateway_pid(home: Path, owner) -> Optional[int]:
+def _own_gateway_pid(home: Path, owner) -> int | None:
     """PID of a gateway ``home`` OWNS, else None.
 
     Ownership is what this command may stop, and the host multiplexer is not owned by the profiles
@@ -288,7 +291,7 @@ def _own_gateway_pid(home: Path, owner) -> Optional[int]:
     return None
 
 
-def _gateway_identity(home: Path, pid: Optional[int], services: list[tuple[str, bool]]) -> tuple[Optional[int], Path]:
+def _gateway_identity(home: Path, pid: int | None, services: list[tuple[str, bool]]) -> tuple[int | None, Path]:
     from hermes_cli.gateway_migrate_guards import gateway_identity
     return gateway_identity(home, pid, services)
 
@@ -302,9 +305,10 @@ def _installed_services(home: Path) -> list[tuple[str, bool]]:
     from hermes_cli import gateway as gw
     found: list[tuple[str, bool]] = []
     if gw._running_under_s6():
+        from hermes_constants import profile_name_for_home
+
         from hermes_cli.gateway_multiplex_s6 import named_slot_name, slot_is_up
         from hermes_cli.service_manager import S6ServiceManager
-        from hermes_constants import profile_name_for_home
         name = profile_name_for_home(home) or "default"
         slot_dir = S6ServiceManager().scandir / named_slot_name(name)
         if slot_dir.is_dir() and (name == "default" or slot_is_up(name)):
@@ -334,7 +338,7 @@ def _windows_task_installed() -> bool:
     return False
 
 
-def _systemd_service_user(home: Path, services: list[tuple[str, bool]]) -> Optional[str]:
+def _systemd_service_user(home: Path, services: list[tuple[str, bool]]) -> str | None:
     """Read ``User=`` before migration removes a system-scope unit."""
     if ("systemd", True) not in services:
         return None
@@ -343,7 +347,7 @@ def _systemd_service_user(home: Path, services: list[tuple[str, bool]]) -> Optio
         return gw._read_systemd_user_from_unit(gw.get_systemd_unit_path(system=True))
 
 
-def _service_op(kind: str, system: bool, verb: str, home: Path, *, run_as_user: Optional[str] = None) -> None:
+def _service_op(kind: str, system: bool, verb: str, home: Path, *, run_as_user: str | None = None) -> None:
     """``stop`` / ``uninstall`` / ``start`` / ``restart`` / ``install`` / ``enable`` on ``home``'s service."""
     if kind == "s6":
         return _s6_slot_op(verb, home)
@@ -386,8 +390,9 @@ def _s6_slot_op(verb: str, home: Path) -> None:
     """The s6 leg of :func:`_service_op`. A named profile's slot is never uninstalled: it stays
     registered DOWN (``down`` file) as the target of a later ``hermes -p X gateway start``, exactly
     the shape the container's boot produces. The root slot is (re)started so it re-reads its config."""
-    from hermes_cli.gateway_multiplex_s6 import bring_root_slot_up, park_named_slot
     from hermes_constants import profile_name_for_home
+
+    from hermes_cli.gateway_multiplex_s6 import bring_root_slot_up, park_named_slot
     name = profile_name_for_home(home) or "default"
     if name == "default":
         if verb in ("start", "restart"):
@@ -414,7 +419,11 @@ def _read_multiplex_flag(default_home: Path) -> bool:
 def _write_multiplex_flag(default_home: Path, value: bool) -> None:
     """Set ``gateway.multiplex_profiles`` in the DEFAULT profile's config.yaml through the config API
     (same read-guard + nested-set + atomic write ``hermes config set`` uses; no raw YAML edits)."""
-    from hermes_cli.config import _set_nested, _write_user_config, require_readable_config_before_write
+    from hermes_cli.config import (
+        _set_nested,
+        _write_user_config,
+        require_readable_config_before_write,
+    )
     cfg_path = default_home / "config.yaml"
     user_config = require_readable_config_before_write(cfg_path)
     # A stale top-level alias would shadow the nested key the docs describe.
@@ -439,6 +448,7 @@ def _profile_gateway_config(home: Path):
     """
     from gateway.config import load_gateway_config
     from gateway.run import _profile_runtime_scope
+
     from hermes_cli.plugins_discovery import suppress_plugin_discovery
     from hermes_cli.profiles import profile_is_parked
     scope = suppress_plugin_discovery() if profile_is_parked(home) else contextlib.nullcontext()
@@ -698,7 +708,7 @@ def format_plan(plan: MigrationPlan, *, dry_run: bool) -> list[str]:
     head = "Migration plan (dry run — nothing changed)" if dry_run else "Migration plan"
     lines = [head, f"  default home: {plan.default_home}", "", "  profile      gateway pid   service"]
     for p in plan.profiles:
-        lines.append(f"  {p.name:<12} {str(p.pid or '-'):<13} {p.service_label()}")
+        lines.append(f"  {p.name:<12} {p.pid or '-'!s:<13} {p.service_label()}")
     if plan.standalone_by_config:
         lines.append(f"  Standalone by config (gateway.standalone: true), left alone: "
                      f"{', '.join(plan.standalone_by_config)}")
@@ -765,7 +775,7 @@ def _plan_tail(plan: MigrationPlan) -> list[str]:
     return lines
 
 
-def _manifest_secondaries(manifest: dict) -> Optional[list[dict]]:
+def _manifest_secondaries(manifest: dict) -> list[dict] | None:
     """The manifest's secondary records, or None when the (hand-edited) manifest is malformed."""
     recs = manifest.get("secondaries", [])
     if not isinstance(recs, list) or not all(isinstance(r, dict) and r.get("profile") and r.get("home") for r in recs):
@@ -773,7 +783,7 @@ def _manifest_secondaries(manifest: dict) -> Optional[list[dict]]:
     return recs
 
 
-def _service_from_dict(service) -> Optional[tuple[str, bool]]:
+def _service_from_dict(service) -> tuple[str, bool] | None:
     if isinstance(service, dict) and service.get("kind"):
         return str(service["kind"]), bool(service.get("system"))
     return None
@@ -789,12 +799,12 @@ def _recorded_services(rec: dict) -> list[tuple[str, bool]]:
     return [service] if service is not None else []
 
 
-def _recorded_run_as_user(rec: dict) -> Optional[str]:
+def _recorded_run_as_user(rec: dict) -> str | None:
     user = rec.get("run_as_user")
     return user if isinstance(user, str) and user else None
 
 
-def _target_from_manifest(manifest: dict) -> tuple[Optional[tuple[str, bool]], Optional[str]]:
+def _target_from_manifest(manifest: dict) -> tuple[tuple[str, bool] | None, str | None]:
     """Service manager + ``User=`` the resumed default install should use, read from the recorded
     footprint (the units themselves are gone by the time an interrupted apply is re-run)."""
     recs = [r for r in (manifest.get("default"), *(_manifest_secondaries(manifest) or [])) if isinstance(r, dict)]
@@ -823,7 +833,7 @@ def _manifest_path(default_home: Path) -> Path:
     return default_home / MANIFEST_NAME
 
 
-def _read_manifest(default_home: Path) -> Optional[dict]:
+def _read_manifest(default_home: Path) -> dict | None:
     path = _manifest_path(default_home)
     if not path.exists():
         return None
@@ -834,7 +844,7 @@ def _read_manifest(default_home: Path) -> Optional[dict]:
     return data if isinstance(data, dict) else None
 
 
-def _manifest_not_yet_served(manifest: Optional[dict], live_served: Optional[list[str]]) -> bool:
+def _manifest_not_yet_served(manifest: dict | None, live_served: list[str] | None) -> bool:
     """The postcondition ``apply_migration`` waits for, re-derived from live state: a LIVE default that
     recorded serving every unparked profile the manifest migrated. Anything less — no live gateway, an
     installed-but-dead unit (``systemd_install`` writes the unit before the start that can still fail),
@@ -875,11 +885,11 @@ def _reconcile_standalone_runtime(default_home: Path, secondary_names: set[str])
     atomic_json_write(path, runtime, indent=None, separators=(",", ":"))
 
 
-def _wait_for_served(default_home: Path, expected: set[str], timeout: float) -> Optional[list[str]]:
+def _wait_for_served(default_home: Path, expected: set[str], timeout: float) -> list[str] | None:
     """Poll the default's ``gateway_state.json`` until ``served_profiles`` covers ``expected``."""
     from hermes_cli.gateway_multiplex_served import recorded_served_profiles
     deadline = time.monotonic() + timeout
-    served: Optional[list[str]] = None
+    served: list[str] | None = None
     while time.monotonic() < deadline:
         with _home_env(default_home):
             served = recorded_served_profiles(default_home)
@@ -891,10 +901,10 @@ def _wait_for_served(default_home: Path, expected: set[str], timeout: float) -> 
 
 def _restart_default(
     plan_default: ProfileGateway,
-    target: Optional[tuple[str, bool]],
+    target: tuple[str, bool] | None,
     default_home: Path,
     *,
-    run_as_user: Optional[str] = None,
+    run_as_user: str | None = None,
 ) -> str:
     """Bring the default gateway up on the new flag value; returns a one-line description.
 
@@ -919,7 +929,7 @@ def _restart_default(
     return f"{verb} the default gateway (detached; no service manager was in use)"
 
 
-def _enable_default_at_boot(plan: MigrationPlan) -> Optional[str]:
+def _enable_default_at_boot(plan: MigrationPlan) -> str | None:
     """Make the survivor boot-startable BEFORE anything is removed. Every secondary unit the fold
     uninstalls takes its boot enablement with it, and the pre-existing default unit may have been
     disabled all along; ``restart`` on a disabled unit succeeds, so the old order (remove, then
@@ -951,7 +961,7 @@ def _remove_secondary_gateways(plan: MigrationPlan) -> None:
             print(f"  ✓ {p.name}: stopped standalone gateway (pid {p.pid})")
 
 
-def _preflight_apply(plan: MigrationPlan, target: Optional[tuple[str, bool]], run_as_user: Optional[str]) -> Optional[str]:
+def _preflight_apply(plan: MigrationPlan, target: tuple[str, bool] | None, run_as_user: str | None) -> str | None:
     """A failure of the destructive phase that is knowable from the plan alone, refused BEFORE any
     working per-profile gateway is stopped: rollback is the fallback for surprises, not the plan.
     Mirrors the checks ``systemd_install``/``_service_call`` make on a system unit (root, resolvable
@@ -983,7 +993,7 @@ def _preflight_apply(plan: MigrationPlan, target: Optional[tuple[str, bool]], ru
     return None
 
 
-def _resume_target(plan: MigrationPlan) -> tuple[Optional[tuple[str, bool]], Optional[str]]:
+def _resume_target(plan: MigrationPlan) -> tuple[tuple[str, bool] | None, str | None]:
     """Service manager + ``User=`` an apply will use: the manifest's record wins on a resume (the
     live units it describes are already gone), else what the plan can still see."""
     target, run_as_user = plan.target_service_kind(), plan.target_run_as_user()
@@ -1096,7 +1106,7 @@ def apply_migration(plan: MigrationPlan, *, served_wait: float = _SERVED_WAIT_SE
 _COMPENSATOR_WAIT_SECONDS = 30.0
 
 
-def _wait_for_live_gateway(home: Path, timeout: float) -> Optional[int]:
+def _wait_for_live_gateway(home: Path, timeout: float) -> int | None:
     """Bounded wait for a gateway that is actually UP for ``home``; None on timeout.
 
     A service-manager ``start`` that returns is not proof: systemd returns after its own start
@@ -1113,7 +1123,7 @@ def _wait_for_live_gateway(home: Path, timeout: float) -> Optional[int]:
         time.sleep(0.5)
 
 
-def rollback_migration(default_home: Optional[Path] = None) -> bool:
+def rollback_migration(default_home: Path | None = None) -> bool:
     """COMPENSATOR for a failed apply: put ONE gateway back on this host.
 
     Not a user-facing rollback and deliberately NOT a fleet restore. It used to reinstall and
@@ -1209,7 +1219,7 @@ def rollback_migration(default_home: Optional[Path] = None) -> bool:
 # --------------------------------------------------------------------------- CLI + update hook
 
 
-def _host_supports_migration() -> Optional[str]:
+def _host_supports_migration() -> str | None:
     """Reason the host cannot be converged by this command, else None.
 
     Windows IS handled (per-profile Scheduled Tasks and the Startup-folder fallback are removed
@@ -1264,7 +1274,10 @@ def maybe_auto_migrate_after_update() -> None:
     migrate automatically when unblocked (deterministic, never prompts) or print the blocker block.
     ``gateway.auto_multiplex_migration: false`` on the default profile opts out; a secondary behind a
     service-domain / UNIX-user / HERMES_HOME boundary blocks this path only (the explicit command decides)."""
-    from hermes_cli.gateway_migrate_guards import auto_migration_blockers, auto_migration_opted_out
+    from hermes_cli.gateway_migrate_guards import (
+        auto_migration_blockers,
+        auto_migration_opted_out,
+    )
     if _host_supports_migration() is not None or auto_migration_opted_out(_default_home()):
         return
     plan = build_migration_plan()

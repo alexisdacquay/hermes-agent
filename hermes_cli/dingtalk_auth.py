@@ -6,7 +6,6 @@ import contextlib
 import os
 import sys
 import time
-from typing import Optional, Tuple
 
 import requests
 
@@ -60,8 +59,8 @@ def poll_registration(device_code: str) -> dict:
 
 
 def wait_for_registration_success(
-    device_code: str, interval: int = 3, expires_in: int = 7200, on_waiting: Optional[callable] = None,
-) -> Tuple[str, str]:
+    device_code: str, interval: int = 3, expires_in: int = 7200, on_waiting: callable | None = None,
+) -> tuple[str, str]:
     """Block until the registration succeeds or times out.
 
     Transient errors and FAIL/EXPIRED/UNKNOWN statuses are retried for ``_RETRY_WINDOW`` seconds
@@ -131,9 +130,9 @@ def render_qr_to_terminal(url: str) -> bool:
     return True
 
 
-def dingtalk_qr_auth() -> Optional[Tuple[str, str]]:
+def dingtalk_qr_auth() -> tuple[str, str] | None:
     """Run the interactive QR-code device-flow authorization (setup wizard entry point)."""
-    from hermes_cli.setup import print_info, print_success, print_warning, print_error
+    from hermes_cli.setup import print_error, print_info, print_success, print_warning
     print()
     print_info("  Initializing DingTalk device authorization...")
     print_info("  Note: the scan page is branded 'OpenClaw' — DingTalk's")

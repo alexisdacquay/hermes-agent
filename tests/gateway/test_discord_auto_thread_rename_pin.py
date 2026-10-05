@@ -7,14 +7,13 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable, Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
-import pytest
-
 import gateway.run as gateway_run
 import plugins.platforms.discord.adapter as discord_platform
+import pytest
 from gateway.config import GatewayConfig, Platform, PlatformConfig
 from gateway.session import build_session_context
 from plugins.platforms.discord.adapter import DiscordAdapter
@@ -56,7 +55,7 @@ def conversation(monkeypatch: pytest.MonkeyPatch) -> Conversation:
     async def turn(channel: object, message_id: int) -> str:
         await adapter._handle_message(SimpleNamespace(
             id=message_id, content=OPENING, mentions=[], attachments=[], reference=None,
-            created_at=datetime.now(timezone.utc), channel=channel,
+            created_at=datetime.now(UTC), channel=channel,
             author=SimpleNamespace(id=42, display_name="Alice", name="alice")))
         source = adapter.handle_message.await_args.args[0].source
         return runner._pinned_session_context_prompt(build_session_context(source, config), False, "k")

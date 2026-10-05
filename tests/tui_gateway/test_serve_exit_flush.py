@@ -20,8 +20,8 @@ import signal
 import time
 
 import pytest
-
 from tui_gateway import server
+
 
 class _FlushAgent:
     """Minimal agent exposing the real ``_persist_session`` flush contract."""
@@ -181,7 +181,6 @@ def test_shutdown_mid_tool_kills_the_command_and_keeps_its_result(monkeypatch):
     import threading
 
     import psutil
-
     from tools.environments.local import LocalEnvironment
     from tools.interrupt import set_interrupt
 
@@ -243,7 +242,6 @@ def test_sigterm_grace_hard_exit_kills_a_sigterm_ignoring_command(monkeypatch):
     import threading
 
     import psutil
-
     from tools.environments.local import LocalEnvironment
     from tui_gateway import entry
 

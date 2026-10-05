@@ -8,7 +8,6 @@ Outside a served-profile scope every key stays byte-identical to the legacy shap
 from __future__ import annotations
 
 import pytest
-
 from hermes_constants import reset_hermes_home_override, set_hermes_home_override
 
 

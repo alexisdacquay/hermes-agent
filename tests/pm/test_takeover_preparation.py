@@ -3,15 +3,15 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
-
 from pm.lock import Facts, Lockfile
 from pm.store import current_target, tree_digest
+
 from tests.pm._fixtures import _wheel
 
 

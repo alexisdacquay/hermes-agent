@@ -6,7 +6,6 @@ import logging
 import sys
 from functools import partial
 from pathlib import Path
-from typing import Optional
 
 from hermes_constants import get_optional_skills_dir
 
@@ -61,7 +60,7 @@ def _model_section_has_credentials(config: dict) -> bool:
     return any(_has_key(pconfig) for pid, pconfig in PROVIDER_REGISTRY.items() if pid != "copilot")
 
 
-def _model_summary(config: dict) -> Optional[str]:
+def _model_summary(config: dict) -> str | None:
     if not _model_section_has_credentials(config):
         return None
     model = config.get("model")
@@ -77,7 +76,7 @@ def _cfg_summary(config: dict, section: str, key: str, default, prefix: str) -> 
     return f"{prefix}{cfg_get(config, section, key, default=default)}"
 
 
-def _gateway_summary(config: dict) -> Optional[str]:
+def _gateway_summary(config: dict) -> str | None:
     from hermes_cli.gateway import _all_platforms, _platform_status
     # Any non-empty status other than "not configured" counts — WhatsApp ("enabled, not paired"),
     # Matrix ("configured + E2EE"), Signal ("partially configured") mean setup already started.
@@ -97,7 +96,7 @@ _TOOL_ENV_LABELS = (
 )
 
 
-def _tools_summary(config: dict) -> Optional[str]:
+def _tools_summary(config: dict) -> str | None:
     from hermes_cli.setup import get_env_value
     tools = [label for env_var, label in _TOOL_ENV_LABELS if get_env_value(env_var)]
     return ", ".join(tools) if tools else None
@@ -112,7 +111,7 @@ _SECTION_SUMMARIES = {
 }
 
 
-def _get_section_config_summary(config: dict, section_key: str) -> Optional[str]:
+def _get_section_config_summary(config: dict, section_key: str) -> str | None:
     """Short summary if a setup section is already configured (post-OpenClaw-migration skip
     detection), else None. ``get_env_value`` is reached through hermes_cli.setup so test patches
     on ``setup_mod.get_env_value`` apply."""
@@ -192,7 +191,7 @@ def _reason_row(default_reason: str, item: dict, kind: str) -> str:
 def _print_migration_preview(report: dict):
     """Dry-run preview grouped by status, with warnings for high-impact items (gateway takeover,
     config semantics)."""
-    from hermes_cli.setup import color, Colors, print_info
+    from hermes_cli.setup import Colors, color, print_info
     items = report.get("items", [])
     if not items:
         print_info("Nothing to migrate.")
@@ -255,8 +254,15 @@ def _offer_openclaw_migration(hermes_home: Path) -> bool:
     """Detect ~/.openclaw and offer to migrate during first-time setup: dry-run preview first,
     execute only after explicit confirmation. Returns True iff migration ran successfully."""
     from hermes_cli.setup import (
-        get_config_path, _info, load_config, print_header, print_info, print_success, print_warning, prompt_yes_no,
-        save_config
+        _info,
+        get_config_path,
+        load_config,
+        print_header,
+        print_info,
+        print_success,
+        print_warning,
+        prompt_yes_no,
+        save_config,
     )
     openclaw_dir = Path.home() / ".openclaw"
     if not openclaw_dir.is_dir() or not _OPENCLAW_SCRIPT.exists():

@@ -14,7 +14,6 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
-
 from tools.send_message_senders import _telegram_send_one_media
 
 

@@ -6,7 +6,6 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
-
 from agent.delegation_context import delegated_child_context
 from gateway.session_context import (
     _SESSION_ID,

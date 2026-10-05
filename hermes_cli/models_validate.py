@@ -11,17 +11,17 @@ here — keep walking the ladder". The ladder ORDER is behavior (see ``_LADDER``
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from difflib import get_close_matches
-from typing import Any, Callable, Optional
+from typing import Any
 
-from utils import base_url_host_matches
 from hermes_constants import openrouter_variant_base
-
+from utils import base_url_host_matches
 
 # ── Verdicts ─────────────────────────────────────────────────────────────
 
-def _verdict(accepted: bool, persist: bool, recognized: bool, message: Optional[str]) -> dict[str, Any]:
+def _verdict(accepted: bool, persist: bool, recognized: bool, message: str | None) -> dict[str, Any]:
     return {"accepted": accepted, "persist": persist, "recognized": recognized, "message": message}
 
 
@@ -37,7 +37,7 @@ def _reject(message: str) -> dict[str, Any]:
     return _verdict(False, False, False, message)
 
 
-def _soft_accept(message: Optional[str]) -> dict[str, Any]:
+def _soft_accept(message: str | None) -> dict[str, Any]:
     """Accept + persist an unrecognized name, with a warning."""
     return _verdict(True, True, False, message)
 
@@ -49,7 +49,7 @@ class _Match:
     exact: bool = False
     suggestion_text: str = ""
 
-    def verdict(self, req: "_Request") -> Optional[dict[str, Any]]:
+    def verdict(self, req: _Request) -> dict[str, Any] | None:
         """Accept on exact membership, else None so the branch composes its own message."""
         return _accept() if self.exact else None
 
@@ -59,7 +59,7 @@ def _match_in_catalog(
     candidates,
     *,
     case_insensitive: bool = False,
-    suggest_query: Optional[str] = None,
+    suggest_query: str | None = None,
     suggest_cutoff: float = 0.5,
     suggest_label: str = "Similar models",
 ) -> _Match:
@@ -97,12 +97,12 @@ def _match_in_catalog(
 class _Request:
     requested: str
     lookup: str                 # id used for catalog membership (copilot-normalized / preset base)
-    provider: Optional[str]     # raw caller value (Ollama checks look at this, not ``normalized``)
+    provider: str | None     # raw caller value (Ollama checks look at this, not ``normalized``)
     normalized: str
-    api_key: Optional[str]
-    base_url: Optional[str]
-    api_mode: Optional[str]
-    headers: Optional[dict[str, str]]
+    api_key: str | None
+    base_url: str | None
+    api_mode: str | None
+    headers: dict[str, str] | None
 
 
 # ── Provider branches (None = not decided here) ─────────────────────────
@@ -120,7 +120,7 @@ def _validate_moa(req: _Request) -> dict[str, Any]:
         return _reject(f"Could not read MoA presets: {exc}")
 
 
-def _reject_whitespace(req: _Request) -> Optional[dict[str, Any]]:
+def _reject_whitespace(req: _Request) -> dict[str, Any] | None:
     # Cloud catalogs never contain spaces. Self-hosted servers and a user-configured
     # base_url do (VLLM "My Custom Model", a local router's "Go reasoning"). The
     # step stays here — later branches must not see a cloud id the catalog cannot serve.
@@ -134,11 +134,11 @@ _SELF_HOSTED_PROVIDERS = frozenset({
 })
 
 
-def _provider_token(provider: Optional[str]) -> str:
+def _provider_token(provider: str | None) -> str:
     return str(provider or "").strip().lower()
 
 
-def _is_self_hosted_provider(provider: Optional[str]) -> bool:
+def _is_self_hosted_provider(provider: str | None) -> bool:
     """Local servers and the custom endpoint bucket, including aliases that normalize to it."""
     raw = _provider_token(provider)
     if not raw:
@@ -179,8 +179,9 @@ def _stock_host(provider: str) -> str:
     overlay when models.dev is cold). A foreign row is not this provider's stock
     endpoint — using it would exempt the real cloud host.
     """
-    from hermes_cli.providers import get_provider
     from utils import base_url_hostname
+
+    from hermes_cli.providers import get_provider
 
     token = _provider_token(provider)
     if not token:
@@ -194,7 +195,7 @@ def _stock_host(provider: str) -> str:
     return base_url_hostname(pdef.base_url or "")
 
 
-def provider_allows_model_whitespace(provider: Optional[str], base_url: Optional[str] = None) -> bool:
+def provider_allows_model_whitespace(provider: str | None, base_url: str | None = None) -> bool:
     """True when a spaced id is a real selection, not a cloud-catalog typo.
 
     Self-hosted providers always qualify. A base_url qualifies when the user
@@ -229,7 +230,7 @@ def _whitespace_allowed(req: _Request) -> bool:
     return provider_allows_model_whitespace(req.provider or req.normalized, req.base_url)
 
 
-def offered_model_ids(models, provider: Optional[str], base_url: Optional[str] = None) -> list:
+def offered_model_ids(models, provider: str | None, base_url: str | None = None) -> list:
     """Ids a picker may show. Drops whitespace the validator will refuse; keeps the rest."""
     ids = list(models or [])
     if provider_allows_model_whitespace(provider, base_url):
@@ -258,7 +259,7 @@ def drop_unofferable_model_ids(rows: list) -> None:
             row["featured_models"] = offered_model_ids(featured, provider, base_url)
 
 
-def _parse_openrouter_preset(req: _Request) -> Optional[dict[str, Any]]:
+def _parse_openrouter_preset(req: _Request) -> dict[str, Any] | None:
     """OpenRouter presets are account-scoped, so ``@preset/<slug>`` never appears in the public
     /v1/models listing. A bare preset is accepted unverified; ``<model>@preset/<slug>`` validates
     the base model; the full id (suffix included) goes to the wire. OpenRouter validates the slug
@@ -321,7 +322,7 @@ def _ollama_probe_headers(req: _Request) -> dict[str, str]:
     return out
 
 
-def _validate_ollama_native(req: _Request) -> Optional[dict[str, Any]]:
+def _validate_ollama_native(req: _Request) -> dict[str, Any] | None:
     """Runs for EVERY provider: the native ``/api/tags`` catalog is used whenever the endpoint
     looks like a local Ollama server. Also resolves ``base_url`` for the raw ``ollama`` provider,
     which later branches (custom) rely on."""
@@ -420,7 +421,7 @@ def _family_head(model_id: str) -> str:
     return re.split(r"[-./:]", model_id.strip().lower(), maxsplit=1)[0]
 
 
-def static_model_provider_conflict(model_name: str, provider: Optional[str], *, limit: int = 5) -> Optional[dict[str, Any]]:
+def static_model_provider_conflict(model_name: str, provider: str | None, *, limit: int = 5) -> dict[str, Any] | None:
     """Offline model×provider coherence from the curated catalogs only (no network: this runs on
     ``session.create``). ``None`` = coherent or undecidable — custom / aggregator / catalog-less
     providers, names in the provider's own family (a newer ``gpt-*`` the curated list lacks) and
@@ -450,12 +451,15 @@ def static_model_provider_conflict(model_name: str, provider: Optional[str], *, 
     }
 
 
-def _validate_static_catalog(req: _Request) -> Optional[dict[str, Any]]:
+def _validate_static_catalog(req: _Request) -> dict[str, Any] | None:
     """openai-codex / xai-oauth: no /v1/models probing — validate against the curated catalog.
     Returns None (fall through) when the catalog is empty."""
     catalog = _static_catalog(req.normalized)
     if req.normalized == "openai-codex":
-        from agent.model_metadata import CODEX_CONTEXT_VARIANT_SUFFIX, is_codex_context_variant
+        from agent.model_metadata import (
+            CODEX_CONTEXT_VARIANT_SUFFIX,
+            is_codex_context_variant,
+        )
 
         # Ineligible ``-900k`` aliases must be rejected BEFORE the hidden-slug soft-accept:
         # the suffix is a Hermes picker convention, so an unknown `*-900k` can never be a real
@@ -496,7 +500,7 @@ def _validate_static_catalog(req: _Request) -> Optional[dict[str, Any]]:
     )
 
 
-def _validate_minimax(req: _Request) -> Optional[dict[str, Any]]:
+def _validate_minimax(req: _Request) -> dict[str, Any] | None:
     """MiniMax has no /models endpoint — static catalog, case-insensitive (ids like MiniMax-M2.7).
     Returns None when the catalog is empty."""
     catalog = _static_catalog(req.normalized)
@@ -511,7 +515,7 @@ def _validate_minimax(req: _Request) -> Optional[dict[str, Any]]:
     )
 
 
-def _validate_anthropic(req: _Request) -> Optional[dict[str, Any]]:
+def _validate_anthropic(req: _Request) -> dict[str, Any] | None:
     """Native Anthropic: /v1/models needs x-api-key (or OAuth Bearer) + anthropic-version, so the
     generic Bearer probe 401s — use the native fetcher. None (fall through) when no token is
     resolvable or the network failed."""
@@ -569,7 +573,7 @@ def _nous_portal_recommended_names() -> set[str]:
         return set()
 
 
-def _validate_managed_local(req: _Request) -> Optional[dict[str, Any]]:
+def _validate_managed_local(req: _Request) -> dict[str, Any] | None:
     """The managed llama.cpp runtime: the staged library on disk is the source of truth, not the
     live listing. The router's model list is spawn-only (a GGUF landed after its start is
     invisible to GET /models until a bounce), so validating a freshly downloaded model against
@@ -589,7 +593,7 @@ def _validate_managed_local(req: _Request) -> Optional[dict[str, Any]]:
     return None
 
 
-def _profile_catalog(normalized: str, base_url: Optional[str] = None) -> tuple[list[str], bool]:
+def _profile_catalog(normalized: str, base_url: str | None = None) -> tuple[list[str], bool]:
     """``(catalog, authoritative)`` for a profile whose catalog is not the generic
     ``{base_url}/models`` listing — it overrides ``fetch_models`` or points ``models_url``
     elsewhere — so that listing is not authoritative for it (a relay may 200 with a different
@@ -616,7 +620,7 @@ def _profile_catalog(normalized: str, base_url: Optional[str] = None) -> tuple[l
     return catalog, own_endpoint and bool(catalog)
 
 
-def _validate_live_listing(req: _Request) -> Optional[dict[str, Any]]:
+def _validate_live_listing(req: _Request) -> dict[str, Any] | None:
     """Generic live /v1/models probe. Returns None when the API was unreachable (the caller then
     tries Bedrock discovery / the curated catalog). A profile that owns its catalog is validated
     against that catalog (``provider_model_ids`` — the picker's list) before the generic listing."""
@@ -674,11 +678,14 @@ def _validate_live_listing(req: _Request) -> Optional[dict[str, Any]]:
     return _reject(f"Model `{req.requested}` was not found in this provider's model listing.{match.suggestion_text}")
 
 
-def _validate_bedrock(req: _Request) -> Optional[dict[str, Any]]:
+def _validate_bedrock(req: _Request) -> dict[str, Any] | None:
     """Bedrock's runtime URL has no /models; discovery goes through the AWS control plane
     (ListFoundationModels + ListInferenceProfiles). Any failure falls through (None)."""
     try:
-        from agent.bedrock_adapter import discover_bedrock_models, resolve_bedrock_runtime_region
+        from agent.bedrock_adapter import (
+            discover_bedrock_models,
+            resolve_bedrock_runtime_region,
+        )
 
         region = resolve_bedrock_runtime_region()
         discovered_ids = {m["id"] for m in discover_bedrock_models(region)}
@@ -695,7 +702,7 @@ def _validate_bedrock(req: _Request) -> Optional[dict[str, Any]]:
         return None
 
 
-def _validate_external_process(req: _Request) -> Optional[dict[str, Any]]:
+def _validate_external_process(req: _Request) -> dict[str, Any] | None:
     """Process providers have no HTTP listing: the picker's list (``provider_model_ids`` — the
     CLI's live catalog merged with the declared one) plus the profile's short aliases is the whole
     truth, so a listed id is accepted outright and an unlisted one gets the catalog verdict without
@@ -757,7 +764,7 @@ def _for(*providers: str) -> Callable[[_Request], bool]:
 # base_url) → OpenRouter preset parse → LM Studio → Ollama native → custom →
 # codex/xai static → MiniMax → managed local (staged library) → Anthropic native →
 # Anthropic Messages → external process → live listing → Bedrock → curated-catalog fallback (always decides).
-_LADDER: tuple[tuple[Callable[[_Request], bool], Callable[[_Request], Optional[dict[str, Any]]]], ...] = (
+_LADDER: tuple[tuple[Callable[[_Request], bool], Callable[[_Request], dict[str, Any] | None]], ...] = (
     (_for("moa"), _validate_moa),
     (lambda req: True, _reject_whitespace),
     (_for("openrouter"), _parse_openrouter_preset),
@@ -779,12 +786,12 @@ _LADDER: tuple[tuple[Callable[[_Request], bool], Callable[[_Request], Optional[d
 
 def validate_requested_model(
     model_name: str,
-    provider: Optional[str],
+    provider: str | None,
     *,
-    api_key: Optional[str] = None,
-    base_url: Optional[str] = None,
-    api_mode: Optional[str] = None,
-    headers: Optional[dict[str, str]] = None,
+    api_key: str | None = None,
+    base_url: str | None = None,
+    api_mode: str | None = None,
+    headers: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Validate a ``/model`` value for the active provider → dict with ``accepted`` (switch now),
     ``persist`` (safe to save to config), ``recognized`` (matched a known provider catalog),

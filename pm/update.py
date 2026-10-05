@@ -29,13 +29,12 @@ import json
 import os
 import re
 import urllib.request
+from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
-from typing import Iterator, Optional
 
 from pm.network import retry_network
-
 
 # The context holds no data outside a resolve/pin call, including failed calls.
 # Keep the Package hooks unchanged while sharing their nested index requests.
@@ -74,7 +73,7 @@ def version_key(version: str) -> tuple:
     return tuple(key)
 
 
-def minor_of(version: str) -> Optional[tuple[int, int]]:
+def minor_of(version: str) -> tuple[int, int] | None:
     """(major, minor) of a semver-ish string; None when not 2-part numeric."""
     nums = [int(m) for m in _VERSION_PART_RE.findall(version) if m.isdigit()]
     if len(nums) < 2:
@@ -82,7 +81,7 @@ def minor_of(version: str) -> Optional[tuple[int, int]]:
     return (nums[0], nums[1])
 
 
-def best_in_minor(versions: list[str], minor: tuple[int, int]) -> Optional[str]:
+def best_in_minor(versions: list[str], minor: tuple[int, int]) -> str | None:
     """The highest version in `versions` whose major.minor == `minor`."""
     best = None
     for v in versions:
@@ -101,9 +100,9 @@ class Resolved:
     """What `pm update` decided for ONE package."""
 
     name: str
-    locked: Optional[str]
+    locked: str | None
     style: str
-    version: Optional[str] = None  # lockfile label: full (semver) or X.Y (minor)
+    version: str | None = None  # lockfile label: full (semver) or X.Y (minor)
     per_target: dict[str, str] = field(default_factory=dict)  # target -> exact version
     reason: str = ""  # "up to date" / "no source" / "no shared minor" / ""
     artifact_updates: dict[str, list[str]] = field(default_factory=dict)
@@ -122,7 +121,7 @@ class Resolved:
 def resolve_best(
     name: str,
     latest_by_target: dict[str, list[str]],
-    locked: Optional[str],
+    locked: str | None,
     style: str,
 ) -> Resolved:
     """Intersect per-target candidate lists into one update decision.
@@ -163,7 +162,7 @@ def resolve_best(
 
 
 @reuse_index_responses()
-def resolve_package(package, targets: list[str], locked: Optional[str], *, artifacts: dict | None = None) -> Resolved:
+def resolve_package(package, targets: list[str], locked: str | None, *, artifacts: dict | None = None) -> Resolved:
     """Resolve versions and detect new artifacts within a shared minor."""
     latest = {
         t: list(package.latest_versions(t, locked=locked) or [])
@@ -231,7 +230,7 @@ def _get_json(url: str) -> dict | list:
     return retry_network(request)
 
 
-def _get_text(url: str, headers: Optional[dict] = None) -> str:
+def _get_text(url: str, headers: dict | None = None) -> str:
     from hermes_cli.urllib_security import open_credentialed_url
 
     hdrs = _index_headers(url)
@@ -282,7 +281,7 @@ def _hf_headers() -> dict:
     return headers
 
 
-def llama_app_latest() -> Optional[str]:
+def llama_app_latest() -> str | None:
     """The build tag the llama.app installer's `latest` pointer currently
     resolves to — the updater's "next version". Returns the bare build
     number ("10679") or None when unreachable."""
@@ -363,8 +362,7 @@ def node_latest_versions() -> list[str]:
     out = []
     for entry in _get_json("https://nodejs.org/dist/index.json"):
         v = entry.get("version", "")
-        if v.startswith("v"):
-            v = v[1:]
+        v = v.removeprefix("v")
         if re.fullmatch(r"\d+\.\d+\.\d+", v):
             out.append(v)
     return out

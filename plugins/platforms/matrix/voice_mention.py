@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import Dict, List, Optional, Tuple
 
 CLAIM_WINDOW_SECONDS = 120.0
 # How long a bare mention waits for a voice from the same /sync batch that is still being gated.
@@ -21,7 +20,7 @@ SETTLE_TIMEOUT_SECONDS = 5.0
 MAX_PARKED_PER_SENDER = 4
 
 # (voice event_id, content, relates_to)
-ParkedVoice = Tuple[str, dict, dict]
+ParkedVoice = tuple[str, dict, dict]
 
 
 def has_voice_marker(content: dict) -> bool:
@@ -36,7 +35,7 @@ def is_voice_event(content: dict) -> bool:
 class VoiceGate:
     """One voice being gated; ``seq`` orders voices from the same sender by arrival."""
 
-    __slots__ = ("seq", "done")
+    __slots__ = ("done", "seq")
 
     def __init__(self, seq: int) -> None:
         self.seq = seq
@@ -46,14 +45,14 @@ class VoiceGate:
 class ParkedVoices:
     def __init__(self) -> None:
         # (room_id, sender) -> parked voices as (parked_at, seq, voice), ordered by seq, bounded.
-        self._parked: Dict[Tuple[str, str], List[Tuple[float, int, ParkedVoice]]] = {}
+        self._parked: dict[tuple[str, str], list[tuple[float, int, ParkedVoice]]] = {}
         # (room_id, sender) -> every voice of that sender still being gated. mautrix runs one
         # /sync batch's events as concurrent tasks, so a voice may still be awaiting room
         # identity when its bare mention is handled -- and a sender can have several in flight.
-        self._inflight: Dict[Tuple[str, str], List[VoiceGate]] = {}
+        self._inflight: dict[tuple[str, str], list[VoiceGate]] = {}
         # (room_id, sender) -> seq of the last claimed voice while gates were in flight, so an
         # older voice finishing late never parks after (and outlives) that claim.
-        self._floor: Dict[Tuple[str, str], int] = {}
+        self._floor: dict[tuple[str, str], int] = {}
         self._next_seq = 0
 
     def _prune(self) -> None:
@@ -113,7 +112,7 @@ class ParkedVoices:
         entries.sort(key=lambda e: e[1])
         del entries[:-MAX_PARKED_PER_SENDER]
 
-    def claim(self, room_id: str, sender: str, before: int) -> Optional[ParkedVoice]:
+    def claim(self, room_id: str, sender: str, before: int) -> ParkedVoice | None:
         """Pop the sender's newest parked voice for this room that began before ``before``
         (``mark()`` taken when the bare mention arrived); older ones are dropped, later voices
         stay for their own mention. The caller re-dispatches it with ``mention_claimed=True``."""

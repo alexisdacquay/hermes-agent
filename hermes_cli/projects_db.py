@@ -12,12 +12,14 @@ import re
 import secrets
 import sqlite3
 import time
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterable, List, Optional
 
-from hermes_cli.sqlite_util import add_column_if_missing as _add_column_if_missing, open_db, write_txn
 from hermes_constants import get_hermes_home
+
+from hermes_cli.sqlite_util import add_column_if_missing as _add_column_if_missing
+from hermes_cli.sqlite_util import open_db, write_txn
 
 
 def projects_db_path() -> Path:
@@ -87,7 +89,7 @@ def _slugify(name: str) -> str:
     return s[:64].strip("-_") or "project"
 
 
-def normalize_slug(slug: Optional[str]) -> Optional[str]:
+def normalize_slug(slug: str | None) -> str | None:
     """Lowercase + strip a slug; validate; return ``None`` for empty."""
     s = str(slug).strip().lower() if slug is not None else ""
     if not s:
@@ -111,7 +113,7 @@ def _normalize_path(path: str) -> str:
     return p.rstrip("/\\") or p
 
 
-def connect(db_path: Optional[Path] = None) -> sqlite3.Connection:
+def connect(db_path: Path | None = None) -> sqlite3.Connection:
     """Open (and initialize if needed) the per-profile projects DB.
 
     WAL with DELETE fallback for network filesystems (``hermes_state`` helper). Schema init is
@@ -134,7 +136,7 @@ def connect(db_path: Optional[Path] = None) -> sqlite3.Connection:
 
 
 @contextlib.contextmanager
-def connect_closing(db_path: Optional[Path] = None):
+def connect_closing(db_path: Path | None = None):
     """Open a projects DB connection and close it on exit (sqlite3's own context manager only
     commits/rollbacks, so long-lived gateway/dashboard processes would leak fds otherwise)."""
     conn = connect(db_path=db_path)
@@ -148,7 +150,7 @@ def connect_closing(db_path: Optional[Path] = None):
 @dataclass
 class ProjectFolder:
     path: str
-    label: Optional[str] = None
+    label: str | None = None
     is_primary: bool = False
     added_at: int = 0
 
@@ -162,13 +164,13 @@ class Project:
     slug: str
     name: str
     created_at: int
-    description: Optional[str] = None
-    icon: Optional[str] = None
-    color: Optional[str] = None
-    board_slug: Optional[str] = None
-    primary_path: Optional[str] = None
+    description: str | None = None
+    icon: str | None = None
+    color: str | None = None
+    board_slug: str | None = None
+    primary_path: str | None = None
     archived: bool = False
-    folders: List[ProjectFolder] = field(default_factory=list)
+    folders: list[ProjectFolder] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         d = {k: getattr(self, k) for k in ("id", "slug", "name", *_OPTIONAL_ROW_FIELDS)}
@@ -204,7 +206,7 @@ def _primary_path_key(path: str) -> str:
     return os.path.normcase(_normalize_path(path))
 
 
-def find_by_primary_path(conn: sqlite3.Connection, path: str, *, include_archived: bool = False) -> Optional[Project]:
+def find_by_primary_path(conn: sqlite3.Connection, path: str, *, include_archived: bool = False) -> Project | None:
     """The first (oldest) project whose primary path matches ``path`` (separator/case normalized so
     equivalent Windows spellings don't slip past the dedup check), else None."""
     key = _primary_path_key(path)
@@ -218,9 +220,9 @@ def find_by_primary_path(conn: sqlite3.Connection, path: str, *, include_archive
 
 
 def create_project(
-    conn: sqlite3.Connection, *, name: str, slug: Optional[str] = None, folders: Optional[Iterable[str]] = None,
-    primary_path: Optional[str] = None, description: Optional[str] = None, icon: Optional[str] = None,
-    color: Optional[str] = None, board_slug: Optional[str] = None, allow_duplicate_path: bool = False,
+    conn: sqlite3.Connection, *, name: str, slug: str | None = None, folders: Iterable[str] | None = None,
+    primary_path: str | None = None, description: str | None = None, icon: str | None = None,
+    color: str | None = None, board_slug: str | None = None, allow_duplicate_path: bool = False,
 ) -> str:
     """Create a project and return its id. ``folders`` are normalized to absolute paths; ``primary_path``
     is added to the folder set (if absent) and marked primary, else the first folder becomes primary."""
@@ -256,12 +258,12 @@ def create_project(
     return pid
 
 
-def list_projects(conn: sqlite3.Connection, *, include_archived: bool = False) -> List[Project]:
+def list_projects(conn: sqlite3.Connection, *, include_archived: bool = False) -> list[Project]:
     sql = "SELECT * FROM projects" + ("" if include_archived else " WHERE archived = 0") + " ORDER BY created_at ASC"
     return [_load_project(conn, r) for r in conn.execute(sql).fetchall()]
 
 
-def get_project(conn: sqlite3.Connection, id_or_slug: str) -> Optional[Project]:
+def get_project(conn: sqlite3.Connection, id_or_slug: str) -> Project | None:
     """Look up a project by id first, then by slug."""
     row = (
         conn.execute("SELECT * FROM projects WHERE id = ?", (id_or_slug,)).fetchone()
@@ -271,8 +273,8 @@ def get_project(conn: sqlite3.Connection, id_or_slug: str) -> Optional[Project]:
 
 
 def update_project(
-    conn: sqlite3.Connection, project_id: str, *, name: Optional[str] = None, description: Optional[str] = None,
-    icon: Optional[str] = None, color: Optional[str] = None, board_slug: Optional[str] = None,
+    conn: sqlite3.Connection, project_id: str, *, name: str | None = None, description: str | None = None,
+    icon: str | None = None, color: str | None = None, board_slug: str | None = None,
 ) -> bool:
     """Patch top-level project fields; only provided (non-None) fields change. ``icon``, ``color`` and
     ``board_slug`` take ``""`` to clear (store NULL) — ``None`` leaves the field untouched."""
@@ -302,7 +304,7 @@ def _execute_rowcount(conn: sqlite3.Connection, sql: str, params) -> int:
     return cur.rowcount
 
 
-def add_folder(conn: sqlite3.Connection, project_id: str, path: str, *, label: Optional[str] = None, is_primary: bool = False) -> str:
+def add_folder(conn: sqlite3.Connection, project_id: str, path: str, *, label: str | None = None, is_primary: bool = False) -> str:
     """Add a folder to a project. Returns the normalized path."""
     norm = _normalize_path(path)
     if not norm:
@@ -382,12 +384,12 @@ def _upsert_meta_locked(conn: sqlite3.Connection, key: str, value: str) -> None:
     )
 
 
-def _get_meta(conn: sqlite3.Connection, key: str) -> Optional[str]:
+def _get_meta(conn: sqlite3.Connection, key: str) -> str | None:
     row = conn.execute("SELECT value FROM project_meta WHERE key = ?", (key,)).fetchone()
     return row["value"] if row else None
 
 
-def set_active(conn: sqlite3.Connection, project_id: Optional[str]) -> None:
+def set_active(conn: sqlite3.Connection, project_id: str | None) -> None:
     """Set (or clear, when ``None``) the active project pointer."""
     with write_txn(conn):
         if project_id is None:
@@ -396,15 +398,15 @@ def set_active(conn: sqlite3.Connection, project_id: Optional[str]) -> None:
             _upsert_meta_locked(conn, _ACTIVE_META_KEY, project_id)
 
 
-def get_active_id(conn: sqlite3.Connection) -> Optional[str]:
+def get_active_id(conn: sqlite3.Connection) -> str | None:
     return _get_meta(conn, _ACTIVE_META_KEY)
 
 
-def get_discovery_policy_key(conn: sqlite3.Connection) -> Optional[str]:
+def get_discovery_policy_key(conn: sqlite3.Connection) -> str | None:
     return _get_meta(conn, _DISCOVERY_POLICY_META_KEY)
 
 
-def _clear_repos_locked(conn: sqlite3.Connection, clear: bool, policy_key: Optional[str]) -> None:
+def _clear_repos_locked(conn: sqlite3.Connection, clear: bool, policy_key: str | None) -> None:
     """Optionally wipe the scan cache, then record the policy key when given (caller holds a write txn)."""
     if clear:
         conn.execute("DELETE FROM discovered_repos")
@@ -424,14 +426,14 @@ def reconcile_discovered_repos_policy(conn: sqlite3.Connection, policy_key: str,
     return cleared
 
 
-def clear_discovered_repos(conn: sqlite3.Connection, *, policy_key: Optional[str] = None) -> None:
+def clear_discovered_repos(conn: sqlite3.Connection, *, policy_key: str | None = None) -> None:
     with write_txn(conn):
         _clear_repos_locked(conn, True, policy_key)
 
 
 def record_discovered_repos(
-    conn: sqlite3.Connection, repos: Iterable[tuple[str, Optional[str]]], *, replace: bool = False,
-    policy_key: Optional[str] = None,
+    conn: sqlite3.Connection, repos: Iterable[tuple[str, str | None]], *, replace: bool = False,
+    policy_key: str | None = None,
 ) -> int:
     """Persist scanned ``(root, label)`` repo roots (normalized; label falls back to basename) and
     return the row count. ``replace`` = authoritative fresh scan: stale rows are deleted first so old
@@ -454,12 +456,12 @@ def record_discovered_repos(
     return len(rows)
 
 
-def list_discovered_repos(conn: sqlite3.Connection) -> List[dict]:
+def list_discovered_repos(conn: sqlite3.Connection) -> list[dict]:
     """All cached discovered repo roots, most-recently-seen first."""
     return [dict(r) for r in conn.execute("SELECT root, label, last_seen FROM discovered_repos ORDER BY last_seen DESC").fetchall()]
 
 
-def project_for_path(conn: sqlite3.Connection, path: str, *, include_archived: bool = False) -> Optional[Project]:
+def project_for_path(conn: sqlite3.Connection, path: str, *, include_archived: bool = False) -> Project | None:
     """Return the project owning ``path``: a folder owns it when equal or an ancestor, and the longest
     folder wins so nested projects resolve to the innermost one."""
     if not str(path or "").strip():

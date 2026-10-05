@@ -6,7 +6,6 @@ import sys
 from unittest.mock import patch
 
 import pytest
-
 from hermes_cli.goals import (
     DEFAULT_GATE_MAX_RETRIES,
     DEFAULT_GATE_TIMEOUT_SECONDS,
@@ -15,7 +14,6 @@ from hermes_cli.goals import (
     GoalState,
     run_gate,
 )
-
 
 # ──────────────────────────────────────────────────────────────────────
 # GoalGate serialization

@@ -15,7 +15,7 @@ import logging
 import threading
 import uuid
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from hermes_constants import get_hermes_home
 from hermes_time import now as _hermes_now
@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 # cannot leak one profile's suggestions into the import-time home.
 # Per-profile by design (issue #4707): suggestions live alongside the active profile's cron store. Anchor on
 # get_hermes_home() (profile home), not the shared default root. Same pattern as cron/executions.py.
-SUGGESTIONS_FILE: Optional[Path] = None
+SUGGESTIONS_FILE: Path | None = None
 
 # Protects load->modify->save cycles (the background review fork and the main agent can both write).
 _suggestions_lock = threading.Lock()
@@ -52,7 +52,7 @@ def _ensure_dir() -> None:
     _ensure_cron_dir(_current_suggestions_file().parent)
 
 
-def _load_raw() -> Dict[str, Any]:
+def _load_raw() -> dict[str, Any]:
     suggestions_file = _current_suggestions_file()
     if not suggestions_file.exists():
         return {"suggestions": []}
@@ -70,29 +70,29 @@ def _load_raw() -> Dict[str, Any]:
     return {"suggestions": []}
 
 
-def _save_raw(suggestions: List[Dict[str, Any]]) -> None:
+def _save_raw(suggestions: list[dict[str, Any]]) -> None:
     _ensure_dir()
     payload = {"suggestions": suggestions, "updated_at": _hermes_now().isoformat()}
     atomic_json_write(_current_suggestions_file(), payload, mode=0o600)
 
 
-def load_suggestions() -> List[Dict[str, Any]]:
+def load_suggestions() -> list[dict[str, Any]]:
     """Return all suggestion records (any status)."""
     return _load_raw().get("suggestions", [])
 
 
-def _pending(suggestions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _pending(suggestions: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [s for s in suggestions if s.get("status") == _STATUS_PENDING]
 
 
-def list_pending() -> List[Dict[str, Any]]:
+def list_pending() -> list[dict[str, Any]]:
     """Return pending suggestions in creation order (oldest first)."""
     return _pending(load_suggestions())
 
 
 def add_suggestion(
-    *, title: str, description: str, source: str, job_spec: Dict[str, Any], dedup_key: str,
-) -> Optional[Dict[str, Any]]:
+    *, title: str, description: str, source: str, job_spec: dict[str, Any], dedup_key: str,
+) -> dict[str, Any] | None:
     """Register a pending suggestion. Returns the record, or None when skipped: the same
     ``dedup_key`` was already decided on or is still pending (never re-offer, never duplicate), or
     the pending list is full (``MAX_PENDING``). ``job_spec`` is passed straight to
@@ -129,7 +129,7 @@ def add_suggestion(
         return record
 
 
-def get_suggestion(ref: str) -> Optional[Dict[str, Any]]:
+def get_suggestion(ref: str) -> dict[str, Any] | None:
     """Resolve a suggestion by id, 1-based pending index, or exact (case-insensitive) title."""
     suggestions = load_suggestions()
     for s in suggestions:
@@ -164,7 +164,7 @@ def dismiss_suggestion(ref: str) -> bool:
     return bool(s) and _set_status(s["id"], _STATUS_DISMISSED)
 
 
-def accept_suggestion(ref: str, *, origin: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
+def accept_suggestion(ref: str, *, origin: dict[str, Any] | None = None) -> dict[str, Any] | None:
     """Accept a suggestion: create the real cron job from its ``job_spec``. Returns the job dict, or
     None if not found / not pending. ``origin`` (platform/chat) is merged so "origin" delivery
     routes back to the chat where the user accepted."""
@@ -173,7 +173,8 @@ def accept_suggestion(ref: str, *, origin: Optional[Dict[str, Any]] = None) -> O
         return None
 
     from cron.scheduler import (
-        CronSchedulerRegistrationError, create_job_with_scheduler_registration,
+        CronSchedulerRegistrationError,
+        create_job_with_scheduler_registration,
     )
 
     spec = dict(s.get("job_spec") or {})

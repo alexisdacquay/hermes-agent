@@ -8,11 +8,11 @@ import io
 import zipfile
 
 import pytest
-
-import pm.paths as paths
+from pm import paths
 from pm.lock import Facts, Lockfile
 from pm.package import Package
 from pm.store import Store, current_target
+
 from tests.pm._range_server import RangeHandler, dl_server, url  # noqa: F401
 
 

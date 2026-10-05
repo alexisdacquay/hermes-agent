@@ -22,7 +22,6 @@ from __future__ import annotations
 import json
 
 import pytest
-
 from agent.tool_dispatch_helpers import (
     _extract_error_preview,
     _extract_file_mutation_targets,
@@ -270,6 +269,7 @@ class TestFormatFooter:
         config.yaml path out of the rendered footer (#35584)."""
         import os
         import tempfile
+
         from gateway.platforms.base import BasePlatformAdapter
 
         tmp = tempfile.mkdtemp(prefix="hermes_footer_")

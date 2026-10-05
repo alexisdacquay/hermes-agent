@@ -14,7 +14,6 @@ from unittest.mock import MagicMock, patch
 from cron.scheduler import _teardown_cron_agent, run_job
 from cron.scheduler_detached_worker import defer_teardown_to_running_worker
 
-
 _RUNTIME = {
     "api_key": "test-key",
     "base_url": "https://example.invalid/v1",
@@ -31,7 +30,6 @@ class HangingSessionDB:
     def get_compression_tip(self, _session_id):
         self.entered.set()
         self.release.wait()
-        return None
 
     def end_session(self, *_args, **_kwargs):
         return None

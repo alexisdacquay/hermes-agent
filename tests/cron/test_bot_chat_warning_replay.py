@@ -3,7 +3,6 @@ import json
 from unittest.mock import Mock
 
 import pytest
-
 from cron import bot_chat_delivery as pending
 from cron import scheduler_delivery as delivery
 from hermes_cli.active_sessions import try_acquire_active_session

@@ -8,13 +8,10 @@ import time
 from typing import Any
 
 import pytest
-
 from hermes_cli.nous_account import (
-    NousPaidServiceAccessInfo,
     NousPortalAccountInfo,
     format_nous_portal_entitlement_message,
     get_nous_portal_account_info,
-    nous_portal_topup_url,
     reset_nous_portal_account_info_cache,
 )
 

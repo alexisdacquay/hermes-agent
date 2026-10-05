@@ -7,6 +7,7 @@ launching profile preselected. `--isolated` opts out.
 """
 import sys
 import types
+
 import pytest
 from hermes_cli import main_dashboard
 

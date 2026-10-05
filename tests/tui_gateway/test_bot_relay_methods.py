@@ -23,7 +23,6 @@ from pathlib import Path
 from unittest import mock
 
 import pytest
-
 import tui_gateway.server as srv
 from hermes_cli.dashboard_auth.ws_tickets import INTERNAL_PROVIDER, INTERNAL_USER_ID
 from tools import bot_relay

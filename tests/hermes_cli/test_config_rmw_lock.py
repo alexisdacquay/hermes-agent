@@ -16,16 +16,15 @@ from __future__ import annotations
 
 import threading
 
-import pytest
 import hermes_yaml as yaml
+import pytest
 
 
 @pytest.fixture
 def client(monkeypatch, _isolate_hermes_home):
-    from starlette.testclient import TestClient
-
     from hermes_cli.config import load_config, save_config
     from hermes_cli.web_server import _SESSION_HEADER_NAME, _SESSION_TOKEN, app
+    from starlette.testclient import TestClient
 
     monkeypatch.setattr("hermes_cli.model_cost_guard.expensive_model_warning", lambda *_a, **_k: None)
     cfg = load_config()
@@ -89,9 +88,9 @@ def test_custom_endpoint_upsert_racing_config_autosave_keeps_both_writes(client,
     """Saving a custom endpoint (sync-def handler on a worker thread) while the settings-page
     autosave (PUT /api/config) is in flight: the new ``providers`` entry AND the autosaved field
     both survive."""
-    autosave = lambda: client.put(  # noqa: E731
+    autosave = lambda: client.put(
         "/api/config", json={"config": {"display": {"personality": "canary"}}})
-    upsert = lambda: client.post(  # noqa: E731
+    upsert = lambda: client.post(
         "/api/providers/custom-endpoints",
         json={"id": "racebox", "name": "racebox", "base_url": "http://racebox:8000/v1", "model": "race-model",
               "discover_models": False})
@@ -114,8 +113,8 @@ def test_custom_endpoint_activate_racing_moa_save_keeps_both_writes(client, monk
     cfg["providers"] = {"racebox": {"base_url": "http://racebox:8000/v1", "model": "race-model", "api_key": "k"}}
     save_config(cfg)
 
-    activate = lambda: client.post("/api/providers/custom-endpoints/racebox/activate")  # noqa: E731
-    moa = lambda: client.put(  # noqa: E731
+    activate = lambda: client.post("/api/providers/custom-endpoints/racebox/activate")
+    moa = lambda: client.put(
         "/api/model/moa",
         json={"reference_models": [{"provider": "openrouter", "model": "openai/gpt-5.5"}],
               "aggregator": {"provider": "openrouter", "model": "openai/gpt-5.5"}})

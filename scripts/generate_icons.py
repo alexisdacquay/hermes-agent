@@ -321,7 +321,7 @@ def girl_path(art: IconArt, girl: str) -> str:
     undeclared inkscape/sodipodi prefixes)."""
     if girl not in art.paths:
         src = art.girls[girl].read_text(encoding="utf-8-sig")
-        m = re.search(r"<path\b.*?/>", src, re.S)
+        m = re.search(r"<path\b.*?/>", src, re.DOTALL)
         assert m, f"no <path> found in {art.girls[girl].name}"
         path = re.sub(r'\s+(inkscape|sodipodi):[a-zA-Z-]+="[^"]*"', "", m.group(0))
         art.paths[girl] = path

@@ -14,15 +14,11 @@ uses for subprocess environments.
 See: https://github.com/NousResearch/hermes-agent/issues/48552
 """
 
-import os
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
 import tools.file_tools_paths as ft
-import tools.terminal_tool as terminal_tool
-
+from tools import terminal_tool
 
 # ---------------------------------------------------------------------------
 # _expand_tilde() unit tests

@@ -141,10 +141,9 @@ class TestWebSocketHostOriginGuard:
     """WebSocket upgrades must enforce the same dashboard boundary as HTTP."""
 
     def test_rebinding_websocket_host_is_rejected(self, monkeypatch):
+        import hermes_cli.web_server as ws
         from fastapi.testclient import TestClient
         from starlette.websockets import WebSocketDisconnect
-
-        import hermes_cli.web_server as ws
 
         monkeypatch.setattr(ws.app.state, "bound_host", "127.0.0.1", raising=False)
         monkeypatch.setattr(ws.app.state, "auth_required", False, raising=False)
@@ -166,9 +165,8 @@ class TestWebSocketHostOriginGuard:
 
 
     def test_loopback_websocket_host_and_origin_are_accepted(self, monkeypatch):
-        from fastapi.testclient import TestClient
-
         import hermes_cli.web_server as ws
+        from fastapi.testclient import TestClient
 
         monkeypatch.setattr(ws.app.state, "bound_host", "127.0.0.1", raising=False)
         monkeypatch.setattr(ws.app.state, "auth_required", False, raising=False)
@@ -186,9 +184,8 @@ class TestWebSocketHostOriginGuard:
             pass
 
     def test_trusted_public_websocket_host_and_origin_are_accepted(self, monkeypatch):
-        from fastapi.testclient import TestClient
-
         import hermes_cli.web_server as ws
+        from fastapi.testclient import TestClient
 
         monkeypatch.setattr(ws.app.state, "bound_host", "127.0.0.1", raising=False)
         monkeypatch.setattr(
@@ -212,10 +209,9 @@ class TestWebSocketHostOriginGuard:
             pass
 
     def test_trusted_public_websocket_rejects_cross_site_origin(self, monkeypatch):
+        import hermes_cli.web_server as ws
         from fastapi.testclient import TestClient
         from starlette.websockets import WebSocketDisconnect
-
-        import hermes_cli.web_server as ws
 
         monkeypatch.setattr(ws.app.state, "bound_host", "127.0.0.1", raising=False)
         monkeypatch.setattr(

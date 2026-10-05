@@ -23,7 +23,6 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-
 from gateway import host_attach
 from gateway import host_rendezvous as hr
 from hermes_cli import gateway as gw

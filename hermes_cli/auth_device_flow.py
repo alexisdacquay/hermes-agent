@@ -15,14 +15,22 @@ import sys
 import threading
 import time
 import webbrowser
+from collections.abc import Callable
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
-from typing import Any, Callable, Dict, FrozenSet, Optional
+from typing import Any
 from urllib.parse import parse_qs, urlparse
-from hermes_cli.auth_constants import (
-    AuthError, DEFAULT_NOUS_PORTAL_URL, DEVICE_AUTH_POLL_INTERVAL_CAP_SECONDS,
-    DEVICE_CODE_GRANT_TYPE, OAUTH_OVER_SSH_DOCS_URL, httpx)
+
 from utils import is_truthy_value
+
+from hermes_cli.auth_constants import (
+    DEFAULT_NOUS_PORTAL_URL,
+    DEVICE_AUTH_POLL_INTERVAL_CAP_SECONDS,
+    DEVICE_CODE_GRANT_TYPE,
+    OAUTH_OVER_SSH_DOCS_URL,
+    AuthError,
+    httpx,
+)
 
 # Log-record parity with the origin module (caplog tests pin "hermes_cli.auth").
 logger = logging.getLogger("hermes_cli.auth")
@@ -30,7 +38,7 @@ logger = logging.getLogger("hermes_cli.auth")
 # Console/text-mode browsers that ``webbrowser`` will launch INSIDE the terminal, hijacking the
 # user's TTY with an unusable text browser. When the resolved browser is one of these we refuse
 # to auto-open and fall back to the print-the-URL path, same as a remote session.
-_CONSOLE_BROWSER_NAMES: FrozenSet[str] = frozenset({
+_CONSOLE_BROWSER_NAMES: frozenset[str] = frozenset({
     "w3m", "lynx", "links", "links2", "elinks", "www-browser",
     "browsh",  # TUI browser — still hijacks the terminal
 })
@@ -120,7 +128,7 @@ def _make_loopback_callback_handler(
     result: dict[str, Any] = {"code": None, "state": None, "error": None, "error_description": None}
 
     class _LoopbackCallbackHandler(BaseHTTPRequestHandler):
-        def do_GET(self) -> None:  # noqa: N802
+        def do_GET(self) -> None:
             parsed = urlparse(self.path)
             if parsed.path != expected_path:
                 self.send_response(404)
@@ -138,9 +146,9 @@ def _make_loopback_callback_handler(
             outcome = "failed" if result["error"] else "received"
             self.wfile.write(
                 f"<html><body><h1>{display_name} authorization {outcome}.</h1>"
-                "You can close this tab.</body></html>".encode("utf-8"))
+                "You can close this tab.</body></html>".encode())
 
-        def log_message(self, format: str, *args: Any) -> None:  # noqa: A003
+        def log_message(self, format: str, *args: Any) -> None:
             return
 
     return _LoopbackCallbackHandler, result
@@ -227,8 +235,8 @@ def _default_verify() -> bool | ssl.SSLContext:
 
 
 def _resolve_verify(
-    *, insecure: Optional[bool] = None, ca_bundle: Optional[str] = None,
-    auth_state: Optional[Dict[str, Any]] = None) -> bool | ssl.SSLContext:
+    *, insecure: bool | None = None, ca_bundle: str | None = None,
+    auth_state: dict[str, Any] | None = None) -> bool | ssl.SSLContext:
     from hermes_cli.auth import _default_verify
     tls_state = auth_state.get("tls") if isinstance(auth_state, dict) else {}
     tls_state = tls_state if isinstance(tls_state, dict) else {}
@@ -252,8 +260,8 @@ def _resolve_verify(
 
 
 def _request_device_code(
-    client: httpx.Client, portal_base_url: str, client_id: str, scope: Optional[str],
-) -> Dict[str, Any]:
+    client: httpx.Client, portal_base_url: str, client_id: str, scope: str | None,
+) -> dict[str, Any]:
     """POST to the device code endpoint. Returns device_code, user_code, etc."""
     response = client.post(
         f"{portal_base_url}/api/oauth/device/code",
@@ -313,11 +321,11 @@ def _print_device_code_instructions(
 
 
 def _poll_device_token_generic(
-    post: Callable[[], "httpx.Response"], *, expires_in: int, poll_interval: int,
-    validate_success: Callable[[Dict[str, Any]], None],
-    on_non_json_error: Callable[["httpx.Response"], Exception],
-    on_error: Callable[["httpx.Response", Dict[str, Any]], Exception],
-    on_timeout: Callable[[], Exception]) -> Dict[str, Any]:
+    post: Callable[[], httpx.Response], *, expires_in: int, poll_interval: int,
+    validate_success: Callable[[dict[str, Any]], None],
+    on_non_json_error: Callable[[httpx.Response], Exception],
+    on_error: Callable[[httpx.Response, dict[str, Any]], Exception],
+    on_timeout: Callable[[], Exception]) -> dict[str, Any]:
     """RFC 8628 device-code polling loop shared by the Nous and xAI flows.
 
     ``authorization_pending`` sleeps and retries; ``slow_down`` grows the interval by 1s (cap 30s).
@@ -368,9 +376,9 @@ def _poll_device_token_generic(
 
 def _poll_for_token(
     client: httpx.Client, portal_base_url: str, client_id: str, device_code: str,
-    expires_in: int, poll_interval: int) -> Dict[str, Any]:
+    expires_in: int, poll_interval: int) -> dict[str, Any]:
     """Poll the Nous token endpoint until the user approves or the code expires."""
-    def _validate(payload: Dict[str, Any]) -> None:
+    def _validate(payload: dict[str, Any]) -> None:
         if "access_token" not in payload:
             raise ValueError("Token response did not include access_token")
 
@@ -417,9 +425,9 @@ def _print_login_success(
 
 
 def _offer_existing_oauth_credentials(
-    provider_id: str, *, resolve: Callable[[], Dict[str, Any]],
+    provider_id: str, *, resolve: Callable[[], dict[str, Any]],
     is_expiring: Callable[[str, int], bool], display_name: str, default_base_url: str,
-    expired_notice: Optional[str] = None) -> bool:
+    expired_notice: str | None = None) -> bool:
     """Offer to reuse still-valid stored OAuth credentials. Returns True when the user accepted.
 
     *resolve* attempts a refresh, so a resolved token should be valid — but double-check the

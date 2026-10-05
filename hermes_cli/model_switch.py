@@ -11,18 +11,37 @@ import os
 import re
 from contextlib import suppress
 from dataclasses import dataclass, field
-from typing import Any, NamedTuple, Optional
+from typing import Any, NamedTuple
 
-from hermes_cli.providers import (
-    LLAMACPP_ALIASES, ProviderDef, custom_provider_aliases, determine_api_mode, get_label,
-    host_mandated_api_mode, is_aggregator, normalize_provider, resolve_provider_full)
-from hermes_cli.model_normalize import normalize_model_for_provider
 from agent.models_dev import (
-    ModelCapabilities, ModelInfo, get_model_capabilities, get_model_info, list_provider_models)
-from utils import base_url_host_matches, base_url_hostname, base_url_origin, file_signature
+    ModelCapabilities,
+    ModelInfo,
+    get_model_capabilities,
+    get_model_info,
+    list_provider_models,
+)
+from utils import (
+    base_url_host_matches,
+    base_url_hostname,
+    base_url_origin,
+    file_signature,
+)
+
+from hermes_cli.model_normalize import normalize_model_for_provider
+
 # Re-exported: callers/tests patch hermes_cli.model_switch.<name>.
 from hermes_cli.model_switch_providers import list_authenticated_providers
-
+from hermes_cli.providers import (
+    LLAMACPP_ALIASES,
+    ProviderDef,
+    custom_provider_aliases,
+    determine_api_mode,
+    get_label,
+    host_mandated_api_mode,
+    is_aggregator,
+    normalize_provider,
+    resolve_provider_full,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +104,7 @@ def _models_config_is_allowlist(value: Any, discovered: bool = False) -> bool:
     return False  # None, dict (per-model metadata), or anything else
 
 
-def _bare_custom_provider_def(current_base_url: str) -> Optional[ProviderDef]:
+def _bare_custom_provider_def(current_base_url: str) -> ProviderDef | None:
     """ProviderDef for a direct ``model.provider: custom`` endpoint."""
     base_url = _clean(current_base_url)
     if not base_url:
@@ -255,14 +274,14 @@ def _load_direct_aliases() -> dict[str, DirectAlias]:
 # source is profile-local: unkeyed, the first profile to resolve an alias would pin its definitions
 # — and, since entries carry `api_key`, its credentials — for every later profile. Same shape
 # `load_config()` keys on, so a profile switch (path) and a key rotation (mtime/size) both invalidate.
-_DIRECT_ALIAS_IDENTITY: Optional[tuple] = None
+_DIRECT_ALIAS_IDENTITY: tuple | None = None
 # Copy of what the loader last produced. Callers and tests seed DIRECT_ALIASES both by rebinding
 # and by editing in place, so only comparing against what we wrote tells our stale cache from
 # someone else's contents.
-_DIRECT_ALIAS_LOADED: Optional[dict] = None
+_DIRECT_ALIAS_LOADED: dict | None = None
 
 
-def _direct_alias_source_identity() -> Optional[tuple]:
+def _direct_alias_source_identity() -> tuple | None:
     """Identity of the active profile's alias source; None means "do not reuse the cache"."""
     try:
         from hermes_constants import get_config_path
@@ -313,7 +332,7 @@ def direct_alias_api_key(alias: DirectAlias) -> str:
     return _scoped_key_env((alias.key_env or "").strip())
 
 
-def direct_alias_runtime_request(alias: DirectAlias) -> tuple[str, Optional[str]]:
+def direct_alias_runtime_request(alias: DirectAlias) -> tuple[str, str | None]:
     """``(requested_provider, explicit_api_key)`` for resolving *alias*.
 
     Single owner of the invariant that a URL-bearing direct alias resolves its credential for
@@ -356,8 +375,8 @@ class StartupModelRoute(NamedTuple):
 
 def resolve_startup_model_route(
     raw_model: str, *, explicit_provider: str = "", current_provider: str = "",
-    user_providers: Optional[dict] = None,
-    custom_providers: Optional[list] = None) -> Optional[StartupModelRoute]:
+    user_providers: dict | None = None,
+    custom_providers: list | None = None) -> StartupModelRoute | None:
     """Resolve aliases, ``provider:model`` and configured ``provider/model`` input at startup.
 
     ``HermesCLI`` is constructed before the interactive ``/model`` pipeline runs; resolving here
@@ -409,7 +428,8 @@ def resolve_startup_model_route(
 
     if current_provider:
         try:
-            from hermes_cli.providers import is_routing_aggregator, normalize_provider as _norm_prov
+            from hermes_cli.providers import is_routing_aggregator
+            from hermes_cli.providers import normalize_provider as _norm_prov
             if is_routing_aggregator(_norm_prov(current_provider)):
                 from hermes_cli.models import _find_openrouter_slug
                 if _find_openrouter_slug(raw):
@@ -449,14 +469,14 @@ class ModelSwitchResult:
     api_key: str = ""
     base_url: str = ""
     api_mode: str = ""
-    request_overrides: Optional[dict] = None
+    request_overrides: dict | None = None
     error_message: str = ""
     warning_message: str = ""
     provider_label: str = ""
     resolved_via_alias: str = ""
-    capabilities: Optional[ModelCapabilities] = None
-    runtime_capabilities: Optional[dict[str, bool]] = None
-    model_info: Optional[ModelInfo] = None
+    capabilities: ModelCapabilities | None = None
+    runtime_capabilities: dict[str, bool] | None = None
+    model_info: ModelInfo | None = None
     is_global: bool = False
 
 
@@ -718,7 +738,7 @@ class AmbiguousAliasError(Exception):
         super().__init__(f"alias {alias!r} matches {len(candidates)} models on {provider}")
 
 
-def _ambiguous_alias_message(err: "AmbiguousAliasError") -> str:
+def _ambiguous_alias_message(err: AmbiguousAliasError) -> str:
     """User-facing disambiguation list for an ambiguous alias."""
     shown = err.candidates[:10]
     lines = "\n".join(f"  {i}. {m}" for i, m in enumerate(shown, 1))
@@ -730,16 +750,16 @@ def _ambiguous_alias_message(err: "AmbiguousAliasError") -> str:
         f"Pick one with /model <exact-model-name>.")
 
 
-def _provider_identity(name: str, user_providers: Optional[dict] = None,
-                       custom_providers: Optional[list] = None) -> str:
+def _provider_identity(name: str, user_providers: dict | None = None,
+                       custom_providers: list | None = None) -> str:
     """Id a provider name routes to, e.g. ``custom:<name>`` for a legacy ``custom_providers``
     entry, so an alias naming it by its bare name compares equal to the resolved provider."""
     pdef = resolve_provider_full(name, user_providers, custom_providers) if name else None
     return pdef.id if pdef is not None else normalize_provider(name or "")
 
 
-def resolve_alias(raw_input: str, current_provider: str, user_providers: Optional[dict] = None,
-                  custom_providers: Optional[list] = None) -> Optional[tuple[str, str, str]]:
+def resolve_alias(raw_input: str, current_provider: str, user_providers: dict | None = None,
+                  custom_providers: list | None = None) -> tuple[str, str, str] | None:
     """Resolve a short alias against the current provider's catalog.
 
     Direct aliases (and reverse lookup by exact model id) win; then :data:`MODEL_ALIASES` is
@@ -757,7 +777,7 @@ def resolve_alias(raw_input: str, current_provider: str, user_providers: Optiona
     # falling through to the catalog/OpenRouter. Several aliases may expose one model id on
     # different providers: prefer the one served by current_provider, since insertion order is
     # not a routing decision and the wrong alias hands back another provider's base_url.
-    reverse_fallback: Optional[tuple[str, str, str]] = None
+    reverse_fallback: tuple[str, str, str] | None = None
     current_id = _provider_identity(current_provider, user_providers, custom_providers)
     for alias_name, da in DIRECT_ALIASES.items():
         if da.model.lower() != key:
@@ -848,8 +868,8 @@ def get_authenticated_provider_slugs(
 
 
 def _resolve_alias_fallback(
-    raw_input: str, authenticated_providers: list[str] = (), user_providers: Optional[dict] = None,
-    custom_providers: Optional[list] = None) -> Optional[tuple[str, str, str]]:
+    raw_input: str, authenticated_providers: list[str] = (), user_providers: dict | None = None,
+    custom_providers: list | None = None) -> tuple[str, str, str] | None:
     """Resolve an alias on the user's authenticated providers (``("openrouter", "nous")`` when none given).
 
     AmbiguousAliasError propagates: the alias exists on this provider, the user just has to
@@ -861,10 +881,10 @@ def _resolve_alias_fallback(
 
 def resolve_display_context_length(
     model: str, provider: str, base_url: str = "", api_key: str = "",
-    model_info: Optional[ModelInfo] = None, custom_providers: list | None = None,
+    model_info: ModelInfo | None = None, custom_providers: list | None = None,
     config_context_length: int | None = None, configured_model: str | None = None,
     configured_provider: str | None = None,
-    configured_base_url: str | None = None) -> Optional[int]:
+    configured_base_url: str | None = None) -> int | None:
     """Context length to show in /model output.
 
     models.dev reports per-vendor context but provider-enforced limits can be lower (Codex OAuth
@@ -899,7 +919,7 @@ def resolve_display_context_length(
     return None
 
 
-async def resolve_display_context_length_async(model: str, provider: str, **kwargs) -> Optional[int]:
+async def resolve_display_context_length_async(model: str, provider: str, **kwargs) -> int | None:
     """Thread-offloaded :func:`resolve_display_context_length` (same keyword arguments) — the sync
     version runs blocking provider probes that async gateway handlers must not run on the loop."""
     import asyncio
@@ -909,7 +929,7 @@ async def resolve_display_context_length_async(model: str, provider: str, **kwar
 # --- Configured-provider detection for typed model names
 
 def _configured_provider_matches(
-    model_name: str, user_providers: Optional[dict], custom_providers: Optional[list]
+    model_name: str, user_providers: dict | None, custom_providers: list | None
 ) -> dict[str, str]:
     """``{provider_slug: canonical_model_id}`` for every configured provider whose declared models
     (``models``, ``model``, ``default_model`` — exact, case-insensitive, never fuzzy) contain
@@ -952,7 +972,10 @@ def _configured_provider_identity(slug: str, cfg: dict) -> tuple[str, str, str, 
     normalizer that builds the compat view, so a ``providers.<slug>`` row, its ``custom:<name>``
     projection and a legacy duplicate of the same endpoint reduce to one tuple. Any difference in
     endpoint, credential identity or wire protocol keeps two rows distinct."""
-    from hermes_cli.config_providers import _canonical_api_mode, _normalize_custom_provider_entry
+    from hermes_cli.config_providers import (
+        _canonical_api_mode,
+        _normalize_custom_provider_entry,
+    )
     # ``provider_key`` is the compat view's stamp, not a config key: drop it so the normalizer does
     # not warn about it as unknown.
     entry = _normalize_custom_provider_entry({k: v for k, v in cfg.items() if k != "provider_key"},
@@ -969,7 +992,7 @@ def _configured_provider_identity(slug: str, cfg: dict) -> tuple[str, str, str, 
 
 
 def _duplicates_configured_row(
-        slug: str, entry: dict, rows: dict[str, tuple[str, str, str, str]]) -> Optional[str]:
+        slug: str, entry: dict, rows: dict[str, tuple[str, str, str, str]]) -> str | None:
     """Slug of the ``providers.<slug>`` row a ``custom_providers`` entry is a second view of, else
     None: the row's compat projection (``provider_key`` names the slug AND it points at the same
     endpoint with the same credential — on the raw-list fallback a hand-written provider_key aimed
@@ -981,7 +1004,7 @@ def _duplicates_configured_row(
                  if identity == row or (provider_key == row_slug.lower() and identity[1:3] == row[1:3])), None)
 
 
-def _current_provider_match(st: "_Switch", cfg_matches: dict[str, str]) -> Optional[str]:
+def _current_provider_match(st: _Switch, cfg_matches: dict[str, str]) -> str | None:
     """The slug in *cfg_matches* the session already runs on: an exact hit, or — for a session on
     the compat projection slug (``custom:relay``) of ``providers.relay`` — that row's slug, so a
     same-provider switch keeps the caller's slug instead of flipping it (#112788)."""
@@ -993,7 +1016,7 @@ def _current_provider_match(st: "_Switch", cfg_matches: dict[str, str]) -> Optio
                  and current in custom_provider_aliases(str(providers[slug].get("name") or ""), slug)), None)
 
 
-def _resolve_named_custom_model_id(model_name: str, target_provider: str, custom_providers: Optional[list]) -> str:
+def _resolve_named_custom_model_id(model_name: str, target_provider: str, custom_providers: list | None) -> str:
     """Map a picker-prefixed custom model selection (``prefix/model``) to its configured ID."""
     provider = _clean(target_provider).lower()
     if not provider.startswith("custom:") or "/" not in model_name:
@@ -1105,7 +1128,7 @@ def _config_declares_model(
     return False
 
 
-def _apply_direct_alias_endpoint(st: "_Switch", da: DirectAlias) -> None:
+def _apply_direct_alias_endpoint(st: _Switch, da: DirectAlias) -> None:
     """Route a direct alias to its own base_url and decide its credential (mutates ``st``).
 
     Credentials were resolved against the DEFAULT provider; carrying that key onto the alias
@@ -1177,8 +1200,8 @@ class _Switch:
     current_api_key: str
     is_global: bool
     explicit_provider: str
-    user_providers: Optional[dict]
-    custom_providers: Optional[list]
+    user_providers: dict | None
+    custom_providers: list | None
     new_model: str = ""
     target_provider: str = ""
     resolved_alias: str = ""
@@ -1211,7 +1234,7 @@ class _Switch:
         self.validation_headers = rt.get("extra_headers") or self.validation_headers
 
 
-def _route_explicit_provider(st: _Switch) -> Optional[ModelSwitchResult]:
+def _route_explicit_provider(st: _Switch) -> ModelSwitchResult | None:
     """PATH A (``--provider`` given): resolve the provider, auto-detect a model from a local
     endpoint when none was typed, then resolve the alias on the TARGET provider."""
     pdef = resolve_provider_full(st.explicit_provider, st.user_providers, st.custom_providers)
@@ -1256,7 +1279,7 @@ def _route_explicit_provider(st: _Switch) -> Optional[ModelSwitchResult]:
     return None
 
 
-def _route_alias_fallback(st: _Switch, key: str) -> Optional[ModelSwitchResult]:
+def _route_alias_fallback(st: _Switch, key: str) -> ModelSwitchResult | None:
     """Step b: the alias exists but not on the current provider -> try the user's authenticated providers."""
     authed = get_authenticated_provider_slugs(
         current_provider=st.current_provider, user_providers=st.user_providers, custom_providers=st.custom_providers,
@@ -1310,7 +1333,7 @@ def _names_known_provider(name: str, st: _Switch) -> bool:
         return False
 
 
-def _route_configured_provider(st: _Switch) -> Optional[ModelSwitchResult] | bool:
+def _route_configured_provider(st: _Switch) -> ModelSwitchResult | None | bool:
     """Step d.5: a model declared in user/custom provider config routes there BEFORE
     detect_provider_for_model() guesses from static catalogs and before a soft-accepting current
     provider (openai-codex) can swallow it as an unknown hidden model. Returns a failure result,
@@ -1338,7 +1361,7 @@ def _route_configured_provider(st: _Switch) -> Optional[ModelSwitchResult] | boo
     return True
 
 
-def _route_from_model_input(st: _Switch) -> Optional[ModelSwitchResult]:
+def _route_from_model_input(st: _Switch) -> ModelSwitchResult | None:
     """PATH B (no ``--provider``): MoA preset / alias on the current provider (a) -> alias
     fallback (b) or ``vendor:model`` conversion (c) -> aggregator catalog search (d) ->
     configured-provider match (d.5) -> detect_provider_for_model() as last resort (e)."""
@@ -1413,7 +1436,7 @@ def _switch_provider_label(st: _Switch) -> str:
     return label
 
 
-def _creds_for_switched_provider(st: _Switch) -> Optional[ModelSwitchResult]:
+def _creds_for_switched_provider(st: _Switch) -> ModelSwitchResult | None:
     """Credentials when the provider changed or ``--provider`` was given.
 
     ``providers.<name>`` blocks carry their own base_url + transport + key reference;
@@ -1479,7 +1502,10 @@ def _creds_for_current_provider(st: _Switch) -> None:
     """Credentials when staying on the current provider. Mid-session ``/model <name>`` on a local
     Ollama-compatible endpoint keeps the endpoint in use; re-resolving bare ``custom`` from config
     can fall through to an unrelated default provider."""
-    from hermes_cli.models_local import _get_ollama_request_headers, _same_ollama_native_root
+    from hermes_cli.models_local import (
+        _get_ollama_request_headers,
+        _same_ollama_native_root,
+    )
     keep_current_ollama_endpoint = False
     ollama_headers: dict[str, str] = {}
     if st.current_provider == "custom" and st.current_base_url:
@@ -1542,7 +1568,9 @@ def _custom_endpoint_source() -> str:
         if env_url:
             return env_url
         from hermes_cli.runtime_provider import (
-            _config_base_url_trustworthy_for_bare_custom, _get_model_config)
+            _config_base_url_trustworthy_for_bare_custom,
+            _get_model_config,
+        )
         model_cfg = _get_model_config() or {}
         base = model_cfg.get("base_url") if isinstance(model_cfg.get("base_url"), str) else ""
         provider = model_cfg.get("provider") if isinstance(model_cfg.get("provider"), str) else ""
@@ -1564,7 +1592,7 @@ def _openrouter_mirror_base_url() -> str:
         return ""
 
 
-def _resolve_switch_credentials(st: _Switch) -> Optional[ModelSwitchResult]:
+def _resolve_switch_credentials(st: _Switch) -> ModelSwitchResult | None:
     """COMMON PATH part 1: credentials, direct-alias endpoint override, and the api_mode for the
     final (provider, base_url) before validation."""
     st.provider_label = _switch_provider_label(st)
@@ -1595,7 +1623,7 @@ def _resolve_switch_credentials(st: _Switch) -> Optional[ModelSwitchResult]:
     return None
 
 
-def _validate_switch(st: _Switch) -> Optional[ModelSwitchResult]:
+def _validate_switch(st: _Switch) -> ModelSwitchResult | None:
     """COMMON PATH part 2: normalize the model name for the target provider, validate it, and
     accept config-declared models the remote catalog lacks."""
     from hermes_cli.models_local import _get_ollama_request_headers
@@ -1683,7 +1711,7 @@ _PROVIDER_API_MODE_OVERRIDES: dict[str, Any] = {
     **dict.fromkeys(("nous", "nous-portal", "nousresearch"), _nous_api_mode)}
 
 
-def model_derived_api_mode(provider: str, model: str, api_key: str = "") -> Optional[str]:
+def model_derived_api_mode(provider: str, model: str, api_key: str = "") -> str | None:
     """api_mode re-derived from the FINAL model for providers that serve several wire formats behind one
     endpoint (OpenCode Zen/Go and custom providers extending a family slug, Copilot, Nous); None when the
     provider's wire is fixed by its endpoint. A persisted api_mode from an earlier model of such a provider
@@ -1722,7 +1750,10 @@ def _build_switch_result(st: _Switch) -> ModelSwitchResult:
     # chat_template_kwargs) so the gateway applies them like the default-provider path does.
     request_overrides = None
     try:
-        from hermes_cli.runtime_provider import _get_named_custom_provider, _custom_provider_request_overrides
+        from hermes_cli.runtime_provider import (
+            _custom_provider_request_overrides,
+            _get_named_custom_provider,
+        )
         cp_for_ro = _get_named_custom_provider(st.target_provider)
         request_overrides = _custom_provider_request_overrides(cp_for_ro) or None if cp_for_ro else None
     except Exception:
@@ -1828,8 +1859,10 @@ def persist_model_selection(result: ModelSwitchResult, config_path: Any = None) 
     user set there (``model_slots``, ``model_fallback``, ...). ``should_clear_context_pin`` can do
     cold-start disk I/O — async callers run this on a worker thread."""
     from pathlib import Path
-    from hermes_cli.config import get_config_path, read_user_config_raw
+
     from utils import atomic_roundtrip_yaml_update
+
+    from hermes_cli.config import get_config_path, read_user_config_raw
     path = Path(config_path) if config_path else get_config_path()
     for key, value in model_selection_config_updates(result, read_user_config_raw(path).get("model")).items():
         atomic_roundtrip_yaml_update(path, f"model.{key}", value)
@@ -1859,7 +1892,11 @@ def _scoped_key_env(name: str) -> str:
     if not name:
         return ""
     try:
-        from agent.secret_scope import current_secret_scope, get_secret, is_multiplex_active
+        from agent.secret_scope import (
+            current_secret_scope,
+            get_secret,
+            is_multiplex_active,
+        )
         if current_secret_scope() is not None or is_multiplex_active():
             return (get_secret(name, "") or "").strip()
         from agent.credential_pool import get_env_prefer_dotenv

@@ -19,7 +19,7 @@ import os
 import time
 import uuid
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ def _get_flush_dir():
     return flush_dir
 
 
-def _write_payload(flush_dir: Path, payload: Dict[str, Any]) -> Path:
+def _write_payload(flush_dir: Path, payload: dict[str, Any]) -> Path:
     """Atomically write one private, uniquely named recovery payload; return its path."""
     from utils import atomic_json_write
     final_path = flush_dir / f"pending-{uuid.uuid4().hex}.json"
@@ -78,7 +78,7 @@ def _flush_value(flush_dir: Path, kind: str, session_key: str, value: Any, **ext
         return False
 
 
-def flush_pending_to_file(pending: Dict[str, Any], *, reason: str = "shutdown") -> int:
+def flush_pending_to_file(pending: dict[str, Any], *, reason: str = "shutdown") -> int:
     """Serialise non-empty ``_pending_messages`` slots (``MessageEvent`` or str); return count."""
     if not pending:
         return 0
@@ -91,7 +91,7 @@ def flush_pending_to_file(pending: Dict[str, Any], *, reason: str = "shutdown") 
     return flushed
 
 
-def flush_overflow_to_file(overflow_by_session: Dict[str, Any], *, reason: str = "shutdown") -> int:
+def flush_overflow_to_file(overflow_by_session: dict[str, Any], *, reason: str = "shutdown") -> int:
     """Serialise the FIFO overflow tails (``queued_events``) to disk; return events flushed.
 
     The adapter slot holds the queue head and ``SessionState.conversation.queued_events`` the
@@ -114,7 +114,7 @@ def flush_overflow_to_file(overflow_by_session: Dict[str, Any], *, reason: str =
     return flushed
 
 
-def spool_dropped_transcript_message(session_id: str, message: Dict[str, Any]) -> Optional[Path]:
+def spool_dropped_transcript_message(session_id: str, message: dict[str, Any]) -> Path | None:
     """Spool a cap-evicted transcript message; ``None`` on failure (callers degrade to drop+log).
 
     Uses the same on-disk pending spool as :func:`flush_pending_to_file` (one atomic JSON payload per
@@ -189,10 +189,10 @@ def _json_safe(value: Any) -> bool:
         return False
 
 
-def _serialise_value(value: Any) -> Optional[dict]:
+def _serialise_value(value: Any) -> dict | None:
     """Convert a pending message value to a JSON-serialisable dict."""
     if hasattr(value, "text"):  # MessageEvent-like object
-        result: Dict[str, Any] = {"text": getattr(value, "text", "")}
+        result: dict[str, Any] = {"text": getattr(value, "text", "")}
         for attr in ("session_id", "platform", "sender_id", "sender_name", "reply_to", "media",
                      "raw_event"):
             val = getattr(value, attr, None)
@@ -252,7 +252,7 @@ def recover_pending_to_db(session_db=None, *, session_resolver=None) -> int:
     return recovered
 
 
-def _recover_one_payload(session_db, path: Path, payload: Dict[str, Any], *,
+def _recover_one_payload(session_db, path: Path, payload: dict[str, Any], *,
                          session_resolver=None) -> bool:
     """Append one flush payload to ``session_db``; False (file kept) when structurally invalid."""
     # Cap-dropped transcript payloads carry the full message dict keyed by session_id — replay directly
@@ -299,7 +299,7 @@ def _recover_one_payload(session_db, path: Path, payload: Dict[str, Any], *,
     return True
 
 
-def flush_agent_history_to_file(session_id: Optional[str], history: list) -> None:
+def flush_agent_history_to_file(session_id: str | None, history: list) -> None:
     """Best-effort dump of an agent's in-memory transcript before teardown. Used when
     ``_flush_messages_to_session_db`` raises (e.g. FTS/SQLite corruption): the transcript is written
     outside the broken DB so an operator can salvage it after repairing state.db. Failures are

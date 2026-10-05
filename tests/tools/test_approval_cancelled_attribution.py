@@ -8,7 +8,6 @@ import threading
 import time
 
 import pytest
-
 from tools import approval as mod
 from tools import approval_context
 from tools.interrupt import set_interrupt

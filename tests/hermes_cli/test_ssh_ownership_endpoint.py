@@ -3,7 +3,6 @@ import types
 
 import pytest
 from fastapi.testclient import TestClient
-
 from hermes_cli import web_server
 
 

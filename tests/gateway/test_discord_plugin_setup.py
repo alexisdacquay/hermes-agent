@@ -6,11 +6,12 @@ The interactive_setup wizard lazy-imports its CLI helpers from
 source modules. Covers the home-channel clear-on-blank behavior added in
 PR #58421 and extended in the follow-up.
 """
-import hermes_cli.config as config_mod
 import hermes_cli.cli_output as cli_output_mod
-import tools.discord_tool as discord_tool
+import hermes_cli.config as config_mod
 from plugins.platforms.discord import onboarding
 from plugins.platforms.discord.onboarding import interactive_setup
+from tools import discord_tool
+
 from tests.fakes.platforms.discord_standin import APP_ID, TOKEN, DiscordStandin
 
 _real_check = onboarding.check_bot_token

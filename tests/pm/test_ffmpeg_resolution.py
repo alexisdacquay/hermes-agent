@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import pytest
-
 from pm import update
 from pm.package import InstallError
 from pm.packages import Ffmpeg

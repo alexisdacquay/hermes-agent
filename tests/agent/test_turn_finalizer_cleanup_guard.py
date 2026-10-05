@@ -11,7 +11,6 @@ traceback and lost the whole turn.
 from unittest.mock import patch
 
 import pytest
-
 from agent.turn_finalizer import finalize_turn
 
 

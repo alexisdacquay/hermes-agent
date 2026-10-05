@@ -13,14 +13,14 @@ import os
 import threading
 import time
 from collections import defaultdict
+from collections.abc import Iterable
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple
 
 # (mtime, read_ts, partial). partial=True when read_file returned a windowed
 # view (offset > 1 or limit < total_lines) — a later write should still warn
 # so the model re-reads in full.
-ReadStamp = Tuple[float, float, bool]
+ReadStamp = tuple[float, float, bool]
 
 # Bounded so long sessions don't accumulate unbounded state.
 _MAX_PATHS_PER_AGENT = 4096
@@ -38,7 +38,7 @@ def guard_disabled() -> bool:
     return _disabled()
 
 
-def _mtime_or_none(resolved: str) -> Optional[float]:
+def _mtime_or_none(resolved: str) -> float | None:
     try:
         return os.path.getmtime(resolved)
     except OSError:
@@ -67,10 +67,10 @@ class FileStateRegistry:
     """Process-wide coordinator for cross-agent file edits."""
 
     def __init__(self) -> None:
-        self._reads: Dict[str, Dict[str, ReadStamp]] = defaultdict(dict)
-        self._last_writer: Dict[str, Tuple[str, float]] = {}
-        self._path_locks: Dict[str, threading.Lock] = {}
-        self._path_lock_users: Dict[str, int] = {}
+        self._reads: dict[str, dict[str, ReadStamp]] = defaultdict(dict)
+        self._last_writer: dict[str, tuple[str, float]] = {}
+        self._path_locks: dict[str, threading.Lock] = {}
+        self._path_lock_users: dict[str, int] = {}
         self._meta_lock = threading.Lock()  # guards _path_locks
         self._state_lock = threading.Lock()  # guards _reads + _last_writer
 
@@ -101,7 +101,7 @@ class FileStateRegistry:
         _evict_oldest(agent_reads, _MAX_PATHS_PER_AGENT)
 
     def record_read(self, task_id: str, resolved: str, *, partial: bool = False,
-                    mtime: Optional[float] = None) -> None:
+                    mtime: float | None = None) -> None:
         if _disabled():
             return
         mtime = _mtime_or_none(resolved) if mtime is None else mtime
@@ -110,7 +110,7 @@ class FileStateRegistry:
         with self._state_lock:
             self._stamp(task_id, resolved, mtime, time.time(), partial)
 
-    def note_write(self, task_id: str, resolved: str, *, mtime: Optional[float] = None) -> None:
+    def note_write(self, task_id: str, resolved: str, *, mtime: float | None = None) -> None:
         """Record a successful write: global last-writer AND this agent's own
         read stamp (a write is an implicit read of the current content)."""
         if _disabled():
@@ -124,7 +124,7 @@ class FileStateRegistry:
             _evict_oldest(self._last_writer, _MAX_GLOBAL_WRITERS)
             self._stamp(task_id, resolved, mtime, now, False)
 
-    def check_stale(self, task_id: str, resolved: str) -> Optional[str]:
+    def check_stale(self, task_id: str, resolved: str) -> str | None:
         """Model-facing warning if this write would be stale, else ``None``. Severity
         order: sibling wrote after our read > mtime drift / partial read > never read."""
         if _disabled():
@@ -175,21 +175,21 @@ class FileStateRegistry:
             "Read the file first so you can write an informed edit.")
 
     def writes_since(self, exclude_task_id: str, since_ts: float,
-                     paths: Iterable[str]) -> Dict[str, List[str]]:
+                     paths: Iterable[str]) -> dict[str, list[str]]:
         """``{writer_task_id: [paths]}`` for writes after ``since_ts`` by agents
         other than ``exclude_task_id`` (delegate_task's "subagent modified files
         you previously read" reminder)."""
         if _disabled():
             return {}
         paths_set = set(paths)
-        out: Dict[str, List[str]] = defaultdict(list)
+        out: dict[str, list[str]] = defaultdict(list)
         with self._state_lock:
             for p, (writer_tid, ts) in self._last_writer.items():
                 if writer_tid != exclude_task_id and ts >= since_ts and p in paths_set:
                     out[writer_tid].append(p)
         return dict(out)
 
-    def known_reads(self, task_id: str) -> List[str]:
+    def known_reads(self, task_id: str) -> list[str]:
         """Resolved paths this agent has read."""
         if _disabled():
             return []
@@ -233,7 +233,7 @@ def note_write(task_id: str, resolved_or_path: str | Path) -> None:
     _registry.note_write(task_id, str(resolved_or_path))
 
 
-def check_stale(task_id: str, resolved_or_path: str | Path) -> Optional[str]:
+def check_stale(task_id: str, resolved_or_path: str | Path) -> str | None:
     return _registry.check_stale(task_id, str(resolved_or_path))
 
 
@@ -241,20 +241,21 @@ def lock_path(resolved_or_path: str | Path):
     return _registry.lock_path(str(resolved_or_path))
 
 
-def writes_since(exclude_task_id: str, since_ts: float, paths: Iterable[str | Path]) -> Dict[str, List[str]]:
+def writes_since(exclude_task_id: str, since_ts: float, paths: Iterable[str | Path]) -> dict[str, list[str]]:
     return _registry.writes_since(exclude_task_id, since_ts, [str(p) for p in paths])
 
 
-def known_reads(task_id: str) -> List[str]:
+def known_reads(task_id: str) -> list[str]:
     return _registry.known_reads(task_id)
 
 
 __all__ = [
     "FileStateRegistry",
-    "get_registry",
-    "record_read",
-    "note_write",
     "check_stale",
+    "get_registry",
+    "known_reads",
     "lock_path",
+    "note_write",
+    "record_read",
     "writes_since",
-    "known_reads"]
+]

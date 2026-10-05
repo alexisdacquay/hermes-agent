@@ -15,11 +15,9 @@ This test asserts the live POSIX state (the Linux CI lane).
 
 from __future__ import annotations
 
-import sys
-
+import hermes_cli.web_server_chat as _web_server_chat
 import pytest
 
-import hermes_cli.web_server_chat as _web_server_chat
 
 @pytest.mark.platforms("posix")  # POSIX-only
 def test_web_server_uses_posix_pty_bridge_on_posix():

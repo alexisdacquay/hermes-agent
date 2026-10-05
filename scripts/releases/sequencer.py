@@ -12,12 +12,16 @@ import subprocess
 import sys
 import tempfile
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from scripts.releases.versioning import (
-    marker_ref, outstanding_attempts, parse_attempt_ref, parse_marker_ref,
-    tag_record, version_from_tag,
+    marker_ref,
+    outstanding_attempts,
+    parse_attempt_ref,
+    parse_marker_ref,
+    tag_record,
+    version_from_tag,
 )
 
 MAX_ATTEMPTS = 3
@@ -119,7 +123,7 @@ def classify_runs(runs: list[dict], *, claimed_at: datetime | None = None,
     if not runs:
         if claimed_at is None:
             raise ValueError("A claim without a workflow needs its immutable claim time")
-        now = now or datetime.now(timezone.utc)
+        now = now or datetime.now(UTC)
         return ("running", None) if now < claimed_at + CLAIM_GRACE else ("burned", None)
     run_ids = {row.get("id") for row in runs}
     if len(run_ids) != 1 or None in run_ids:
@@ -281,7 +285,7 @@ def discover(repository: str, run=output) -> list[dict]:
                              if row.get("head_branch") == claim_tag and row.get("head_sha") == commit]
             state, retry = classify_runs(
                 matching_runs,
-                claimed_at=datetime.fromtimestamp(claim_epoch, tz=timezone.utc),
+                claimed_at=datetime.fromtimestamp(claim_epoch, tz=UTC),
                 has_draft=release is not None,
             )
 

@@ -22,7 +22,6 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
-from typing import Optional
 
 UPDATE_MECHANISMS = ("self", "app-installer", "electron-updater", "external", "microsoft-store")
 
@@ -165,7 +164,7 @@ def steward_update_message(steward: str) -> str:
     return _STEWARD_UPDATE_FALLBACK.format(steward=steward)
 
 
-def steward_uninstall_message(steward: str, platform: "str | None" = None) -> str:
+def steward_uninstall_message(steward: str, platform: str | None = None) -> str:
     """The uninstall refusal text for a sealed tree."""
     if steward == STEWARD_DESKTOP:
         key = platform if platform is not None else sys.platform
@@ -207,7 +206,7 @@ def is_bundled_payload(project_root: Path) -> bool:
         return False
 
 
-def sealed_steward(project_root: Path) -> Optional[str]:
+def sealed_steward(project_root: Path) -> str | None:
     """The steward owning the sealed tree at ``project_root``, or ``None``.
 
     ``None`` means the tree is a git checkout (``.git`` present — a
@@ -223,7 +222,7 @@ def sealed_steward(project_root: Path) -> Optional[str]:
     return distribution if isinstance(distribution, str) and distribution else "unknown"
 
 
-def classify_install(project_root: Path) -> "tuple[str, bool]":
+def classify_install(project_root: Path) -> tuple[str, bool]:
     """(steward, code_removal_allowed) for the tree at ``project_root``.
 
     A git checkout reports ``("git", True)``; a sealed tree reports its

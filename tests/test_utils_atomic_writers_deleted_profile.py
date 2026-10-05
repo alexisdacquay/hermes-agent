@@ -18,13 +18,12 @@ import json
 from pathlib import Path
 
 import pytest
-
 from hermes_constants import (
     mark_named_profile_deleted,
     named_profile_home,
     set_hermes_home_override,
 )
-from utils import atomic_json_write, atomic_write_text
+from utils import atomic_json_write
 
 
 def _tombstoned_profile(tmp_path: Path) -> Path:

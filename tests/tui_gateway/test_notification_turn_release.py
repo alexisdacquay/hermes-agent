@@ -15,7 +15,6 @@ import threading
 from types import SimpleNamespace
 
 import pytest
-
 from tui_gateway import server
 
 DELEGATION = {"type": "async_delegation", "delegation_id": "deleg-1", "session_key": "stored"}

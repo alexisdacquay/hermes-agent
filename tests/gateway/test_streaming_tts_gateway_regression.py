@@ -18,13 +18,11 @@ import sys
 import threading
 import types
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
-
-import pytest
+from unittest.mock import AsyncMock
 
 import gateway.run as gateway_run
 from gateway.config import Platform
-from gateway.platforms.event import MessageEvent, MessageType
+from gateway.platforms.event import MessageType
 from gateway.session import SessionSource
 
 
@@ -114,7 +112,7 @@ def _setup_monkeypatches(monkeypatch, tmp_path):
         },
     )
 
-    import hermes_cli.tools_config as tools_config
+    from hermes_cli import tools_config
     monkeypatch.setattr(tools_config, "_get_platform_tools", lambda user_config, platform_key: {"core"})
 
 

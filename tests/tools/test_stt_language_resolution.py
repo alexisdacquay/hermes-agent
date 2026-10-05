@@ -15,7 +15,6 @@ Regression coverage for the "STT transcribes the wrong language" issue class
 from unittest.mock import patch
 
 import pytest
-
 from tools.transcription_tools import _resolve_stt_language
 
 

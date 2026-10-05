@@ -34,12 +34,12 @@ class TraceState:
     trace_id: str
     root_ctx: Any
     root_span: Any
-    generations: Dict[str, Any] = field(default_factory=dict)
-    tools: Dict[str, Any] = field(default_factory=dict)
-    pending_tools_by_name: Dict[str, list] = field(default_factory=dict)
+    generations: dict[str, Any] = field(default_factory=dict)
+    tools: dict[str, Any] = field(default_factory=dict)
+    pending_tools_by_name: dict[str, list] = field(default_factory=dict)
     turn_tool_calls: list[dict[str, Any]] = field(default_factory=list)
     # Keyed by child_session_id: subagent_stop carries no child_subagent_id.
-    subagents: Dict[str, Any] = field(default_factory=dict)
+    subagents: dict[str, Any] = field(default_factory=dict)
     # Fingerprints of MoA fan-outs already recorded: the client holds its last
     # fan-out until the next one, so tool-loop turns would re-emit advisors.
     moa_emitted: set = field(default_factory=set)
@@ -47,7 +47,7 @@ class TraceState:
 
 
 _STATE_LOCK = threading.Lock()
-_TRACE_STATE: Dict[str, TraceState] = {}
+_TRACE_STATE: dict[str, TraceState] = {}
 # Ceiling on live trace state (per turn_id): turns that never reach _finish_trace
 # would leak forever, so over the cap the least-recently-updated are evicted.
 # Bounds the leak, not concurrency.
@@ -56,7 +56,7 @@ _LANGFUSE_CLIENT = None
 # Under a multiplexed profile override, one settled client (or _INIT_FAILED) per Hermes home: the
 # keys live in each profile's .env, so a single slot would trace profile B into profile A's project
 # (or pin B to A's failed init). The slot above stays for the unscoped single-profile path.
-_LANGFUSE_CLIENT_BY_HOME: Dict[str, Any] = {}
+_LANGFUSE_CLIENT_BY_HOME: dict[str, Any] = {}
 # Separate from _STATE_LOCK (hot path) so the two never nest; serializes the
 # first client build so racing callers can't each construct a client.
 _LANGFUSE_CLIENT_LOCK = threading.Lock()
@@ -69,7 +69,7 @@ _READ_FILE_META_KEYS = ("total_lines", "file_size", "truncated", "is_binary", "i
 # Langfuse-issued keys always carry these prefixes. Anything else is a leftover
 # template value: the SDK accepts it at construction time but silently drops
 # every trace at flush time (#23823).
-_LANGFUSE_KEY_PREFIXES: Dict[str, str] = {
+_LANGFUSE_KEY_PREFIXES: dict[str, str] = {
     "HERMES_LANGFUSE_PUBLIC_KEY": "pk-lf-",
     "HERMES_LANGFUSE_SECRET_KEY": "sk-lf-",
 }
@@ -162,7 +162,7 @@ def _describe_content(value: Any) -> Any:
     return {"omitted": True, **(shape or {"type": type(value).__name__})}
 
 
-def _capture_content(value: Any, *, parse_json_strings: bool = False, tool_result_of: Optional[tuple] = None) -> Any:
+def _capture_content(value: Any, *, parse_json_strings: bool = False, tool_result_of: tuple | None = None) -> Any:
     """Apply the active capture mode to a CONTENT value.
 
     Only prompt/response text, tool arguments and tool results are content;
@@ -185,7 +185,7 @@ def _capture_content(value: Any, *, parse_json_strings: bool = False, tool_resul
 _INIT_FAILED = object()
 
 
-def _validate_langfuse_key(env_name: str, value: str) -> Optional[str]:
+def _validate_langfuse_key(env_name: str, value: str) -> str | None:
     """Log-ready error if ``value`` lacks the prefix for ``env_name``; the preview
     exposes placeholders without echoing a real secret pasted into the wrong var."""
     expected = _LANGFUSE_KEY_PREFIXES.get(env_name, "")
@@ -224,7 +224,7 @@ def _settle_client() -> Any:
     return settled
 
 
-def _get_langfuse() -> Optional[Langfuse]:
+def _get_langfuse() -> Langfuse | None:
     """Cached Langfuse client, or ``None`` if the SDK/credentials are unavailable.
     The first build is serialized so racing callers can't each construct a client
     and leak the loser's HTTP connection + flush thread."""
@@ -239,7 +239,7 @@ def _get_langfuse() -> Optional[Langfuse]:
     return None if settled is _INIT_FAILED else settled
 
 
-def _build_client() -> Optional[Langfuse]:
+def _build_client() -> Langfuse | None:
     """Construct the SDK client from env, or None (with one warning) when it can't be."""
     if Langfuse is None:
         logger.warning(
@@ -269,7 +269,7 @@ def _build_client() -> Optional[Langfuse]:
         )
         return None
 
-    kwargs: Dict[str, Any] = {"public_key": public_key, "secret_key": secret_key}
+    kwargs: dict[str, Any] = {"public_key": public_key, "secret_key": secret_key}
     for key, name, default in (("base_url", "BASE_URL", "https://cloud.langfuse.com"), ("environment", "ENV", ""),
                                ("release", "RELEASE", "")):
         value = _secret(f"HERMES_LANGFUSE_{name}") or _secret(f"LANGFUSE_{name}") or default
@@ -302,7 +302,7 @@ def _trace_key(task_id: str, session_id: str, *, turn_id: str = "", api_request_
     return task_id or scope
 
 
-def _state_for_turn(turn_id: str) -> Optional[TraceState]:
+def _state_for_turn(turn_id: str) -> TraceState | None:
     """Live trace state for a turn id alone (caller holds ``_STATE_LOCK``). Subagent
     hooks carry ``parent_turn_id`` but no ``task_id``, so rebuilding the key would
     miss; match on the unique ``:turn:<id>`` suffix instead."""
@@ -399,8 +399,8 @@ def _resolve_max_depth(configured_depth: str) -> int:
         return 4
 
 
-def _safe_value(value: Any, *, max_chars: Optional[int] = None, depth: int = 0,
-                parse_json_strings: bool = False, max_depth: Optional[int] = None) -> Any:
+def _safe_value(value: Any, *, max_chars: int | None = None, depth: int = 0,
+                parse_json_strings: bool = False, max_depth: int | None = None) -> Any:
     max_chars = max_chars if max_chars is not None else int(_env("HERMES_LANGFUSE_MAX_CHARS", "12000") or "12000")
     if max_depth is None:
         max_depth = _resolve_max_depth(_env("HERMES_LANGFUSE_MAX_DEPTH", "4") or "4")
@@ -410,7 +410,7 @@ def _safe_value(value: Any, *, max_chars: Optional[int] = None, depth: int = 0,
         return value
     if isinstance(value, bytes):
         return {"type": "bytes", "len": len(value)}
-    recurse = lambda v, d: _safe_value(v, max_chars=max_chars, depth=d, parse_json_strings=parse_json_strings, max_depth=max_depth)  # noqa: E731
+    recurse = lambda v, d: _safe_value(v, max_chars=max_chars, depth=d, parse_json_strings=parse_json_strings, max_depth=max_depth)
     if isinstance(value, str):
         parsed = _maybe_parse_json_string(value) if parse_json_strings else value
         return recurse(parsed, depth) if parsed is not value else _truncate_text(value, max_chars)
@@ -434,7 +434,7 @@ def _coerce_request_messages(*, request_messages: Any = None, messages: Any = No
     return [] if user_message is None else [{"role": "user", "content": user_message}]
 
 
-def _serialize_system_prompt(system_prompt: Any) -> Optional[dict[str, Any]]:
+def _serialize_system_prompt(system_prompt: Any) -> dict[str, Any] | None:
     """Normalize Anthropic/Bedrock ``system`` param or OpenAI-style system content."""
     if isinstance(system_prompt, str):
         text = system_prompt.strip()
@@ -493,11 +493,11 @@ def _serialize_assistant_message(message: Any) -> dict[str, Any]:
 def _canonical_usage_and_cost(canonical: Any, *, provider: str, model: str,
                               base_url: str) -> tuple[dict[str, int], dict[str, float]]:
     """Translate canonical Hermes usage into Langfuse usage and cost maps."""
-    usage_details: Dict[str, int] = {
+    usage_details: dict[str, int] = {
         key: tokens for key, attr, _ in _USAGE_FIELDS
         if (tokens := getattr(canonical, attr)) or key in ("input", "output")
     }
-    cost_details: Dict[str, float] = {}
+    cost_details: dict[str, float] = {}
     try:
         from agent.usage_pricing import estimate_usage_cost, resolve_billing_route
 
@@ -533,7 +533,7 @@ def _canonical_usage_and_cost(canonical: Any, *, provider: str, model: str,
             rate = getattr(entry, rate_attr, None) if rate_attr else None
             tokens = getattr(canonical, attr)
             if rate is not None and tokens:
-                cost_details[key] = float(Decimal(tokens) * rate / Decimal("1000000"))
+                cost_details[key] = float(Decimal(tokens) * rate / Decimal(1000000))
     except Exception:  # pragma: no cover - canonical total remains usable
         pass
 
@@ -541,7 +541,7 @@ def _canonical_usage_and_cost(canonical: Any, *, provider: str, model: str,
 
 
 def _usage_and_cost(response: Any, *, provider: str, model: str, base_url: str, api_mode: str = "",
-                    usage: Optional[dict] = None) -> tuple[dict[str, int], dict[str, float]]:
+                    usage: dict | None = None) -> tuple[dict[str, int], dict[str, float]]:
     """Langfuse usage/cost maps from ``response.usage`` (post_llm_call) or, when ``usage``
     is given (post_api_request), from that pre-built CanonicalUsage summary dict."""
     raw_usage = getattr(response, "usage", None)
@@ -575,7 +575,7 @@ def _start_root_trace(task_key: str, *, task_id: str, session_id: str, platform:
         "capture_mode": _capture_mode(),
     }
     # session_id must be in trace_context for Langfuse session grouping.
-    trace_ctx: Dict[str, Any] = {"trace_id": trace_id, **({"session_id": session_id} if session_id else {})}
+    trace_ctx: dict[str, Any] = {"trace_id": trace_id, **({"session_id": session_id} if session_id else {})}
 
     def open_root():
         ctx = client.start_as_current_observation(trace_context=trace_ctx, name="Hermes turn", as_type="chain",
@@ -601,14 +601,14 @@ def _start_root_trace(task_key: str, *, task_id: str, session_id: str, platform:
 
 
 def _start_child_observation(state: TraceState, *, name: str, as_type: str, input_value: Any,
-                             metadata: Optional[dict] = None, model: Optional[str] = None,
-                             model_parameters: Optional[dict] = None) -> Any:
+                             metadata: dict | None = None, model: str | None = None,
+                             model_parameters: dict | None = None) -> Any:
     return state.root_span.start_observation(name=name, as_type=as_type, input=input_value, metadata=metadata or {},
                                              model=model, model_parameters=model_parameters)
 
 
-def _end_observation(observation: Any, *, output: Any = None, metadata: Optional[dict] = None,
-                     usage_details: Optional[dict] = None, cost_details: Optional[dict] = None) -> None:
+def _end_observation(observation: Any, *, output: Any = None, metadata: dict | None = None,
+                     usage_details: dict | None = None, cost_details: dict | None = None) -> None:
     if observation is None:
         return
     with _failsafe("end observation"):
@@ -705,11 +705,11 @@ def _client_and_key(task_id: str, session_id: str, turn_id: str, api_request_id:
     return client, _trace_key(task_id, session_id, turn_id=turn_id, api_request_id=api_request_id)
 
 
-def _duration_meta(api_duration: Any) -> Dict[str, Any]:
+def _duration_meta(api_duration: Any) -> dict[str, Any]:
     return {"api_duration_s": round(api_duration, 3)} if api_duration and api_duration > 0 else {}
 
 
-def _pop_generation(task_key: str, api_call_count: Any) -> tuple[Optional[TraceState], Any]:
+def _pop_generation(task_key: str, api_call_count: Any) -> tuple[TraceState | None, Any]:
     """Detach the open generation for one API call. Returns (state, generation); either may be None."""
     with _STATE_LOCK:
         state = _TRACE_STATE.get(task_key)
@@ -944,7 +944,7 @@ def on_api_request_error(*, task_id: str = "", session_id: str = "", api_call_co
     error_type, error_message = str(error.get("type") or ""), str(error.get("message") or "")
 
     # Error messages can embed request fragments (URLs w/ keys, prompt echoes) — capture-pipeline them.
-    error_metadata: Dict[str, Any] = {
+    error_metadata: dict[str, Any] = {
         "error": True, "error_type": error_type, "error_message": _capture_content(error_message),
         **{k: v for k, v in (("status_code", status_code), ("retry_count", retry_count), ("max_retries", max_retries),
                              ("retryable", retryable), ("reason", str(reason) if reason else None)) if v is not None},

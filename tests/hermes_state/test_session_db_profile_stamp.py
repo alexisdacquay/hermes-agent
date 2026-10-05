@@ -10,9 +10,8 @@ links). Stores outside the profile tree must NOT guess — they keep NULL.
 
 import sqlite3
 
-import pytest
-
 import hermes_state
+import pytest
 from hermes_state import SessionDB
 
 

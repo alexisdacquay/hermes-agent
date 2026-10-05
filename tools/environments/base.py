@@ -16,20 +16,28 @@ import threading
 import time
 import uuid
 from abc import ABC, abstractmethod
+from collections.abc import Callable, Iterable
 from pathlib import Path
-from typing import Callable, Iterable
 
 from hermes_constants import get_hermes_home
-from tools.interrupt import consume_yield, is_interrupted, is_thread_interrupted
+from utils import env_var_enabled
+
 from tools.environments.base_output import (
-    ProcessHandle, _finalize_wait_result, _new_output_collector, _start_drain_thread,
+    ProcessHandle,
+    _finalize_wait_result,
+    _new_output_collector,
+    _start_drain_thread,
 )
 from tools.environments.base_session_env import (
-    _SHELL_ENV_NAME_RE, _SNAP_TMP_SUFFIX, _cwd_marker, _snapshot_bootstrap_script, _split_cwd_marker,
+    _SHELL_ENV_NAME_RE,
+    _SNAP_TMP_SUFFIX,
+    _cwd_marker,
+    _snapshot_bootstrap_script,
+    _split_cwd_marker,
     _wrap_command_script,
 )
 from tools.environments.base_wait import _WaitTrace
-from utils import env_var_enabled
+from tools.interrupt import consume_yield, is_interrupted, is_thread_interrupted
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +64,7 @@ _activity_callback_local = threading.local()
 # Foreground commands in flight in THIS process, across every environment. Each runs in its
 # own session/process group, so a host that exits mid-command (TUI client gone, SIGTERM) would
 # orphan the whole tree; the process-exit funnel ``cleanup_all_environments`` kills them.
-_live_foreground: dict[int, tuple["BaseEnvironment", "ProcessHandle"]] = {}
+_live_foreground: dict[int, tuple[BaseEnvironment, ProcessHandle]] = {}
 # Reentrant, and the hard-exit path only ever takes it with a timeout: a signal handler can run
 # on a thread that already holds it.
 _live_foreground_cond = threading.Condition(threading.RLock())
@@ -74,7 +82,7 @@ def _enter_foreground_spawn() -> bool:
         return True
 
 
-def _leave_foreground_spawn(env: "BaseEnvironment", spawned) -> bool:
+def _leave_foreground_spawn(env: BaseEnvironment, spawned) -> bool:
     """Publish ``spawned`` (None: the spawn failed); True when the exit fence went up meanwhile."""
     global _spawns_in_flight
     with _live_foreground_cond:
@@ -589,7 +597,6 @@ class BaseEnvironment(ABC):
     def _before_execute(self) -> None:
         """Hook before each command. Remote backends (SSH, Modal, Daytona)
         trigger their FileSyncManager here; bind-mount backends and Local don't."""
-        pass
 
     def _mark_recreated(self) -> None:
         """Flag that the live container/sandbox was replaced while serving the

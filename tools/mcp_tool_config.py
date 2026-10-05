@@ -11,13 +11,15 @@ import shutil
 import sys
 import threading
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any
+
 from hermes_cli.stderr_timestamp import stamp_line, timestamp
+
 from tools.mcp_tool_common import _env_ref_name, _prepend_path
 
 logger = logging.getLogger("tools.mcp_tool")
 
-_mcp_stderr_log_fh: Dict[str, Any] = {}  # profile home key -> handle
+_mcp_stderr_log_fh: dict[str, Any] = {}  # profile home key -> handle
 _mcp_stderr_log_lock = threading.Lock()
 
 
@@ -25,7 +27,11 @@ def _get_mcp_stderr_log() -> Any:
     """Shared append-mode handle for MCP subprocess stderr, cached until shutdown PER PROFILE HOME (a
     multiplexed gateway's secondary profile must log under ITS ``logs/``, not the launch profile's). Must
     expose a real fd (asyncio wires the child's stderr to it); falls back to ``/dev/null``, then real stderr."""
-    from hermes_constants import get_hermes_home, hermes_home_key, mkdir_under_hermes_home
+    from hermes_constants import (
+        get_hermes_home,
+        hermes_home_key,
+        mkdir_under_hermes_home,
+    )
     home_key = hermes_home_key()
     with _mcp_stderr_log_lock:
         fh = _mcp_stderr_log_fh.get(home_key)
@@ -46,7 +52,7 @@ def _get_mcp_stderr_log() -> Any:
         return fh
 
 
-def _close_mcp_stderr_logs(*, scope: Optional[str] = None) -> None:
+def _close_mcp_stderr_logs(*, scope: str | None = None) -> None:
     """Release cached parent handles after the selected MCP transports have stopped."""
     with _mcp_stderr_log_lock:
         keys = list(_mcp_stderr_log_fh) if scope is None else [scope]
@@ -87,7 +93,7 @@ class _StderrTee:
         if rest := pending + decoder.decode(b"", final=True):
             self._write_lines([rest])
 
-    def _write_lines(self, lines: List[str]) -> None:
+    def _write_lines(self, lines: list[str]) -> None:
         if not lines:
             return
         try:
@@ -179,7 +185,7 @@ _CONTEXT_VAR_RESOLVERS = {
     "workspaceFolderBasename": _workspace_basename, "pathSeparator": lambda: os.sep, "/": lambda: os.sep}
 
 
-def _build_safe_env(user_env: Optional[dict]) -> dict:
+def _build_safe_env(user_env: dict | None) -> dict:
     """Filtered env for stdio subprocesses so API keys/tokens don't leak: the safe baseline
     keys, ``XDG_*``, vars injected by an external secret source (users configured that backend
     precisely so subprocesses can consume them), plus the server config's own ``env``."""
@@ -237,7 +243,7 @@ def _which_with_config_pathext(command: str, path_arg, env: dict):
 _MANAGED_LAUNCHERS = {"npx": "npm", "npm": "npm", "node": "npm", "uv": "uv", "uvx": "uv"}
 
 
-def _managed_launcher(command: str) -> Optional[tuple[str, list[str]]]:
+def _managed_launcher(command: str) -> tuple[str, list[str]] | None:
     """PM's executable for a bare launcher name and the toolchain dirs its children need first on
     PATH (npx's ``env node``, uvx's sibling uv). Never the user's copy: a missing managed tool is
     provisioned through PM, which raises naming the remedy when it may not. None only when PM
@@ -282,7 +288,7 @@ def _is_hermes_managed_bin_dir(directory: str) -> bool:
 _WINDOWS_DEFAULT_PATHEXT = ".COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC"
 
 
-def _pathext_suffixes(env: Optional[dict] = None, *, windows: Optional[bool] = None) -> list:
+def _pathext_suffixes(env: dict | None = None, *, windows: bool | None = None) -> list:
     """Executable suffixes a bare name resolves through, in order. The child env's PATHEXT
     comes first (``shutil.which`` reads the PARENT's, so a per-profile config value never
     reaches a plain ``which`` — same source as ``_which_with_config_pathext``), then the
@@ -301,8 +307,8 @@ def _pathext_suffixes(env: Optional[dict] = None, *, windows: Optional[bool] = N
     return [ext for ext in _WINDOWS_DEFAULT_PATHEXT.split(";") if ext]
 
 
-def _first_user_which_hit(command: str, path_arg: Optional[str],
-                          env: Optional[dict] = None, *, windows: Optional[bool] = None) -> Optional[str]:
+def _first_user_which_hit(command: str, path_arg: str | None,
+                          env: dict | None = None, *, windows: bool | None = None) -> str | None:
     """First PATH hit for *command* OUTSIDE Hermes-managed bin dirs, or ``None``.
 
     ``shutil.which`` stops at the first hit, and bootstrap prepends the managed runtime's
@@ -368,7 +374,7 @@ def _resolve_stdio_command(command: str, env: dict) -> tuple[str, dict]:
     return resolved_command, resolved_env
 
 
-def _npx_bin_candidates(bin_dir: str, name: str, *, windows: Optional[bool] = None) -> list:
+def _npx_bin_candidates(bin_dir: str, name: str, *, windows: bool | None = None) -> list:
     """Launcher paths to try for *name* inside an npx cache's ``.bin``, in order. On Windows that
     directory holds the extensionless sh script plus ``<name>.cmd``/``<name>.ps1``; the sh one
     cannot be spawned there and ``os.access(X_OK)`` is only an existence check, so select by
@@ -380,7 +386,7 @@ def _npx_bin_candidates(bin_dir: str, name: str, *, windows: Optional[bool] = No
     return [os.path.join(bin_dir, name)]
 
 
-def _npx_cached_bin(args: list) -> Optional[tuple]:
+def _npx_cached_bin(args: list) -> tuple | None:
     """Resolve ``npx -y <pkg>`` to the already-installed binary, or None.
 
     ``npx`` resolves the package and then FORKS, staying resident as the real server's parent
@@ -403,7 +409,7 @@ def _npx_cached_bin(args: list) -> Optional[tuple]:
 
     spec = str(rest[0])
     # Scoped names keep their leading '@', so only an '@' AFTER the scope is a version separator.
-    if "@" in (spec[1:] if spec.startswith("@") else spec):
+    if "@" in (spec.removeprefix("@")):
         return None
     if not spec or spec.startswith("-"):
         return None
@@ -478,14 +484,14 @@ def _require_rendered_remote(server_name: str, config: dict) -> dict:
 
 
 # (server_name, dotted key path) pairs already warned about: config loads repeat per discovery pass.
-_whitespace_warned: Set[Tuple[str, str]] = set()
+_whitespace_warned: set[tuple[str, str]] = set()
 
 
-def _warn_hidden_whitespace(server_name: str, config: dict) -> List[str]:
+def _warn_hidden_whitespace(server_name: str, config: dict) -> list[str]:
     """Warn once per (server, key path) about string values with leading/trailing whitespace (a
     pasted newline causes opaque auth failures). Advisory only: values are never mutated (could be
     intentional) nor logged (often secrets). Returns flagged paths."""
-    flagged: List[str] = []
+    flagged: list[str] = []
 
     def _walk(value: Any, path: str) -> None:
         if isinstance(value, str) and value != value.strip():
@@ -507,7 +513,7 @@ def _warn_hidden_whitespace(server_name: str, config: dict) -> List[str]:
     return flagged
 
 
-def _filter_suspicious_mcp_servers(servers: Dict[str, dict]) -> Dict[str, dict]:
+def _filter_suspicious_mcp_servers(servers: dict[str, dict]) -> dict[str, dict]:
     """Drop exfiltration-shaped MCP configs before any stdio spawn path."""
     try:
         from hermes_cli.mcp_security import validate_mcp_server_entry
@@ -523,7 +529,7 @@ def _filter_suspicious_mcp_servers(servers: Dict[str, dict]) -> Dict[str, dict]:
     return safe_servers
 
 
-def _portable_mcp_servers(safe_servers: Dict[str, dict]) -> None:
+def _portable_mcp_servers(safe_servers: dict[str, dict]) -> None:
     """Merge plugin-provided (portable) MCP servers into *safe_servers*; native config wins on a clash. Never raises."""
     try:
         from hermes_cli.plugins import discover_plugins, get_plugin_manager
@@ -538,7 +544,7 @@ def _portable_mcp_servers(safe_servers: Dict[str, dict]) -> None:
         logger.debug("Failed to load portable MCP servers", exc_info=True)
 
 
-def _load_mcp_config() -> Dict[str, dict]:
+def _load_mcp_config() -> dict[str, dict]:
     """``mcp_servers`` from config.yaml as ``{name: config}`` (empty on error / safe mode), ``${VAR}`` interpolated."""
     try:
         from hermes_cli.config import load_config
@@ -551,7 +557,7 @@ def _load_mcp_config() -> Dict[str, dict]:
             load_hermes_dotenv()
         except Exception:
             pass
-        safe_servers: Dict[str, dict] = {}
+        safe_servers: dict[str, dict] = {}
         for name, cfg in _filter_suspicious_mcp_servers(servers if isinstance(servers, dict) else {}).items():
             interpolated = _interpolate_env_vars(cfg)
             if isinstance(interpolated, dict):

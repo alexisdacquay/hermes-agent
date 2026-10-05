@@ -6,16 +6,13 @@ import asyncio
 import json
 import threading
 from pathlib import Path
-from typing import Any, Dict
-from unittest.mock import MagicMock, patch
+from typing import Any
+from unittest.mock import patch
 
 import pytest
-
-from hermes_cli.proxy.adapters import ADAPTERS, get_adapter
 from hermes_cli.proxy.adapters.base import UpstreamAdapter, UpstreamCredential
 from hermes_cli.proxy.adapters.nous_portal import NousPortalAdapter
 from hermes_cli.proxy.adapters.xai import XAIGrokAdapter
-
 
 # ---------------------------------------------------------------------------
 # Adapter registry
@@ -33,7 +30,7 @@ from hermes_cli.proxy.adapters.xai import XAIGrokAdapter
 # ---------------------------------------------------------------------------
 
 
-def _write_auth_store(hermes_home: Path, nous_state: Dict[str, Any]) -> Path:
+def _write_auth_store(hermes_home: Path, nous_state: dict[str, Any]) -> Path:
     """Write an auth.json with the given nous state into a hermetic HERMES_HOME."""
     auth_path = hermes_home / "auth.json"
     auth_path.write_text(json.dumps({
@@ -228,9 +225,8 @@ def test_xai_adapter_retry_rotates_pool_entry_on_429(tmp_path, monkeypatch):
 # ---------------------------------------------------------------------------
 
 aiohttp = pytest.importorskip("aiohttp")
-from aiohttp import web  # noqa: E402
-
-from hermes_cli.proxy.server import create_app  # noqa: E402
+from aiohttp import web
+from hermes_cli.proxy.server import create_app
 
 
 class FakeAdapter(UpstreamAdapter):
@@ -279,7 +275,7 @@ class FakeAdapter(UpstreamAdapter):
         )
 
 
-async def _start_runner(app: "web.Application"):
+async def _start_runner(app: web.Application):
     """Spin up an aiohttp app on an ephemeral localhost port. Returns (runner, base_url)."""
     runner = web.AppRunner(app, access_log=None)
     await runner.setup()
@@ -290,7 +286,7 @@ async def _start_runner(app: "web.Application"):
     return runner, f"http://127.0.0.1:{port}"
 
 
-def _build_fake_upstream(captured: Dict[str, Any]) -> "web.Application":
+def _build_fake_upstream(captured: dict[str, Any]) -> web.Application:
     async def echo(request):
         body = await request.read()
         captured["requests"].append({
@@ -318,7 +314,7 @@ def _build_fake_upstream(captured: Dict[str, Any]) -> "web.Application":
     return app
 
 
-def _build_retrying_fake_upstream(captured: Dict[str, Any]) -> "web.Application":
+def _build_retrying_fake_upstream(captured: dict[str, Any]) -> web.Application:
     async def maybe_unauthorized(request):
         body = await request.read()
         auth = request.headers.get("Authorization")
@@ -344,18 +340,17 @@ def _build_retrying_fake_upstream(captured: Dict[str, Any]) -> "web.Application"
 def test_server_strips_client_auth_header():
     """The client's Authorization header MUST NOT reach the upstream."""
     async def run():
-        captured: Dict[str, Any] = {"requests": []}
+        captured: dict[str, Any] = {"requests": []}
         upstream_runner, upstream_base = await _start_runner(_build_fake_upstream(captured))
         adapter = FakeAdapter(f"{upstream_base}/v1", bearer="ours")
         proxy_runner, proxy_base = await _start_runner(create_app(adapter))
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    f"{proxy_base}/v1/chat/completions",
-                    json={},
-                    headers={"Authorization": "Bearer SHOULD_NOT_LEAK"},
-                ) as resp:
-                    await resp.read()
+            async with aiohttp.ClientSession() as session, session.post(
+                f"{proxy_base}/v1/chat/completions",
+                json={},
+                headers={"Authorization": "Bearer SHOULD_NOT_LEAK"},
+            ) as resp:
+                await resp.read()
             assert captured["requests"][0]["auth"] == "Bearer ours"
             assert "SHOULD_NOT_LEAK" not in captured["requests"][0]["auth"]
         finally:
@@ -394,7 +389,7 @@ def test_loopback_proxy_serves_only_local_non_browser_requests(bound, headers, a
     refused ones never go upstream. A wildcard bind has no single origin of its own, and a
     DNS-rebound page's Origin always equals its Host, so no Origin is trusted there."""
     async def run():
-        captured: Dict[str, Any] = {"requests": []}
+        captured: dict[str, Any] = {"requests": []}
         upstream_runner, upstream_base = await _start_runner(_build_fake_upstream(captured))
         proxy_runner, proxy_base = await _start_runner(create_app(FakeAdapter(f"{upstream_base}/v1"), bound_host=bound))
         authority = proxy_base.removeprefix("http://")
@@ -417,7 +412,7 @@ def _build_sse_upstream(
     frames: list[bytes],
     *,
     path: str = "/v1/chat/completions",
-) -> "web.Application":
+) -> web.Application:
     async def sse(request):
         _ = await request.read()
         resp = web.StreamResponse(
@@ -448,12 +443,11 @@ def test_proxy_appends_done_when_upstream_omits_sentinel():
         adapter = FakeAdapter(f"{upstream_base}/v1", bearer="ours")
         proxy_runner, proxy_base = await _start_runner(create_app(adapter))
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    f"{proxy_base}/v1/chat/completions",
-                    json={"stream": True},
-                ) as resp:
-                    body = await resp.read()
+            async with aiohttp.ClientSession() as session, session.post(
+                f"{proxy_base}/v1/chat/completions",
+                json={"stream": True},
+            ) as resp:
+                body = await resp.read()
             text = body.decode("utf-8")
             assert 'data: {"choices":[{"delta":{"content":"LONGCAT_OK"}}]}' in text
             assert '"finish_reason":"stop"' in text
@@ -479,12 +473,11 @@ def test_proxy_does_not_duplicate_existing_done():
         adapter = FakeAdapter(f"{upstream_base}/v1", bearer="ours")
         proxy_runner, proxy_base = await _start_runner(create_app(adapter))
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    f"{proxy_base}/v1/chat/completions",
-                    json={"stream": True},
-                ) as resp:
-                    body = await resp.read()
+            async with aiohttp.ClientSession() as session, session.post(
+                f"{proxy_base}/v1/chat/completions",
+                json={"stream": True},
+            ) as resp:
+                body = await resp.read()
             assert body.decode("utf-8").count("data: [DONE]") == 1
         finally:
             await proxy_runner.cleanup()
@@ -505,12 +498,11 @@ def test_proxy_does_not_append_done_after_error_event():
         adapter = FakeAdapter(f"{upstream_base}/v1", bearer="ours")
         proxy_runner, proxy_base = await _start_runner(create_app(adapter))
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    f"{proxy_base}/v1/chat/completions",
-                    json={"stream": True},
-                ) as resp:
-                    body = await resp.read()
+            async with aiohttp.ClientSession() as session, session.post(
+                f"{proxy_base}/v1/chat/completions",
+                json={"stream": True},
+            ) as resp:
+                body = await resp.read()
             assert "data: [DONE]" not in body.decode("utf-8")
         finally:
             await proxy_runner.cleanup()
@@ -532,12 +524,11 @@ def test_proxy_does_not_append_done_after_malformed_trailing_frame():
         adapter = FakeAdapter(f"{upstream_base}/v1", bearer="ours")
         proxy_runner, proxy_base = await _start_runner(create_app(adapter))
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    f"{proxy_base}/v1/chat/completions",
-                    json={"stream": True},
-                ) as resp:
-                    body = await resp.read()
+            async with aiohttp.ClientSession() as session, session.post(
+                f"{proxy_base}/v1/chat/completions",
+                json={"stream": True},
+            ) as resp:
+                body = await resp.read()
             assert "data: [DONE]" not in body.decode("utf-8")
         finally:
             await proxy_runner.cleanup()

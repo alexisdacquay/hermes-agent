@@ -8,7 +8,6 @@ per attempt, labeled with the worker's own prompt.
 import os
 
 import pytest
-
 from hermes_state import SessionDB
 
 

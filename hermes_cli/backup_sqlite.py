@@ -11,9 +11,8 @@ import sys
 import tempfile
 import time
 from contextlib import suppress
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +21,7 @@ class _SQLiteBackupTimeout(RuntimeError):
     """Raised when a SQLite snapshot remains busy past its deadline."""
 
 
-def _close_quietly(conn: Optional[sqlite3.Connection]) -> None:
+def _close_quietly(conn: sqlite3.Connection | None) -> None:
     if conn is not None:
         with suppress(Exception):
             conn.close()
@@ -86,7 +85,7 @@ def preflight_state_db(home: Path) -> dict:
     if not source.exists():
         return {"path": None, "message": "state.db not found (fresh install?)"}
     prefix = "state.db.pre-update-emergency-"
-    stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H-%M-%S-%fZ")
+    stamp = datetime.now(UTC).strftime("%Y-%m-%dT%H-%M-%S-%fZ")
     destination = home / f"{prefix}{stamp}-{os.getpid()}.bak"
     fd, name = tempfile.mkstemp(prefix=prefix, suffix=".partial", dir=home)
     os.close(fd)

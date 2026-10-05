@@ -1,7 +1,6 @@
 """Behavior tests for the token-free reaction detector."""
 
 import pytest
-
 from agent.reactions import VIBE, detect_reaction
 
 

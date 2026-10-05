@@ -21,10 +21,9 @@ layer down, which that PR's scope could not reach.
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Dict
+from typing import Any
 
 import pytest
-
 from gateway.config import PlatformConfig
 from plugins.platforms.photon.adapter import PhotonAdapter
 
@@ -58,7 +57,7 @@ class TestFatalNotifyIsDetached:
         monkeypatch.setattr(adapter, "_notify_fatal_error", fake_notify)
         monkeypatch.setattr(adapter, "_stop_sidecar", lambda: _noop())
 
-        async def degraded(_path: str, _payload: Dict[str, Any]) -> Dict[str, Any]:
+        async def degraded(_path: str, _payload: dict[str, Any]) -> dict[str, Any]:
             return {"stream": {"ok": False, "state": "degraded", "degradedForMs": 4000,
                                "lastIssue": "stream persistently failing"}}
 

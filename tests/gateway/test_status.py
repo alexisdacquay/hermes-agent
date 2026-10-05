@@ -5,11 +5,11 @@ import os
 import sys
 import threading
 import time
+from datetime import UTC
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-
 from gateway import status
 
 
@@ -126,7 +126,6 @@ class TestGatewayPidState:
         def fake_kill(pid, sig):
             if pid == 99999:
                 raise ProcessLookupError
-            return None
 
         monkeypatch.setattr(status.os, "kill", fake_kill)
 
@@ -144,7 +143,10 @@ class TestGatewayPidState:
         for a named profile), gateway identity files should still be written to
         the process-level HERMES_HOME, not the profile's directory.  See #56986.
         """
-        from hermes_constants import set_hermes_home_override, reset_hermes_home_override
+        from hermes_constants import (
+            reset_hermes_home_override,
+            set_hermes_home_override,
+        )
 
         process_home = tmp_path / "default"
         process_home.mkdir()
@@ -1176,7 +1178,7 @@ class TestTakeoverMarker:
         monkeypatch.setenv("HERMES_HOME", str(tmp_path))
         monkeypatch.setattr(status, "_get_process_start_time", lambda pid: 100)
         marker_path = tmp_path / ".gateway-takeover.json"
-        from datetime import datetime, timezone
+        from datetime import datetime
         # Marker names OUR pid + start_time (the coincidental match the bug
         # relied on) but was written by a gateway in a different profile.
         marker_path.write_text(json.dumps({
@@ -1184,7 +1186,7 @@ class TestTakeoverMarker:
             "target_start_time": 100,
             "replacer_pid": 99999,
             "replacer_hermes_home": str(tmp_path / "profiles" / "other"),
-            "written_at": datetime.now(timezone.utc).isoformat(),
+            "written_at": datetime.now(UTC).isoformat(),
         }))
 
         result = status.consume_takeover_marker_for_self()
@@ -1201,12 +1203,12 @@ class TestTakeoverMarker:
         monkeypatch.setenv("HERMES_HOME", str(tmp_path))
         monkeypatch.setattr(status, "_get_process_start_time", lambda pid: 100)
         marker_path = tmp_path / ".gateway-takeover.json"
-        from datetime import datetime, timezone
+        from datetime import datetime
         marker_path.write_text(json.dumps({
             "target_pid": os.getpid(),
             "target_start_time": 100,
             "replacer_pid": 99999,
-            "written_at": datetime.now(timezone.utc).isoformat(),
+            "written_at": datetime.now(UTC).isoformat(),
         }))
 
         result = status.consume_takeover_marker_for_self()
@@ -1503,7 +1505,10 @@ class TestLaunchdPlistRespawnGovernance:
         """
         import re
 
-        from gateway.restart import LAUNCHD_GUI_EXIT_TIMEOUT_CLAMP_S, LAUNCHD_STOP_CLEANUP_RESERVE_S
+        from gateway.restart import (
+            LAUNCHD_GUI_EXIT_TIMEOUT_CLAMP_S,
+            LAUNCHD_STOP_CLEANUP_RESERVE_S,
+        )
         from hermes_cli.gateway import generate_launchd_plist
 
         monkeypatch.setenv("HERMES_HOME", str(tmp_path))
@@ -1599,33 +1604,33 @@ class TestNormalizeUpdatedAt:
     """Unit tests for the updated_at RFC3339|None normalization funnel."""
 
     def test_epoch_int_converts_to_utc_iso(self):
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         result = status.normalize_updated_at(1750000000)
         assert isinstance(result, str)
         parsed = datetime.fromisoformat(result)
         assert parsed.tzinfo is not None
-        assert parsed == datetime.fromtimestamp(1750000000, tz=timezone.utc)
+        assert parsed == datetime.fromtimestamp(1750000000, tz=UTC)
 
 
     def test_iso_with_z_suffix_accepted(self):
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         result = status.normalize_updated_at("2026-07-21T12:00:00Z")
         assert result is not None
         parsed = datetime.fromisoformat(result)
         assert parsed.tzinfo is not None
-        assert parsed == datetime(2026, 7, 21, 12, 0, 0, tzinfo=timezone.utc)
+        assert parsed == datetime(2026, 7, 21, 12, 0, 0, tzinfo=UTC)
 
     def test_naive_iso_coerced_to_utc(self):
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         result = status.normalize_updated_at("2026-07-21T12:00:00")
         assert result is not None
         parsed = datetime.fromisoformat(result)
         assert parsed.tzinfo is not None
         assert parsed.utcoffset().total_seconds() == 0
-        assert parsed == datetime(2026, 7, 21, 12, 0, 0, tzinfo=timezone.utc)
+        assert parsed == datetime(2026, 7, 21, 12, 0, 0, tzinfo=UTC)
 
     def test_offset_aware_iso_round_trips_canonically(self):
         canonical = "2026-07-21T12:00:00+00:00"
@@ -1731,15 +1736,12 @@ class TestResolveGatewayLiveness:
 
         def _pid(pid_path=None, **kw):
             seen["pid_path"] = pid_path
-            return None
 
         def _reader(path=None):
             seen["status_path"] = path
-            return None
 
         def _runtime_pid(runtime, *, expected_home=None):
             seen["expected_home"] = expected_home
-            return None
 
         status.resolve_gateway_liveness(
             profile_dir=profile_dir,

@@ -8,7 +8,6 @@ imported late here, never at module level).
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 from hermes_cli.plugin_capabilities import _child_dict
 
@@ -59,7 +58,11 @@ def _run_capability_consent(console, plugin_id: str, declared: list, *, context:
     or in ANY non-interactive context — they stay ungranted (fail closed) and the plugin must
     degrade via ``ctx.has_capability()``. Consent + audit, NOT a sandbox.
     """
-    from hermes_cli.plugin_capabilities import CAPABILITY_REGISTRY, pending_capabilities, record_consent
+    from hermes_cli.plugin_capabilities import (
+        CAPABILITY_REGISTRY,
+        pending_capabilities,
+        record_consent,
+    )
     pending = pending_capabilities(plugin_id, declared)
     if not pending:
         # Refresh the consent hash so a later declaration change is detected.
@@ -99,7 +102,7 @@ def _run_capability_consent(console, plugin_id: str, declared: list, *, context:
     return False
 
 
-def cmd_capabilities(name: Optional[str] = None) -> None:
+def cmd_capabilities(name: str | None = None) -> None:
     """``hermes plugins capabilities [<id>]`` — declared vs granted."""
     from hermes_cli.plugin_capabilities import (
         CAPABILITY_REGISTRY,
@@ -142,7 +145,7 @@ def cmd_capabilities(name: Optional[str] = None) -> None:
             console.print(f"  {cap}: [green]granted[/green] [dim](not declared in manifest)[/dim]")
 
 
-def _resolve_tool_override_grant(console, key: str, allow_tool_override: Optional[bool]) -> None:
+def _resolve_tool_override_grant(console, key: str, allow_tool_override: bool | None) -> None:
     """Resolve and persist the ``allow_tool_override`` grant for a plugin."""
     if allow_tool_override is None:
         # Default NO: a blind Enter or a non-interactive stdin denies safely.

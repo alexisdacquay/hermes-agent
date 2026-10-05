@@ -21,7 +21,7 @@ from __future__ import annotations
 import os
 import re
 import sys
-from typing import NamedTuple, Optional
+from typing import NamedTuple
 
 # ``pidns=`` token inside a structured holder string (``pid=123:pidns=4026533184:turn=…``).
 _PIDNS_TOKEN_RE = re.compile(r"(?:^|:)pidns=(\d+)(?::|$)")
@@ -36,7 +36,7 @@ class LocalPidNamespace(NamedTuple):
     ``id`` of None — resolution failed, see the module docstring.
     """
 
-    id: Optional[str]
+    id: str | None
     supported: bool
 
 
@@ -46,7 +46,7 @@ _UNSUPPORTED = LocalPidNamespace(None, False)
 # another PID namespace (``setns`` applies to its future children), so a
 # successful read never changes for us.  A failed read is NOT cached — it may
 # be transient, and while it lasts every structured holder is unverifiable.
-_LOCAL_PID_NS: Optional[LocalPidNamespace] = None
+_LOCAL_PID_NS: LocalPidNamespace | None = None
 
 
 def _resolve_local_pid_namespace() -> LocalPidNamespace:
@@ -71,7 +71,7 @@ def _local_pid_namespace() -> LocalPidNamespace:
     return _LOCAL_PID_NS
 
 
-def pid_namespace_id() -> Optional[str]:
+def pid_namespace_id() -> str | None:
     """What a holder records: the ``/proc/self/ns/pid`` inode on Linux, ``None``
     where there is no namespace identity or the lookup failed.  A holder never
     asserts a namespace it cannot prove."""
@@ -87,13 +87,13 @@ def holder_namespace_token() -> str:
     return f":pidns={ns}" if ns else ""
 
 
-def _recorded_namespace(holder: str) -> Optional[str]:
+def _recorded_namespace(holder: str) -> str | None:
     """The ``pidns=`` stamp from a holder string, or None when it carries none."""
     match = _PIDNS_TOKEN_RE.search(holder or "")
     return match.group(1) if match else None
 
 
-def _qualify(recorded: Optional[str], *, unstamped_checkable: bool) -> bool:
+def _qualify(recorded: str | None, *, unstamped_checkable: bool) -> bool:
     """The shared matrix; *unstamped_checkable* is the policy for a record that
     carries no namespace (see the module docstring for why there are two)."""
     local = _local_pid_namespace()
@@ -117,7 +117,7 @@ def holder_pid_checkable(holder: str) -> bool:
     return _qualify(_recorded_namespace(holder), unstamped_checkable=False)
 
 
-def persistent_record_pidns_checkable(recorded: Optional[str]) -> bool:
+def persistent_record_pidns_checkable(recorded: str | None) -> bool:
     """LEGACY ROLLOUT: may a persistent record (no expiry) be probed here?
 
     The policy for the flock holder records: a foreign-namespace record is

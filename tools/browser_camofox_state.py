@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import uuid
 from pathlib import Path
-from typing import Dict, Optional
 
 from hermes_constants import get_hermes_home
 
@@ -18,7 +17,7 @@ def get_camofox_state_dir() -> Path:
     return get_hermes_home() / "browser_auth" / "camofox"
 
 
-def get_camofox_identity(task_id: Optional[str] = None) -> Dict[str, str]:
+def get_camofox_identity(task_id: str | None = None) -> dict[str, str]:
     """Stable Hermes-managed Camofox identity: userId is profile-scoped, session key is
     scoped to the logical browser task so new tabs in the same profile reuse it."""
     scope_root = str(get_camofox_state_dir())

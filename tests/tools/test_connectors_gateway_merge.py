@@ -6,7 +6,6 @@ client PR; this file owns partition → splice → assemble and the name codec.
 """
 
 import pytest
-
 from tools.connectors.gateway.config import ConnectorConfig, connectors_available
 from tools.connectors.gateway.errors import (
     GatewayAuthError,
@@ -26,7 +25,6 @@ from tools.connectors.gateway.names import (
     format_connector_name,
     parse_connector_name,
 )
-
 
 # ---------------------------------------------------------------------------
 # names

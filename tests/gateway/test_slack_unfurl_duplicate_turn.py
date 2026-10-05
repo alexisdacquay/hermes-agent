@@ -27,10 +27,9 @@ import sys
 import time
 from importlib.machinery import PathFinder
 from types import ModuleType
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
-
 from gateway.config import PlatformConfig
 
 

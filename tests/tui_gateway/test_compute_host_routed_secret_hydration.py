@@ -9,7 +9,6 @@ import types
 from pathlib import Path
 
 import pytest
-
 from tui_gateway import server
 from tui_gateway.compute_host import ComputeHost
 

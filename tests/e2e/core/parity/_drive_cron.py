@@ -20,13 +20,18 @@ from __future__ import annotations
 import re
 import subprocess
 
-from tests.e2e.core.parity._helpers import TURN_TIMEOUT, DriveResult, ParityHome, hermes_argv
+from tests.e2e.core.parity._helpers import (
+    TURN_TIMEOUT,
+    DriveResult,
+    ParityHome,
+    hermes_argv,
+)
 from tests.fakes.fake_llm_provider import FakeLLMServer
 
 # cron/scheduler.py::_resolve_cron_enabled_toolsets -> _get_platform_tools(cfg, "cron") default.
 CRON_TOOLSET = "hermes-cron"
 _JOB_ID = re.compile(r"Created job: (\S+)")
-_RESPONSE = re.compile(r"^## Response\s*\n(.*)\Z", re.S | re.M)
+_RESPONSE = re.compile(r"^## Response\s*\n(.*)\Z", re.DOTALL | re.MULTILINE)
 
 
 def _cron(ph: ParityHome, *args: str) -> subprocess.CompletedProcess:

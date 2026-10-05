@@ -3,7 +3,6 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from gateway.config import GatewayConfig, Platform, PlatformConfig
 from gateway.platforms.event import MessageEvent
 from gateway.session import SessionSource
@@ -136,7 +135,7 @@ def test_simplex_allowlist_matches_contact_id_not_display_name(monkeypatch, allo
     _clear_auth_env(monkeypatch)
     monkeypatch.setenv("SIMPLEX_ALLOWED_USERS", allowlist)
 
-    from gateway.platform_registry import platform_registry, PlatformEntry
+    from gateway.platform_registry import PlatformEntry, platform_registry
     platform_registry.register(PlatformEntry(
         name="simplex",
         label="SimpleX Chat",

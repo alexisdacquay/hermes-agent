@@ -2,19 +2,19 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import subprocess
+import zipfile
+from pathlib import Path
 from types import SimpleNamespace
 from urllib.request import urlretrieve
-import zipfile
 
+import hermes_yaml
 import pytest
-
-from hermes_cli import main, update_cmd, update_cmd_fleet as fleet, update_cmd_maint as maint
-from hermes_cli import update_cmd_zip, update_receipt
+from hermes_cli import main, update_cmd, update_cmd_zip, update_receipt
+from hermes_cli import update_cmd_fleet as fleet
+from hermes_cli import update_cmd_maint as maint
 from hermes_cli.config_defaults import DEFAULT_CONFIG
 from hermes_cli.update_inventory import RuntimeRecord, UpdatePlan
-import hermes_yaml
 
 
 @pytest.fixture
@@ -187,6 +187,7 @@ def test_zip_helper_propagates_completion_status_after_real_verification(zip_upd
 @pytest.mark.parametrize("failure", ["swap", "late-swap", "stage", "preparation"])
 def test_zip_failure_recovers_pause_without_completion_mutations(zip_update, monkeypatch, route, failure):
     import os
+
     import pm
 
     state = zip_update
@@ -306,6 +307,7 @@ def test_zip_refuses_non_main_before_transport(zip_update, monkeypatch, capsys):
 @pytest.mark.parametrize("windows,folder,executable", [(True, "Scripts", "python.exe"), (False, "bin", "python")])
 def test_venv_layout_explicit_and_native(tmp_path, windows, folder, executable):
     import os
+
     from pm.environments import venv_bin_dir, venv_python
 
     assert venv_bin_dir(tmp_path, windows=windows) == tmp_path / folder

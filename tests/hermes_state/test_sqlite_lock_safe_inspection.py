@@ -25,7 +25,6 @@ import textwrap
 import threading
 
 import pytest
-
 from hermes_cli.sqlite_safe_read import (
     file_length_matches_header,
     has_live_connection,
@@ -34,7 +33,6 @@ from hermes_cli.sqlite_safe_read import (
     track_connection,
     untrack_connection,
 )
-
 
 _INTRUDER = textwrap.dedent(
     """

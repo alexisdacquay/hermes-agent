@@ -3,12 +3,10 @@ caches that live OUTSIDE HERMES_HOME and survive the home rmtree (#62209)."""
 from __future__ import annotations
 
 import plistlib
-import subprocess
 import sys
 from pathlib import Path
 
 import pytest
-
 from hermes_cli import uninstall
 
 
@@ -87,11 +85,11 @@ def test_full_uninstall_sweeps_macos_caches_and_dashboard_launchd(monkeypatch, t
 
     monkeypatch.setattr(uninstall, "get_project_root", lambda: project_root)
     monkeypatch.setattr(uninstall, "_is_default_hermes_home", lambda home: False)
-    monkeypatch.setattr(uninstall, "_discover_named_profiles", lambda: [])
+    monkeypatch.setattr(uninstall, "_discover_named_profiles", list)
     monkeypatch.setattr(uninstall, "_refuse_if_steward_owned", lambda: None)
     monkeypatch.setattr(uninstall, "uninstall_gateway_service", lambda: True)
-    monkeypatch.setattr(uninstall, "remove_path_from_shell_configs", lambda: [])
-    monkeypatch.setattr(uninstall, "remove_wrapper_script", lambda: [])
+    monkeypatch.setattr(uninstall, "remove_path_from_shell_configs", list)
+    monkeypatch.setattr(uninstall, "remove_wrapper_script", list)
     monkeypatch.setattr(uninstall, "remove_node_symlinks", lambda home: [])
     monkeypatch.setattr(uninstall, "remove_legacy_runtime_trees", lambda home: [])
     monkeypatch.setattr(uninstall, "_rmtree_step",
@@ -117,6 +115,7 @@ def test_full_uninstall_sweeps_macos_caches_and_dashboard_launchd(monkeypatch, t
 
 def _args(hermes_home, project_root, *, full, yes):
     from types import SimpleNamespace
+
     import hermes_constants
     monkey = {"HERMES_HOME": str(hermes_home)}
     real_get = hermes_constants.get_hermes_home

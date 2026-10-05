@@ -18,7 +18,6 @@ import logging
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from gateway.config import Platform
 from gateway.run import GatewayRunner
 

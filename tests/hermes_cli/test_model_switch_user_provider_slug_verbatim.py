@@ -15,7 +15,6 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
 import pytest
-
 from hermes_cli.model_switch import switch_model
 
 LISTING = ["deepseek-v4-flash-0731", "deepseek-v4-flash", "deepseek-v4-pro"]
@@ -29,7 +28,7 @@ class _Listing(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def log_message(self, format, *args):  # noqa: A002
+    def log_message(self, format, *args):
         pass
 
 

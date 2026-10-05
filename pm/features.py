@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Optional
 
 FEATURES_FILENAME = "enabled-features.json"
 
@@ -25,7 +24,7 @@ class FeatureProbeError(RuntimeError):
     """A failed inventory must not become an empty feature list."""
 
 
-def features_path(base_dir: Optional[Path] = None) -> Path:
+def features_path(base_dir: Path | None = None) -> Path:
     """Where the enabled-features file lives. In a bundle, the payload
     root (beside manifest.json — bundle-written, sealed-shipped). At
     runtime, the runtime dir (beside the byte store — per-install,
@@ -39,7 +38,7 @@ def features_path(base_dir: Optional[Path] = None) -> Path:
     return store_root().parent / FEATURES_FILENAME
 
 
-def write_features(extras: list[str], base_dir: Optional[Path] = None) -> Path:
+def write_features(extras: list[str], base_dir: Path | None = None) -> Path:
     """Record the exact extras an install carries. Sorted, deduped."""
     path = features_path(base_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -50,7 +49,7 @@ def write_features(extras: list[str], base_dir: Optional[Path] = None) -> Path:
     return path
 
 
-def read_features() -> Optional[list[str]]:
+def read_features() -> list[str] | None:
     """The frozen/baseline feature list; None when no file exists (source
     installs without a bundle — the baseline is the recorded venv
     state)."""

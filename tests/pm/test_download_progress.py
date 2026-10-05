@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pm.downloader import Download, Source
+
 from tests.pm._range_server import RangeHandler, dl_server, url  # noqa: F401
 
 

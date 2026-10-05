@@ -15,20 +15,33 @@ import logging
 import os
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
-from agent.delegation_context import owned_kanban_task
-from agent.prompt_builder import (
-    ASYNC_HANDOFF_GUIDANCE, DEFAULT_AGENT_IDENTITY, EXECUTION_GUIDANCE_MODELS, GOOGLE_MODEL_OPERATIONAL_GUIDANCE,
-    HERMES_AGENT_HELP_GUIDANCE, HERMES_AGENT_HELP_GUIDANCE_NO_SKILLS, KANBAN_GUIDANCE,
-    PARALLEL_TOOL_CALL_GUIDANCE, PLATFORM_HINTS, SESSION_SEARCH_GUIDANCE,
-    SKILLS_GUIDANCE, STEER_CHANNEL_NOTE, TASK_COMPLETION_GUIDANCE, TELEGRAM_RICH_MESSAGES_HINT,
-    TOOL_USE_ENFORCEMENT_GUIDANCE, TOOL_USE_ENFORCEMENT_MODELS, drain_truncation_warnings,
-)
-from agent import prompt_builder as _pb
-from agent.runtime_cwd import resolve_agent_cwd, resolve_context_cwd
 from hermes_constants import get_default_hermes_root, get_hermes_home
 from utils import is_truthy_value
+
+from agent import prompt_builder as _pb
+from agent.delegation_context import owned_kanban_task
+from agent.prompt_builder import (
+    ASYNC_HANDOFF_GUIDANCE,
+    DEFAULT_AGENT_IDENTITY,
+    EXECUTION_GUIDANCE_MODELS,
+    GOOGLE_MODEL_OPERATIONAL_GUIDANCE,
+    HERMES_AGENT_HELP_GUIDANCE,
+    HERMES_AGENT_HELP_GUIDANCE_NO_SKILLS,
+    KANBAN_GUIDANCE,
+    PARALLEL_TOOL_CALL_GUIDANCE,
+    PLATFORM_HINTS,
+    SESSION_SEARCH_GUIDANCE,
+    SKILLS_GUIDANCE,
+    STEER_CHANNEL_NOTE,
+    TASK_COMPLETION_GUIDANCE,
+    TELEGRAM_RICH_MESSAGES_HINT,
+    TOOL_USE_ENFORCEMENT_GUIDANCE,
+    TOOL_USE_ENFORCEMENT_MODELS,
+    drain_truncation_warnings,
+)
+from agent.runtime_cwd import resolve_agent_cwd, resolve_context_cwd
 
 logger = logging.getLogger(__name__)
 _PLUGIN_SECTION_FRAME_RE = re.compile(
@@ -38,7 +51,7 @@ _PLUGIN_SECTION_FRAME_RE = re.compile(
 _GATE_WORDS = {**dict.fromkeys(("true", "always", "yes", "on"), True), **dict.fromkeys(("false", "never", "no", "off"), False)}
 
 
-def _model_gate(setting: Any, model: Optional[str], default_models) -> bool:
+def _model_gate(setting: Any, model: str | None, default_models) -> bool:
     """Resolve a config gate: True/"true"-ish -> on, False/"false"-ish -> off,
     list -> case-insensitive model-substring match, anything else ("auto") ->
     match against *default_models*."""
@@ -83,7 +96,7 @@ def _tui_embedded_pane_clarifier(hint: str) -> str:
     return hint + _TUI_EMBEDDED_PANE_CLARIFIER
 
 
-def _plugin_session_info(agent: Any) -> Dict[str, str]:
+def _plugin_session_info(agent: Any) -> dict[str, str]:
     """Return immutable-at-render-time metadata exposed to prompt sections."""
     try:
         cwd = str(resolve_context_cwd() or "")
@@ -140,8 +153,11 @@ def _restore_plugin_prompt_sections(prompt: str) -> tuple:
     exact canonical container emitted by core is accepted — user/project text
     may resemble a frame."""
     from hermes_cli.plugins import (
-        MAX_SYSTEM_PROMPT_SECTION_CHARS, PLUGIN_SECTIONS_END, PLUGIN_SECTIONS_START,
-        RenderedPluginSystemPromptSection, format_system_prompt_sections,
+        MAX_SYSTEM_PROMPT_SECTION_CHARS,
+        PLUGIN_SECTIONS_END,
+        PLUGIN_SECTIONS_START,
+        RenderedPluginSystemPromptSection,
+        format_system_prompt_sections,
     )
     start = prompt.rfind(PLUGIN_SECTIONS_START)
     end = prompt.find(PLUGIN_SECTIONS_END, start + len(PLUGIN_SECTIONS_START)) if start >= 0 else -1
@@ -167,7 +183,7 @@ def restore_plugin_prompt_sections(agent: Any, prompt: str) -> None:
     agent._plugin_system_prompt_sections_snapshot = _restore_plugin_prompt_sections(prompt)
 
 
-def _plugin_section_blocks(sections: tuple, position: str) -> List[str]:
+def _plugin_section_blocks(sections: tuple, position: str) -> list[str]:
     from hermes_cli.plugins import format_system_prompt_sections
     block = format_system_prompt_sections([s for s in sections if s.position == position])
     return [block] if block else []
@@ -222,7 +238,7 @@ def _session_start_like(agent: Any, now: Any) -> Any:
     return _to_display_tz(session_start) if hasattr(session_start, "astimezone") else now
 
 
-def _agent_home(agent: Any) -> Optional[Path]:
+def _agent_home(agent: Any) -> Path | None:
     """The agent's OWN profile home, or None to use ambient resolution.
     A bound HERMES_HOME ContextVar override wins (the gateway multiplexes
     profiles over one shared session DB and binds the home per turn); else the
@@ -252,7 +268,7 @@ def _agent_home(agent: Any) -> Optional[Path]:
         return None
 
 
-def _agent_skills_dir(agent: Any) -> Optional[Path]:
+def _agent_skills_dir(agent: Any) -> Path | None:
     """The agent's own ``<home>/skills`` dir, or None to use ambient home."""
     home = _agent_home(agent)
     return home / "skills" if home is not None else None
@@ -271,7 +287,7 @@ def _profile_name_for_home(home: Path) -> str:
         return "default"
 
 
-def _tool_guidance_block(agent: Any) -> Optional[str]:
+def _tool_guidance_block(agent: Any) -> str | None:
     """Tool-aware behavioral guidance, injected only when the tools are loaded."""
     names = agent.valid_tool_names
     # With both memory stores disabled no store is built, so the full guidance
@@ -314,7 +330,7 @@ def _skills_prompt(agent: Any) -> str:
                                          compact_categories=_compact_cats or None, skills_dir_override=_agent_skills_dir(agent))
 
 
-def _auto_load_parts(agent: Any) -> List[str]:
+def _auto_load_parts(agent: Any) -> list[str]:
     """``skills.auto_load`` blocks, resolved once per agent lifecycle (config, skill files and
     HERMES_IGNORE_RULES are read on the first build only) so the prompt stays byte-stable
     across model switches, compression and static-prefix restoration.
@@ -326,7 +342,7 @@ def _auto_load_parts(agent: Any) -> List[str]:
             name in agent.valid_tool_names for name in ("skills_list", "skill_view", "skill_manage")):
         return []
     if not getattr(agent, "_auto_load_skills_resolved", False):
-        result: Tuple[str, List[str], List[str]] = ("", [], [])
+        result: tuple[str, list[str], list[str]] = ("", [], [])
         try:
             if not is_truthy_value(os.environ.get("HERMES_IGNORE_RULES")):
                 from agent.skill_commands import build_auto_load_prompt
@@ -341,13 +357,17 @@ def _auto_load_parts(agent: Any) -> List[str]:
     return [prompt] if prompt else []
 
 
-def _bot_mode_parts(agent: Any) -> List[str]:
+def _bot_mode_parts(agent: Any) -> list[str]:
     """Bot Mode teammate protocol — only in a bot's canonical "Bot Chat" session.
     Marks the prompt timeless (the volatile date line is dropped) since a birth
     date pinned in a months-long session is misinformation."""
-    parts: List[str] = []
+    parts: list[str] = []
     try:
-        from tools.bot_mode_probe import BOT_CHAT_TITLE, epoch_line, get_bot_mode_protocol_section
+        from tools.bot_mode_probe import (
+            BOT_CHAT_TITLE,
+            epoch_line,
+            get_bot_mode_protocol_section,
+        )
         _title = str(getattr(agent, "_session_title_hint", "") or "").strip()
         if not _title:
             _sdb = getattr(agent, "_session_db", None)
@@ -471,7 +491,7 @@ def _telegram_rich_messages_enabled() -> bool:
         return False
 
 
-def _zone_bits(now: Any, tz: Any) -> List[str]:
+def _zone_bits(now: Any, tz: Any) -> list[str]:
     """IANA key, abbreviation (if different) and UTC offset — all constant for
     the day, so the byte-stable date line stays cacheable."""
     _iana = getattr(tz, "key", None)
@@ -490,7 +510,9 @@ def _timestamp_line(agent: Any) -> str:
     """Date-only so the prompt is byte-stable for the day; zone + offset so
     tools needn't guess EST vs EDT. Long-lived sessions get an "as of" line on
     rebuild days (the cache prefix is already invalidated at that boundary)."""
-    from hermes_time import get_timezone as _hermes_tz, now as _hermes_now, safe_strftime
+    from hermes_time import get_timezone as _hermes_tz
+    from hermes_time import now as _hermes_now
+    from hermes_time import safe_strftime
     now = _hermes_now()
     _bits = _zone_bits(now, _hermes_tz())
     _zone_suffix = f" ({', '.join(_bits)})" if _bits else ""
@@ -513,11 +535,11 @@ def _timestamp_line(agent: Any) -> str:
     return timestamp_line + "".join(f"\n{label}: {value}" for label, value in trailer if value)
 
 
-def _memory_parts(agent: Any) -> List[str]:
+def _memory_parts(agent: Any) -> list[str]:
     """Built-in memory/USER.md blocks plus the external provider block (gated on
     the same check ``inject_memory_provider_tools`` uses, so we never advertise
     tools the toolset config gated off)."""
-    parts: List[str] = []
+    parts: list[str] = []
     if agent._memory_store:
         for enabled, kind in ((agent._memory_enabled, "memory"), (agent._user_profile_enabled, "user")):
             block = agent._memory_store.format_for_system_prompt(kind) if enabled else None
@@ -528,7 +550,9 @@ def _memory_parts(agent: Any) -> List[str]:
     # configuration has already gated off (#81014).
     if agent._memory_manager:
         try:
-            from agent.memory_manager import memory_provider_tools_exposed as _mem_exposed
+            from agent.memory_manager import (
+                memory_provider_tools_exposed as _mem_exposed,
+            )
         except Exception:
             _mem_exposed = None
         if _mem_exposed is None or _mem_exposed(agent):
@@ -541,7 +565,7 @@ def _memory_parts(agent: Any) -> List[str]:
     return parts
 
 
-def _identity_parts(agent: Any, ctx_len: Optional[int]) -> Tuple[List[str], bool]:
+def _identity_parts(agent: Any, ctx_len: int | None) -> tuple[list[str], bool]:
     """SOUL.md (primary identity; cron keeps the persona while skipping cwd
     instructions, scoped to the agent's OWN home) or the default identity.
     Returns ``(parts, soul_loaded)``."""
@@ -550,9 +574,9 @@ def _identity_parts(agent: Any, ctx_len: Optional[int]) -> Tuple[List[str], bool
     return ([_soul_content], True) if _soul_content else ([DEFAULT_AGENT_IDENTITY], False)
 
 
-def _guidance_parts(agent: Any) -> List[str]:
+def _guidance_parts(agent: Any) -> list[str]:
     """Universal + tool-aware + model-gated guidance blocks, each gated by its config.yaml key."""
-    parts: List[str] = []
+    parts: list[str] = []
     if agent.valid_tool_names:
         parts += [
             text for flag, text in (
@@ -583,7 +607,7 @@ def _guidance_parts(agent: Any) -> List[str]:
     return parts
 
 
-def _alibaba_identity_part(agent: Any) -> List[str]:
+def _alibaba_identity_part(agent: Any) -> list[str]:
     """Alibaba Coding Plan always reports "glm-4.7" as the model name; inject
     the real identity so the agent can answer correctly."""
     if agent.provider != "alibaba":
@@ -607,7 +631,7 @@ def _workspace_pin_key() -> str:
         return ""
 
 
-def _persisted_workspace_block(prompt: str, key: str) -> Optional[str]:
+def _persisted_workspace_block(prompt: str, key: str) -> str | None:
     """The workspace snapshot inside ``prompt`` taken for ``key`` (its ``- Root:`` is ``key`` or an
     ancestor); "" when the prompt has none; None when it has one for another root."""
     from agent.coding_context import WORKSPACE_BLOCK_HEADER
@@ -625,7 +649,7 @@ def _persisted_workspace_block(prompt: str, key: str) -> Optional[str]:
     return None
 
 
-def _session_prompt(agent: Any) -> Optional[str]:
+def _session_prompt(agent: Any) -> str | None:
     """Prompt bytes this session already sends: the cached copy, else its persisted row."""
     cached = getattr(agent, "_cached_system_prompt", None)
     if isinstance(cached, str) and cached:
@@ -661,7 +685,7 @@ def _seed_workspace_pin(agent: Any, key: str) -> None:
         agent._frozen_workspace_snapshot = (key, block)
 
 
-def _coding_parts(agent: Any) -> Tuple[List[str], List[str], List[str]]:
+def _coding_parts(agent: Any) -> tuple[list[str], list[str], list[str]]:
     """``(prefix, workspace, trailing)`` coding-posture blocks; all empty
     without tools or when probing fails (it must never block prompt build).
 
@@ -693,11 +717,11 @@ def _coding_parts(agent: Any) -> Tuple[List[str], List[str], List[str]]:
     return [], [], []
 
 
-def _post_workspace_parts(agent: Any) -> List[str]:
+def _post_workspace_parts(agent: Any) -> list[str]:
     """Blocks that follow the worktree-specific context: environment probe
     (config.yaml agent.environment_probe; one line, nothing when clean, skipped
     for remote backends), bot-mode protocol, platform hint."""
-    parts: List[str] = []
+    parts: list[str] = []
     if getattr(agent, "_environment_probe", True):
         try:
             from tools.env_probe import get_environment_probe_line
@@ -710,7 +734,7 @@ def _post_workspace_parts(agent: Any) -> List[str]:
     return parts
 
 
-def _context_files_part(agent: Any, ctx_len: Optional[int], soul_loaded: bool) -> List[str]:
+def _context_files_part(agent: Any, ctx_len: int | None, soul_loaded: bool) -> list[str]:
     """Project context files (AGENTS.md etc.) for the context tier. TERMINAL_CWD
     when set (gateway); None lets discovery fall back to the launch dir.  The
     install-tree fallback is only legitimate for cli/tui where the launch dir
@@ -726,12 +750,12 @@ def _context_files_part(agent: Any, ctx_len: Optional[int], soul_loaded: bool) -
         allow_install_tree_fallback=agent.platform in ("cli", "tui"), home_override=_agent_home(agent))]
 
 
-def _join_tier(parts: List[Optional[str]]) -> str:
+def _join_tier(parts: list[str | None]) -> str:
     """Join non-empty parts; None/blank entries are dropped."""
     return "\n\n".join(p.strip() for p in parts if p and p.strip())
 
 
-def build_system_prompt_parts(agent: Any, system_message: Optional[str] = None) -> Dict[str, str]:
+def build_system_prompt_parts(agent: Any, system_message: str | None = None) -> dict[str, str]:
     """Assemble the system prompt as three ordered cache tiers: ``stable`` (identity,
     guidance and the coding brief), ``context`` (caller ``system_message``, project
     context files, workspace snapshot and remaining workspace guidance) and
@@ -766,7 +790,7 @@ def build_system_prompt_parts(agent: Any, system_message: Optional[str] = None) 
     stable_parts.extend(coding_prefix_parts)
     post_workspace_parts = _post_workspace_parts(agent)
     # ── Context tier (project/worktree-dependent, may change between sessions) ──
-    context_parts: List[str] = []
+    context_parts: list[str] = []
     # ephemeral_system_prompt is injected at API-call time only, never cached.
     if system_message is not None:
         context_parts.append(system_message)
@@ -780,7 +804,7 @@ def build_system_prompt_parts(agent: Any, system_message: Optional[str] = None) 
     # ── Volatile tier (most likely to differ on a rebuild; kept last so the stable prefix stays reusable) ──
     # Skills are runtime-mutable, so the index leads the volatile band: on a longest-prefix
     # backend an unchanged index stays inside the reused prefix; a changed one re-prefills from here.
-    volatile_parts: List[str] = [skills_prompt, *_memory_parts(agent)]
+    volatile_parts: list[str] = [skills_prompt, *_memory_parts(agent)]
     # Plugin sections are confined to one coarse anchor in the volatile tail so
     # a resumed process can reconstruct the stable prefix without re-running plugins.
     volatile_parts.extend(_plugin_section_blocks(_frozen_plugin_prompt_sections(agent), "after_memory"))
@@ -797,7 +821,7 @@ def build_system_prompt_parts(agent: Any, system_message: Optional[str] = None) 
     return {"stable": _join_tier(stable_parts), "context": _join_tier(context_parts), "volatile": _join_tier(volatile_parts)}
 
 
-def build_system_prompt(agent: Any, system_message: Optional[str] = None) -> str:
+def build_system_prompt(agent: Any, system_message: str | None = None) -> str:
     """Assemble the full prompt; cached on ``agent._cached_system_prompt`` and
     only rebuilt after compression.  Tiers are ordered stable -> context ->
     volatile so implicit longest-prefix caches keep the unchanged scaffold."""
@@ -830,7 +854,7 @@ def invalidate_system_prompt(agent: Any) -> None:
         agent._memory_store.load_from_disk()
 
 
-def reconstruct_static_prefix(agent: Any, system_message: Optional[str] = None, *, log_label: str = "restore") -> None:
+def reconstruct_static_prefix(agent: Any, system_message: str | None = None, *, log_label: str = "restore") -> None:
     """Reconstruct ``_cached_system_prompt_static`` for a stored prompt.
     Only the full prompt is persisted, so restore / keep-prompt compression /
     mid-turn failover to a cache-on provider must rebuild the stable tier to
@@ -869,5 +893,11 @@ def format_tools_for_system_message(agent: Any) -> str:
                        for t in agent.tools], ensure_ascii=False)
 
 
-__all__ = ["build_system_prompt_parts", "build_system_prompt", "invalidate_system_prompt",
-           "platform_hint", "restore_plugin_prompt_sections", "format_tools_for_system_message"]
+__all__ = [
+    "build_system_prompt",
+    "build_system_prompt_parts",
+    "format_tools_for_system_message",
+    "invalidate_system_prompt",
+    "platform_hint",
+    "restore_plugin_prompt_sections",
+]

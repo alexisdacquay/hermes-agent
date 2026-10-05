@@ -9,17 +9,16 @@ import hashlib
 import os
 import tempfile
 
-import pytest
 import hermes_yaml as yaml
-
+import pytest
 from scripts.releases import darwin, r2
-from tests.scripts.test_release_r2 import r2_server  # noqa: F401 — loopback fixture
 from scripts.releases.darwin import (
     _darwin_feed,
     mac_feed_references,
     merge_mac_feeds,
     parse_mac_feed,
 )
+from tests.scripts.test_release_r2 import r2_server  # noqa: F401 — loopback fixture
 
 
 def _inputs(version="0.28.0", light=False):

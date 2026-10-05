@@ -29,8 +29,8 @@ import os
 import signal
 import sys
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 Identity = tuple[int, int]  # (pid, kernel start time in clock ticks)
 Finder = Callable[[], dict[Identity, str]]

@@ -23,7 +23,6 @@ imports, webhook servers, sidecars) that the test environment doesn't need.
 import importlib
 
 import pytest
-
 from agent import secret_scope as ss
 
 # (module path, representative credential env var owned by that adapter)

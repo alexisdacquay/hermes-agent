@@ -10,7 +10,6 @@ import sys
 from pathlib import Path
 
 import pytest
-
 from hermes_cli._scan_venv_blockers import _is_pausable_gateway
 
 

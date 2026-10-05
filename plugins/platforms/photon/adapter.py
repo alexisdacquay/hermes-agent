@@ -18,9 +18,13 @@ import signal
 import subprocess
 import sys
 import time
-from datetime import datetime, timezone
+from collections.abc import AsyncIterator, Callable
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, AsyncIterator, Callable, Dict, List, Optional, Tuple
+from typing import (
+    TYPE_CHECKING,
+    Any,
+)
 from urllib.parse import urlparse
 
 if TYPE_CHECKING:  # type checkers see httpx as always-imported; runtime keeps it optional
@@ -34,25 +38,37 @@ else:
         HTTPX_AVAILABLE = False
         httpx = None
 
+import contextlib
+
 from gateway.config import Platform, PlatformConfig
 from gateway.platforms._shared import coerce_port as _coerce_port
-from gateway.platforms._shared import (
-    extra_or_secret as _extra_or_secret, get_scoped_secret as _get_scoped_secret,
-    seed_extra_from_env as _seed_extra_from_env, send_error
-)
+from gateway.platforms._shared import extra_or_secret as _extra_or_secret
+from gateway.platforms._shared import get_scoped_secret as _get_scoped_secret
+from gateway.platforms._shared import seed_extra_from_env as _seed_extra_from_env
+from gateway.platforms._shared import send_error
 from gateway.platforms.base import BasePlatformAdapter, SendResult
 from gateway.platforms.event import MessageEvent, MessageType
-from gateway.platforms.helpers import compile_mention_patterns, strip_markdown
-from gateway.platforms.helpers import MessageDeduplicator, bounded_put, cancel_task
+from gateway.platforms.helpers import (
+    MessageDeduplicator,
+    bounded_put,
+    cancel_task,
+    compile_mention_patterns,
+    strip_markdown,
+)
+from hermes_constants import find_node_executable, with_hermes_node_path
 from utils import atomic_json_write
 
 from .auth import load_project_credentials
+
 # Sidecar dir resolution is lazy (never at import): it probes the filesystem and may
 # mirror files. Tests monkeypatch sidecar_paths._SIDECAR_DIR.
-from .sidecar_paths import _NPM_ERROR_LOG_MAX_CHARS, _lock_newer_than_install, _npm_error_log, _sidecar_dir
+from .sidecar_paths import (
+    _NPM_ERROR_LOG_MAX_CHARS,
+    _lock_newer_than_install,
+    _npm_error_log,
+    _sidecar_dir,
+)
 from .sidecar_paths import dir_writable as _dir_writable
-from hermes_constants import find_node_executable, with_hermes_node_path
-import contextlib
 
 logger = logging.getLogger(__name__)
 
@@ -113,7 +129,7 @@ def _write_runtime_record(port: int, token: str, pid: int) -> None:
         logger.warning("[photon] failed to write sidecar runtime record: %s", e)
 
 
-def _read_runtime_record() -> Optional[Dict[str, Any]]:
+def _read_runtime_record() -> dict[str, Any] | None:
     try:
         raw = json.loads(_runtime_record_path().read_text(encoding="utf-8-sig"))
     except (OSError, ValueError):
@@ -178,7 +194,7 @@ class PhotonSidecarError(RuntimeError):
 
 
 def _sidecar_error_from_response(path: str, status_code: int, text: str,
-                                 data: Optional[Dict[str, Any]] = None) -> PhotonSidecarError:
+                                 data: dict[str, Any] | None = None) -> PhotonSidecarError:
     if data is None:
         with contextlib.suppress(Exception):
             data = json.loads(text)
@@ -290,10 +306,12 @@ def _reinstall_sidecar_deps() -> None:
     except pm.InstallError as exc:
         logger.warning("[photon] cannot prepare sidecar dependencies: %s", exc)
         return
-    from hermes_cli._subprocess_compat import windows_hide_flags  # no console flash on Windows
+    from hermes_cli._subprocess_compat import (
+        windows_hide_flags,  # no console flash on Windows
+    )
 
     def _run(verb: str) -> subprocess.CompletedProcess:
-        return subprocess.run(  # noqa: S603
+        return subprocess.run(
             [npm, verb], cwd=str(_sidecar_dir()), capture_output=True, text=True, encoding="utf-8",
             errors="replace", check=False, env=env, timeout=_NPM_REINSTALL_TIMEOUT, creationflags=windows_hide_flags())
     try:
@@ -323,7 +341,7 @@ def is_connected(cfg: PlatformConfig) -> bool:
     return validate_config(cfg)
 
 
-def _env_enablement() -> Optional[dict]:
+def _env_enablement() -> dict | None:
     """``env_enablement_fn``: seed ``PlatformConfig.extra`` so env-only setups appear in status."""
     project_id, project_secret = load_project_credentials()
     if not (project_id and project_secret):
@@ -357,7 +375,7 @@ def _sidecar_payload_text(text: str, send_markdown: bool) -> str:
     return strip_markdown(text, keep_link_targets=True)
 
 
-def _url_only_candidate(text: str) -> Optional[str]:
+def _url_only_candidate(text: str) -> str | None:
     candidate = (text or "").strip()
     if not re.fullmatch(r"https?://\S+", candidate, flags=re.IGNORECASE):
         return None
@@ -368,25 +386,25 @@ def _url_only_candidate(text: str) -> Optional[str]:
     return candidate if parsed.scheme.lower() in {"http", "https"} and parsed.netloc else None
 
 
-def _richlink_candidate(text: str) -> Optional[str]:
+def _richlink_candidate(text: str) -> str | None:
     """URL to send via ``richlink()`` — only exact http(s) URL messages; prose with
     URLs and Markdown links stay on the text path so labels aren't dropped."""
     return _url_only_candidate(text) if _markdown_enabled() else None
 
 
-def _format_richlink_content(content: Dict[str, Any]) -> str:
+def _format_richlink_content(content: dict[str, Any]) -> str:
     url, title, summary = (str(content.get(k) or "").strip() for k in ("url", "title", "summary"))
     parts = [p for p in (title, summary if summary != title else "", url) if p]
     return "\n".join(parts) if parts else "[Photon rich link received with no URL]"
 
 
-def _group_item_contents(content: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _group_item_contents(content: dict[str, Any]) -> list[dict[str, Any]]:
     """The dict ``content`` of every well-formed item in a ``group`` payload."""
     items = (item.get("content") if isinstance(item, dict) else None for item in content.get("items") or [])
     return [c for c in items if isinstance(c, dict)]
 
 
-def _richlink_url_from_content(content: Dict[str, Any]) -> Optional[str]:
+def _richlink_url_from_content(content: dict[str, Any]) -> str | None:
     ctype = content.get("type")
     if ctype in ("text", "richlink"):
         return _url_only_candidate(content.get("text" if ctype == "text" else "url") or "")
@@ -395,15 +413,15 @@ def _richlink_url_from_content(content: Dict[str, Any]) -> Optional[str]:
     return None
 
 
-def _is_richlink_preview_attachment(payload: Dict[str, Any]) -> bool:
+def _is_richlink_preview_attachment(payload: dict[str, Any]) -> bool:
     # Preview art can carry an opaque MIME; the name/id marker is the reliable signal,
     # the recent-link window guards real files.
     return payload.get("type") == "attachment" and any(
         _RICHLINK_PREVIEW_ATTACHMENT_SUFFIX in str(payload.get(k) or "").lower() for k in ("name", "id"))
 
 
-def _richlink_preview_label(content: Dict[str, Any]) -> str:
-    def _label(c: Dict[str, Any]) -> str:
+def _richlink_preview_label(content: dict[str, Any]) -> str:
+    def _label(c: dict[str, Any]) -> str:
         return str(c.get("name") or c.get("id") or "(unnamed)")
     if content.get("type") == "attachment":
         return _label(content)
@@ -412,7 +430,7 @@ def _richlink_preview_label(content: Dict[str, Any]) -> str:
     return "(unknown)"
 
 
-def _is_richlink_preview_content(content: Dict[str, Any]) -> bool:
+def _is_richlink_preview_content(content: dict[str, Any]) -> bool:
     """A preview attachment, or a non-empty group made ONLY of preview attachments."""
     if _is_richlink_preview_attachment(content):
         return True
@@ -426,15 +444,15 @@ def _is_richlink_preview_content(content: Dict[str, Any]) -> bool:
 
 def _parse_timestamp(ts_str: str) -> datetime:
     try:
-        return datetime.fromisoformat(ts_str.replace("Z", "+00:00")) if ts_str else datetime.now(tz=timezone.utc)
+        return datetime.fromisoformat(ts_str.replace("Z", "+00:00")) if ts_str else datetime.now(tz=UTC)
     except ValueError:
-        return datetime.now(tz=timezone.utc)
+        return datetime.now(tz=UTC)
 
 
-_Normalized = Tuple[str, MessageType, List[str], List[str]]  # text, type, media_urls, media_types
+_Normalized = tuple[str, MessageType, list[str], list[str]]  # text, type, media_urls, media_types
 
 
-def _normalize_binary_payload(payload: Dict[str, Any]) -> _Normalized:
+def _normalize_binary_payload(payload: dict[str, Any]) -> _Normalized:
     """Cache an inline attachment/voice payload; fall back to a text marker."""
     is_voice = payload.get("type") == "voice"
     name = payload.get("name") or ("voice" if is_voice else "(unnamed)")
@@ -451,11 +469,11 @@ def _normalize_binary_payload(payload: Dict[str, Any]) -> _Normalized:
     return f"[Photon {label} received: {name} ({mime or 'unknown MIME'}{duration_text})]", mtype, [], []
 
 
-def _normalize_group_content(content: Dict[str, Any]) -> _Normalized:
-    text_parts: List[str] = []
+def _normalize_group_content(content: dict[str, Any]) -> _Normalized:
+    text_parts: list[str] = []
     mtype = MessageType.TEXT
-    media_urls: List[str] = []
-    media_types: List[str] = []
+    media_urls: list[str] = []
+    media_types: list[str] = []
     for item_content in _group_item_contents(content):
         item_type = item_content.get("type")
         if item_type in {"attachment", "voice"}:
@@ -478,7 +496,7 @@ def _normalize_group_content(content: Dict[str, Any]) -> _Normalized:
     return text or ("(attachment)" if media_urls else "[Photon empty group received]"), mtype, media_urls, media_types
 
 
-_CONTENT_NORMALIZERS: Dict[Any, Callable[[Dict[str, Any]], _Normalized]] = {
+_CONTENT_NORMALIZERS: dict[Any, Callable[[dict[str, Any]], _Normalized]] = {
     "text": lambda c: (c.get("text") or "", MessageType.TEXT, [], []),
     "attachment": _normalize_binary_payload, "voice": _normalize_binary_payload,
     "richlink": lambda c: (_format_richlink_content(c), MessageType.TEXT, [], []),
@@ -487,7 +505,7 @@ _CONTENT_NORMALIZERS: Dict[Any, Callable[[Dict[str, Any]], _Normalized]] = {
 _BINARY_CONTENT_TYPES = {"attachment", "voice", "group"}  # may decode/cache media bytes → run off the event loop
 
 
-def _mention_gate_text(content: Dict[str, Any]) -> str:
+def _mention_gate_text(content: dict[str, Any]) -> str:
     """The user-typed text of a payload WITHOUT decoding or caching any attachment bytes,
     so the group require_mention gate can run before ``_normalize_content`` persists media."""
     ctype = content.get("type")
@@ -500,7 +518,7 @@ def _mention_gate_text(content: Dict[str, Any]) -> str:
     return ""
 
 
-def _normalize_content(content: Dict[str, Any]) -> _Normalized:
+def _normalize_content(content: dict[str, Any]) -> _Normalized:
     """Turn a sidecar ``content`` payload into (text, type, media_urls, media_types)."""
     ctype = content.get("type")
     normalize = _CONTENT_NORMALIZERS.get(ctype) if isinstance(ctype, str) else None
@@ -509,17 +527,17 @@ def _normalize_content(content: Dict[str, Any]) -> _Normalized:
     return normalize(content)
 
 
-def _attachment_body(space_id: str, safe_path: str, *, kind: str, name: Optional[str] = None,
-                     mime_type: Optional[str] = None, caption: Optional[str] = None) -> Dict[str, Any]:
+def _attachment_body(space_id: str, safe_path: str, *, kind: str, name: str | None = None,
+                     mime_type: str | None = None, caption: str | None = None) -> dict[str, Any]:
     """``/send-attachment`` body; spectrum-ts infers name/mimeType from the extension,
     so optional keys are only sent when Hermes supplied them."""
-    body: Dict[str, Any] = {
+    body: dict[str, Any] = {
         "spaceId": space_id, "path": safe_path, "kind": "voice" if kind == "voice" else "attachment"}
     body.update({k: v for k, v in (("name", name), ("mimeType", mime_type), ("caption", caption)) if v})
     return body
 
 
-def _guess_mime(path: str) -> Optional[str]:
+def _guess_mime(path: str) -> str | None:
     import mimetypes
     return mimetypes.guess_type(path)[0] or None
 
@@ -564,21 +582,21 @@ class PhotonAdapter(BasePlatformAdapter):
         # Never advertise fences: a URL-bearing message goes out as raw text (literal ```), and the
         # markdown path renders a fence as inline Unicode monospace, not a block.
         self.supports_code_blocks = False
-        self._sidecar_proc: Optional[subprocess.Popen] = None
-        self._http_client: Optional["httpx.AsyncClient"] = None
-        self._respawn_lock: Optional[asyncio.Lock] = None
+        self._sidecar_proc: subprocess.Popen | None = None
+        self._http_client: httpx.AsyncClient | None = None
+        self._respawn_lock: asyncio.Lock | None = None
         self._sidecar_supervisor_task = self._inbound_task = self._sidecar_health_task = None
-        self._watchdog_task: Optional[asyncio.Task] = None
+        self._watchdog_task: asyncio.Task | None = None
         self._inbound_running = self._watchdog_running = False
         self._sidecar_health_interval = 15.0
         self._probe_failures = 0
         self._last_upstream_activity = 0.0  # monotonic; watchdog skips probe if traffic proved liveness
         self._dedup = MessageDeduplicator(max_size=_DEDUP_MAX_SIZE, ttl_seconds=_DEDUP_WINDOW_SECONDS)  # at-least-once stream
-        self._sent_message_ids: Dict[str, float] = {}  # only reactions targeting OUR sends are routed
-        self._last_inbound_by_chat: Dict[str, str] = {}  # default target for the react action
-        self._recent_richlinks_by_chat: Dict[str, float] = {}  # coalesce preview-art attachments
-        self._typing_last_sent: Dict[str, float] = {}
-        self._pending_fffc: Dict[str, tuple[float, Any]] = {}  # chat_key → (timestamp, asyncio.Task)
+        self._sent_message_ids: dict[str, float] = {}  # only reactions targeting OUR sends are routed
+        self._last_inbound_by_chat: dict[str, str] = {}  # default target for the react action
+        self._recent_richlinks_by_chat: dict[str, float] = {}  # coalesce preview-art attachments
+        self._typing_last_sent: dict[str, float] = {}
+        self._pending_fffc: dict[str, tuple[float, Any]] = {}  # chat_key → (timestamp, asyncio.Task)
         # Group-chat mention gating (parity with BlueBubbles); DMs are never gated.
         require_mention = extra.get("require_mention")
         if require_mention is None:
@@ -591,7 +609,7 @@ class PhotonAdapter(BasePlatformAdapter):
     # -- Group-mention gating (parity with BlueBubbles) ----------------------------
 
     @staticmethod
-    def _compile_mention_patterns(raw: Any) -> "list[re.Pattern]":
+    def _compile_mention_patterns(raw: Any) -> list[re.Pattern]:
         """``raw``: list, string (JSON list or comma/newline-separated) or None (defaults)."""
         return compile_mention_patterns(
             raw, log_prefix="photon", defaults=_DEFAULT_MENTION_PATTERNS, logger_=logger)
@@ -611,7 +629,7 @@ class PhotonAdapter(BasePlatformAdapter):
     def _sidecar_url(self, path: str) -> str:
         return f"http://{self._sidecar_bind}:{self._sidecar_port}{path}"
 
-    def _sidecar_headers(self) -> Dict[str, str]:
+    def _sidecar_headers(self) -> dict[str, str]:
         return {"X-Hermes-Sidecar-Token": self._sidecar_token}
 
     # -- Connection lifecycle ------------------------------------------------------
@@ -786,7 +804,7 @@ class PhotonAdapter(BasePlatformAdapter):
             prev[1].cancel()
         return live
 
-    async def _dispatch_inbound(self, event: Dict[str, Any]) -> None:
+    async def _dispatch_inbound(self, event: dict[str, Any]) -> None:
         """Normalize a sidecar inbound event ``{messageId, space: {id, type: dm|group, phone},
         sender: {id}, content: {type: text|attachment|voice|reaction|richlink|group|
         poll_option|read, ...}, timestamp}`` and dispatch it. Attachment/voice bytes arrive
@@ -876,17 +894,17 @@ class PhotonAdapter(BasePlatformAdapter):
     # -- Sidecar lifecycle ---------------------------------------------------------
 
     @staticmethod
-    def _quick_stdout(cmd: List[str]) -> Optional[str]:
+    def _quick_stdout(cmd: list[str]) -> str | None:
         """stdout of a short shell-out, or None if it failed to run."""
         try:
-            return subprocess.run(  # noqa: S603, S607
+            return subprocess.run(
                 cmd, capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=5.0,
                 check=False).stdout
         except (OSError, subprocess.TimeoutExpired):
             return None
 
     @classmethod
-    def _find_listener_pids(cls, port: int) -> List[int]:
+    def _find_listener_pids(cls, port: int) -> list[int]:
         """PIDs listening on a local TCP port (empty if none/undeterminable)."""
         out = cls._quick_stdout(["lsof", "-ti", f"tcp:{port}", "-sTCP:LISTEN"])
         return [int(tok) for tok in out.split() if tok.strip().isdigit()] if out is not None else []
@@ -967,7 +985,7 @@ class PhotonAdapter(BasePlatformAdapter):
         """Run the mixed-attachment patch script (best-effort, off the loop: up to 10s, every reconnect)."""
         try:
             patch = await asyncio.to_thread(
-                subprocess.run,  # noqa: S603
+                subprocess.run,
                 [self._node_bin, str(_sidecar_dir() / "patch-spectrum-mixed-attachments.mjs"), str(_sidecar_dir())],
                 capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=10, check=False,
                 creationflags=hide_flags, env=with_hermes_node_path())
@@ -999,10 +1017,12 @@ class PhotonAdapter(BasePlatformAdapter):
             "PHOTON_SIDECAR_TOKEN": self._sidecar_token,
             # Exit on stdin EOF so ANY gateway death (incl. SIGKILL) can't orphan it on the port.
             "PHOTON_SIDECAR_WATCH_STDIN": "1"})
-        from hermes_cli._subprocess_compat import windows_hide_flags  # hide child console on Windows
+        from hermes_cli._subprocess_compat import (
+            windows_hide_flags,  # hide child console on Windows
+        )
         await self._apply_spectrum_patch(windows_hide_flags())
         try:
-            self._sidecar_proc = subprocess.Popen(  # noqa: S603
+            self._sidecar_proc = subprocess.Popen(
                 [self._node_bin, str(_sidecar_dir() / "index.mjs")],
                 stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env,
                 start_new_session=(sys.platform != "win32"),
@@ -1024,7 +1044,7 @@ class PhotonAdapter(BasePlatformAdapter):
         loop = asyncio.get_event_loop()
         self._sidecar_supervisor_task = loop.create_task(self._supervise_sidecar(self._sidecar_proc))
         deadline = time.time() + 15.0  # wait for /healthz — up to 15s on cold start
-        last_err: Optional[Exception] = None
+        last_err: Exception | None = None
         async with httpx.AsyncClient(timeout=2.0, trust_env=False) as client:
             while time.time() < deadline:
                 if self._sidecar_proc.poll() is not None:
@@ -1206,12 +1226,12 @@ class PhotonAdapter(BasePlatformAdapter):
 
     # -- Outbound ------------------------------------------------------------------
 
-    async def send(self, chat_id: str, content: str, reply_to: Optional[str] = None,
-                   metadata: Optional[Dict[str, Any]] = None) -> SendResult:
+    async def send(self, chat_id: str, content: str, reply_to: str | None = None,
+                   metadata: dict[str, Any] | None = None) -> SendResult:
         return await self._sidecar_send(chat_id, self.format_message(content))
 
-    async def send_clarify(self, chat_id: str, question: str, choices: Optional[list], clarify_id: str,
-                           session_key: str, metadata: Optional[Dict[str, Any]] = None) -> SendResult:
+    async def send_clarify(self, chat_id: str, question: str, choices: list | None, clarify_id: str,
+                           session_key: str, metadata: dict[str, Any] | None = None) -> SendResult:
         """Multiple-choice renders as a native poll; the vote comes back as a `poll_option`
         event that _dispatch_inbound turns into plain text, so the clarify is flipped into
         text-capture mode like the base fallback."""
@@ -1230,8 +1250,8 @@ class PhotonAdapter(BasePlatformAdapter):
     # -- Outbound media (parity with BlueBubbles): URL-based helpers cache to a local path
     # first; file-based ones pass the path straight to /send-attachment.
 
-    async def send_image(self, chat_id: str, image_url: str, caption: Optional[str] = None,
-                         reply_to: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None) -> SendResult:
+    async def send_image(self, chat_id: str, image_url: str, caption: str | None = None,
+                         reply_to: str | None = None, metadata: dict[str, Any] | None = None) -> SendResult:
         try:
             from gateway.platforms.base import cache_image_from_url
             local_path = await cache_image_from_url(image_url)
@@ -1239,29 +1259,29 @@ class PhotonAdapter(BasePlatformAdapter):
             return await super().send_image(chat_id, image_url, caption, reply_to)
         return await self._sidecar_send_attachment(chat_id, local_path, caption=caption)
 
-    async def send_image_file(self, chat_id: str, image_path: str, caption: Optional[str] = None,
-                              reply_to: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None,
+    async def send_image_file(self, chat_id: str, image_path: str, caption: str | None = None,
+                              reply_to: str | None = None, metadata: dict[str, Any] | None = None,
                               **kwargs) -> SendResult:
         return await self._sidecar_send_attachment(chat_id, image_path, caption=caption)
 
-    async def send_voice(self, chat_id: str, audio_path: str, caption: Optional[str] = None,
-                         reply_to: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None,
+    async def send_voice(self, chat_id: str, audio_path: str, caption: str | None = None,
+                         reply_to: str | None = None, metadata: dict[str, Any] | None = None,
                          **kwargs) -> SendResult:
         return await self._sidecar_send_attachment(chat_id, audio_path, caption=caption, kind="voice")
 
-    async def send_video(self, chat_id: str, video_path: str, caption: Optional[str] = None,
-                         reply_to: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None,
+    async def send_video(self, chat_id: str, video_path: str, caption: str | None = None,
+                         reply_to: str | None = None, metadata: dict[str, Any] | None = None,
                          **kwargs) -> SendResult:
         return await self._sidecar_send_attachment(chat_id, video_path, caption=caption)
 
-    async def send_document(self, chat_id: str, file_path: str, caption: Optional[str] = None,
-                            file_name: Optional[str] = None, reply_to: Optional[str] = None,
-                            metadata: Optional[Dict[str, Any]] = None, **kwargs) -> SendResult:
+    async def send_document(self, chat_id: str, file_path: str, caption: str | None = None,
+                            file_name: str | None = None, reply_to: str | None = None,
+                            metadata: dict[str, Any] | None = None, **kwargs) -> SendResult:
         return await self._sidecar_send_attachment(chat_id, file_path, name=file_name, caption=caption)
 
     # send_animation: base falls back to send_image (iMessage renders GIFs inline as images).
 
-    async def _sidecar_try(self, path: str, body: Dict[str, Any], what: str) -> bool:
+    async def _sidecar_try(self, path: str, body: dict[str, Any], what: str) -> bool:
         """Soft-failing sidecar call: True on success, False (debug-logged) on any error."""
         try:
             await self._sidecar_call(path, body)
@@ -1287,7 +1307,7 @@ class PhotonAdapter(BasePlatformAdapter):
     _SENT_IDS_MAX = 1000
     _LAST_INBOUND_CHATS_MAX = 200
 
-    def _record_sent_message(self, message_id: Optional[str]) -> None:
+    def _record_sent_message(self, message_id: str | None) -> None:
         if message_id:
             bounded_put(self._sent_message_ids, message_id, time.time(), self._SENT_IDS_MAX)
 
@@ -1301,10 +1321,10 @@ class PhotonAdapter(BasePlatformAdapter):
         match = cls._DM_CHAT_GUID_RE.match(chat_id)
         return match.group(1) if match else chat_id
 
-    def _put_by_chat(self, store: Dict[str, Any], chat_id: str, value: Any) -> None:
+    def _put_by_chat(self, store: dict[str, Any], chat_id: str, value: Any) -> None:
         bounded_put(store, self._normalize_chat_key(chat_id), value, self._LAST_INBOUND_CHATS_MAX)
 
-    def _record_last_inbound(self, chat_id: Optional[str], message_id: Optional[str]) -> None:
+    def _record_last_inbound(self, chat_id: str | None, message_id: str | None) -> None:
         if chat_id and message_id:
             self._put_by_chat(self._last_inbound_by_chat, chat_id, message_id)
 
@@ -1312,7 +1332,7 @@ class PhotonAdapter(BasePlatformAdapter):
         if chat_id and _url_only_candidate(text):
             self._put_by_chat(self._recent_richlinks_by_chat, chat_id, time.time())
 
-    def _is_recent_richlink_preview(self, chat_id: str, content: Dict[str, Any]) -> bool:
+    def _is_recent_richlink_preview(self, chat_id: str, content: dict[str, Any]) -> bool:
         if not chat_id or not _is_richlink_preview_content(content):
             return False
         key = self._normalize_chat_key(chat_id)
@@ -1340,7 +1360,7 @@ class PhotonAdapter(BasePlatformAdapter):
     # -- Agent-facing reactions (send_message action="react"): deliberate intents, so NOT
     # gated by PHOTON_REACTIONS.
 
-    async def add_reaction(self, chat_id: str, emoji: str, message_id: Optional[str] = None) -> Dict[str, Any]:
+    async def add_reaction(self, chat_id: str, emoji: str, message_id: str | None = None) -> dict[str, Any]:
         """Tapback ``emoji`` onto a message (default: the chat's latest inbound). iMessage
         maps ❤️👍👎😂‼️❓ to native tapbacks; anything else is a custom-emoji reaction."""
         target = message_id or self._last_inbound_by_chat.get(self._normalize_chat_key(chat_id))
@@ -1351,7 +1371,7 @@ class PhotonAdapter(BasePlatformAdapter):
             return {"success": False, "error": "reaction failed (see gateway debug log)"}
         return {"success": True, "message_id": target}
 
-    async def remove_reaction(self, chat_id: str, message_id: Optional[str] = None) -> Dict[str, Any]:
+    async def remove_reaction(self, chat_id: str, message_id: str | None = None) -> dict[str, Any]:
         """Retract our tapback from a message (best-effort)."""
         target = message_id or self._last_inbound_by_chat.get(self._normalize_chat_key(chat_id))
         if not target:
@@ -1374,7 +1394,7 @@ class PhotonAdapter(BasePlatformAdapter):
     _OK_EMOJI = "\U0001f44d"
     _FAIL_EMOJI = "\U0001f44e"
 
-    async def get_chat_info(self, chat_id: str) -> Dict[str, Any]:
+    async def get_chat_info(self, chat_id: str) -> dict[str, Any]:
         """Photon's ``space.id`` is opaque; with only the id, infer conservatively."""
         return {"name": chat_id, "type": "dm", "id": chat_id}
 
@@ -1383,7 +1403,7 @@ class PhotonAdapter(BasePlatformAdapter):
         return content if _markdown_enabled() else strip_markdown(content, keep_link_targets=True)
 
     @staticmethod
-    def _is_retryable_error(error: Optional[str]) -> bool:
+    def _is_retryable_error(error: str | None) -> bool:
         if BasePlatformAdapter._is_retryable_error(error):
             return True
         lowered = (error or "").lower()
@@ -1405,13 +1425,13 @@ class PhotonAdapter(BasePlatformAdapter):
     def _send_retry_is_final(self, result: SendResult) -> bool:
         return self._is_permanent_sidecar_failure(result)  # already carries the user-facing explanation
 
-    async def _send_plain_fallback(self, chat_id: str, content: str, *, reply_to: Optional[str], metadata: Any) -> SendResult:
+    async def _send_plain_fallback(self, chat_id: str, content: str, *, reply_to: str | None, metadata: Any) -> SendResult:
         """No Markdown banner (replies are markdown or already-stripped plain text); bypass
         richlink() so a rich-link outage doesn't strand a sendable URL."""
         return await self._sidecar_send(
             chat_id, self.format_message(content)[: self.MAX_MESSAGE_LENGTH], richlink=False, markdown=False)
 
-    async def _post_send(self, path: str, body: Dict[str, Any], *, structured: bool = False) -> SendResult:
+    async def _post_send(self, path: str, body: dict[str, Any], *, structured: bool = False) -> SendResult:
         """POST a send-like body and wrap the outcome as a SendResult. ``structured`` carries
         a ``PhotonSidecarError``'s class/retryability so ``_send_with_retry`` can recognise
         permanent failures."""
@@ -1443,7 +1463,7 @@ class PhotonAdapter(BasePlatformAdapter):
         if len(text) > self.MAX_MESSAGE_LENGTH:
             logger.warning("[photon] truncating outbound from %d to %d chars", len(text), self.MAX_MESSAGE_LENGTH)
             text = text[: self.MAX_MESSAGE_LENGTH]
-        body: Dict[str, Any] = {"spaceId": space_id, "text": text}
+        body: dict[str, Any] = {"spaceId": space_id, "text": text}
         if send_markdown:  # key omitted when disabled: pre-`format` sidecars still accept
             body["format"] = "markdown"
         return await self._post_send("/send", body, structured=True)
@@ -1458,8 +1478,8 @@ class PhotonAdapter(BasePlatformAdapter):
         body = {"spaceId": space_id, "title": title.strip()[: self.MAX_MESSAGE_LENGTH], "options": opts}
         return await self._post_send("/send-poll", body)
 
-    async def _sidecar_send_attachment(self, space_id: str, path: str, *, name: Optional[str] = None,
-                                       mime_type: Optional[str] = None, caption: Optional[str] = None,
+    async def _sidecar_send_attachment(self, space_id: str, path: str, *, name: str | None = None,
+                                       mime_type: str | None = None, caption: str | None = None,
                                        kind: str = "attachment") -> SendResult:
         """POST a local file to ``/send-attachment``. ``kind="voice"`` sends audio as a voice
         note (downgrades to a plain audio attachment where unsupported)."""
@@ -1470,7 +1490,7 @@ class PhotonAdapter(BasePlatformAdapter):
             space_id, safe_path, kind=kind, name=name, mime_type=mime_type or _guess_mime(safe_path), caption=caption)
         return await self._post_send("/send-attachment", body, structured=True)
 
-    async def _sidecar_call(self, path: str, body: Dict[str, Any]) -> Dict[str, Any]:
+    async def _sidecar_call(self, path: str, body: dict[str, Any]) -> dict[str, Any]:
         if self._http_client is None:
             raise RuntimeError("Photon adapter not connected")
         # Fresh client per call so this is safe from a worker thread with its own loop
@@ -1504,8 +1524,8 @@ _AUDIO_EXT_BY_MIME = {
     "audio/x-caf": ".caf", "audio/mp4": ".m4a", "audio/aac": ".m4a"}
 
 
-def _cache_inbound_attachment(content: Dict[str, Any], name: str, mime: str, *,
-                              force_audio: bool = False) -> Optional[str]:
+def _cache_inbound_attachment(content: dict[str, Any], name: str, mime: str, *,
+                              force_audio: bool = False) -> str | None:
     """Decode base64-inlined ``content["data"]`` into the shared media cache by MIME; None
     when there are no bytes (over the inline cap) or caching fails → marker."""
     if not content.get("data"):
@@ -1515,7 +1535,11 @@ def _cache_inbound_attachment(content: Dict[str, Any], name: str, mime: str, *,
     except (ValueError, TypeError) as exc:
         logger.warning("[photon] failed to decode inbound attachment bytes: %s", exc)
         return None
-    from gateway.platforms.base import cache_audio_from_bytes, cache_document_from_bytes, cache_image_from_bytes
+    from gateway.platforms.base import (
+        cache_audio_from_bytes,
+        cache_document_from_bytes,
+        cache_image_from_bytes,
+    )
     mime = (mime or "").lower()
     suffix = Path(name).suffix if name else ""  # prefer the real extension
     try:
@@ -1537,7 +1561,7 @@ def _cache_inbound_attachment(content: Dict[str, Any], name: str, mime: str, *,
 # -- Standalone (out-of-process) send for cron deliveries when the gateway is not
 # co-resident. Reuses a live sidecar (cron processes cannot spawn one). -----------
 
-def _standalone_error(resp: Any) -> Dict[str, Any]:
+def _standalone_error(resp: Any) -> dict[str, Any]:
     """Structured error dict for a failed standalone call (mirrors
     ``_sidecar_error_from_response``, incl. the canonical target_not_allowed text)."""
     data: Any = {}
@@ -1556,7 +1580,7 @@ def _standalone_error(resp: Any) -> Dict[str, Any]:
     return {**send_error(error), "error_class": error_class, "retryable": retryable}
 
 
-def _standalone_token_from_record(port: int) -> Tuple[Optional[str], int, str]:
+def _standalone_token_from_record(port: int) -> tuple[str | None, int, str]:
     """``(token, port, error)`` from the runtime record the gateway persists once the
     sidecar passes /healthz — the token otherwise exists only in the gateway env."""
     # See #69960.
@@ -1575,10 +1599,10 @@ def _standalone_token_from_record(port: int) -> Tuple[Optional[str], int, str]:
 
 async def _standalone_send(
     pconfig: PlatformConfig, chat_id: str, message: str, *,
-    thread_id: Optional[str] = None,  # noqa: ARG001 — Spectrum has no threads yet
-    media_files: Optional[list] = None,
-    force_document: bool = False,  # noqa: ARG001 — iMessage auto-detects file kind
-) -> Dict[str, Any]:
+    thread_id: str | None = None,
+    media_files: list | None = None,
+    force_document: bool = False,
+) -> dict[str, Any]:
     if not HTTPX_AVAILABLE:
         return send_error("httpx not installed")
     port = _coerce_port(
@@ -1590,10 +1614,10 @@ async def _standalone_send(
             return send_error(error)
     base = f"http://{_DEFAULT_SIDECAR_BIND}:{port}"
     headers = {"X-Hermes-Sidecar-Token": token}
-    last_message_id: Optional[str] = None
+    last_message_id: str | None = None
     try:
         async with httpx.AsyncClient(timeout=30.0, trust_env=False) as client:
-            async def _post(path: str, body: Dict[str, Any]) -> Tuple[Any, Optional[Dict[str, Any]]]:
+            async def _post(path: str, body: dict[str, Any]) -> tuple[Any, dict[str, Any] | None]:
                 """(response, data-if-ok-else-None)."""
                 resp = await client.post(f"{base}{path}", json=body, headers=headers)
                 if resp.status_code != 200:
@@ -1607,7 +1631,7 @@ async def _standalone_send(
                     _resp, data = await _post("/send-richlink", {"spaceId": chat_id, "url": rich_url})
                 if not data:  # no URL-only message, or the rich-link send failed: plain text
                     send_markdown = _markdown_enabled() and not rich_url
-                    send_body: Dict[str, Any] = {
+                    send_body: dict[str, Any] = {
                         "spaceId": chat_id, "text": _sidecar_payload_text(message, send_markdown)[:_MAX_MESSAGE_LENGTH]}
                     if send_markdown:
                         send_body["format"] = "markdown"

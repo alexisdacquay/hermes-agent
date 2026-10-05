@@ -11,7 +11,6 @@ import time
 from pathlib import Path
 
 import pytest
-
 from hermes_cli import linux_desktop_entry as lde
 
 
@@ -859,7 +858,7 @@ def test_install_is_a_noop_on_windows(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def _stub_tools(monkeypatch, available: "set[str]") -> "list[list[str]]":
+def _stub_tools(monkeypatch, available: set[str]) -> list[list[str]]:
     ran: list[list[str]] = []
     monkeypatch.setattr(
         lde.shutil,

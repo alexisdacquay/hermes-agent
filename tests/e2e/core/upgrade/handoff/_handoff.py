@@ -20,11 +20,11 @@ import contextlib
 import functools
 import json
 import os
+import re
 import shutil
 import socket
 import sqlite3
 import subprocess
-import re
 import threading
 import time
 import tomllib
@@ -492,7 +492,7 @@ class FileWatch:
                 last = cur
             self._stop.wait(self.interval)
 
-    def __enter__(self) -> "FileWatch":
+    def __enter__(self) -> FileWatch:
         self._thread = threading.Thread(target=self._run, daemon=True)
         self._thread.start()
         return self

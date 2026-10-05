@@ -3,7 +3,6 @@ import asyncio
 from types import SimpleNamespace
 
 import pytest
-
 from gateway.platforms.api_server import APIServerAdapter
 from gateway.session_context import clear_session_vars
 from gateway.wake import persist_delegation_delivery

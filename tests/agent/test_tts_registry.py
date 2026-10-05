@@ -16,10 +16,9 @@ Covers:
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 import pytest
-
 from agent import tts_registry
 from agent.tts_provider import (
     DEFAULT_OUTPUT_FORMAT,
@@ -33,9 +32,9 @@ class _FakeProvider(TTSProvider):
     def __init__(
         self,
         name: str = "fake",
-        display: Optional[str] = None,
+        display: str | None = None,
         voice_compat: bool = False,
-        synthesize_impl: Optional[Any] = None,
+        synthesize_impl: Any | None = None,
     ):
         self._name = name
         self._display = display

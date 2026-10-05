@@ -21,8 +21,8 @@ Run against origin/main to see the BEFORE state (every oauth scenario fails with
 from __future__ import annotations
 
 import argparse
-import hashlib
 import base64
+import hashlib
 import json
 import os
 import sys
@@ -54,10 +54,10 @@ class FakeOpenRouter(ThreadingHTTPServer):
 
 
 class _Handler(BaseHTTPRequestHandler):
-    def log_message(self, *a):  # noqa: A003
+    def log_message(self, *a):
         return
 
-    def do_POST(self):  # noqa: N802
+    def do_POST(self):
         srv: FakeOpenRouter = self.server  # type: ignore[assignment]
         body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", "0")) or 0) or b"{}")
         srv.exchanges.append(body)
@@ -126,8 +126,8 @@ def run(scenario: str, fake: FakeOpenRouter, home: str) -> dict:
         outcome.pop("exchanges_before")
         return outcome
     try:  # BEFORE (origin/main) has no auth_openrouter sibling; the flow itself must then fail.
-        import hermes_cli.auth_openrouter as orm
         import hermes_cli.auth_device_flow as dfl
+        import hermes_cli.auth_openrouter as orm
         orm.OPENROUTER_AUTH_KEYS_URL = fake.url
         dfl._can_open_graphical_browser = lambda: True
         orm.webbrowser.open = browser

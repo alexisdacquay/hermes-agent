@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 import sys
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from utils import file_signature
 
@@ -99,7 +99,7 @@ def _warn_config_parse_failure(
         pass
 
 
-def get_active_config_parse_failure() -> Optional[str]:
+def get_active_config_parse_failure() -> str | None:
     """Return the recorded parse error while the ACTIVE config.yaml is still byte-identical
     (mtime_ns + size + ino + ctime_ns) to the file that failed to parse; else None."""
     from hermes_cli.config import get_config_path

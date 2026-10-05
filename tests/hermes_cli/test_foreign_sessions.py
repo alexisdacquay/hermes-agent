@@ -8,7 +8,6 @@ import json
 from pathlib import Path
 
 import pytest
-
 from hermes_cli.foreign_sessions import (
     _list_sessions,
     gather_foreign_sessions,
@@ -16,7 +15,6 @@ from hermes_cli.foreign_sessions import (
     parse_claude_session,
     parse_codex_session,
 )
-
 
 # ── fixture builders ─────────────────────────────────────────────────────
 

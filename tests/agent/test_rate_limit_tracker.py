@@ -1,6 +1,7 @@
 """Tests for agent.rate_limit_tracker — header parsing and formatting."""
 
 import time
+
 import pytest
 from agent.rate_limit_tracker import (
     RateLimitBucket,

@@ -1,10 +1,9 @@
 """Selected-runtime admission and dashboard completion bookkeeping."""
+import sys
 from pathlib import Path
 from types import SimpleNamespace
-import sys
 
 import pytest
-
 from hermes_cli import update_cmd, update_cmd_maint
 
 

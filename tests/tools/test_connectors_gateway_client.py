@@ -9,7 +9,6 @@ import json
 from dataclasses import replace as dataclass_replace
 
 import pytest
-
 from tools.connectors.gateway.bridge import ConnectorLeg, connector_search_hits
 from tools.connectors.gateway.client import ConnectorClient
 from tools.connectors.gateway.errors import (

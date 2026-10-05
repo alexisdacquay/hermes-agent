@@ -8,7 +8,7 @@ from __future__ import annotations
 import argparse
 import time
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from hermes_cli.sizefmt import format_bytes as _fmt_bytes
 
@@ -71,7 +71,7 @@ def cmd_prune(args: argparse.Namespace) -> int:
     # Restricts orphan deletion to exactly the identities shown in the confirmation preview
     # (v2 project hashes / pre-v2 shadow repo paths). `None` = no restriction (--force: no
     # preview to bind to).
-    orphan_allowlist: Optional[set] = None
+    orphan_allowlist: set | None = None
 
     if delete_orphans and not args.force:
         info = store_status()
@@ -135,8 +135,8 @@ def _confirmed(args: argparse.Namespace, prompt: str) -> bool:
 
 
 def cmd_clear(args: argparse.Namespace) -> int:
-    from tools.checkpoint_manager import CHECKPOINT_BASE
     from tools.checkpoint_maintenance import clear_all, store_status
+    from tools.checkpoint_manager import CHECKPOINT_BASE
 
     info = store_status()
     if info["total_size_bytes"] == 0 and not Path(CHECKPOINT_BASE).exists():

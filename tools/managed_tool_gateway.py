@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import os
-from datetime import datetime, timezone
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable, Optional
+from datetime import UTC, datetime
 
 from hermes_constants import get_hermes_home
+
 from tools.tool_backend_helpers import managed_nous_tools_enabled
 
 logger = logging.getLogger(__name__)
@@ -27,7 +27,7 @@ class ManagedToolGatewayConfig:
     managed_mode: bool
 
 
-def _clean(value: object) -> Optional[str]:
+def _clean(value: object) -> str | None:
     """*value* stripped when it is a non-blank string, else None."""
     return value.strip() if isinstance(value, str) and value.strip() else None
 
@@ -37,7 +37,7 @@ def auth_json_path():
     return get_hermes_home() / "auth.json"
 
 
-def _read_nous_provider_state() -> Optional[dict]:
+def _read_nous_provider_state() -> dict | None:
     """The profile's Nous state, or None. A free-tier identity counts only while the free tier is on:
     with ``nous.guest: false`` it is invisible here, so no cached or refreshed token of it is ever
     attached to a request.
@@ -61,7 +61,7 @@ def _read_nous_provider_state() -> Optional[dict]:
         return None
 
 
-def _parse_timestamp(value: object) -> Optional[datetime]:
+def _parse_timestamp(value: object) -> datetime | None:
     normalized = _clean(value)
     if normalized is None:
         return None
@@ -69,15 +69,15 @@ def _parse_timestamp(value: object) -> Optional[datetime]:
         parsed = datetime.fromisoformat(normalized[:-1] + "+00:00" if normalized.endswith("Z") else normalized)
     except ValueError:
         return None
-    return (parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=timezone.utc)).astimezone(timezone.utc)
+    return (parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)).astimezone(UTC)
 
 
 def _access_token_is_expiring(expires_at: object, skew_seconds: int) -> bool:
     expires = _parse_timestamp(expires_at)
-    return expires is None or (expires - datetime.now(timezone.utc)).total_seconds() <= max(0, int(skew_seconds))
+    return expires is None or (expires - datetime.now(UTC)).total_seconds() <= max(0, int(skew_seconds))
 
 
-def _read_user_token_override() -> Optional[str]:
+def _read_user_token_override() -> str | None:
     """Read the TOOL_GATEWAY_USER_TOKEN override through the secret scope. Scope verdict is authoritative
     when installed (a scoped miss must NOT borrow the process env under multiplex); ``os.environ`` only
     when unscoped. Any non-UnscopedSecretError failure propagates -- a failed scoped read must never
@@ -91,13 +91,13 @@ def _read_user_token_override() -> Optional[str]:
     return _clean(explicit)
 
 
-def peek_nous_access_token() -> Optional[str]:
+def peek_nous_access_token() -> str | None:
     """Cheap token probe: env override or cached auth-store token, no expiry check and no network —
     availability scans must stay off the synchronous OAuth refresh path (:func:`read_nous_access_token`)."""
     return _read_user_token_override() or _clean((_read_nous_provider_state() or {}).get("access_token"))
 
 
-def read_nous_access_token() -> Optional[str]:
+def read_nous_access_token() -> str | None:
     """Read a Nous Subscriber OAuth access token from auth store or env override.
 
     A read: with no Nous identity there is no bearer and the answer is None. The free-tier identity
@@ -129,8 +129,12 @@ def read_nous_access_token() -> Optional[str]:
     return cached_token
 
 
-def _replace_dead_guest_token(dead_state: dict, code: str = "anon_credential_dead") -> Optional[str]:
-    from hermes_cli.anon_auth import ANON_ACCOUNT_LOCKED, clear_dead_guest, ensure_portal_identity
+def _replace_dead_guest_token(dead_state: dict, code: str = "anon_credential_dead") -> str | None:
+    from hermes_cli.anon_auth import (
+        ANON_ACCOUNT_LOCKED,
+        clear_dead_guest,
+        ensure_portal_identity,
+    )
     from hermes_cli.auth import resolve_nous_access_token
 
     clear_dead_guest(code, dead_token=dead_state.get("anon_token"))
@@ -162,7 +166,7 @@ def build_vendor_gateway_url(vendor: str) -> str:
     return f"{get_tool_gateway_scheme()}://{vendor}-gateway.{shared_domain}"
 
 
-def _vendor_gateway(vendor: str, gateway_builder, token_reader) -> Optional[ManagedToolGatewayConfig]:
+def _vendor_gateway(vendor: str, gateway_builder, token_reader) -> ManagedToolGatewayConfig | None:
     gateway_origin = (gateway_builder or build_vendor_gateway_url)(vendor)
     nous_user_token = (token_reader or read_nous_access_token)()
     if not gateway_origin or not nous_user_token:
@@ -171,15 +175,15 @@ def _vendor_gateway(vendor: str, gateway_builder, token_reader) -> Optional[Mana
 
 
 def resolve_managed_tool_gateway(
-    vendor: str, gateway_builder: Optional[Callable[[str], str]] = None,
-    token_reader: Optional[Callable[[], Optional[str]]] = None) -> Optional[ManagedToolGatewayConfig]:
+    vendor: str, gateway_builder: Callable[[str], str] | None = None,
+    token_reader: Callable[[], str | None] | None = None) -> ManagedToolGatewayConfig | None:
     """Resolve shared managed-tool gateway config for a vendor (entitled accounts only)."""
     if not managed_nous_tools_enabled():
         return None
     return _vendor_gateway(vendor, gateway_builder, token_reader)
 
 
-def resolve_free_search_gateway(token_reader: Optional[Callable[[], Optional[str]]] = None) -> Optional[ManagedToolGatewayConfig]:
+def resolve_free_search_gateway(token_reader: Callable[[], str | None] | None = None) -> ManagedToolGatewayConfig | None:
     """Perplexity ``search_type: "fast"`` is served to every Nous identity with no funding check, the
     anonymous guest tier included, so it needs a token this profile may use (guest-disabled and refresh
     rules live in the reader), not paid entitlement or a registered account. Search only: every other
@@ -188,8 +192,8 @@ def resolve_free_search_gateway(token_reader: Optional[Callable[[], Optional[str
 
 
 def is_managed_tool_gateway_ready(
-    vendor: str, gateway_builder: Optional[Callable[[str], str]] = None,
-    token_reader: Optional[Callable[[], Optional[str]]] = None) -> bool:
+    vendor: str, gateway_builder: Callable[[str], str] | None = None,
+    token_reader: Callable[[], str | None] | None = None) -> bool:
     """True when a gateway URL and a likely-usable Nous token are present. Defaults to
     :func:`peek_nous_access_token` (no OAuth refresh); callers about to make a real request use
     :func:`resolve_managed_tool_gateway` instead."""

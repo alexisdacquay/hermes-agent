@@ -7,15 +7,14 @@ loaded because running scripts is disabled on this system". Past the load,
 the resolved runtime command must actually run (a `$command` local once
 collided with Invoke-Native's `$Command` parameter and recursed forever).
 """
-from pathlib import Path
 import json
 import os
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
-
 from hermes_cli._launchers import runtime_command
 
 pytestmark = pytest.mark.platforms("windows")

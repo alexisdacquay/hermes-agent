@@ -9,7 +9,6 @@ config, and asserts B sees its own values (real temp homes, real config.yaml, no
 import json
 
 import pytest
-
 from hermes_constants import reset_hermes_home_override, set_hermes_home_override
 
 

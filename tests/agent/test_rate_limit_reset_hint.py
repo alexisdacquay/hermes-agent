@@ -8,10 +8,10 @@ carries must land there too.
 """
 
 import time
+from datetime import UTC
 from unittest.mock import MagicMock
 
 import pytest
-
 from agent.agent_runtime_helpers import extract_api_error_context
 from agent.turn_recovery import compute_error_backoff, reset_hint
 
@@ -79,9 +79,9 @@ def test_live_wait_line_names_the_reset_window_too():
     ({"retry-after": "30", "x-ratelimit-reset-requests": "6m0s"}, 30),  # Retry-After still wins
 ])
 def test_vendor_reset_headers_feed_reset_at(headers, expected_seconds):
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
     if "anthropic-ratelimit-requests-reset" in headers:
-        when = datetime.now(timezone.utc) + timedelta(seconds=900)
+        when = datetime.now(UTC) + timedelta(seconds=900)
         headers["anthropic-ratelimit-requests-reset"] = when.strftime("%Y-%m-%dT%H:%M:%SZ")
     err = Exception("HTTP 429: rate limit")
     err.response = MagicMock(headers=headers)

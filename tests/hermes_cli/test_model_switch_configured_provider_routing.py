@@ -22,7 +22,6 @@ Hermetic: the model-resolution chain is fully mocked (no network), mirroring
 from unittest.mock import patch
 
 import pytest
-
 from hermes_cli.model_switch import switch_model
 
 _ACCEPTED = {"accepted": True, "persist": True, "recognized": True, "message": None}

@@ -64,7 +64,10 @@ def _prepare_slash_worker_runtime() -> None:
 
     See #61891.
     """
-    from hermes_cli.mcp_startup import start_background_mcp_discovery, wait_for_mcp_discovery
+    from hermes_cli.mcp_startup import (
+        start_background_mcp_discovery,
+        wait_for_mcp_discovery,
+    )
     start_background_mcp_discovery(logger=logger, thread_name="slash-worker-mcp-discovery")
     wait_for_mcp_discovery()
 
@@ -82,8 +85,7 @@ def _start_parent_death_watchdog(original_ppid) -> None:
 
 def _slash_base(command: str) -> str:
     cmd = (command or "").strip()
-    if cmd.startswith("/"):
-        cmd = cmd[1:]
+    cmd = cmd.removeprefix("/")
     return (cmd.split(maxsplit=1)[0] if cmd else "").lower()
 
 
@@ -113,7 +115,7 @@ def _refuse_skill_slash(command: str) -> None:
         raise SkillSlashRefused(base)
 
 
-def _run(cli: "HermesCLI", command: str) -> str:
+def _run(cli: HermesCLI, command: str) -> str:
     """Run one command; return its captured, ANSI-stripped output.
 
     A command like /prompt or /blueprint parks the composed text on the one-shot

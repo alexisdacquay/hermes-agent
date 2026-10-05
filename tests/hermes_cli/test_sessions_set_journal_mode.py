@@ -10,7 +10,6 @@ import subprocess
 import sys
 
 import pytest
-
 from hermes_cli.sessions_cmd import cmd_sessions
 from hermes_cli.sessions_cmd_journal_mode import _refusal
 

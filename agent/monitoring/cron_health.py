@@ -4,12 +4,11 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Callable, Optional
+from typing import Any
 
-from agent.monitoring.events import CronExecutionEvent
-from agent.monitoring.gateway_health import GatewayMetric, _contains_any, _safe_instance_id
 from cron.jobs import (
     _compute_grace_seconds,
     get_catch_up_occurrence_count,
@@ -19,6 +18,13 @@ from cron.jobs import (
 )
 from cron.scheduler import get_running_job_ids
 from hermes_time import now as _now
+
+from agent.monitoring.events import CronExecutionEvent
+from agent.monitoring.gateway_health import (
+    GatewayMetric,
+    _contains_any,
+    _safe_instance_id,
+)
 
 logger = logging.getLogger(__name__)
 _KNOWN_STATUSES = {"claimed", "running", "completed", "failed", "unknown"}
@@ -60,14 +66,14 @@ def classify_cron_error(raw: Any) -> str:
     return next((label for match, label in _CRON_ERROR_RULES if match(text)), "unknown")
 
 
-def _parse_time(raw: Any) -> Optional[datetime]:
+def _parse_time(raw: Any) -> datetime | None:
     try:
         return datetime.fromisoformat(str(raw)) if raw else None
     except (TypeError, ValueError):
         return None
 
 
-def _duration_ms(record: dict[str, Any]) -> Optional[int]:
+def _duration_ms(record: dict[str, Any]) -> int | None:
     start = _parse_time(record.get("started_at")) or _parse_time(record.get("claimed_at"))
     finish = _parse_time(record.get("finished_at"))
     if start is None or finish is None:
@@ -79,7 +85,7 @@ def _duration_ms(record: dict[str, Any]) -> Optional[int]:
     return max(0, duration)
 
 
-def project_execution_event(record: dict[str, Any], *, delivery_outcome: Optional[str] = None) -> CronExecutionEvent:
+def project_execution_event(record: dict[str, Any], *, delivery_outcome: str | None = None) -> CronExecutionEvent:
     status = str(record.get("status") or "unknown").lower()
     source = str(record.get("source") or "unknown").lower()
     outcome = str(delivery_outcome).lower() if delivery_outcome is not None else None
@@ -94,7 +100,7 @@ def project_execution_event(record: dict[str, Any], *, delivery_outcome: Optiona
     )
 
 
-def emit_execution_state(record: Optional[dict[str, Any]], *, delivery_outcome: Optional[str] = None) -> None:
+def emit_execution_state(record: dict[str, Any] | None, *, delivery_outcome: str | None = None) -> None:
     """Best-effort lifecycle emit; terminal states synchronously cross the queue barrier."""
     if not record:
         return
@@ -130,7 +136,7 @@ def _job_metrics(metrics: list[GatewayMetric]) -> None:
     metrics.append(GatewayMetric("hermes.cron.jobs.overdue", sum(1 for job in enabled if _is_overdue(job, _now())), {}))
 
 
-def _freshness_metric(name: str, reader: Callable[[], Optional[float]]) -> Callable[[list[GatewayMetric]], None]:
+def _freshness_metric(name: str, reader: Callable[[], float | None]) -> Callable[[list[GatewayMetric]], None]:
     def build(metrics: list[GatewayMetric]) -> None:
         value = reader()
         if value is not None:

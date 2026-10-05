@@ -11,8 +11,8 @@ still land on the intended region::
 
 import bisect
 import re
+from collections.abc import Callable
 from difflib import SequenceMatcher
-from typing import Callable, Optional
 
 Span = tuple[int, int]
 
@@ -336,7 +336,7 @@ def _format_match_locations(content: str, matches: list[Span], cap: int = 5) -> 
 
 
 def fuzzy_find_and_replace(content: str, old_string: str, new_string: str,
-                           replace_all: bool = False) -> tuple[str, int, Optional[str], Optional[str]]:
+                           replace_all: bool = False) -> tuple[str, int, str | None, str | None]:
     """Find and replace via the strategy chain.
 
     Returns ``(new_content, match_count, strategy_name, error)``; on failure
@@ -401,7 +401,7 @@ def fuzzy_find_and_replace(content: str, old_string: str, new_string: str,
     return content, 0, None, "Could not find a match for old_string in the file"
 
 
-def _note_edit_match(strategy: Optional[str], miss: Optional[str] = None) -> None:
+def _note_edit_match(strategy: str | None, miss: str | None = None) -> None:
     """Report to shared metrics which strategy landed (or why none did); a no-op unless a
     metered patch tool call is in progress."""
     try:
@@ -414,7 +414,7 @@ def _note_edit_match(strategy: Optional[str], miss: Optional[str] = None) -> Non
 # ── Escape-drift guards ──────────────────────────────────────────────────
 
 def _detect_newline_literal_drift(content: str, matches: list[Span],
-                                  old_string: str, new_string: str) -> Optional[str]:
+                                  old_string: str, new_string: str) -> str | None:
     """Error string when a literal two-character ``\\n`` in the arguments stands in
     for a real line break in the file (arguments JSON-escaped one extra time), else None.
 
@@ -447,7 +447,7 @@ def _detect_newline_literal_drift(content: str, matches: list[Span],
 
 
 def _detect_escape_drift(content: str, matches: list[Span],
-                         old_string: str, new_string: str) -> Optional[str]:
+                         old_string: str, new_string: str) -> str | None:
     """Error string when new_string carries tool-call escape artifacts, else None:
     ``\\'``/``\\"`` in both strings but not the matched region, doubled backslash
     runs, or a literal ``\\n`` standing in for a real line break."""
@@ -480,7 +480,7 @@ def _backslash_runs(s: str) -> list[int]:
 
 
 def _detect_backslash_doubling(matched_regions: str, old_string: str,
-                               new_string: str) -> Optional[str]:
+                               new_string: str) -> str | None:
     """Detect old_string whose every backslash run is exactly 2x the file's (arguments
     JSON-escaped one extra time). Requires the same run count, a non-trivial signal
     (a run >= 2 or 2+ runs), and new_string not already matching the file's counts."""
@@ -521,7 +521,7 @@ def _leading_whitespace(line: str) -> str:
     return line[:len(line) - len(line.lstrip(" \t"))]
 
 
-def _first_meaningful_line(text: str) -> Optional[str]:
+def _first_meaningful_line(text: str) -> str | None:
     return next((line for line in text.split("\n") if line.strip()), None)
 
 
@@ -582,8 +582,8 @@ def _preserve_unicode_in_replacement(file_region: str, new_string: str,
 
 
 def _apply_replacements(content: str, matches: list[Span],
-                        new_string: str, old_string: Optional[str] = None,
-                        unicode_plan: Optional[tuple[str, list]] = None) -> str:
+                        new_string: str, old_string: str | None = None,
+                        unicode_plan: tuple[str, list] | None = None) -> str:
     """Splice ``new_string`` over each span (end-to-start so offsets stay valid);
     ``old_string`` non-None (non-exact match) re-indents it per region, and
     ``unicode_plan`` (unicode_normalized match) keeps each region's typography."""
@@ -653,7 +653,7 @@ def find_closest_lines(old_string: str, content: str, context_lines: int = 2, ma
     return result
 
 
-def format_no_match_hint(error: Optional[str], match_count: int,
+def format_no_match_hint(error: str | None, match_count: int,
                          old_string: str, content: str) -> str:
     """'\\n\\nDid you mean...' snippet for plain no-match errors only, else '' (ambiguous /
     escape-drift / identical errors also have ``match_count == 0`` but a hint would mislead)."""

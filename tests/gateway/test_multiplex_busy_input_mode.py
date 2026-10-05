@@ -5,7 +5,6 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from gateway.config import GatewayConfig, Platform, PlatformConfig
 from gateway.platforms.base import (
     BasePlatformAdapter,
@@ -459,6 +458,7 @@ async def test_primary_adapter_busy_origin_uses_routed_privacy(
 ):
     """The primary busy callback bypasses the scoped normal-message handler."""
     from dataclasses import asdict
+
     from agent.agent_runtime_helpers import apply_pending_steer_to_tool_results
     from hermes_constants import get_hermes_home_override
     from run_agent import AIAgent

@@ -13,11 +13,9 @@ A corrupt store is an unavailable store, not an empty one.
 
 import sqlite3
 
+import hermes_cli.web_server_sessions as _web_server_sessions
 import pytest
 from fastapi import HTTPException
-
-from hermes_cli import web_server
-import hermes_cli.web_server_sessions as _web_server_sessions
 from hermes_cli.web_routers import sessions as sessions_router
 
 

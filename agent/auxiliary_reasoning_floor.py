@@ -17,7 +17,7 @@ opposite of what a thinking-off caller asked for).
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
@@ -30,7 +30,7 @@ _FLOORED_ROUTES: set[tuple[str, str]] = set()
 _DISABLED_EFFORTS = {"none", "off", "disabled", "false", "0"}
 
 
-def _route_key(provider: Optional[str], base_url: Optional[str]) -> str:
+def _route_key(provider: str | None, base_url: str | None) -> str:
     """Endpoint host:port when known (a base_url override turns a named provider into ``custom``), else
     the provider name — the same key shape ``auxiliary_structured_output`` uses."""
     return (urlparse(base_url or "").netloc or "").lower() or str(provider or "").strip().lower()
@@ -40,14 +40,14 @@ def _is_disabled(reasoning_config: Any) -> bool:
     return isinstance(reasoning_config, dict) and reasoning_config.get("enabled") is False
 
 
-def floor_reasoning_config(reasoning_config: Any) -> Dict[str, Any]:
+def floor_reasoning_config(reasoning_config: Any) -> dict[str, Any]:
     """The caller's disabled ``reasoning_config`` lifted to the floor; anything else returned as-is."""
     if _is_disabled(reasoning_config):
         return {"enabled": True, "effort": REASONING_FLOOR_EFFORT}
     return reasoning_config
 
 
-def with_reasoning_floor(kwargs: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def with_reasoning_floor(kwargs: dict[str, Any]) -> dict[str, Any] | None:
     """Copy of *kwargs* with every thinking-OFF encoding lifted to ``REASONING_FLOOR_EFFORT``:
     top-level ``reasoning_effort``, ``extra_body.reasoning`` (OpenRouter shape) and the adapter's private
     ``_reasoning_config``. ``None`` when nothing was disabled, so the ladder never re-sends an unchanged
@@ -72,7 +72,7 @@ def with_reasoning_floor(kwargs: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
 
 def remember_reasoning_floor(
-    provider: Optional[str], base_url: Optional[str], rejected_kwargs: Dict[str, Any], error: BaseException,
+    provider: str | None, base_url: str | None, rejected_kwargs: dict[str, Any], error: BaseException,
 ) -> None:
     """Record that this route's ``rejected_kwargs["model"]`` refuses to disable reasoning (the ladder
     calls this after the stepped-up retry succeeded)."""
@@ -82,7 +82,7 @@ def remember_reasoning_floor(
 _NOUS_PROVIDERS = {"nous", "nous-portal", "nousresearch"}
 
 
-def _catalog_marks_mandatory(provider: Optional[str], base_url: Optional[str], model: Optional[str]) -> bool:
+def _catalog_marks_mandatory(provider: str | None, base_url: str | None, model: str | None) -> bool:
     """True when the route's ``/v1/models`` catalog (OpenRouter, Nous Portal) flags *model*
     ``reasoning.mandatory``. Cache-only — memory, then the disk mirror — so it never blocks; a cold
     catalog is warmed in the background, and the mirror it writes answers every later call and process.
@@ -107,8 +107,8 @@ def _catalog_marks_mandatory(provider: Optional[str], base_url: Optional[str], m
 
 
 def known_reasoning_floor(
-    reasoning_config: Any, provider: Optional[str], base_url: Optional[str], model: Optional[str],
-    task: Optional[str] = None,
+    reasoning_config: Any, provider: str | None, base_url: str | None, model: str | None,
+    task: str | None = None,
 ) -> Any:
     """*reasoning_config* lifted to the floor when this route+model is known to refuse a disable — learned
     from an earlier 400 in this process, or flagged mandatory by the route's model catalog; unchanged

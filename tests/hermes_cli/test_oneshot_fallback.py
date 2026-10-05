@@ -5,7 +5,6 @@ A quota-exhausted / expired primary raises ``AuthError`` from ``resolve_runtime_
 ``resolve_runtime_with_fallback`` helper gives oneshot the gateway's resolution-time behaviour."""
 
 import pytest
-
 from hermes_cli.auth import AuthError
 from hermes_cli.runtime_provider import resolve_runtime_with_fallback
 

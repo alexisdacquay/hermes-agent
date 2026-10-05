@@ -21,9 +21,8 @@ import sys
 import time
 from unittest.mock import patch
 
-import pytest
-
 import cli
+import pytest
 
 
 @pytest.fixture(autouse=True)

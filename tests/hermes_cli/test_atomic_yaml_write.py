@@ -2,9 +2,8 @@
 
 from unittest.mock import patch
 
-import pytest
 import hermes_yaml as yaml
-
+import pytest
 from utils import atomic_yaml_write
 
 

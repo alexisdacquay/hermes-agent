@@ -3,7 +3,6 @@
 ``failed`` False, and the scheduler recognises the model-named explainer text."""
 
 import pytest
-
 from agent.turn_explainers import TurnExplainersMixin
 from cron.scheduler import _final_response_from_result
 

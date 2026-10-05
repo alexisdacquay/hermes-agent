@@ -6,18 +6,23 @@ Extracted from ``hermes_cli.web_server``; app state and helpers are late-bound t
 
 import asyncio
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import hermes_yaml as yaml
 from fastapi import APIRouter, HTTPException, Query
 
 from hermes_cli.config import get_config_path, read_raw_config
 from hermes_cli.web_deps import late
+from hermes_cli.web_models import RawConfigUpdate
 from hermes_cli.web_routers._common import corrupt_store_as_status
 from hermes_cli.web_server_profiles import (
-    _approval_mode_of, _aux_task_summary, _aux_usage_rows, _broadcast_gateway_session_info, _is_other_profile, _merge_aux_into_by_model,
+    _approval_mode_of,
+    _aux_task_summary,
+    _aux_usage_rows,
+    _broadcast_gateway_session_info,
+    _is_other_profile,
+    _merge_aux_into_by_model,
 )
-from hermes_cli.web_models import RawConfigUpdate
 
 router = APIRouter()
 
@@ -31,7 +36,7 @@ save_config = late("save_config", "hermes_cli.config")
 
 
 @router.get("/api/config/raw")
-async def get_config_raw(profile: Optional[str] = None):
+async def get_config_raw(profile: str | None = None):
     """Raw config.yaml text plus its resolved path.
 
     ``path`` is resolved inside ``_profile_scope`` so the Config page header
@@ -50,7 +55,7 @@ async def get_config_raw(profile: Optional[str] = None):
 
 
 @router.put("/api/config/raw")
-async def update_config_raw(body: RawConfigUpdate, profile: Optional[str] = None):
+async def update_config_raw(body: RawConfigUpdate, profile: str | None = None):
     def _run():
         parsed = yaml.safe_load(body.yaml_text)
         if not isinstance(parsed, dict):
@@ -72,11 +77,11 @@ async def update_config_raw(body: RawConfigUpdate, profile: Optional[str] = None
         raise HTTPException(status_code=400, detail=f"Invalid YAML: {e}")
 
 
-def _rows(db, sql: str, cutoff: float) -> List[Dict[str, Any]]:
+def _rows(db, sql: str, cutoff: float) -> list[dict[str, Any]]:
     return [dict(r) for r in db._conn.execute(sql, (cutoff,)).fetchall()]
 
 
-def _get_usage_analytics(days: int = 30, profile: Optional[str] = None):
+def _get_usage_analytics(days: int = 30, profile: str | None = None):
     from agent.insights import InsightsEngine
 
     db = _open_session_db_for_profile(profile, read_only=True)
@@ -144,7 +149,7 @@ def _get_usage_analytics(days: int = 30, profile: Optional[str] = None):
 @router.get("/api/analytics/usage")
 async def get_usage_analytics(
     days: int = Query(30, ge=1, le=365),
-    profile: Optional[str] = None,
+    profile: str | None = None,
 ):
     """``days`` is clamped to 1-365 (idea from #74778): huge or non-positive
     values would force expensive full-history SQL and InsightsEngine work, or
@@ -160,11 +165,11 @@ _USAGE_KEYS = (
 )
 
 
-def _has_usage(row: Dict[str, Any]) -> bool:
+def _has_usage(row: dict[str, Any]) -> bool:
     return any((row.get(key) or 0) != 0 for key in _USAGE_KEYS)
 
 
-def _fold_session_only_rows(raw_rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _fold_session_only_rows(raw_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Fold model rows that carry no billing_provider and no usage into the single
     accounted provider row for that model.
 
@@ -173,11 +178,11 @@ def _fold_session_only_rows(raw_rows: List[Dict[str, Any]]) -> List[Dict[str, An
     to show a duplicate "0 tokens / — API calls" card. Only folds when ownership is
     unambiguous (exactly one provider row).
     """
-    rows_by_model: Dict[str, List[Dict[str, Any]]] = {}
+    rows_by_model: dict[str, list[dict[str, Any]]] = {}
     for row in raw_rows:
         rows_by_model.setdefault(row.get("model") or "", []).append(row)
 
-    rows: List[Dict[str, Any]] = []
+    rows: list[dict[str, Any]] = []
     for model_rows in rows_by_model.values():
         provider_rows = [r for r in model_rows if r.get("billing_provider")]
         if len(provider_rows) != 1:
@@ -229,7 +234,7 @@ _MODEL_CARD_KEYS = (
 )
 
 
-def _get_models_analytics(days: int = 30, profile: Optional[str] = None):
+def _get_models_analytics(days: int = 30, profile: str | None = None):
     """Per-model token/cost/session breakdown plus models.dev capability metadata."""
     db = _open_session_db_for_profile(profile, read_only=True)
     try:
@@ -306,7 +311,7 @@ def _get_models_analytics(days: int = 30, profile: Optional[str] = None):
 @router.get("/api/analytics/models")
 async def get_models_analytics(
     days: int = Query(30, ge=1, le=365),
-    profile: Optional[str] = None,
+    profile: str | None = None,
 ):
     """Return model analytics without blocking the serving event loop."""
     with corrupt_store_as_status(_session_db_path_for_profile(profile)):

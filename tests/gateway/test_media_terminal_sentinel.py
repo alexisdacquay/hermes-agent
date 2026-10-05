@@ -1,7 +1,6 @@
 """A leaked terminal ``<|eos|>`` sentinel must not hide a MEDIA attachment (#111046)."""
 
 import pytest
-
 from gateway.platforms.base import BasePlatformAdapter
 
 

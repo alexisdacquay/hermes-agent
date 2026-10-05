@@ -9,10 +9,8 @@ from __future__ import annotations
 
 import contextlib
 import logging
-import os
 import threading
 from pathlib import Path
-from typing import Optional
 
 from gateway.bot_loop_guard import BotLoopGuard
 from gateway.config import Platform
@@ -20,6 +18,8 @@ from gateway.pairing import _PLATFORM_ALLOWLIST_ENV
 from gateway.session import SessionSource
 from gateway.whatsapp_identity import (
     expand_whatsapp_aliases as _expand_whatsapp_auth_aliases,
+)
+from gateway.whatsapp_identity import (
     normalize_whatsapp_identifier as _normalize_whatsapp_identifier,
 )
 
@@ -48,9 +48,11 @@ _ALLOW_BOTS_ENV = {
 
 
 # Gate reads use the shared per-profile isolated reader (allowlist leak under multiplex, #72348).
-from gateway.platforms._shared import decode_json_list_literal as _decode_json_list_literal  # noqa: E402
-from gateway.platforms._shared import extra_or_secret as _extra_or_secret  # noqa: E402
-from gateway.platforms._shared import platform_gate_env as _auth_env  # noqa: E402
+from gateway.platforms._shared import (
+    decode_json_list_literal as _decode_json_list_literal,
+)
+from gateway.platforms._shared import extra_or_secret as _extra_or_secret
+from gateway.platforms._shared import platform_gate_env as _auth_env
 
 
 def _env_truthy(name: str) -> bool:
@@ -78,7 +80,7 @@ def _coerce_allow_set(raw) -> set[str]:
     return {part.strip() for part in str(raw).split(",") if part.strip()}
 
 
-def _allows(allowed: set[str], candidate: Optional[str]) -> bool:
+def _allows(allowed: set[str], candidate: str | None) -> bool:
     return "*" in allowed or candidate in allowed
 
 
@@ -129,7 +131,7 @@ def _convertbits(data, frombits: int, tobits: int, pad: bool = True):
     return ret
 
 
-def _npub_to_hex(npub: str) -> Optional[str]:
+def _npub_to_hex(npub: str) -> str | None:
     """Decode an ``npub1…`` bech32 string to a 64-char hex pubkey, else None."""
     npub = npub.strip().lower()
     if not npub.startswith("npub1"):
@@ -197,7 +199,7 @@ class GatewayAuthorizationMixin:
     def _profile_adapters_map(self) -> dict:
         return getattr(self, "_profile_adapters", None) or {}
 
-    def _authorization_adapter(self, platform: Optional[Platform], profile: Optional[str] = None):
+    def _authorization_adapter(self, platform: Platform | None, profile: str | None = None):
         """Live adapter whose intake policy gates authorization (``_adapters_for_profile`` for the
         profile rule). ``None`` when the profile has no adapter for *platform*.
         """
@@ -205,7 +207,7 @@ class GatewayAuthorizationMixin:
             return None
         return self._adapters_for_profile(profile).get(platform)
 
-    def _adapters_for_profile(self, profile: Optional[str]) -> dict:
+    def _adapters_for_profile(self, profile: str | None) -> dict:
         """The live adapter map *profile* may deliver through: ``_profile_adapters[p]`` for a
         secondary, ``self.adapters`` only for the primary/default. ``_profile_adapters`` is consulted
         BEFORE the active profile name: multiplex turns override ``HERMES_HOME`` so
@@ -251,7 +253,7 @@ class GatewayAuthorizationMixin:
         except Exception:
             return False
 
-    def _intake_adapter_for(self, source: Optional[SessionSource]):
+    def _intake_adapter_for(self, source: SessionSource | None):
         """The adapter that RECEIVED *source*'s event — the only one whose intake policy (ignored
         channels, relay fronting, re-dispatch of a still-live event) may act on it.
 
@@ -282,7 +284,7 @@ class GatewayAuthorizationMixin:
             return self._primary_adapters().get(platform) if platform else None
         return None
 
-    def _delivery_adapter_for(self, source: Optional[SessionSource]):
+    def _delivery_adapter_for(self, source: SessionSource | None):
         """The adapter that ANSWERS *source*: sends, edits, typing, progress, pickers, pending slots.
 
         The receiving bot whenever it is known (:meth:`_intake_adapter_for` — a routed event replies
@@ -366,7 +368,7 @@ class GatewayAuthorizationMixin:
         from hermes_cli.profiles import get_profile_dir
         return get_profile_dir(profile)
 
-    def _adapter_profile_for_source(self, source: SessionSource) -> Optional[str]:
+    def _adapter_profile_for_source(self, source: SessionSource) -> str | None:
         """Resolve the transport-owning profile for adapter policy lookups."""
         owner = self._transport_owner(source)
         if owner is not None:
@@ -377,7 +379,7 @@ class GatewayAuthorizationMixin:
             return None if identity.transport_profile == "default" else identity.transport_profile
         return getattr(source, "profile", None)
 
-    def _restored_source(self, entry) -> Optional[SessionSource]:
+    def _restored_source(self, entry) -> SessionSource | None:
         """``entry.origin`` with its identity re-pinned from the routing entry's persisted
         ``transport_profile`` (no live adapter: the restored row of the transport matrix). Every path
         that revives a session from durable state — auto-resume, heartbeat restore, plugin injection,
@@ -423,7 +425,7 @@ class GatewayAuthorizationMixin:
         return str(self._adapter_setting(platform, f"_{kind}_policy", f"{kind}_policy", profile) or "").strip().lower()
 
     def _adapter_group_has_sender_allowlist(
-        self, platform: Optional[Platform], chat_id: Optional[str], *, profile: Optional[str] = None
+        self, platform: Platform | None, chat_id: str | None, *, profile: str | None = None
     ) -> bool:
         """Whether a per-group sender allowlist (WeCom ``groups.<id>.allow_from``) gated this message:
         a group may be open at the chat level while restricting senders, so reaching the gateway
@@ -448,7 +450,7 @@ class GatewayAuthorizationMixin:
             return bool(sender_allow.strip())
         return isinstance(sender_allow, (list, tuple, set)) and any(str(item).strip() for item in sender_allow)
 
-    def _pairing_store_for(self, source: "SessionSource"):
+    def _pairing_store_for(self, source: SessionSource):
         """Per-profile PairingStore for a source, else the global ``self.pairing_store``."""
         per_profile = getattr(self, "pairing_stores", None) or {}
         profile = getattr(source, "profile", None)
@@ -457,7 +459,7 @@ class GatewayAuthorizationMixin:
     def _adapter_extra_for_source(self, source) -> dict:
         return _adapter_config_extra(self._delivery_adapter_for(source))
 
-    def _own_policy_authorizes(self, source, user_id, is_group, adapter_profile) -> Optional[bool]:
+    def _own_policy_authorizes(self, source, user_id, is_group, adapter_profile) -> bool | None:
         """Own-policy adapter verdict when no env allowlist exists; None = no verdict.
 
         Trusted only when the effective policy for THIS chat type is ``allowlist``: ``open`` forwards
@@ -695,7 +697,7 @@ class GatewayAuthorizationMixin:
             allowed_ids |= self._adapter_resolved_allowlist_ids(source)
         return "*" in allowed_ids or _principal_matches_allowlist(source, user_id, allowed_ids)
 
-    def _get_unauthorized_dm_behavior(self, platform: Optional[Platform], *, profile: Optional[str] = None) -> str:
+    def _get_unauthorized_dm_behavior(self, platform: Platform | None, *, profile: str | None = None) -> str:
         """How unauthorized DMs are handled ("pair" / "ignore" / "decline") for a platform.
 
         Order: explicit per-platform config; Email → "ignore" (inboxes hold arbitrary mail); explicit

@@ -11,7 +11,6 @@ tests/gateway/test_matrix.py::TestMatrixSyncLoop.
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
-
 # ---------------------------------------------------------------------------
 # Mattermost: _ws_loop auth-aware retry
 # ---------------------------------------------------------------------------

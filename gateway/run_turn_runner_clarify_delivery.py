@@ -12,7 +12,8 @@ the window releases the wait with the delivery notice instead of the inactivity 
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +40,7 @@ def text_fallback_coro(adapter, **send_kwargs):
     return BasePlatformAdapter.send_clarify(adapter, metadata=metadata, **send_kwargs)
 
 
-def _abort_for_outcome(outcome: str, *, session_key: str, clarify_mod) -> Optional[str]:
+def _abort_for_outcome(outcome: str, *, session_key: str, clarify_mod) -> str | None:
     """Map a send outcome to the abort sentinel (registration torn down) or ``None`` (proceed to wait).
 
     Only a DEFINITIVE failure tears down the registration; ``ambiguous`` (card may have posted) stays armed
@@ -68,7 +69,7 @@ def _abort_for_outcome(outcome: str, *, session_key: str, clarify_mod) -> Option
     return None
 
 
-def _clarify_send_disposition(fut, *, session_key: str, clarify_mod) -> Optional[str]:
+def _clarify_send_disposition(fut, *, session_key: str, clarify_mod) -> str | None:
     """Decide whether a clarify prompt send aborts the wait; returns the abort sentinel or ``None``."""
     from gateway.run import _approval_send_outcome
 
@@ -77,7 +78,7 @@ def _clarify_send_disposition(fut, *, session_key: str, clarify_mod) -> Optional
 
 
 def _clarify_send_then_wait(fut, *, clarify_id: str, session_key: str, clarify_mod,
-                            fallback: Optional[Callable[[], Any]] = None) -> tuple[str, bool]:
+                            fallback: Callable[[], Any] | None = None) -> tuple[str, bool]:
     """Resolve a clarify prompt: send disposition, plain-text fallback, then the bounded wait.
 
     ``fallback()`` schedules the plain-text ``send_clarify`` and returns its future (or ``None``);
@@ -127,7 +128,7 @@ class _LateFailureWatch:
     Armed only while the future is still pending: a sent card needs no watch."""
 
     def __init__(self, fut, *, clarify_id: str, session_key: str, clarify_mod, fallback) -> None:
-        self.undeliverable: Optional[str] = None
+        self.undeliverable: str | None = None
         self._armed = False
         self._clarify_id = clarify_id
         self._session_key = session_key

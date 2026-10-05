@@ -7,7 +7,6 @@ then see "unset", never the default profile's value (`agent/secret_scope.py::get
 from __future__ import annotations
 
 import pytest
-
 from agent import secret_scope
 
 

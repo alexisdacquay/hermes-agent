@@ -2,12 +2,13 @@
 import threading
 from types import SimpleNamespace
 
-import pytest
 import hermes_yaml as yaml
+import pytest
 from agent.status_output import StatusOutputMixin
 from hermes_cli.cli_stream_mixin import CLIStreamMixin
 from tui_gateway import server
-from tests.tui_gateway.test_auto_continue import turn_env, marker_home, _session
+
+from tests.tui_gateway.test_auto_continue import _session
 
 
 class Agent(StatusOutputMixin):

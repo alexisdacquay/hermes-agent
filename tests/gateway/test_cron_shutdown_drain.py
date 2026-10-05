@@ -11,9 +11,8 @@ the pending delivery completes first.
 import asyncio
 import threading
 
-import pytest
-
 import gateway.run as gateway_run
+import pytest
 
 
 @pytest.mark.asyncio

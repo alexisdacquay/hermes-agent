@@ -18,11 +18,13 @@ Usage:
 import json
 import random
 from pathlib import Path
-from typing import List, Dict, Any, Tuple
+from typing import Any
+
 import fire
 
 # Load environment variables
 from dotenv import load_dotenv
+
 load_dotenv()
 
 
@@ -36,7 +38,7 @@ DEFAULT_DATASETS = [
 ]
 
 
-def load_dataset_from_hf(dataset_name: str) -> List[Dict[str, Any]]:
+def load_dataset_from_hf(dataset_name: str) -> list[dict[str, Any]]:
     """
     Load a dataset from HuggingFace.
     
@@ -85,7 +87,7 @@ def _init_tokenizer_worker(tokenizer_name: str):
     _TOKENIZER = AutoTokenizer.from_pretrained(tokenizer_name, trust_remote_code=True)
 
 
-def _count_tokens_for_entry(entry: Dict) -> Tuple[Dict, int]:
+def _count_tokens_for_entry(entry: dict) -> tuple[dict, int]:
     """
     Count tokens for a single entry (used in parallel processing).
     
@@ -115,13 +117,13 @@ def _count_tokens_for_entry(entry: Dict) -> Tuple[Dict, int]:
 
 
 def sample_from_datasets(
-    datasets: List[str],
+    datasets: list[str],
     total_samples: int,
     min_tokens: int = 16000,
     tokenizer_name: str = "moonshotai/Kimi-K2-Thinking",
     seed: int = 42,
     num_proc: int = 8
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """
     Load all datasets, filter by token count, then randomly sample from combined pool.
     
@@ -222,7 +224,7 @@ def sample_from_datasets(
 
 
 def save_samples_for_compression(
-    samples: List[Dict[str, Any]],
+    samples: list[dict[str, Any]],
     output_dir: Path,
     batch_size: int = 100
 ):
@@ -249,8 +251,7 @@ def save_samples_for_compression(
         
         output_file = output_dir / f"batch_{i}.jsonl"
         with open(output_file, 'w', encoding='utf-8') as f:
-            for entry in batch:
-                f.write(json.dumps(entry, ensure_ascii=False) + '\n')
+            f.writelines(json.dumps(entry, ensure_ascii=False) + '\n' for entry in batch)
     
     print(f"   ✅ Saved {num_batches} batch files")
 
@@ -267,7 +268,7 @@ def run_compression(input_dir: Path, output_dir: Path, config_path: str):
     # Import the compressor
     import sys
     sys.path.insert(0, str(Path(__file__).parent.parent))
-    from trajectory_compressor import TrajectoryCompressor, CompressionConfig
+    from trajectory_compressor import CompressionConfig, TrajectoryCompressor
     
     print("\n🗜️  Running trajectory compression...")
     print(f"   Input: {input_dir}")
@@ -306,8 +307,7 @@ def merge_output_to_single_jsonl(input_dir: Path, output_file: Path):
     
     # Write merged file
     with open(output_file, 'w', encoding='utf-8') as f:
-        for entry in all_entries:
-            f.write(json.dumps(entry, ensure_ascii=False) + '\n')
+        f.writelines(json.dumps(entry, ensure_ascii=False) + '\n' for entry in all_entries)
     
     print(f"   ✅ Merged {len(all_entries):,} entries into {output_file.name}")
     return output_file

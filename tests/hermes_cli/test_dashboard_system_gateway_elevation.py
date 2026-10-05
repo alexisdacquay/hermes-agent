@@ -11,7 +11,6 @@ import subprocess
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from hermes_cli._launchers import runtime_command
 
 

@@ -5,7 +5,6 @@ import queue
 from types import SimpleNamespace
 
 import pytest
-
 from hermes_cli import goals
 
 

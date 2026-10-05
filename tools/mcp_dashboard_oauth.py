@@ -10,9 +10,9 @@ import logging
 import secrets
 import threading
 import time
+from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Iterator
 from urllib.parse import parse_qs, urlparse
 
 logger = logging.getLogger(__name__)

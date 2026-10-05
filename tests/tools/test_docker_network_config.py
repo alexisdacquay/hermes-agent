@@ -6,7 +6,7 @@ expose it, so operators could not request networkless Docker execution from
 config.yaml.
 """
 
-import tools.terminal_tool as terminal_tool
+from tools import terminal_tool
 from tools.environments import docker as docker_env
 
 
@@ -23,9 +23,9 @@ def test_every_sandbox_creator_passes_the_full_container_config(monkeypatch):
     the SAME container_config keys. Each used to keep a private (key, default) table and drifted:
     the probe lost ``docker_network`` (bridge-networked probe under lockdown, #46358/#76906/#87995),
     execute_code lost ``docker_extra_args``/``docker_forward_env``/``docker_env`` (#84027/#100019)."""
-    import agent.prompt_builder as prompt_builder
-    import tools.code_execution_tool as code_execution_tool
     import tools.terminal_tool_backends as backends
+    from agent import prompt_builder
+    from tools import code_execution_tool
 
     config = {"env_type": "docker", "cwd": "/root", "timeout": 60, "docker_network": False,
               "docker_extra_args": ["--user", "1009:1009"], "docker_forward_env": ["DATABASE_URL"],
@@ -215,7 +215,10 @@ def test_pin_verdict_reaches_docker_environment_through_the_terminal_tool(monkey
     (``_CONTAINER_KEYS`` is an allowlist): a pinned image that the builder never sees is a pin
     the runtime never honours, and the approval would silently do nothing."""
     from tools import terminal_tool as tt
-    from tools.terminal_tool_backends import _build_docker_env, _container_config_from_config
+    from tools.terminal_tool_backends import (
+        _build_docker_env,
+        _container_config_from_config,
+    )
 
     seen = {}
     monkeypatch.setattr("tools.terminal_tool_backends._DockerEnvironment",

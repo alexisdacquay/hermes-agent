@@ -20,9 +20,8 @@ prompt_toolkit input loop.
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 import cli as cli_mod
+import pytest
 from cli import HermesCLI, _suspend_output_history
 
 

@@ -3,11 +3,11 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import sys
 import time
+from pathlib import Path
 
 import psutil
 import pytest
@@ -152,6 +152,7 @@ def test_startup_preserves_trees_and_explicit_stop_checks_owner(tmp_path, monkey
 @pytest.mark.parametrize("failure", ["arrival", "truncated"])
 def test_startup_reuses_without_activity_probe(tmp_path, monkeypatch, failure):
     import http.client
+
     from hermes_cli.local_runtime import bootstrap, endpoint, recovery
 
     monkeypatch.setattr(bootstrap, "_SUPERVISOR", None)
@@ -178,6 +179,7 @@ def test_startup_reuses_without_activity_probe(tmp_path, monkeypatch, failure):
 
 def test_shutdown_during_backoff_cannot_restart_or_remove_another_server(tmp_path, monkeypatch):
     from types import SimpleNamespace
+
     from hermes_cli.local_runtime import supervisor
 
     monkeypatch.setattr(supervisor, "runtimes_root", lambda: tmp_path)
@@ -201,6 +203,7 @@ def test_shutdown_during_backoff_cannot_restart_or_remove_another_server(tmp_pat
 @pytest.mark.platforms("windows")
 def test_supervisor_reaps_owned_job_even_after_router_exit(tmp_path, monkeypatch):
     from types import SimpleNamespace
+
     from hermes_cli.local_runtime import supervisor
 
     monkeypatch.setattr(supervisor, "runtimes_root", lambda: tmp_path)
@@ -219,6 +222,7 @@ def test_supervisor_reaps_owned_job_even_after_router_exit(tmp_path, monkeypatch
 
 def test_spawn_state_records_process_incarnations(tmp_path, monkeypatch):
     import os
+
     from hermes_cli.local_runtime import supervisor
 
     monkeypatch.setattr(supervisor, "runtimes_root", lambda: tmp_path)
@@ -239,6 +243,7 @@ def test_spawn_state_records_process_incarnations(tmp_path, monkeypatch):
 
 def test_stopped_state_is_retained_without_unlink_race(tmp_path, monkeypatch):
     from types import SimpleNamespace
+
     from hermes_cli.local_runtime import supervisor
 
     monkeypatch.setattr(supervisor, "runtimes_root", lambda: tmp_path)
@@ -266,6 +271,7 @@ def test_stopped_state_is_retained_without_unlink_race(tmp_path, monkeypatch):
 def test_terminate_tree_escalates_and_always_cleans_children(monkeypatch, kind):
     from types import SimpleNamespace
     from unittest.mock import Mock
+
     from hermes_cli.local_runtime.supervisor import LlamaServerSupervisor
 
     child = Mock()
@@ -293,6 +299,7 @@ def test_terminate_tree_escalates_and_always_cleans_children(monkeypatch, kind):
 @pytest.mark.parametrize("reuse_at", ["before-walk", "during-walk", "never"])
 def test_explicit_stop_preserves_verified_root_incarnation(tmp_path, monkeypatch, reuse_at):
     from unittest.mock import Mock
+
     from hermes_cli.local_runtime import recovery, supervisor
 
     state = {"pid": 123, "create_time": 1.0}

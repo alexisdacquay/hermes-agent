@@ -9,8 +9,11 @@ run cannot see the Windows string and vice versa.
 from __future__ import annotations
 
 import pytest
-
-from scripts._activation import ACTIVATION_ENV_VAR, activation_command, require_activation
+from scripts._activation import (
+    ACTIVATION_ENV_VAR,
+    activation_command,
+    require_activation,
+)
 
 
 def test_returns_when_activated_and_exits_naming_the_command_when_not(monkeypatch, capsys):

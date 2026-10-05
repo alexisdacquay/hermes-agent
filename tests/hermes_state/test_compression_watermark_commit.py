@@ -11,13 +11,11 @@ lease was reclaimed cannot publish a stale compaction.
 from __future__ import annotations
 
 import json
-import sqlite3
 import threading
 import time
 from pathlib import Path
 
 import pytest
-
 from hermes_state import SessionCompressionInProgressError, SessionDB
 
 

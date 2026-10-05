@@ -3,7 +3,6 @@ transport down) must surface as an environment error, never as "File not found":
 a false negative for the rest of the session (#44750)."""
 
 import pytest
-
 from tools.file_operations import ShellFileOperations
 
 

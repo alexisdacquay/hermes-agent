@@ -20,7 +20,6 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
-
 from agent.portal_tags import (
     get_affinity_scope,
     reset_affinity_scope,

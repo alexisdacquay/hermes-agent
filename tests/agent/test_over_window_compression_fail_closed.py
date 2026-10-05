@@ -13,7 +13,6 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from agent.conversation_compression import run_compress_context_with_progress_timeout
 from agent.turn_context import PreflightCompressionTimedOut
 from agent.turn_context_compaction import CompactionOutcome, _run_preflight_passes

@@ -13,10 +13,9 @@ import threading
 import time
 from unittest.mock import patch
 
-import pytest
-
-from hermes_cli import copilot_auth
 import hermes_cli.web_routers.ops as _rt_ops
+import pytest
+from hermes_cli import copilot_auth
 
 # ---------------------------------------------------------------------------
 # _urlopen_bounded

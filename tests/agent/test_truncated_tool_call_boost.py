@@ -3,7 +3,6 @@ without exceeding the model's known output limit (#79715)."""
 from types import SimpleNamespace
 
 import pytest
-
 from agent.turn_iteration_prep import apply_retry_restarts
 from agent.turn_retry_state import TurnRetryState
 from agent.turn_truncation import _retry_truncated_tool_call

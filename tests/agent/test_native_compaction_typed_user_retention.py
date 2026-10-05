@@ -3,14 +3,12 @@
 from copy import deepcopy
 
 import pytest
-
 from agent.codex_responses_adapter import _chat_messages_to_responses_input
 from agent.model_metadata import estimate_tokens_rough
 from agent.native_compaction import (
     RETAINED_USER_MESSAGE_TOKEN_BUDGET,
     prune_pre_checkpoint_items,
 )
-
 
 _CHECKPOINT = {"type": "compaction", "encrypted_content": "synthetic_checkpoint"}
 

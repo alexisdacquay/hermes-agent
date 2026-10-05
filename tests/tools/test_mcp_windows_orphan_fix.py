@@ -17,15 +17,13 @@ best-effort contract of the tree-kill helpers.
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
-from tools.mcp_tool import MCPServerTask, _MCP_AVAILABLE
+from tools.mcp_tool import _MCP_AVAILABLE, MCPServerTask
 
 pytestmark = pytest.mark.skipif(not _MCP_AVAILABLE, reason="MCP SDK not installed")
 
 
 def _run_stdio_with_mocks(os_name: str, attach_mock) -> None:
     """Drive _run_stdio's pre-spawn path with the transport mocked out."""
-    import tools.mcp_tool_transport as transport_mod
 
     mock_session = MagicMock()
     mock_session.initialize = AsyncMock()
@@ -35,7 +33,7 @@ def _run_stdio_with_mocks(os_name: str, attach_mock) -> None:
 
     task = MCPServerTask("test-win-orphan")
     task._serve_session = _serve
-    task._session_kwargs = lambda: {}
+    task._session_kwargs = dict
 
     async def fake_preflight(name, command, args):
         return command, args

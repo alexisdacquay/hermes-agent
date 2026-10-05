@@ -56,9 +56,8 @@ def test_default_capture_is_plain_for_chat_bubbles():
 
 
 def test_charted_signal_labels_clear_readable_contrast_floor(monkeypatch):
-    from rich.text import Text
-
     from hermes_cli import journey
+    from rich.text import Text
 
     palette = {
         "bg": "#08080C",

@@ -8,7 +8,6 @@ before it reaches the bridge.
 """
 
 import pytest
-
 from gateway.whatsapp_identity import to_whatsapp_jid
 
 

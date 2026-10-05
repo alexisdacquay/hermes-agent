@@ -39,7 +39,6 @@ from prompt_toolkit.layout import Layout
 from prompt_toolkit.layout.containers import Window
 from prompt_toolkit.layout.controls import FormattedTextControl
 
-
 _HISTORY: list[str] = []
 
 
@@ -60,7 +59,7 @@ def main() -> None:
     kb = KeyBindings()
 
     @kb.add("<any>")
-    def _on_any(event):  # noqa: ANN001 — prompt_toolkit event type
+    def _on_any(event):
         parts = []
         for kp in event.key_sequence:
             parts.append(f"key={kp.key!r} data={kp.data!r}")
@@ -69,7 +68,7 @@ def main() -> None:
 
     @kb.add("c-q")
     @kb.add("c-c")
-    def _quit(event):  # noqa: ANN001
+    def _quit(event):
         event.app.exit()
 
     control = FormattedTextControl(text=_render_text)

@@ -11,15 +11,21 @@ import re
 import subprocess
 import threading
 from abc import ABC, abstractmethod
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Awaitable, Callable
+
+from hermes_cli._subprocess_compat import (
+    IS_WINDOWS,
+    harden_git_argv,
+    noninteractive_git_env,
+    windows_hide_flags,
+)
+from hermes_cli.sizefmt import format_bytes
+from hermes_cli.sqlite_safe_read import LiveConnectionError, offline_file_access
 
 from agent.file_safety import HOME_CREDENTIAL_DIRS
 from agent.model_metadata import CHARS_PER_TOKEN, estimate_tokens_rough
-from hermes_cli._subprocess_compat import IS_WINDOWS, harden_git_argv, noninteractive_git_env, windows_hide_flags
-from hermes_cli.sqlite_safe_read import LiveConnectionError, offline_file_access
-from hermes_cli.sizefmt import format_bytes
 
 # ── Plugin context-reference provider API ────────────────────────────────────
 
@@ -27,13 +33,13 @@ from hermes_cli.sizefmt import format_bytes
 # provider API (Issue #26193) ---------------------------------------------------------------------------
 BUILTIN_PREFIXES = frozenset({"diff", "staged", "file", "folder", "git", "url"})
 
-_context_reference_providers: dict[str, "ContextReferenceProvider"] = {}
+_context_reference_providers: dict[str, ContextReferenceProvider] = {}
 
 
 class ContextCompletionItem:
     """A single autocomplete result from a context reference provider."""
 
-    __slots__ = ("text", "display", "meta")
+    __slots__ = ("display", "meta", "text")
 
     def __init__(self, text: str, display: str = "", meta: str = "") -> None:
         self.text = text

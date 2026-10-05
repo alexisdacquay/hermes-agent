@@ -24,8 +24,8 @@ path-keyed, so this is hermetic) — no live server, no hand-set flag.
 
 from __future__ import annotations
 
-from hermes_cli.runtime_provider import resolve_runtime_provider
 from agent.agent_runtime_helpers import copy_reasoning_content_for_api
+from hermes_cli.runtime_provider import resolve_runtime_provider
 from run_agent import AIAgent
 
 

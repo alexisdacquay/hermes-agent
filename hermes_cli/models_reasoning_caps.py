@@ -21,14 +21,14 @@ import os
 import threading
 import time
 import urllib.request
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Optional
-
+from typing import Any
 
 logger = logging.getLogger("hermes_cli.models")
 
-Caps = dict[str, Optional[dict[str, Any]]]
+Caps = dict[str, dict[str, Any] | None]
 
 
 def _origin():
@@ -36,7 +36,7 @@ def _origin():
     return models
 
 
-def parse_openrouter_reasoning_capabilities(item: Any) -> Optional[dict[str, Any]]:
+def parse_openrouter_reasoning_capabilities(item: Any) -> dict[str, Any] | None:
     """Normalize one OpenRouter catalog entry's reasoning metadata.
 
     ``supported_parameters`` contains ``"reasoning"`` when the route accepts reasoning controls at
@@ -54,7 +54,7 @@ def parse_openrouter_reasoning_capabilities(item: Any) -> Optional[dict[str, Any
     if not isinstance(reasoning, dict):
         reasoning = {}
     raw_efforts = reasoning.get("supported_efforts")
-    efforts: Optional[list[str]] = None
+    efforts: list[str] | None = None
     if isinstance(raw_efforts, list):
         efforts = list(dict.fromkeys(str(e).strip().lower() for e in raw_efforts if str(e).strip()))
     return {"supports_reasoning": True, "supported_efforts": efforts, "mandatory": reasoning.get("mandatory") is True}
@@ -80,7 +80,7 @@ def _read_reasoning_caps_disk() -> dict[str, Any]:
     return _read_json_cache(_reasoning_caps_disk_path()) or {}
 
 
-def _load_reasoning_caps_disk(url: str) -> tuple[Optional[Caps], float]:
+def _load_reasoning_caps_disk(url: str) -> tuple[Caps | None, float]:
     """Return ``(caps, age_seconds)`` for *url*, or ``(None, 0.0)``."""
     entry = _read_reasoning_caps_disk().get(url)
     caps = entry.get("caps") if isinstance(entry, dict) else None
@@ -114,7 +114,7 @@ def _warm_reasoning_caps_async(refresh) -> None:
     threading.Thread(target=contextvars.copy_context().run, args=(refresh,), name="reasoning-caps-warm", daemon=True).start()
 
 
-def _hydrate_reasoning_caps_from_disk(url: str, refresh) -> Optional[Caps]:
+def _hydrate_reasoning_caps_from_disk(url: str, refresh) -> Caps | None:
     """The disk copy of *url*'s catalog, queueing *refresh* when it's stale. A copy past its TTL is
     still returned — a stale verdict beats no verdict, and capabilities change rarely."""
     caps, age = _load_reasoning_caps_disk(url)
@@ -123,7 +123,7 @@ def _hydrate_reasoning_caps_from_disk(url: str, refresh) -> Optional[Caps]:
     return caps
 
 
-def _seed_reasoning_caps(url: str, items: Any) -> Optional[Caps]:
+def _seed_reasoning_caps(url: str, items: Any) -> Caps | None:
     """Parse a ``/v1/models`` ``data`` array and mirror it for *url*.
 
     Takes the payload rather than fetching it, so picker and pricing fetches (same document) leave
@@ -143,7 +143,7 @@ def _seed_reasoning_caps(url: str, items: Any) -> Optional[Caps]:
     return caps_by_id
 
 
-def _fetch_reasoning_caps_catalog(url: str, timeout: float) -> Optional[Caps]:
+def _fetch_reasoning_caps_catalog(url: str, timeout: float) -> Caps | None:
     """Fetch one OpenRouter-shaped ``/v1/models`` catalog → per-model caps; None when unreachable or
     empty so callers remember the failure. Sends a User-Agent: the Portal 403s anonymous reads."""
     m = _origin()
@@ -191,7 +191,7 @@ class _CapsSource:
         profile_slot_set(_origin(), getattr(self, slot), value)
 
 
-def _fetch_caps(src: _CapsSource, timeout: float = 6.0, *, force: bool = False) -> Optional[Caps]:
+def _fetch_caps(src: _CapsSource, timeout: float = 6.0, *, force: bool = False) -> Caps | None:
     """Fetch + cache the source's per-model caps. None (without poisoning the cache) when
     unreachable, so callers retry later and fall back meanwhile."""
     cached = src.get("cache")
@@ -208,7 +208,7 @@ def _fetch_caps(src: _CapsSource, timeout: float = 6.0, *, force: bool = False) 
     return caps_by_id
 
 
-def _caps_cached(src: _CapsSource) -> Optional[Caps]:
+def _caps_cached(src: _CapsSource) -> Caps | None:
     """Cache-only caps: memory, else the disk mirror. Never HTTP.
 
     One disk attempt per process: for the Portal, naming the catalog means resolving credentials,
@@ -220,7 +220,7 @@ def _caps_cached(src: _CapsSource) -> Optional[Caps]:
     return src.get("cache")
 
 
-def _model_caps(src: _CapsSource, model_id: Optional[str], *, timeout: float, allow_fetch: bool) -> Optional[dict[str, Any]]:
+def _model_caps(src: _CapsSource, model_id: str | None, *, timeout: float, allow_fetch: bool) -> dict[str, Any] | None:
     model = str(model_id or "").strip()
     if not model:
         return None
@@ -237,7 +237,7 @@ def _warm_caps_async(src: _CapsSource) -> None:
     _warm_reasoning_caps_async(lambda: _fetch_caps(src, force=True))
 
 
-def refresh_reasoning_caps_async(provider: Optional[str]) -> None:
+def refresh_reasoning_caps_async(provider: str | None) -> None:
     """Force a background re-fetch of *provider*'s reasoning-capability catalog.
 
     The in-memory cache is otherwise held for the process lifetime, so a route that flips to
@@ -281,16 +281,16 @@ def nous_catalog_url() -> str:
 # it) — metadata makes new vendors work without a code change. One catalog fetch per process, cached;
 # unknown (catalog unreachable / unlisted model) falls back to the static list.
 def openrouter_model_reasoning_capabilities(
-    model_id: Optional[str], *, timeout: float = 6.0, allow_fetch: bool = False,
-) -> Optional[dict[str, Any]]:
+    model_id: str | None, *, timeout: float = 6.0, allow_fetch: bool = False,
+) -> dict[str, Any] | None:
     """Live-catalog reasoning capabilities for an OpenRouter model (tri-state, see module doc).
     CACHE-ONLY by default — safe on per-request hot paths (never blocks on HTTP)."""
     return _model_caps(_OPENROUTER_CAPS, model_id, timeout=timeout, allow_fetch=allow_fetch)
 
 
 def nous_model_reasoning_capabilities(
-    model_id: Optional[str], *, timeout: float = 6.0, allow_fetch: bool = False,
-) -> Optional[dict[str, Any]]:
+    model_id: str | None, *, timeout: float = 6.0, allow_fetch: bool = False,
+) -> dict[str, Any] | None:
     """Nous Portal counterpart of :func:`openrouter_model_reasoning_capabilities`; warm the cache
     with :func:`warm_nous_reasoning_caps_async` from hot paths."""
     return _model_caps(_NOUS_CAPS, model_id, timeout=timeout, allow_fetch=allow_fetch)

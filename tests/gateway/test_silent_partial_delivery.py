@@ -29,19 +29,16 @@ Boundary tests drive the REAL ``GatewayRunner._run_agent`` with a live
 ``GatewayStreamConsumer`` (pattern from test_stale_finalize_suppression.py).
 """
 
-import asyncio
 import importlib
 import sys
 import types
 from types import SimpleNamespace
 
 import pytest
-
 from gateway.config import Platform, PlatformConfig, StreamingConfig
 from gateway.platforms.base import BasePlatformAdapter, SendResult
 from gateway.session import SessionSource
 from gateway.stream_consumer import GatewayStreamConsumer, StreamConsumerConfig
-
 
 STREAMED_PREFIX = "Deploy summary: 713 items published (578 as of 08-26"
 MISSING_TAIL = ", another 135 over the past 4 days). All checks green."
@@ -422,7 +419,7 @@ class TestDiscordTransportClassification:
         assert not mod._is_discord_transport_error(
             RuntimeError("error code: 50013: Missing Permissions")
         )
-        assert not mod._is_discord_transport_error(asyncio.TimeoutError())
+        assert not mod._is_discord_transport_error(TimeoutError())
 
     @pytest.mark.asyncio
     async def test_send_without_client_reports_send_path_degraded(self):

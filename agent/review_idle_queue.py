@@ -18,8 +18,9 @@ import logging
 import threading
 import time
 import urllib.request
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -28,13 +29,13 @@ _POLL_INTERVAL_S = 5.0  # poll cadence while non-empty; the thread parks when em
 _MAX_AGE_DEFAULT_S = 30.0 * 60.0  # dispatch regardless of idleness past this age
 
 
-def defer_mode(task_cfg: Optional[Dict[str, Any]]) -> str:
+def defer_mode(task_cfg: dict[str, Any] | None) -> str:
     """'auto' (default) or 'never' from auxiliary.background_review.defer."""
     raw = str((task_cfg or {}).get("defer", "auto")).strip().lower()
     return raw if raw in ("auto", "never") else "auto"
 
 
-def defer_max_age_s(task_cfg: Optional[Dict[str, Any]]) -> float:
+def defer_max_age_s(task_cfg: dict[str, Any] | None) -> float:
     try:
         value = float((task_cfg or {}).get("defer_max_age_s", _MAX_AGE_DEFAULT_S))
     except (TypeError, ValueError):
@@ -42,12 +43,15 @@ def defer_max_age_s(task_cfg: Optional[Dict[str, Any]]) -> float:
     return value if value > 0 else _MAX_AGE_DEFAULT_S
 
 
-def review_targets_managed_local(agent: Any, task_cfg: Optional[Dict[str, Any]]) -> bool:
+def review_targets_managed_local(agent: Any, task_cfg: dict[str, Any] | None) -> bool:
     """Would this review fork decode on the llama-server WE manage? Exact netloc match against the
     supervisor state file; any failure reads False (immediate spawn is the safe default). The cheap
     TTL-cached netloc probe runs FIRST so cloud-only installs skip runtime resolution on the turn's tail."""
     try:
-        from agent.auxiliary_client import _is_managed_local_endpoint, _managed_local_netloc
+        from agent.auxiliary_client import (
+            _is_managed_local_endpoint,
+            _managed_local_netloc,
+        )
 
         if not _managed_local_netloc():
             return False
@@ -63,7 +67,7 @@ def review_targets_managed_local(agent: Any, task_cfg: Optional[Dict[str, Any]])
 class _PendingReview:
     agent: Any
     session_key: str
-    kwargs: Dict[str, Any]
+    kwargs: dict[str, Any]
     enqueued_at: float
     context: contextvars.Context
 
@@ -73,11 +77,11 @@ class ReviewIdleQueue:
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
-        self._pending: Dict[str, _PendingReview] = {}
+        self._pending: dict[str, _PendingReview] = {}
         self._wake = threading.Event()
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
         self._live_turns = 0
-        self._quiet_since: Optional[float] = None
+        self._quiet_since: float | None = None
         # Test seams — replaced by unit tests, never in production.
         self._now: Callable[[], float] = time.monotonic
         self._server_idle: Callable[[], bool] = _managed_server_idle
@@ -94,7 +98,7 @@ class ReviewIdleQueue:
                 self._quiet_since = self._now()
         self._wake.set()
 
-    def enqueue(self, agent: Any, session_key: str, kwargs: Dict[str, Any]) -> None:
+    def enqueue(self, agent: Any, session_key: str, kwargs: dict[str, Any]) -> None:
         """Add (or replace — newest snapshot wins) a session's pending review, keeping the ORIGINAL
         enqueue time on coalesce so a busy session cannot push its age-out forever."""
         with self._lock:
@@ -123,7 +127,7 @@ class ReviewIdleQueue:
                 return 0.0
             return self._now() - self._quiet_since
 
-    def _pop_dispatchable(self) -> Optional[_PendingReview]:
+    def _pop_dispatchable(self) -> _PendingReview | None:
         """Oldest aged-out item, else the oldest item once quiet+idle hold."""
         with self._lock:
             if not self._pending:
@@ -155,7 +159,7 @@ class ReviewIdleQueue:
                     # The shared dispatcher has no caller profile. Enter the item's context
                     # before reading config AND spawning the context-propagating review worker.
                     item.context.run(self._dispatch, item)
-            except Exception:  # noqa: BLE001 — dispatcher must survive anything
+            except Exception:
                 logger.warning("Deferred review dispatch failed", exc_info=True)
             if item is None:
                 time.sleep(_POLL_INTERVAL_S)
@@ -185,8 +189,9 @@ class ReviewIdleQueue:
 def _managed_server_idle() -> bool:
     """No processing slot on any loaded model of the managed router; unreachable/no state file reads idle."""
     try:
-        from hermes_cli.local_runtime.supervisor import state_path
         from urllib.parse import quote
+
+        from hermes_cli.local_runtime.supervisor import state_path
 
         state = json.loads(state_path().read_text(encoding="utf-8-sig"))
         base = str(state.get("base_url", "")).rsplit("/v1", 1)[0]

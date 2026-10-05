@@ -4,7 +4,6 @@ import asyncio
 from xml.etree import ElementTree as ET
 
 import pytest
-
 from gateway.config import PlatformConfig
 from plugins.platforms.wecom import callback_adapter as _callback_mod
 from plugins.platforms.wecom.callback_adapter import WecomCallbackAdapter

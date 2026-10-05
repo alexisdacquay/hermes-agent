@@ -15,8 +15,6 @@ its ``_session_db.db_path`` and passes it explicitly.
 import re
 import threading
 
-import pytest
-
 
 def _skills_body(prompt: str) -> str:
     m = re.search(r"<available_skills>(.*?)</available_skills>", prompt, re.DOTALL)

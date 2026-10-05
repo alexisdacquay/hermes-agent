@@ -2,9 +2,8 @@
 
 import os
 
-import pytest
-
 import pm
+import pytest
 from pm import paths
 
 

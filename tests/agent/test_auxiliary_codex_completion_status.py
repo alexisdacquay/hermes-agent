@@ -3,7 +3,6 @@
 from types import SimpleNamespace
 
 import pytest
-
 from agent.auxiliary_client import _CodexCompletionsAdapter
 from agent.context_compressor import ContextCompressor
 

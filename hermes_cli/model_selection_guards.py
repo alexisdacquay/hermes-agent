@@ -6,8 +6,8 @@ tests and mock patch points remain valid; this module only aggregates them.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Iterable, List, Optional
 
 from agent.models_dev import ModelInfo
 
@@ -30,11 +30,11 @@ class SelectionContext:
     stake and the model it is currently on. Surfaces without a live agent omit it and those guards
     stay silent."""
 
-    context_tokens: Optional[int] = None
-    current_model: Optional[str] = None
+    context_tokens: int | None = None
+    current_model: str | None = None
 
 
-def selection_context_for_agent(agent: object) -> Optional[SelectionContext]:
+def selection_context_for_agent(agent: object) -> SelectionContext | None:
     """:class:`SelectionContext` from a live ``AIAgent``: the compressor's measured
     ``last_prompt_tokens`` (what the provider billed on the latest turn), else the session prompt
     counter. ``None`` when no live size is known — the guard then stays silent rather than guess."""
@@ -52,7 +52,7 @@ def selection_context_for_agent(agent: object) -> Optional[SelectionContext]:
     return SelectionContext(context_tokens=tokens, current_model=getattr(agent, "model", "") or None)
 
 
-def _wrap(kind: str, title: str, warning, model_name: str, provider: Optional[str]):
+def _wrap(kind: str, title: str, warning, model_name: str, provider: str | None):
     """Lift a raw guard payload into a :class:`SelectionWarning` (None passes through). Duck-typed:
     payloads may carry only ``.message``."""
     if warning is None:
@@ -63,8 +63,8 @@ def _wrap(kind: str, title: str, warning, model_name: str, provider: Optional[st
 
 
 def _cost_guard(
-    model_name: str, provider: Optional[str], base_url: Optional[str], api_key: Optional[str],
-    model_info: Optional[ModelInfo], ctx: Optional[SelectionContext] = None) -> Optional[SelectionWarning]:
+    model_name: str, provider: str | None, base_url: str | None, api_key: str | None,
+    model_info: ModelInfo | None, ctx: SelectionContext | None = None) -> SelectionWarning | None:
     from hermes_cli.model_cost_guard import expensive_model_warning
 
     warning = expensive_model_warning(
@@ -73,8 +73,8 @@ def _cost_guard(
 
 
 def _data_policy_guard(
-    model_name: str, provider: Optional[str], base_url: Optional[str], api_key: Optional[str],
-    model_info: Optional[ModelInfo], ctx: Optional[SelectionContext] = None) -> Optional[SelectionWarning]:
+    model_name: str, provider: str | None, base_url: str | None, api_key: str | None,
+    model_info: ModelInfo | None, ctx: SelectionContext | None = None) -> SelectionWarning | None:
     from hermes_cli.model_data_policy_guard import data_training_warning
 
     warning = data_training_warning(model_name, provider=provider, base_url=base_url)
@@ -101,8 +101,8 @@ def _context_cache_threshold() -> int:
 
 
 def _context_cache_guard(
-    model_name: str, provider: Optional[str], base_url: Optional[str], api_key: Optional[str],
-    model_info: Optional[ModelInfo], ctx: Optional[SelectionContext] = None) -> Optional[SelectionWarning]:
+    model_name: str, provider: str | None, base_url: str | None, api_key: str | None,
+    model_info: ModelInfo | None, ctx: SelectionContext | None = None) -> SelectionWarning | None:
     """Confirm a mid-session switch that abandons a large cached context. Fires only when the surface
     supplied live facts showing the active context at/above the threshold; smaller sessions, sessions
     with no measured size and same-model re-selects (cache stays warm) are silent."""
@@ -136,15 +136,15 @@ _GUARDS = (_cost_guard, _data_policy_guard, _context_cache_guard)
 
 
 def selection_warnings(
-    model_name: str, *, provider: Optional[str] = None, base_url: Optional[str] = None,
-    api_key: Optional[str] = None, model_info: Optional[ModelInfo] = None,
-    include_kinds: Optional[Iterable[str]] = None,
-    selection_context: Optional[SelectionContext] = None) -> List[SelectionWarning]:
+    model_name: str, *, provider: str | None = None, base_url: str | None = None,
+    api_key: str | None = None, model_info: ModelInfo | None = None,
+    include_kinds: Iterable[str] | None = None,
+    selection_context: SelectionContext | None = None) -> list[SelectionWarning]:
     """Warnings from every registered guard (empty in the common case). ``include_kinds`` restricts
     which kinds are returned; ``selection_context`` carries live-session facts for switch-aware guards.
     Guard exceptions are swallowed — never break model selection."""
     wanted = set(include_kinds) if include_kinds is not None else None
-    results: List[SelectionWarning] = []
+    results: list[SelectionWarning] = []
     for guard in _GUARDS:
         try:
             warning = guard(model_name, provider, base_url, api_key, model_info, selection_context)
@@ -155,16 +155,16 @@ def selection_warnings(
     return results
 
 
-def combined_message(warnings: List[SelectionWarning]) -> str:
+def combined_message(warnings: list[SelectionWarning]) -> str:
     """One confirm-prompt body for several warnings (one prompt beats two sequential ones)."""
     return "\n\n".join(w.message for w in warnings)
 
 
 def combined_selection_warning(
-    model_name: str, *, provider: Optional[str] = None, base_url: Optional[str] = None,
-    api_key: Optional[str] = None, model_info: Optional[ModelInfo] = None,
-    selection_context: Optional[SelectionContext] = None,
-) -> Optional[SelectionWarning]:
+    model_name: str, *, provider: str | None = None, base_url: str | None = None,
+    api_key: str | None = None, model_info: ModelInfo | None = None,
+    selection_context: SelectionContext | None = None,
+) -> SelectionWarning | None:
     """Drop-in for ``expensive_model_warning`` call sites: ``None``, the single warning, or a merged
     ``kind="multiple"`` warning stacking every message."""
     warnings = selection_warnings(

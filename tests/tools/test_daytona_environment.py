@@ -6,7 +6,6 @@ from unittest.mock import MagicMock
 
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # Helpers to build mock Daytona SDK objects
 # ---------------------------------------------------------------------------
@@ -25,9 +24,8 @@ def _make_sandbox(sandbox_id="sb-123", state="started"):
 
 def _patch_daytona_imports(monkeypatch):
     """Patch the daytona SDK so DaytonaEnvironment can be imported without it."""
-    import types as _types
-
     import enum
+    import types as _types
 
     class _SandboxState(str, enum.Enum):
         STARTED = "started"
@@ -64,7 +62,7 @@ def make_env(daytona_sdk, monkeypatch):
     # Prevent is_interrupted from interfering — patch where it's used (base.py)
     monkeypatch.setattr("tools.environments.base.is_interrupted", lambda: False)
     # Prevent skills/credential sync from consuming mock exec calls
-    monkeypatch.setattr("tools.credential_files.get_credential_file_mounts", lambda: [])
+    monkeypatch.setattr("tools.credential_files.get_credential_file_mounts", list)
     monkeypatch.setattr("tools.credential_files.get_skills_directory_mount", lambda **kw: None)
     monkeypatch.setattr("tools.credential_files.iter_skills_files", lambda **kw: [])
 

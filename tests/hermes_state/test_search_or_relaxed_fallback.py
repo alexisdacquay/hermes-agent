@@ -14,7 +14,6 @@ reorders existing hits, and respects explicit boolean operators.
 """
 
 import pytest
-
 from hermes_state import SessionDB
 
 

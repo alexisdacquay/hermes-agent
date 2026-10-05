@@ -18,9 +18,7 @@ same logic — these tests guard against that regression.
 from unittest.mock import patch
 
 import pytest
-
 from hermes_cli.model_switch import switch_model
-
 
 _MOCK_VALIDATION = {
     "accepted": True,
@@ -190,8 +188,9 @@ class TestStaleConfigDefaultDoesNotWedgeResolver:
     """
 
     def test_kimi_switch_keeps_v1_despite_claude_config_default(self, tmp_path, monkeypatch):
-        import hermes_yaml as yaml
         import importlib
+
+        import hermes_yaml as yaml
 
         monkeypatch.setenv("HERMES_HOME", str(tmp_path))
         monkeypatch.setenv("OPENCODE_ZEN_API_KEY", "test-key")

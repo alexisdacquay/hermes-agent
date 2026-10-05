@@ -5,19 +5,19 @@ from __future__ import annotations
 import hashlib
 import io
 import json
-from functools import partial
 import threading
 import zipfile
-
-import pytest
+from functools import partial
 
 import pm
+import pytest
 from pm import paths, registry
 from pm.downloader import DownloadPaused
 from pm.install import ensure, stage_only
 from pm.lock import Facts, Lockfile
 from pm.package import Package
 from pm.store import tree_digest
+
 from tests.pm._range_server import RangeHandler, dl_server, url  # noqa: F401
 
 

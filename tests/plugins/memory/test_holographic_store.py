@@ -15,8 +15,8 @@ import sqlite3
 import threading
 
 import pytest
-
 from plugins.memory.holographic.store import MemoryStore
+
 
 @pytest.fixture(autouse=True)
 def _clean_shared_registry():

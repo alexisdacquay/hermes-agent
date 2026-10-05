@@ -5,8 +5,7 @@ from __future__ import annotations
 import shutil
 
 import pytest
-
-import agent.i18n as i18n
+from agent import i18n
 from hermes_cli import cli_model_switch_mixin as ms
 
 

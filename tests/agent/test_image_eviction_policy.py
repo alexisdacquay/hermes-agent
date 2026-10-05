@@ -10,7 +10,6 @@ covers the numbers once.
 from __future__ import annotations
 
 import pytest
-
 from agent.image_eviction_policy import (
     IMAGE_EVICTION_BATCH,
     OUTBOUND_IMAGE_FLOOR,

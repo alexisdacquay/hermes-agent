@@ -11,12 +11,11 @@ import argparse
 import os
 import subprocess
 from pathlib import Path
-from typing import Optional
 
+from agent.secret_sources import onepassword as op_src
 from rich.console import Console
 from rich.panel import Panel
 
-from agent.secret_sources import onepassword as op_src
 from hermes_cli._secrets_common import (
     arg,
     cfg_str,
@@ -374,7 +373,7 @@ def cmd_disable(args: argparse.Namespace) -> int:
     )
 
 
-def _op_whoami(binary: Path, account: str, *, token_value: str = "") -> Optional[str]:
+def _op_whoami(binary: Path, account: str, *, token_value: str = "") -> str | None:
     """Short identity string if op is authenticated, else None. ``token_value`` probes a candidate
     token via the child's ``OP_SERVICE_ACCOUNT_TOKEN`` without touching the caller's environment."""
     cmd = [str(binary), "whoami"]

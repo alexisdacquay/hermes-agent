@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 
 def hooks_command(args) -> None:
@@ -26,8 +26,9 @@ def hooks_command(args) -> None:
 # ---------------------------------------------------------------------------
 
 def _cmd_list(_args) -> None:
-    from hermes_cli.config import load_config
     from agent import outbound_webhooks, shell_hooks
+
+    from hermes_cli.config import load_config
 
     cfg = load_config()
     specs = shell_hooks.iter_configured_hooks(cfg)
@@ -43,7 +44,7 @@ def _cmd_list(_args) -> None:
     if not specs:
         print("No shell hooks configured in ~/.hermes/config.yaml.")
     else:
-        by_event: Dict[str, List] = {}
+        by_event: dict[str, list] = {}
         for spec in specs:
             by_event.setdefault(spec.event, []).append(spec)
         approved = {
@@ -183,9 +184,10 @@ _DEFAULT_PAYLOADS = {
 
 
 def _cmd_test(args) -> None:
+    from agent import shell_hooks
+
     from hermes_cli.config import load_config
     from hermes_cli.plugins import VALID_HOOKS
-    from agent import shell_hooks
 
     event = args.event
     if event not in VALID_HOOKS:
@@ -225,7 +227,7 @@ def _cmd_test(args) -> None:
         print()
 
 
-def _print_run_result(result: Dict[str, Any]) -> None:
+def _print_run_result(result: dict[str, Any]) -> None:
     if result.get("error"):
         print(f"      ✗ error: {result['error']}")
     elif result.get("timed_out"):
@@ -269,8 +271,9 @@ def _cmd_revoke(args) -> None:
 
 
 def _cmd_doctor(_args) -> None:
-    from hermes_cli.config import load_config
     from agent import shell_hooks
+
+    from hermes_cli.config import load_config
 
     specs = shell_hooks.iter_configured_hooks(load_config())
     if not specs:

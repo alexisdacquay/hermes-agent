@@ -28,9 +28,10 @@ import sys
 import threading
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any
 
 CLI_VERSION = "0.147.0"
 INVALID_REQUEST = -32600
@@ -96,7 +97,7 @@ def array(item: Spec) -> Spec:
     return Spec(check)
 
 
-def obj(required: Optional[dict] = None, optional: Optional[dict] = None, *, open_map: bool = False) -> Spec:
+def obj(required: dict | None = None, optional: dict | None = None, *, open_map: bool = False) -> Spec:
     required, optional = required or {}, optional or {}
 
     def check(v: Any, path: str, ignored: list) -> None:
@@ -203,7 +204,7 @@ SERVER_REQUEST_RESULTS: dict[str, Spec] = {
 }
 
 
-def validate(spec: Spec, value: Any) -> tuple[Optional[str], list[str]]:
+def validate(spec: Spec, value: Any) -> tuple[str | None, list[str]]:
     """``(serde error or None, ignored field paths)``."""
     ignored: list[str] = []
     try:
@@ -255,7 +256,7 @@ class FakeAppServer:
         self._pending_cv = threading.Condition()
         self._initialized = False
         self._interrupted: set[str] = set()
-        self._turn_thread: Optional[threading.Thread] = None
+        self._turn_thread: threading.Thread | None = None
         self.record({"event": "spawn", "argv": argv, "ppid": os.getppid()})
 
     # --- io -----------------------------------------------------------------------------------------
@@ -435,7 +436,7 @@ class FakeAppServer:
     }
 
     # --- turn playback -----------------------------------------------------------------------------------
-    def _play_turn(self, thread_id: str, turn_id: str, params: Optional[dict], script: dict) -> None:
+    def _play_turn(self, thread_id: str, turn_id: str, params: dict | None, script: dict) -> None:
         ctx = _TurnCtx(self, thread_id, turn_id)
         self.notify("turn/started", {"threadId": thread_id, "turn": {"id": turn_id, "items": [],
                                                                       "status": "inProgress"}})
@@ -653,7 +654,7 @@ class FakeCodex:
             return []
         return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
-    def requests(self, method: Optional[str] = None) -> list[dict]:
+    def requests(self, method: str | None = None) -> list[dict]:
         """Client requests Hermes sent (full transcript entries), optionally one method."""
         return [e for e in self.entries() if e.get("dir") == "in" and "method" in e.get("msg", {})
                 and "id" in e["msg"] and (method is None or e["msg"]["method"] == method)]
@@ -719,12 +720,16 @@ class CodexRun:
                     os.kill(pid, signal.SIGKILL)
 
 
-def run_codex_scenario(root: Path, turns: list[dict], runs: list[dict], *, config: Optional[dict] = None,
+def run_codex_scenario(root: Path, turns: list[dict], runs: list[dict], *, config: dict | None = None,
                        **scenario: Any) -> CodexRun:
     """Real ``hermes chat -q`` runs (``--resume`` after the first) against a fresh fake codex install.
 
     ``runs``: ``{"prompt", "args": [...], "then": {scenario changes applied after this run}}``."""
-    from tests.e2e.core.providers._native_helpers import latest_session, make_home, run_chat
+    from tests.e2e.core.providers._native_helpers import (
+        latest_session,
+        make_home,
+        run_chat,
+    )
 
     fake = FakeCodex(root, turns, **scenario)
     model = {"provider": "openai", "default": "gpt-5.5", "openai_runtime": "codex_app_server",

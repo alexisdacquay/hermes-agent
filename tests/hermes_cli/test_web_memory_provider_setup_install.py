@@ -1,13 +1,12 @@
 """CLI/dashboard setup resolves declarations, not ambient importability."""
 
 import json
-from pathlib import Path
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
-
 from hermes_cli.web_routers import memory_providers as mp
 
 
@@ -15,11 +14,11 @@ from hermes_cli.web_routers import memory_providers as mp
 @pytest.mark.parametrize("declaration", ["pyproject", "python_dependencies", "pip_dependencies"])
 def test_setup_admits_real_provider_union_and_keeps_selection_on_failure(tmp_path, monkeypatch, surface, declaration):
     import pm
-    from pm.environments import venv_python
-    from pm.environments import selected_venv
-    from tests.pm._fixtures import _wheel
     from hermes_cli import memory_setup
     from hermes_cli.web_server_memory import _memory_provider_setup_info
+    from pm.environments import selected_venv, venv_python
+
+    from tests.pm._fixtures import _wheel
 
     uv = shutil.which("uv")
     assert uv, "real PM admission test requires uv"
@@ -117,7 +116,7 @@ def test_setup_reports_restart_and_preserves_external_steps(tmp_path, monkeypatc
     }))
     monkeypatch.setattr("plugins.memory.find_provider_dir", lambda name: provider)
     monkeypatch.setattr(mp, "_load_memory_provider", lambda name: None)
-    monkeypatch.setattr(mp, "_discover_memory_provider_statuses", lambda: [])
+    monkeypatch.setattr(mp, "_discover_memory_provider_statuses", list)
     # The resolver seam is isolated; real union behavior is exercised above.
     def sync(*args, **kwargs):
         if python_failure:

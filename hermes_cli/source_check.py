@@ -9,15 +9,19 @@ import logging
 import os
 import subprocess
 import time
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Optional
-from urllib.parse import quote
 import urllib.error
 import urllib.request
+from dataclasses import dataclass
+from pathlib import Path
+from urllib.parse import quote
 
 from hermes_constants import get_hermes_home
-from hermes_cli.source_releases import OFFICIAL_REPOSITORY, _GITHUB_ORIGIN, resolve_source_target
+
+from hermes_cli.source_releases import (
+    _GITHUB_ORIGIN,
+    OFFICIAL_REPOSITORY,
+    resolve_source_target,
+)
 
 logger = logging.getLogger(__name__)
 UPDATE_AVAILABLE_NO_COUNT = -1
@@ -56,7 +60,7 @@ def source_git_env() -> dict[str, str]:
 _GIT_TEXT_KW = {"text": True, "encoding": "utf-8", "errors": "replace"}
 
 
-def _git_run(args: list[str], *, cwd: Optional[Path] = None, timeout: int = 5, text: bool = True,
+def _git_run(args: list[str], *, cwd: Path | None = None, timeout: int = 5, text: bool = True,
              git: str = "git"):
     """Read Git state without prompts, optional index writes, or inherited targeting."""
     from hermes_cli._subprocess_compat import windows_hide_flags
@@ -70,7 +74,7 @@ def _git_run(args: list[str], *, cwd: Optional[Path] = None, timeout: int = 5, t
         return None
 
 
-def _git_stdout(args: list[str], *, cwd: Path, timeout: int = 5, git: str = "git") -> Optional[str]:
+def _git_stdout(args: list[str], *, cwd: Path, timeout: int = 5, git: str = "git") -> str | None:
     result = _git_run(args, cwd=cwd, timeout=timeout, git=git)
     if result is None or result.returncode != 0:
         return None
@@ -83,7 +87,7 @@ def _git_ok(args: list[str], **kw) -> bool:
     return result is not None and result.returncode == 0
 
 
-def _git_count(args: list[str], *, cwd: Path) -> Optional[int]:
+def _git_count(args: list[str], *, cwd: Path) -> int | None:
     """``int`` of a successful ``git rev-list --count``-style command, else None."""
     result = _git_run(args, cwd=cwd)
     if result is not None and result.returncode == 0:
@@ -91,11 +95,11 @@ def _git_count(args: list[str], *, cwd: Path) -> Optional[int]:
     return None
 
 
-def _is_full_sha(value: Optional[str]) -> bool:
+def _is_full_sha(value: str | None) -> bool:
     return isinstance(value, str) and len(value) == 40 and all(c in "0123456789abcdefABCDEF" for c in value)
 
 
-def _github_compare(current_rev: str, target_rev: str, repository: str = OFFICIAL_REPOSITORY) -> Optional[dict]:
+def _github_compare(current_rev: str, target_rev: str, repository: str = OFFICIAL_REPOSITORY) -> dict | None:
     # Do not memoize this separately: force must bypass failed AND successful network results.
     if not (_is_full_sha(current_rev) and _is_full_sha(target_rev)):
         return None
@@ -104,7 +108,7 @@ def _github_compare(current_rev: str, target_rev: str, repository: str = OFFICIA
     return payload if isinstance(payload, dict) else None
 
 
-def _github_compare_behind(current_rev: str, target_rev: str, repository: str = OFFICIAL_REPOSITORY) -> Optional[int]:
+def _github_compare_behind(current_rev: str, target_rev: str, repository: str = OFFICIAL_REPOSITORY) -> int | None:
     payload = _github_compare(current_rev, target_rev, repository)
     ahead = payload.get("ahead_by") if payload else None
     return ahead if isinstance(ahead, int) and not isinstance(ahead, bool) and ahead >= 0 else None
@@ -192,11 +196,11 @@ class _Checkout:
     """Read-only facts about the checkout under test, gathered once per check."""
     root: Path
     git: str
-    embedded: Optional[str]
-    head: Optional[str]
-    current_branch: Optional[str]
+    embedded: str | None
+    head: str | None
+    current_branch: str | None
     origin: str
-    repository: Optional[str]
+    repository: str | None
     dirty: bool
 
 
@@ -204,7 +208,7 @@ def _read_json(path: Path):
     return _quiet(lambda: json.loads(path.read_text(encoding="utf-8-sig")))
 
 
-def _unsupported_reason(stamp: dict, root: Path, *, explicit_root: bool, embedded: Optional[str]) -> Optional[dict]:
+def _unsupported_reason(stamp: dict, root: Path, *, explicit_root: bool, embedded: str | None) -> dict | None:
     """Fields explaining why this install cannot self-update from Git, or None when it can."""
     from hermes_cli.config import detect_install_method
     from hermes_cli.update_contract import COMMIT_BUILD_UPDATE_MESSAGE
@@ -222,7 +226,7 @@ def _unsupported_reason(stamp: dict, root: Path, *, explicit_root: bool, embedde
     return None
 
 
-def _read_checkout(root: Path, git: str, embedded: Optional[str]) -> _Checkout:
+def _read_checkout(root: Path, git: str, embedded: str | None) -> _Checkout:
     # An embedded revision has no checkout to ask: it always tracks the official repository.
     head = embedded or _git_stdout(["rev-parse", "HEAD"], cwd=root, git=git)
     current_branch = None if embedded else _git_stdout(["rev-parse", "--abbrev-ref", "HEAD"], cwd=root, git=git)
@@ -233,17 +237,17 @@ def _read_checkout(root: Path, git: str, embedded: Optional[str]) -> _Checkout:
     return _Checkout(root, git, embedded, head, current_branch, origin, repository, dirty)
 
 
-def _configured_branch(desktop_config) -> Optional[str]:
+def _configured_branch(desktop_config) -> str | None:
     value = desktop_config.get("branch") if isinstance(desktop_config, dict) else None
     return (value.strip() or None) if isinstance(value, str) else None
 
 
-def _checked_out_branch(current_branch: Optional[str], fallback: Optional[str]) -> Optional[str]:
+def _checked_out_branch(current_branch: str | None, fallback: str | None) -> str | None:
     """The checkout's branch, or ``fallback`` when detached or unreadable."""
     return current_branch if current_branch and current_branch != "HEAD" else fallback
 
 
-def _cached_status(cache_file: Path, identity: dict, now: float) -> Optional[dict]:
+def _cached_status(cache_file: Path, identity: dict, now: float) -> dict | None:
     """A still-fresh supported status cached for exactly this identity, else None.
 
     Failures expire sooner so a transient network error does not hide updates for a day.
@@ -306,7 +310,7 @@ def _heal_deleted_branch(branch_config_path: Path, desktop_config: dict) -> None
         atomic_json_write(branch_config_path, {**desktop_config, "branch": "main"})
 
 
-def _unhealable_reason(co: _Checkout, branch: str) -> Optional[str]:
+def _unhealable_reason(co: _Checkout, branch: str) -> str | None:
     """Why a branch the remote does not advertise must keep its pin; None when healing loses nothing.
 
     An empty ref advertisement cannot tell "merged and deleted upstream" from "never pushed":
@@ -343,7 +347,7 @@ def _behind_count(co: _Checkout, target: str) -> tuple[int, list[dict]]:
 
 
 def _check_branch(result: dict, co: _Checkout, selected_branch: str, *,
-                  heal: Optional[tuple[Path, dict]]) -> None:
+                  heal: tuple[Path, dict] | None) -> None:
     """Compare the checkout with ``selected_branch``'s remote tip, falling back to main if it was deleted."""
     result["branch"] = selected_branch
     remote = _branch_remote(co, selected_branch)
@@ -381,9 +385,9 @@ def check_for_updates(*, install_root: Path | None = None, home: Path | None = N
     target must never inherit the host process's embedded revision or stamp.
     """
     from hermes_cli.config import get_project_root, require_readable_config_before_write
+    from hermes_cli.release_channels import validate_name
     from hermes_cli.steward import read_install_stamp
     from hermes_cli.update_channel import install_id, resolve_update_channel
-    from hermes_cli.release_channels import validate_name
 
     embedded = (os.environ.get("HERMES_REVISION") or None) if install_root is None else None
     root = Path(install_root if install_root is not None else get_project_root()).resolve()

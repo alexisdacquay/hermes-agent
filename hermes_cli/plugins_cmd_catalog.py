@@ -16,14 +16,24 @@ import stat
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, NamedTuple, Optional
+from typing import Any, NamedTuple
+
+from pm.filesystem import is_junction
 
 from hermes_cli.plugin_catalog import (
-    PluginCatalogEntry, RemovedEntry, cached_removed_entries, entry_capability_summary, filter_entries,
-    find_removed, get_live_catalog_entry, load_catalog_live, match_removed, resolved_removed_entries,
-    _NAME_RE, _normalize_repo,
+    _NAME_RE,
+    PluginCatalogEntry,
+    RemovedEntry,
+    _normalize_repo,
+    cached_removed_entries,
+    entry_capability_summary,
+    filter_entries,
+    find_removed,
+    get_live_catalog_entry,
+    load_catalog_live,
+    match_removed,
+    resolved_removed_entries,
 )
-from pm.filesystem import is_junction
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +81,7 @@ def write_catalog_sidecar_record(target: Path, catalog: dict, sha: str) -> None:
     sidecar = {
         "catalog_name": catalog["name"], "repo": catalog["repo"], "sha": sha,
         "tier": catalog.get("tier") or "community",
-        "installed_at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
+        "installed_at": datetime.datetime.now(datetime.UTC).isoformat(timespec="seconds")
         .replace("+00:00", "Z"),
     }
     try:
@@ -80,7 +90,7 @@ def write_catalog_sidecar_record(target: Path, catalog: dict, sha: str) -> None:
         logger.warning("Failed to write catalog sidecar in %s: %s", target, exc)
 
 
-def write_catalog_sidecar(target: Path, entry: PluginCatalogEntry, sha: Optional[str] = None) -> None:
+def write_catalog_sidecar(target: Path, entry: PluginCatalogEntry, sha: str | None = None) -> None:
     write_catalog_sidecar_record(
         target,
         {"name": entry.name, "repo": entry.repo, "tier": entry.tier},
@@ -88,9 +98,13 @@ def write_catalog_sidecar(target: Path, entry: PluginCatalogEntry, sha: Optional
     )
 
 
-def _install_record(plugin_dir: Path) -> Optional[dict]:
+def _install_record(plugin_dir: Path) -> dict | None:
     """The installer-owned ``.install-metadata.json`` record for a dir under the plugins dir, else ``None``."""
-    from hermes_cli.plugins_cmd import PluginOperationError, _plugins_dir, _read_install_metadata
+    from hermes_cli.plugins_cmd import (
+        PluginOperationError,
+        _plugins_dir,
+        _read_install_metadata,
+    )
     if plugin_dir.parent != _plugins_dir():
         return None
     try:
@@ -104,7 +118,7 @@ def _write_catalog_block(plugin_dir: Path, record: dict, block: dict) -> dict:
     """Migrate one trusted installer record to the nested catalog contract."""
     from hermes_cli.plugins_cmd import _update_install_record
 
-    def migrate(current: Optional[dict]) -> Optional[dict]:
+    def migrate(current: dict | None) -> dict | None:
         if current is None:
             return None
         migrated = dict(current)
@@ -117,7 +131,7 @@ def _write_catalog_block(plugin_dir: Path, record: dict, block: dict) -> dict:
     return block
 
 
-def _adopt_legacy_sidecar(plugin_dir: Path, record: dict) -> Optional[dict]:
+def _adopt_legacy_sidecar(plugin_dir: Path, record: dict) -> dict | None:
     """Installs made before provenance moved out of the tree carry only the in-tree file. Trust it once —
     only when the installer record agrees (pinned at that sha, cloned from that catalog entry's repo) —
     and copy it onto the record so later reads never consult the tree again."""
@@ -139,7 +153,7 @@ def _adopt_legacy_sidecar(plugin_dir: Path, record: dict) -> Optional[dict]:
     return _write_catalog_block(plugin_dir, record, block)
 
 
-def read_catalog_sidecar(plugin_dir) -> Optional[dict]:
+def read_catalog_sidecar(plugin_dir) -> dict | None:
     """Catalog provenance of an installed plugin (``catalog_name``/``repo``/``sha``/``tier``/``pin``), or
     ``None`` for a non-catalog install. Read from the installer-owned metadata record, never from the
     tree: a URL-installed repo that ships its own ``.hermes-catalog.json`` must not render as a reviewed
@@ -183,12 +197,12 @@ def at_catalog_pin(sidecar: dict, entry_sha: str) -> bool:
         str(sidecar.get("sha") or "").lower(), str(sidecar.get("pin") or "").lower())
 
 
-def catalog_install_record(plugin_dir) -> Optional[dict]:
+def catalog_install_record(plugin_dir) -> dict | None:
     """Catalog fields from the authoritative installer-owned record."""
     return read_catalog_sidecar(plugin_dir)
 
 
-def catalog_annotation(dir_path) -> Optional[str]:
+def catalog_annotation(dir_path) -> str | None:
     """``catalog:<tier>@<sha8>`` for a catalog install (``list`` Source column), else ``None``."""
     sidecar = catalog_install_record(dir_path)
     if not sidecar:
@@ -196,7 +210,7 @@ def catalog_annotation(dir_path) -> Optional[str]:
     return f"catalog:{sidecar.get('tier') or 'community'}@{str(sidecar.get('sha') or '')[:8]}"
 
 
-def removed_annotation(name: str, dir_path, removed_entries: List[RemovedEntry]) -> Optional[str]:
+def removed_annotation(name: str, dir_path, removed_entries: list[RemovedEntry]) -> str | None:
     """Kill-list reason when an INSTALLED plugin matches by name, catalog name or repo, else ``None``.
 
     ``removed_entries`` is required: callers annotating many rows (``plugins list``, the dashboard hub)
@@ -216,7 +230,7 @@ def removed_annotation(name: str, dir_path, removed_entries: List[RemovedEntry])
 _PLATFORM_ALIASES = {"windows": "win32", "macos": "darwin"}
 
 
-def normalized_platforms(platforms: List[str]) -> set[str]:
+def normalized_platforms(platforms: list[str]) -> set[str]:
     """Return catalog platform names in host OS-family vocabulary."""
     return {_PLATFORM_ALIASES.get(value.lower(), value.lower()) for value in platforms}
 
@@ -224,8 +238,9 @@ def normalized_platforms(platforms: List[str]) -> set[str]:
 def _refuse_unsupported_catalog_platform(entry: PluginCatalogEntry) -> None:
     if not entry.platforms:
         return
-    from hermes_cli.plugins_cmd import PluginOperationError
     from hermes_platform.host.facts import os_family
+
+    from hermes_cli.plugins_cmd import PluginOperationError
 
     current = os_family()
     if current not in normalized_platforms(entry.platforms):
@@ -235,7 +250,7 @@ def _refuse_unsupported_catalog_platform(entry: PluginCatalogEntry) -> None:
         )
 
 
-def install_catalog_entry(entry: PluginCatalogEntry, *, force: bool, ref: Optional[str] = None,
+def install_catalog_entry(entry: PluginCatalogEntry, *, force: bool, ref: str | None = None,
                           allow_removed: bool = False, scan_decision_cb=None, python_deps: bool = True,
                           assume_deps_consent: bool = False, before_swap=None) -> tuple:
     """``_install_plugin_core`` at the catalog pin (an explicit *ref* wins) + provenance recorded on the
@@ -253,7 +268,7 @@ def install_catalog_entry(entry: PluginCatalogEntry, *, force: bool, ref: Option
     return target, manifest, installed_name
 
 
-def installed_plugin_removal(name: str, plugin_dir) -> Optional[RemovedEntry]:
+def installed_plugin_removal(name: str, plugin_dir) -> RemovedEntry | None:
     """Kill-list verdict for an INSTALLED plugin (manifest name, dir name, catalog name or recorded
     source), or ``None``. A record carrying ``allow_removed`` (the user bypassed the list at install) is
     honoured; the check is offline (in-tree list + cached live copy) so load time never blocks on the
@@ -313,10 +328,14 @@ def _revision_owned_without_git(rel: Path) -> bool:
     )
 
 
-def _local_changes(target: Path) -> tuple[Optional[list[str]], list[str]]:
+def _local_changes(target: Path) -> tuple[list[str] | None, list[str]]:
     """``(untracked_or_ignored, modified_tracked)`` in a git checkout. The first item is ``None``
     when git cannot classify the installed tree (notably subdirectory installs, which carry no ``.git``)."""
-    from hermes_cli.plugins_cmd import PluginOperationError, _resolve_git_executable, _run_plugin_git
+    from hermes_cli.plugins_cmd import (
+        PluginOperationError,
+        _resolve_git_executable,
+        _run_plugin_git,
+    )
     git_exe = _resolve_git_executable()
     if not (target / ".git").exists():
         return None, []
@@ -351,7 +370,7 @@ def _stash_local_files(target: Path, rels: list[str], stash: Path) -> None:
             shutil.copy2(src, dst)
 
 
-def _carry_user_files(old: Path, new: Path, local: Optional[list[str]]) -> list[str]:
+def _carry_user_files(old: Path, new: Path, local: list[str] | None) -> list[str]:
     """Carry user-owned files into a staged replacement without reviving old plugin code.
 
     For a git checkout, *local* is the ``??``/``!!`` set and may contain a directory entry
@@ -364,8 +383,9 @@ def _carry_user_files(old: Path, new: Path, local: Optional[list[str]]) -> list[
     install artefacts: they are neither carried nor inspected, so links inside them never stop an update.
     Returns the carried paths (POSIX, relative to the tree) so a later scan block can name them.
     """
-    from hermes_cli.plugins_cmd import PluginOperationError
     from tools.plugin_guard import EXCLUDED_DIRS
+
+    from hermes_cli.plugins_cmd import PluginOperationError
 
     keep = {Path(rel) for rel in local or ()}
     linked: list[str] = []
@@ -484,7 +504,7 @@ _SURFACE_LABELS = {"capabilities": "host capabilities", "tools": "tools", "hooks
                    "python_dependencies": "Python dependencies", "desktop": "Desktop UI half"}
 
 
-def plugin_surface(manifest: dict, tree: Path) -> Dict[str, set]:
+def plugin_surface(manifest: dict, tree: Path) -> dict[str, set]:
     """What an installed tree exposes: declared host capabilities, tools, hooks, Python deps, Desktop half."""
     from hermes_cli.plugins_cmd import _declared_capabilities_from_manifest
     manifest = manifest or {}
@@ -504,13 +524,13 @@ def plugin_surface(manifest: dict, tree: Path) -> Dict[str, set]:
     }
 
 
-def surface_delta(old: Dict[str, set], new: Dict[str, set]) -> Dict[str, List[str]]:
+def surface_delta(old: dict[str, set], new: dict[str, set]) -> dict[str, list[str]]:
     """``{surface: [added...]}`` for every surface the new tree widens; empty when nothing widened."""
     return {k: sorted(new.get(k, set()) - old.get(k, set())) for k in _SURFACE_LABELS
             if new.get(k, set()) - old.get(k, set())}
 
 
-def surface_delta_lines(delta: Dict[str, List[str]]) -> List[str]:
+def surface_delta_lines(delta: dict[str, list[str]]) -> list[str]:
     return [f"{_SURFACE_LABELS[k]}: {', '.join(v)}" for k, v in delta.items()]
 
 
@@ -518,7 +538,7 @@ class RepinConsentRequired(Exception):
     """The new pin widens the plugin's surface and no consent was given; nothing was changed on disk.
     ``delta`` is :func:`surface_delta`'s mapping — surfaces hand it to the user and retry with consent."""
 
-    def __init__(self, name: str, sha: str, delta: Dict[str, List[str]]):
+    def __init__(self, name: str, sha: str, delta: dict[str, list[str]]):
         self.name, self.sha, self.delta = name, sha, delta
         super().__init__(
             f"Updating '{name}' to {sha[:8]} adds {'; '.join(surface_delta_lines(delta))}. Confirm to continue.")
@@ -617,7 +637,11 @@ def repin_catalog_plugin(
                         f"{backup} (the previous version's files, re-apply by hand).")
     if new_target != target and target.exists():
         from hermes_cli.plugins_cmd import (
-            _admit_and_save_plugin_sets, _get_disabled_set, _get_enabled_set, _remove_plugin_core)
+            _admit_and_save_plugin_sets,
+            _get_disabled_set,
+            _get_enabled_set,
+            _remove_plugin_core,
+        )
         enabled, disabled = _get_enabled_set(), _get_disabled_set()
         selection_changed = False
         for selected in (enabled, disabled):
@@ -636,11 +660,17 @@ def repin_catalog_plugin(
 
 def cmd_update_catalog(name: str, target: Path, sidecar: dict, console, *, interactive: bool = True) -> None:
     from hermes_cli.plugins_cmd import (
-        PluginOperationError, _ask_yes, _declared_capabilities_from_manifest, _fail, _is_tty, _read_manifest,
-        _run_capability_consent)
+        PluginOperationError,
+        _ask_yes,
+        _declared_capabilities_from_manifest,
+        _fail,
+        _is_tty,
+        _read_manifest,
+        _run_capability_consent,
+    )
     console.print(f"[dim]Checking catalog pin for {name}...[/dim]")
 
-    def _confirm_widening(delta: Dict[str, List[str]]) -> bool:
+    def _confirm_widening(delta: dict[str, list[str]]) -> bool:
         console.print(f"\n  [yellow]The new pin of [bold]{name}[/bold] adds:[/yellow]")
         for line in surface_delta_lines(delta):
             console.print(f"    {line}")
@@ -673,7 +703,10 @@ def cmd_update_catalog(name: str, target: Path, sidecar: dict, console, *, inter
         new_target = target.parent / result.installed_name
         declared = _declared_capabilities_from_manifest(_read_manifest(new_target), result.installed_name)
         if declared:
-            from hermes_cli.plugin_capabilities import declared_set_changed, pending_capabilities
+            from hermes_cli.plugin_capabilities import (
+                declared_set_changed,
+                pending_capabilities,
+            )
             if pending_capabilities(result.installed_name, declared) or declared_set_changed(result.installed_name, declared):
                 if interactive:
                     _run_capability_consent(console, result.installed_name, declared, context="update")
@@ -701,7 +734,7 @@ def pin_label(entry: PluginCatalogEntry) -> str:
     return f"{entry.version} @ {entry.sha[:8]}" if entry.version else entry.sha[:8]
 
 
-def _render_entries(entries: List[PluginCatalogEntry], console) -> None:
+def _render_entries(entries: list[PluginCatalogEntry], console) -> None:
     from hermes_cli.plugins_cmd import _table
     table = _table(((("Name", "bold")), ("Category", None), ("Tier", None), ("Description", None),
                     ("Pinned", "dim"), ("Capabilities", "dim")), title="Hermes Plugin Catalog (curated)")
@@ -809,12 +842,12 @@ def cmd_validate(path: str, as_json: bool = False, install_deps: bool = False) -
 
 # ── Dashboard / TUI payloads ─────────────────────────────────────────────────
 
-def installed_catalog_state(installed: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+def installed_catalog_state(installed: dict[str, dict[str, Any]]) -> dict[str, Any]:
     """Catalog entries merged with local state for the dashboard. *installed* maps every alias (name
     and registry key) of a discovered plugin to ``{"dir", "runtime_status"}``. A catalog name rarely
     equals the manifest name (``hermes-plugin-x`` vs ``x``), so installs are matched through the
     sidecar's ``catalog_name`` first and by name only as a fallback."""
-    by_catalog_name: Dict[str, Dict[str, Any]] = {}
+    by_catalog_name: dict[str, dict[str, Any]] = {}
     for local in installed.values():
         sidecar = catalog_install_record(local["dir"])
         if sidecar:
@@ -834,11 +867,11 @@ def installed_catalog_state(installed: Dict[str, Dict[str, Any]]) -> Dict[str, A
     return {
         "entries": entries,
         "removed": [{"name": r.name, "repo": r.repo, "reason": r.reason, "date": r.date} for r in resolved_removed_entries()],
-        "generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z"),
+        "generated_at": datetime.datetime.now(datetime.UTC).isoformat().replace("+00:00", "Z"),
     }
 
 
-def catalog_row_fields(dir_path, pins: Dict[str, str], versions: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+def catalog_row_fields(dir_path, pins: dict[str, str], versions: dict[str, str] | None = None) -> dict[str, Any]:
     """Provenance fields for one installed-plugin row (TUI/desktop ``plugins.manage list``): catalog
     name/tier/installed SHA and, when *pins* has the entry, the current pin (+ its version label from
     *versions*) and ``update_available``."""
@@ -847,7 +880,7 @@ def catalog_row_fields(dir_path, pins: Dict[str, str], versions: Optional[Dict[s
     if not sidecar:
         return {}
     installed_sha = str(sidecar.get("sha") or "").lower()
-    row: Dict[str, Any] = {
+    row: dict[str, Any] = {
         "catalog_name": sidecar["catalog_name"], "catalog_tier": str(sidecar.get("tier") or "community"),
         "installed_sha": installed_sha}
     pin = pins.get(str(sidecar["catalog_name"]))
@@ -858,7 +891,7 @@ def catalog_row_fields(dir_path, pins: Dict[str, str], versions: Optional[Dict[s
     return row
 
 
-def catalog_pins() -> Dict[str, str]:
+def catalog_pins() -> dict[str, str]:
     """``{catalog_name: pinned_sha}`` from the live catalog; empty on failure (best effort)."""
     try:
         return {e.name: e.sha for e in load_catalog_live()}
@@ -866,7 +899,7 @@ def catalog_pins() -> Dict[str, str]:
         return {}
 
 
-def catalog_titles() -> Dict[str, str]:
+def catalog_titles() -> dict[str, str]:
     """``{catalog_name: title}`` for entries that carry one — the Plugins hub server-sentence display
     name. One resolution for a whole listing: callers that annotate every installed plugin must not
     pay a live-catalog fetch per candidate (see ``resolved_removed_entries``); empty on failure."""
@@ -876,7 +909,7 @@ def catalog_titles() -> Dict[str, str]:
         return {}
 
 
-def catalog_versions() -> Dict[str, str]:
+def catalog_versions() -> dict[str, str]:
     """``{catalog_name: version_label}`` for entries that carry one; empty on failure (best effort)."""
     try:
         return {e.name: e.version for e in load_catalog_live() if e.version}
@@ -884,7 +917,7 @@ def catalog_versions() -> Dict[str, str]:
         return {}
 
 
-def catalog_rows_maps() -> tuple[Dict[str, str], Dict[str, str], Dict[str, str]]:
+def catalog_rows_maps() -> tuple[dict[str, str], dict[str, str], dict[str, str]]:
     """The pins/versions/titles maps from ONE live-catalog resolution. Listing callers (``_plugin_rows``)
     need all three; taking them via :func:`catalog_pins`/:func:`catalog_versions`/:func:`catalog_titles`
     would pay the whole ``load_catalog_live()`` pass — git probe, ~300 catalog YAMLs, prefer-in-tree

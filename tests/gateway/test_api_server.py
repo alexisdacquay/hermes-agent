@@ -24,21 +24,19 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
-
 from gateway.config import GatewayConfig, Platform, PlatformConfig
 from gateway.platforms.api_server import (
     APIServerAdapter,
     ResponseStore,
     _api_request_profile,
-    _IdempotencyCache,
     _derive_chat_session_id,
+    _IdempotencyCache,
     _redact_api_error_text,
     _request_agent_overrides,
     _request_relay_metadata,
     cors_middleware,
     security_headers_middleware,
 )
-
 
 # ---------------------------------------------------------------------------
 # check_api_server_requirements
@@ -2579,7 +2577,7 @@ def _patch_create_agent_runtime(monkeypatch, captured: dict, fake_agent_cls):
         },
     )
     monkeypatch.setattr("gateway.run._resolve_gateway_model", lambda: "global/model")
-    monkeypatch.setattr("gateway.run._load_gateway_config", lambda: {})
+    monkeypatch.setattr("gateway.run._load_gateway_config", dict)
     monkeypatch.setattr(
         "gateway.run.GatewayRunner._load_reasoning_config", staticmethod(lambda model="": {})
     )

@@ -11,7 +11,6 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from agent.repetition_guard import STOP_PATH_MIN_CHARS
 from hermes_constants import FINISH_REASON_LENGTH, PARTIAL_STREAM_STUB_ID
 

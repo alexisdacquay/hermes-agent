@@ -4,7 +4,6 @@ import os
 from pathlib import Path
 
 import pytest
-
 from agent.skill_bundles import (
     _slugify,
     build_bundle_invocation_message,

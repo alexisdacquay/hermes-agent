@@ -8,7 +8,7 @@ everywhere: Clarity redraws content (creativity 0.35) and degraded text/CJK/face
 default-on, so upscaling is strictly per-call opt-in. Pricing strings may drift.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 _PRESET_SIZES = {"landscape": "landscape_16_9", "square": "square_hd", "portrait": "portrait_16_9"}
 _ASPECT_SIZES = {"landscape": "16:9", "square": "1:1", "portrait": "9:16"}
@@ -17,13 +17,13 @@ _DEFAULT_SIZES = {"image_size_preset": _PRESET_SIZES, "aspect_ratio": _ASPECT_SI
 
 def _model(
     display: str, speed: str, strengths: str, price: str, *, style: str = "image_size_preset",
-    sizes: Optional[Dict[str, Any]] = None, defaults: Dict[str, Any], supports: set,
-    edit_endpoint: Optional[str] = None, edit_supports: Optional[set] = None,
-    max_reference_images: Optional[int] = None, edit_image_param: Optional[str] = None,
-) -> Dict[str, Any]:
+    sizes: dict[str, Any] | None = None, defaults: dict[str, Any], supports: set,
+    edit_endpoint: str | None = None, edit_supports: set | None = None,
+    max_reference_images: int | None = None, edit_image_param: str | None = None,
+) -> dict[str, Any]:
     """Build one catalog entry; edit keys are present only for edit-capable models. ``edit_image_param``
     names the source-image key when the edit endpoint takes a singular ``image_url`` instead of ``image_urls``."""
-    entry: Dict[str, Any] = {
+    entry: dict[str, Any] = {
         "display": display, "speed": speed, "strengths": strengths, "price": price,
         "size_style": style, "sizes": sizes if sizes is not None else _DEFAULT_SIZES[style],
         "defaults": defaults, "supports": supports, "upscale": False,
@@ -37,7 +37,7 @@ def _model(
     return entry
 
 
-FAL_MODELS: Dict[str, Dict[str, Any]] = {
+FAL_MODELS: dict[str, dict[str, Any]] = {
     "fal-ai/flux-2/klein/9b": _model(
         "FLUX 2 Klein 9B", "<1s", "Fast, crisp text", "$0.006/MP",
         defaults={

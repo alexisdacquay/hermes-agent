@@ -14,7 +14,6 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from agent.turn_context import export_current_turn_boundary
 
 

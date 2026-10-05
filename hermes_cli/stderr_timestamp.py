@@ -9,10 +9,10 @@ import signal
 import subprocess
 import sys
 import threading
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from datetime import datetime
 from pathlib import Path
-from typing import BinaryIO, Sequence, TextIO
+from typing import BinaryIO, TextIO
 
 EXTERNAL_SUPERVISOR_FLAG = "--external-supervisor"
 _LAUNCHD_LABEL_ENV = "HERMES_LAUNCHD_LABEL"

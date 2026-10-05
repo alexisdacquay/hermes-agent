@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import atexit
 import asyncio
+import atexit
 import contextlib
 import contextvars
 import functools
@@ -14,14 +14,18 @@ import os
 import threading
 import tomllib
 import uuid
+from collections.abc import Callable
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
+from hermes_cli.relay_plugin_cutover import (
+    RELAY_PLUGINS_CONFIG_ENV,
+    configured_legacy_relay_env_vars,
+)
 from hermes_constants import get_hermes_home
-from hermes_cli.relay_plugin_cutover import (RELAY_PLUGINS_CONFIG_ENV, configured_legacy_relay_env_vars)
 
 logger = logging.getLogger(__name__)
 
@@ -270,7 +274,7 @@ _reset_segments_config_for_tests = _SEGMENTS_CONFIG.reset
 class RelayOperationLease:
     """Keep process-wide Relay plugins alive across a deferred operation."""
 
-    def __init__(self, runtime: "RelayRuntime") -> None:
+    def __init__(self, runtime: RelayRuntime) -> None:
         self._lock, self._runtime = threading.Lock(), runtime
 
     def run_in_session(self, session: RelaySession, callback: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:

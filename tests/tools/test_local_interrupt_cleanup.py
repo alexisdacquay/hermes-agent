@@ -20,8 +20,6 @@ import time
 from types import SimpleNamespace
 
 import pytest
-
-from tools.environments import local as local_mod
 from tools.environments.local import LocalEnvironment
 
 
@@ -222,7 +220,7 @@ def test_exit_cleanup_kills_foreground_command_still_running(monkeypatch):
     the host exiting mid-command would otherwise orphan it to init."""
     from tools import terminal_tool_lifecycle
 
-    monkeypatch.setattr(terminal_tool_lifecycle, "_scratch_paths", lambda: [])
+    monkeypatch.setattr(terminal_tool_lifecycle, "_scratch_paths", list)
     env = LocalEnvironment(cwd="/tmp")
     result: dict = {}
     t = threading.Thread(target=lambda: result.update(env.execute("sleep 3517", timeout=600)), daemon=True)

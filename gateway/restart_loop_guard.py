@@ -15,7 +15,6 @@ import contextlib
 import json
 import logging
 import time
-from typing import List, Optional
 
 from hermes_constants import get_hermes_home
 
@@ -38,7 +37,7 @@ def _state_path():
     return get_hermes_home() / "gateway" / "restart_loop.json"
 
 
-def _load_boots() -> List[float]:
+def _load_boots() -> list[float]:
     try:
         # utf-8-sig: our BOM-tolerant read fix for the persisted boot log.
         raw = _state_path().read_text(encoding="utf-8-sig")
@@ -49,7 +48,7 @@ def _load_boots() -> List[float]:
         return []
 
 
-def _save_boots(boots: List[float]) -> None:
+def _save_boots(boots: list[float]) -> None:
     with contextlib.suppress(OSError):
         path = _state_path()
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -62,12 +61,12 @@ def _chain_gap(window_seconds: int, max_gap_seconds: int) -> float:
     return float(max(1, window_seconds, max_gap_seconds))
 
 
-def _chain_ending_at(boots: List[float], ts: float, gap: float) -> List[float]:
+def _chain_ending_at(boots: list[float], ts: float, gap: float) -> list[float]:
     """Unbroken chain of boots leading up to ``ts`` (oldest first): walks backwards
     while each gap stays within ``gap``; the first wider gap ends the chain (older
     boots are a resolved episode).  Empty when nothing is recent — how a healthy
     gateway forgets a loop."""
-    chain: List[float] = []
+    chain: list[float] = []
     prev = ts
     for t in sorted(boots, reverse=True):
         if t > ts:  # clock moved backwards (NTP step, restored file): future entry is adjacent, not a break
@@ -81,9 +80,9 @@ def _chain_ending_at(boots: List[float], ts: float, gap: float) -> List[float]:
 
 
 def record_restart_interrupted_boot(
-    window_seconds: int = DEFAULT_WINDOW_SECONDS, *, now: Optional[float] = None,
+    window_seconds: int = DEFAULT_WINDOW_SECONDS, *, now: float | None = None,
     max_gap_seconds: int = DEFAULT_MAX_GAP_SECONDS,
-) -> List[float]:
+) -> list[float]:
     """Record a restart-interrupted boot; return the pruned chain + now (most recent
     last).  A persistence failure returns the in-memory list without raising."""
     ts = time.time() if now is None else now
@@ -100,7 +99,7 @@ def clear() -> None:
 
 def check_and_record(
     max_restarts: int = DEFAULT_MAX_RESTARTS, window_seconds: int = DEFAULT_WINDOW_SECONDS, *,
-    now: Optional[float] = None, max_gap_seconds: int = DEFAULT_MAX_GAP_SECONDS,
+    now: float | None = None, max_gap_seconds: int = DEFAULT_MAX_GAP_SECONDS,
 ) -> bool:
     """Gateway entry point: record this boot; True when the chain reached
     ``max_restarts`` and auto-resume should be SKIPPED."""

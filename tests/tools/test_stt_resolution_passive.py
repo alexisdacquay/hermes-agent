@@ -8,7 +8,6 @@ backend off its port.
 """
 
 import pytest
-
 from tools import transcription_tools
 
 

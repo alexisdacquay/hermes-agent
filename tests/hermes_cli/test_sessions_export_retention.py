@@ -5,7 +5,6 @@ import sys
 from pathlib import Path
 
 import pytest
-
 from hermes_cli import main
 from hermes_state import SessionDB
 

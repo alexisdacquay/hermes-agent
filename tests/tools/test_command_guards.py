@@ -1,18 +1,19 @@
 """Tests for check_all_command_guards() — combined tirith + dangerous command guard."""
 
 import os
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
-
 import tools.approval as approval_module
-from tools import approval_context
-from tools.approval import approve_session, check_all_command_guards, check_dangerous_command, is_approved
-from tools.approval_context import set_current_session_key, reset_current_session_key
 
 # Ensure the module is importable so we can patch it
-import tools.tirith_security
-
+from tools import approval_context
+from tools.approval import (
+    approve_session,
+    check_all_command_guards,
+    is_approved,
+)
+from tools.approval_context import reset_current_session_key, set_current_session_key
 
 # ---------------------------------------------------------------------------
 # Helpers

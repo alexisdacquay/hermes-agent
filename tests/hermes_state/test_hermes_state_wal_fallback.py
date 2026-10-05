@@ -16,10 +16,9 @@ filesystem".
 import sqlite3
 from unittest.mock import patch
 
-import pytest
-
 import hermes_state
 import hermes_state_wal
+import pytest
 from hermes_state import SessionDB, get_last_init_error
 from hermes_state_wal import WalUnsupportedError, apply_wal_with_fallback
 

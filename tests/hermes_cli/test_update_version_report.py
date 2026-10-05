@@ -7,11 +7,10 @@ runtime identity -- the same one the completion publishes in its stamp.
 """
 
 import os
-from pathlib import Path
 import subprocess
+from pathlib import Path
 
 import pytest
-
 from hermes_cli import update_cmd
 from hermes_cli.source_stamp import write_source_stamp
 

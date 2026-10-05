@@ -10,9 +10,19 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 from hermes_cli.local_runtime.context_policy import (
-    RUNTIME_OVERHEAD_BYTES, fit_to_free_memory, launch_args, plan_launch, ub_logits_bytes)
+    RUNTIME_OVERHEAD_BYTES,
+    fit_to_free_memory,
+    launch_args,
+    plan_launch,
+    ub_logits_bytes,
+)
 from hermes_cli.local_runtime.estimator import (
-    HardwareBudget, PhysicsRefusal, ctx_bytes, footprint_bytes, profile_from_gguf)
+    HardwareBudget,
+    PhysicsRefusal,
+    ctx_bytes,
+    footprint_bytes,
+    profile_from_gguf,
+)
 from hermes_cli.local_runtime.gguf import model_id_from_stem, read_gguf_header
 
 logger = logging.getLogger(__name__)
@@ -47,7 +57,7 @@ def _args_to_keys(args: list[str]) -> dict[str, str]:
     return keys
 
 
-def _asset_path(asset) -> "Path | None":
+def _asset_path(asset) -> Path | None:
     """On-disk path of a catalog companion asset, or None when it isn't downloaded."""
     from hermes_cli.local_runtime.bootstrap import assets_dir
 

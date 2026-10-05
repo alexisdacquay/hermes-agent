@@ -15,7 +15,6 @@ import gzip
 import json
 
 import pytest
-
 from tui_gateway import server
 
 

@@ -88,7 +88,7 @@ class DesktopBuildLock:
         finally:
             handle.close()
 
-    def __enter__(self) -> "DesktopBuildLock":
+    def __enter__(self) -> DesktopBuildLock:
         if not self.acquire():
             raise RuntimeError("desktop build lock is already held")
         return self

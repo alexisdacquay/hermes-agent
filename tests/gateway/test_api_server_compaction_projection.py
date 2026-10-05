@@ -2,25 +2,23 @@
 
 from __future__ import annotations
 
-from aiohttp.test_utils import TestClient, TestServer
 import pytest
-
 from agent.compaction_display import project_compaction_message_for_display
 from agent.context_compressor import (
-    COMPRESSED_SUMMARY_METADATA_KEY,
-    HISTORICAL_TASK_HEADING,
-    SUMMARY_PREFIX,
     _MERGED_PRIOR_CONTEXT_HEADER,
     _MERGED_SUMMARY_DELIMITER,
     _SUMMARY_END_MARKER,
+    COMPRESSED_SUMMARY_METADATA_KEY,
+    HISTORICAL_TASK_HEADING,
+    SUMMARY_PREFIX,
 )
+from aiohttp.test_utils import TestClient, TestServer
 from gateway.config import PlatformConfig
 from gateway.platforms.api_server import (
     APIServerAdapter,
     _is_compressed_summary_message,
 )
 from hermes_state import SessionDB
-
 
 STANDALONE_SUMMARY = (
     f"{SUMMARY_PREFIX}\n\n"

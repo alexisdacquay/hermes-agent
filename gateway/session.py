@@ -3,23 +3,30 @@ explicit resets and the dynamic "Current Session Context" system prompt section.
 
 import asyncio
 import hashlib
+import json
 import logging
 import os
-import json
 import threading
-from pathlib import Path
-from datetime import datetime, timedelta
 from dataclasses import dataclass, field, fields
-from typing import Dict, List, Optional, Any
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Any
 
-from .config import Platform, GatewayConfig, HomeChannel
-from .whatsapp_identity import canonical_whatsapp_identifier
 from gateway.session_identity import transport_profile_of
-from gateway.session_persistence import SessionPersistenceMixin, _DB_UNPINNED
+from gateway.session_lifecycle import (
+    SessionLifecycleMixin,
+    _iso,
+    _new_session_id,
+    _now,
+    _parse_iso,
+)
+from gateway.session_persistence import _DB_UNPINNED, SessionPersistenceMixin
 from gateway.session_prompt_pin import SessionPromptPinMixin, sanitize_prompt_pin
 from gateway.session_recovery import SessionRecoveryMixin
-from gateway.session_lifecycle import SessionLifecycleMixin, _iso, _new_session_id, _now, _parse_iso
 from gateway.session_transcript import SessionTranscriptMixin
+
+from .config import GatewayConfig, HomeChannel, Platform
+from .whatsapp_identity import canonical_whatsapp_identifier
 
 logger = logging.getLogger(__name__)
 
@@ -68,32 +75,32 @@ class SessionSource:
     context block, and records origin for cron delivery."""
     platform: Platform
     chat_id: str
-    chat_name: Optional[str] = None
+    chat_name: str | None = None
     chat_type: str = "dm"  # "dm", "group", "channel", "thread"
-    user_id: Optional[str] = None
-    user_name: Optional[str] = None
-    thread_id: Optional[str] = None  # forum topics, Discord threads, etc.
-    chat_topic: Optional[str] = None  # channel topic/description (Discord, Slack)
-    user_id_alt: Optional[str] = None  # platform-specific stable alt ID (Signal UUID, Feishu union_id)
-    chat_id_alt: Optional[str] = None  # Signal group internal ID
+    user_id: str | None = None
+    user_name: str | None = None
+    thread_id: str | None = None  # forum topics, Discord threads, etc.
+    chat_topic: str | None = None  # channel topic/description (Discord, Slack)
+    user_id_alt: str | None = None  # platform-specific stable alt ID (Signal UUID, Feishu union_id)
+    chat_id_alt: str | None = None  # Signal group internal ID
     is_bot: bool = False  # message author is a bot/webhook (Discord)
     # Platform-neutral SCOPE discriminator (Discord guild / Slack workspace / Matrix server) driving
     # isolation. ``guild_id`` is a deprecated alias: both written, ``scope_id`` wins on read.
-    scope_id: Optional[str] = None
-    guild_id: Optional[str] = None
-    parent_chat_id: Optional[str] = None  # parent channel when chat_id is a thread
-    message_id: Optional[str] = None  # triggering message (pin/reply/react)
+    scope_id: str | None = None
+    guild_id: str | None = None
+    parent_chat_id: str | None = None  # parent channel when chat_id is a thread
+    message_id: str | None = None  # triggering message (pin/reply/react)
     role_authorized: bool = False  # adapter granted access via role, not user ID
     # Multiplex profile this message routes to (None => active/default); namespaces the key.
-    profile: Optional[str] = None
+    profile: str | None = None
     # Transport-local fail-closed signal: explicit profile route whose target is not served.
     profile_route_rejected: bool = field(default=False, repr=False, compare=False)
     # Discord auto-thread metadata: explicit so pre-existing/renamed threads are never renamed.
     auto_thread_created: bool = False
-    auto_thread_initial_name: Optional[str] = None
+    auto_thread_initial_name: str | None = None
     # Discord auto-thread continuity: the thread id a CHANNEL message WILL be delivered into, so
     # the initiating message and later in-thread follow-ups share ONE session.
-    prospective_thread_id: Optional[str] = None
+    prospective_thread_id: str | None = None
     # Wire-INVISIBLE trust signal (never in to_dict/from_dict, so a peer cannot forge it): came
     # over the authenticated relay WebSocket. ``platform`` is the UNDERLYING platform, not
     # ``relay``, so authz must key upstream trust off THIS flag.
@@ -128,7 +135,7 @@ class SessionSource:
     _OPTIONAL_POST_SCOPE = ("parent_chat_id", "message_id", "profile")
     _OPTIONAL_TAIL = ("auto_thread_initial_name", "prospective_thread_id")
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         d = {"platform": self.platform.value}
         d.update((name, getattr(self, name)) for name in self._ALWAYS_FIELDS)
 
@@ -147,7 +154,7 @@ class SessionSource:
         return d
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "SessionSource":
+    def from_dict(cls, data: dict[str, Any]) -> SessionSource:
         plain = {
             name: data.get(name)
             for name in cls._ALWAYS_FIELDS[1:] + cls._OPTIONAL_PRE_SCOPE + cls._OPTIONAL_POST_SCOPE + cls._OPTIONAL_TAIL
@@ -165,15 +172,15 @@ class SessionSource:
 class SessionContext:
     """Full session context for dynamic system prompt injection."""
     source: SessionSource
-    connected_platforms: List[Platform]
-    home_channels: Dict[Platform, HomeChannel]
+    connected_platforms: list[Platform]
+    home_channels: dict[Platform, HomeChannel]
     shared_multi_user_session: bool = False
     session_key: str = ""
     session_id: str = ""
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "source": self.source.to_dict(),
             "connected_platforms": [p.value for p in self.connected_platforms],
@@ -248,6 +255,7 @@ def _discord_tools_loaded() -> bool:
     toolset enabled AND `DISCORD_BOT_TOKEN` set (the tool's `check_fn` gates on it)."""
     try:
         from agent.secret_scope import get_secret
+
         # Read-only loader: this runs per turn via _ephemeral_change_key, and _get_platform_tools
         # only reads the config. load_config()'s defensive deepcopy is ~half this probe's cost.
         from hermes_cli.config import load_config_readonly
@@ -304,7 +312,7 @@ _SLACK_NO_TOOLS_NOTE = (
 )
 
 
-def _slack_platform_notes(context: SessionContext) -> List[str]:
+def _slack_platform_notes(context: SessionContext) -> list[str]:
     # Capability note only when Slack tools are loaded; otherwise an honest disclaimer.
     lines = ["", _SLACK_TOOLS_NOTE if _slack_tools_loaded() else _SLACK_NO_TOOLS_NOTE]
     if context.shared_multi_user_session:
@@ -316,7 +324,7 @@ def _slack_platform_notes(context: SessionContext) -> List[str]:
     return lines
 
 
-def _discord_platform_notes(context: SessionContext) -> List[str]:
+def _discord_platform_notes(context: SessionContext) -> list[str]:
     if _discord_tools_loaded():
         src = context.source
         lines = ["", "**Discord IDs (for the `discord` / `discord_admin` tools):**"]
@@ -467,7 +475,7 @@ def build_session_context_prompt(context: SessionContext, *, redact_pii: bool = 
 PERSISTABLE_MODEL_OVERRIDE_KEYS = ("model", "provider", "base_url")
 
 
-def sanitize_model_override(override: Optional[Dict[str, Any]]) -> Optional[Dict[str, str]]:
+def sanitize_model_override(override: dict[str, Any] | None) -> dict[str, str] | None:
     """Copy of *override* with only persistable, non-secret keys, or ``None`` when empty."""
     if not isinstance(override, dict):
         return None
@@ -485,12 +493,12 @@ class SessionEntry:
     session_id: str
     created_at: datetime
     updated_at: datetime
-    origin: Optional[SessionSource] = None  # delivery routing
-    display_name: Optional[str] = None
-    platform: Optional[Platform] = None
+    origin: SessionSource | None = None  # delivery routing
+    display_name: str | None = None
+    platform: Platform | None = None
     chat_type: str = "dm"
     # Small, JSON-serializable per-entry state (e.g. Slack thread watermarks).
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
     # Token tracking
     input_tokens: int = 0
     output_tokens: int = 0
@@ -502,9 +510,9 @@ class SessionEntry:
     last_prompt_tokens: int = 0  # last API-reported prompt tokens (compression pre-check)
     # Suspension replacement metadata; historical automatic-reset rows retain these fields.
     was_auto_reset: bool = False
-    auto_reset_reason: Optional[str] = None
+    auto_reset_reason: str | None = None
     reset_had_activity: bool = False
-    prev_session_id: Optional[str] = None  # feeds the continuity note
+    prev_session_id: str | None = None  # feeds the continuity note
     # Explicit /new or /reset triggers topic/channel skill re-injection on the first turn.
     is_fresh_reset: bool = False
     # Historical finalization fence; timers no longer write it.
@@ -521,22 +529,22 @@ class SessionEntry:
     # ``suspended`` is handled by the existing ``.restart_failure_counts`` stuck-loop counter (#7536), not
     # by a parallel counter on this entry.
     resume_pending: bool = False
-    resume_reason: Optional[str] = None  # e.g. "restart_timeout"
-    last_resume_marked_at: Optional[datetime] = None
+    resume_reason: str | None = None  # e.g. "restart_timeout"
+    last_resume_marked_at: datetime | None = None
     # Durable marker of the executing turn; CAS-cleared on normal unwind, left behind by
     # SIGKILL/OOM so unclean startup recovers the exact session instead of guessing.
-    active_turn_token: Optional[str] = None
-    active_turn_started_at: Optional[datetime] = None
+    active_turn_token: str | None = None
+    active_turn_started_at: datetime | None = None
     # Session-scoped /model override (model/provider/base_url ONLY — never credentials, see
     # sanitize_model_override). Persisted so a restart keeps the chosen model.
-    model_override: Optional[Dict[str, str]] = None
+    model_override: dict[str, str] | None = None
     # Profile owning the bot that received this lane's traffic (``RoutingIdentity.transport_profile``,
     # "default" spelled out). The key namespace only says where the turn RUNS; after a restart this is
     # what says which bot may deliver to it. None = unknown (row predates the field, or standalone).
-    transport_profile: Optional[str] = None
+    transport_profile: str | None = None
     # Exact session-context/channel inputs from the last human turn. Append-only dataclass field so
     # older positional construction of transport_profile keeps its meaning.
-    prompt_pin: Optional[Dict[str, Any]] = None
+    prompt_pin: dict[str, Any] | None = None
 
     # Fields (de)serialized verbatim, in wire order (``from_dict`` reads them with
     # ``data.get(name, <dataclass default>)``), split around the three ISO-datetime/token keys.
@@ -550,7 +558,7 @@ class SessionEntry:
         "prev_session_id",
     )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         result = {
             "session_key": self.session_key, "session_id": self.session_id,
             "created_at": self.created_at.isoformat(), "updated_at": self.updated_at.isoformat(),
@@ -577,7 +585,7 @@ class SessionEntry:
         return result
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "SessionEntry":
+    def from_dict(cls, data: dict[str, Any]) -> SessionEntry:
         origin = data.get("origin")
         origin = SessionSource.from_dict(origin) if isinstance(origin, dict) else None
         platform = None
@@ -618,7 +626,7 @@ class SessionEntry:
         )
 
 
-def build_channel_continuity_note(entry: "SessionEntry", source: SessionSource) -> Optional[str]:
+def build_channel_continuity_note(entry: SessionEntry, source: SessionSource) -> str | None:
     """One-line continuity hint for long-lived Slack/Discord channels/threads.
 
     After an auto-reset the agent could bind a new request to an unrelated recent session; this
@@ -650,7 +658,7 @@ def is_shared_multi_user_session(
     return not (thread_sessions_per_user if source.thread_id else group_sessions_per_user)
 
 
-def _session_key_namespace(profile: Optional[str]) -> str:
+def _session_key_namespace(profile: str | None) -> str:
     """``agent:<ns>`` prefix for a session key: default/None profile → ``agent:main``
     (BYTE-IDENTICAL to every historical key); named profile → ``agent:<name>`` so two
     profiles serving the same chat never collide. A profile literally named ``main`` would
@@ -670,7 +678,7 @@ def profile_from_session_key_namespace(namespace: str) -> str:
     return "main" if namespace == "main~" else namespace
 
 
-def _canonical_participant(source: SessionSource) -> Optional[str]:
+def _canonical_participant(source: SessionSource) -> str | None:
     """Sender id for key isolation; WhatsApp JID/LID aliases are canonicalized so alias flips
     cannot split one member into two sessions."""
     participant_id = source.user_id_alt or source.user_id
@@ -681,7 +689,7 @@ def _canonical_participant(source: SessionSource) -> Optional[str]:
 
 def build_session_key(
     source: SessionSource, group_sessions_per_user: bool = True,
-    thread_sessions_per_user: bool = False, profile: Optional[str] = None,
+    thread_sessions_per_user: bool = False, profile: str | None = None,
 ) -> str:
     """Build a deterministic session key from a message source (single source of truth).
 
@@ -726,23 +734,23 @@ def build_session_key(
 class _SessionFlight:
     def __init__(self) -> None:
         self.event = threading.Event()
-        self.result: Optional["SessionEntry"] = None
-        self.error: Optional[BaseException] = None
+        self.result: SessionEntry | None = None
+        self.error: BaseException | None = None
 
 
 @dataclass
 class _RouteChecks:
     """Lock-free I/O results for an existing route (phase 1b of a transition)."""
     session_id: str  # the entry's session_id when snapshotted
-    canonical_id: Optional[str]  # compression tip (may equal session_id)
+    canonical_id: str | None  # compression tip (may equal session_id)
     is_stale: bool  # row already ended in state.db
-    reset_reason: Optional[str]
+    reset_reason: str | None
 
 
 @dataclass
 class _RouteDecision:
     """What the locked apply-phase decided for one routing transition."""
-    entry: Optional["SessionEntry"] = None
+    entry: SessionEntry | None = None
     needs_save: bool = False
     # Healthy-path saves take the single-row UPSERT fast path; structural
     # transitions (recover/create) keep the full rewrite.
@@ -750,11 +758,11 @@ class _RouteDecision:
     needs_recover: bool = False
     # Auto-reset bookkeeping: reason (None = no auto-reset), whether the ended
     # session had activity, and its id (predecessor to end + continuity hint).
-    reset_reason: Optional[str] = None
+    reset_reason: str | None = None
     reset_had_activity: bool = False
-    prev_session_id: Optional[str] = None
+    prev_session_id: str | None = None
 
-    def schedule_reset(self, reason: str, ended: "SessionEntry", had_activity: bool) -> None:
+    def schedule_reset(self, reason: str, ended: SessionEntry, had_activity: bool) -> None:
         """Record that *ended* is auto-reset for *reason* (ends its row, seeds the successor)."""
         self.reset_reason = reason
         self.reset_had_activity = had_activity
@@ -764,7 +772,7 @@ class _RouteDecision:
 class AsyncSessionStore:
     """Async boundary for the synchronous, thread-safe SessionStore."""
 
-    def __init__(self, store: "SessionStore") -> None:
+    def __init__(self, store: SessionStore) -> None:
         self._store = store
 
     def __getattr__(self, name: str):
@@ -787,20 +795,20 @@ class SessionStore(
     def __init__(self, sessions_dir: Path, config: GatewayConfig, has_active_processes_fn=None):
         self.sessions_dir = sessions_dir
         self.config = config
-        self._entries: Dict[str, SessionEntry] = {}
+        self._entries: dict[str, SessionEntry] = {}
         self._loaded = False
         # A fallback-only initial load is reconciled with state.db once the handle recovers.
         self._routing_db_loaded = False
-        self._routing_fallback_baseline: Optional[Dict[str, Any]] = None
+        self._routing_fallback_baseline: dict[str, Any] | None = None
         self._lock = threading.Lock()  # guards _entries / _loaded only
         self._save_lock = threading.Lock()  # whole-index persistence, never held with _lock
         # Fast (single-entry) and full saves share one generation counter so they are totally
         # ordered; _fast_persisted_entries: key -> (revision, entry_json) since the last rewrite.
         self._routing_generation = 0
         self._persisted_routing_generation = 0
-        self._fast_persisted_entries: Dict[str, tuple[int, str]] = {}
+        self._fast_persisted_entries: dict[str, tuple[int, str]] = {}
         self._inflight_lock = threading.Lock()
-        self._inflight_sessions: Dict[str, _SessionFlight] = {}
+        self._inflight_sessions: dict[str, _SessionFlight] = {}
         # An unscoped legacy Slack key is claimed once per process (two workspaces must not both
         # revive one session).
         self._legacy_slack_claim_lock = threading.Lock()
@@ -808,12 +816,12 @@ class SessionStore(
         self._transcript_retry_lock = threading.Lock()
         # One transcript drainer at a time: parent->child queue migration stays linearizable.
         self._transcript_drain_lock = threading.RLock()
-        self._transcript_reroutes: Dict[str, str] = {}
-        self._dirty_transcripts: Dict[str, List[Dict[str, Any]]] = {}
-        self._transcript_append_failures: Dict[str, int] = {}
+        self._transcript_reroutes: dict[str, str] = {}
+        self._dirty_transcripts: dict[str, list[dict[str, Any]]] = {}
+        self._transcript_append_failures: dict[str, int] = {}
         # Monotonic timestamp of the last FTS5 rebuild attempt, or None before any attempt; see
         # SessionTranscriptMixin._rebuild_fts_once for the cooldown this gates.
-        self._fts_rebuild_last_attempt_at: Optional[float] = None
+        self._fts_rebuild_last_attempt_at: float | None = None
         self._has_active_processes_fn = has_active_processes_fn
         self._write_sessions_json = bool(getattr(config, "write_sessions_json", True))
 
@@ -831,12 +839,12 @@ class SessionStore(
         # exactly where they were: the live-DB isolation guard still raises during construction, and the
         # JSONL-fallback warning is still printed once at startup rather than on first use.
         self._db_pinned = _DB_UNPINNED
-        self._db_handles: Dict[Path, Any] = {}
+        self._db_handles: dict[Path, Any] = {}
         self._db_handles_lock = threading.Lock()
-        self._profile_home_cache: Dict[str, Optional[Path]] = {}  # profile -> HERMES_HOME (hits)
+        self._profile_home_cache: dict[str, Path | None] = {}  # profile -> HERMES_HOME (hits)
         # session_id -> owning key for ids proven but not yet published in ``_entries`` (a
         # compression child row is written before its reroute is published).
-        self._session_owner_hints: Dict[str, str] = {}
+        self._session_owner_hints: dict[str, str] = {}
         from gateway.session_db_recovery import RecoverableHandleCache
 
         self._db_handle_cache = RecoverableHandleCache(
@@ -847,7 +855,7 @@ class SessionStore(
         try:
             from hermes_constants import get_hermes_home
 
-            self._routing_home: Optional[Path] = Path(get_hermes_home())
+            self._routing_home: Path | None = Path(get_hermes_home())
         except Exception:
             self._routing_home = None
         self._open_session_db_for_active_scope()
@@ -974,7 +982,7 @@ class SessionStore(
         return decision.entry
 
     def _apply_route_checks(
-        self, session_key: str, checks: Optional[_RouteChecks], force_new: bool,
+        self, session_key: str, checks: _RouteChecks | None, force_new: bool,
         touch_activity: bool, now: datetime,
     ) -> _RouteDecision:
         """Apply stale/reset decisions to ``_entries`` under ``_lock``. If another thread replaced
@@ -1034,8 +1042,8 @@ class SessionStore(
 
     def _route_create(
         self, decision: _RouteDecision, session_key: str, source: SessionSource, now: datetime,
-        force_new: bool, observed: Optional[SessionEntry],
-    ) -> Optional[Dict[str, Any]]:
+        force_new: bool, observed: SessionEntry | None,
+    ) -> dict[str, Any] | None:
         """Create a candidate outside the lock and publish it only if the key is still vacant;
         returns ``create_session`` kwargs when the candidate won."""
         session_id = _new_session_id(now)
@@ -1096,7 +1104,7 @@ class SessionStore(
         """
         return self._update_entry(session_key, lambda e: e.metadata.__setitem__(key, value))
 
-    def set_model_override(self, session_key: str, override: Optional[Dict[str, Any]]) -> None:
+    def set_model_override(self, session_key: str, override: dict[str, Any] | None) -> None:
         """Persist (or clear, with ``None``) the /model override; non-secret keys only."""
         from dataclasses import replace
 
@@ -1114,13 +1122,13 @@ class SessionStore(
             self._persist_routing_data(data, generation)
             entry.model_override = cleaned
 
-    def get_model_override(self, session_key: str) -> Optional[Dict[str, str]]:
+    def get_model_override(self, session_key: str) -> dict[str, str] | None:
         """Return the persisted /model override for *session_key*, if any."""
         with self._lock:
             entry = self._entry_locked(session_key)
             return dict(entry.model_override) if entry and entry.model_override else None
 
-    def reset_session(self, session_key: str, display_name: Optional[str] = None) -> Optional[SessionEntry]:
+    def reset_session(self, session_key: str, display_name: str | None = None) -> SessionEntry | None:
         """Force reset a session, creating a new session ID."""
         with self._lock:
             old_entry = self._entry_locked(session_key)
@@ -1233,9 +1241,9 @@ class SessionStore(
     # background compression on an idle session cannot make it look fresh to the
     # restart-resume freshness gate (#85709).
     def switch_session(
-        self, session_key: str, target_session_id: str, *, expected_session_id: Optional[str] = None,
+        self, session_key: str, target_session_id: str, *, expected_session_id: str | None = None,
         preserve_prompt_pin: bool = True,
-    ) -> Optional[SessionEntry]:
+    ) -> SessionEntry | None:
         """Point a session key at an existing session ID (``/resume``): ends the current row and
         reopens the target so resume matches the CLI.
 
@@ -1285,7 +1293,7 @@ class SessionStore(
             )
         return new_entry
 
-    def list_sessions(self, active_minutes: Optional[int] = None) -> List[SessionEntry]:
+    def list_sessions(self, active_minutes: int | None = None) -> list[SessionEntry]:
         """List all sessions, optionally filtered by activity."""
         with self._lock:
             self._ensure_loaded_locked()
@@ -1296,7 +1304,7 @@ class SessionStore(
         entries.sort(key=lambda e: e.updated_at, reverse=True)
         return entries
 
-    def lookup_by_session_id(self, session_id: str) -> Optional[SessionEntry]:
+    def lookup_by_session_id(self, session_id: str) -> SessionEntry | None:
         """Return the active session entry for a persisted session ID, if any."""
         if not session_id:
             return None
@@ -1304,14 +1312,14 @@ class SessionStore(
             self._ensure_loaded_locked()
             return next((e for e in self._entries.values() if e.session_id == session_id), None)
 
-    def lookup_by_session_key(self, session_key: str) -> Optional[SessionEntry]:
+    def lookup_by_session_key(self, session_key: str) -> SessionEntry | None:
         """Return the persisted routing entry for an exact session key."""
         if not session_key:
             return None
         with self._lock:
             return self._entry_locked(session_key)
 
-    def peek_session_id(self, session_key: str) -> Optional[str]:
+    def peek_session_id(self, session_key: str) -> str | None:
         """Lock-held accessor for the key -> session_id mapping (None if unknown)."""
         if not session_key:
             return None
@@ -1321,7 +1329,7 @@ class SessionStore(
 
 
 def build_session_context(
-    source: SessionSource, config: GatewayConfig, session_entry: Optional[SessionEntry] = None
+    source: SessionSource, config: GatewayConfig, session_entry: SessionEntry | None = None
 ) -> SessionContext:
     """Build a full session context (for system prompt injection)."""
     connected = config.get_connected_platforms()

@@ -18,7 +18,6 @@ and titles still 4007, and lazy subagent watch windows are excluded.
 from __future__ import annotations
 
 import pytest
-
 from hermes_state import SessionDB
 from tui_gateway import server
 

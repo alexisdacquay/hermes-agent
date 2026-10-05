@@ -1,30 +1,6 @@
 from __future__ import annotations
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 def test_otlp_attrs_redact_strings_and_never_export_profile():
     from agent.monitoring.otlp_exporter import _span_attrs
 
@@ -108,8 +84,10 @@ def test_gateway_health_metrics_reach_loopback_collector():
     import pytest
 
     pytest.importorskip("opentelemetry.sdk.metrics", reason="otlp extra not installed")
-    from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2 import ExportMetricsServiceRequest
     from agent.monitoring.gateway_health_export import start_gateway_health_export
+    from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2 import (
+        ExportMetricsServiceRequest,
+    )
 
     received = []
     delivered = threading.Event()

@@ -14,7 +14,6 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-
 from agent import secret_scope
 from gateway.config import GatewayConfig
 from gateway.run import GatewayRunner

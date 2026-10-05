@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 # Placeholder shapes for batch goal validation: bare 'TODO' / 'task N' labels, or unexpanded template markers. The
 # marker regex is deliberately NARROW — only snake_case / space-separated placeholder identifiers (`<feature_name>`,
@@ -18,7 +18,7 @@ _TEMPLATE_MARKER_RE = re.compile(
 )
 _MIN_BATCH_GOAL_LEN = 10
 
-def _recover_tasks_from_json_string(tasks: Any) -> tuple[Optional[List[Dict[str, Any]]], Optional[str]]:
+def _recover_tasks_from_json_string(tasks: Any) -> tuple[list[dict[str, Any]] | None, str | None]:
     """``(parsed_list, None)`` for a JSON-array string, ``(None, error)`` for a bad string, ``(None, None)`` otherwise."""
     if not isinstance(tasks, str):
         return None, None
@@ -33,7 +33,7 @@ def _recover_tasks_from_json_string(tasks: Any) -> tuple[Optional[List[Dict[str,
         return None, f"tasks must be a JSON array of task objects; parsed {type(parsed).__name__} instead."
     return parsed, None
 
-def _validate_batch_tasks(task_list: List[Dict[str, Any]]) -> Optional[str]:
+def _validate_batch_tasks(task_list: list[dict[str, Any]]) -> str | None:
     """Batch-only quality gate beyond per-task goal presence; actionable error or None. No minimum count: a one-entry
     array is the canonical single-task shape (legacy top-level `goal` is wrapped into one). Duplicate goals are
     deliberately NOT rejected — identical-goal fan-outs (best-of-N / ensemble sampling) are legitimate and blocking
@@ -66,7 +66,7 @@ def _validate_batch_tasks(task_list: List[Dict[str, Any]]) -> Optional[str]:
 
 def _normalize_task_list(
     goal, context, tasks, output_schema, top_role: str, max_children: int
-) -> tuple[Optional[List[Dict[str, Any]]], Optional[str]]:
+) -> tuple[list[dict[str, Any]] | None, str | None]:
     """``(task_list, None)`` from ``tasks=[...]`` or the legacy single ``goal``, else ``(None, error)``."""
     recovered_tasks, tasks_error = _recover_tasks_from_json_string(tasks)
     if tasks_error:
@@ -105,12 +105,12 @@ def _normalize_task_list(
     return (None, batch_error) if batch_error else (task_list, None)
 
 def _coerce_task_schemas(
-    task_list: List[Dict[str, Any]], output_schema: Optional[Dict[str, Any]]
-) -> tuple[List[Optional[Dict[str, Any]]], Optional[str]]:
+    task_list: list[dict[str, Any]], output_schema: dict[str, Any] | None
+) -> tuple[list[dict[str, Any] | None], str | None]:
     """Per-task coerced output schemas. A malformed output_schema fails the whole call before any child spawns;
     schema-less tasks resolve to None and take no new code paths downstream."""
     from tools.delegation_output_schema import coerce_output_schema
-    task_schemas: List[Optional[Dict[str, Any]]] = []
+    task_schemas: list[dict[str, Any] | None] = []
     for i, task in enumerate(task_list):
         raw_schema = task.get("output_schema")
         if raw_schema is None and len(task_list) == 1 and output_schema is not None:
@@ -124,7 +124,7 @@ def _coerce_task_schemas(
 # Per-task image ceiling: enough for screenshots/mocks while keeping the child's first request small.
 _MAX_TASK_IMAGES = 8
 
-def _normalize_task_images(task: dict, i: int) -> tuple[Optional[List[str]], Optional[str]]:
+def _normalize_task_images(task: dict, i: int) -> tuple[list[str] | None, str | None]:
     """``(cleaned_list_or_None, None)`` for a task's optional ``images`` (local paths, http(s) or data: URLs), else
     ``(None, error)``. A bare string is wrapped into a one-entry list (small models emit scalars for arrays)."""
     raw = task.get("images")
@@ -134,7 +134,7 @@ def _normalize_task_images(task: dict, i: int) -> tuple[Optional[List[str]], Opt
         raw = [raw]
     if not isinstance(raw, list):
         return None, f"Task {i} 'images' must be an array of local file paths or http(s) URLs."
-    cleaned: List[str] = []
+    cleaned: list[str] = []
     for item in raw:
         if not isinstance(item, str) or not item.strip():
             return None, f"Task {i} 'images' entries must be non-empty strings (local file paths or http(s) URLs)."
@@ -147,11 +147,11 @@ def _normalize_task_images(task: dict, i: int) -> tuple[Optional[List[str]], Opt
     return (cleaned or None), None
 
 def _coerce_task_images(
-    task_list: List[Dict[str, Any]], images: Optional[List[str]]
-) -> tuple[List[Optional[List[str]]], Optional[str]]:
+    task_list: list[dict[str, Any]], images: list[str] | None
+) -> tuple[list[list[str] | None], str | None]:
     """Per-task validated image lists; a malformed list fails the whole call before any child spawns. The legacy
     top-level ``images`` applies to a single task only, like ``output_schema``."""
-    task_images: List[Optional[List[str]]] = []
+    task_images: list[list[str] | None] = []
     for i, task in enumerate(task_list):
         if task.get("images") is None and len(task_list) == 1 and images is not None:
             task = {**task, "images": images}

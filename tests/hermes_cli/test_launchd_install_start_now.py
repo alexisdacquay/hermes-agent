@@ -8,9 +8,8 @@ import plistlib
 import subprocess
 from types import SimpleNamespace
 
-import pytest
-
 import hermes_cli.gateway as gateway_cli
+import pytest
 from hermes_cli.subcommands.gateway import build_gateway_parser
 
 LABEL = "ai.hermes.gateway"

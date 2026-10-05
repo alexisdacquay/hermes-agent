@@ -12,7 +12,6 @@ install stamp that ships with the code (``install-stamp.json``, written by
 import json
 
 import pytest
-
 from hermes_cli.steward import (
     STEWARD_DESKTOP,
     STEWARD_DOCKER,

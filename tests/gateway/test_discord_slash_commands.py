@@ -1,11 +1,10 @@
 """Tests for native Discord slash command fast-paths (thread creation & auto-thread)."""
 
+import sys
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
-import sys
 
 import pytest
-
 from gateway.config import PlatformConfig
 
 
@@ -75,7 +74,7 @@ def _ensure_discord_mock():
 
 _ensure_discord_mock()
 
-from plugins.platforms.discord.adapter import DiscordAdapter  # noqa: E402
+from plugins.platforms.discord.adapter import DiscordAdapter
 
 
 class FakeTree:
@@ -454,7 +453,7 @@ async def test_rename_thread_edits_only_when_current_name_matches(adapter):
 # ------------------------------------------------------------------
 
 
-import discord as _discord_mod  # noqa: E402 — mock or real, used below
+import discord as _discord_mod
 
 
 class _FakeTextChannel:

@@ -7,11 +7,9 @@
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import logging
 import time
-from collections import Counter
-from typing import Any, Dict, Optional
+from typing import Any
 
 from gateway.session_stall import (
     format_session_stall_notification,
@@ -79,7 +77,7 @@ class GatewaySessionWatchersMixin:
         from gateway.run import _float_env
         return _float_env("HERMES_SESSION_STALL_TIMEOUT", 300)
 
-    def _session_activity_for_stall(self, session_key: str) -> Optional[dict]:
+    def _session_activity_for_stall(self, session_key: str) -> dict | None:
         """Stall-progress snapshot from ``AIAgent.get_activity_summary()`` only; no other clocks.
 
         See #72039.
@@ -94,10 +92,10 @@ class GatewaySessionWatchersMixin:
             return None
         return summary if isinstance(summary, dict) else None
 
-    def _stall_candidates(self) -> Dict[str, tuple[Any, Any]]:
+    def _stall_candidates(self) -> dict[str, tuple[Any, Any]]:
         """session_key -> (adapter, pending event) from every live adapter's pending slot (default
         + multiplex profiles, deduped by identity), then the overflow queues; first one wins."""
-        candidates: Dict[str, tuple[Any, Any]] = {}
+        candidates: dict[str, tuple[Any, Any]] = {}
         maps = (getattr(self, "adapters", {}), *getattr(self, "_profile_adapters", {}).values())
         adapters = {id(a): a for m in maps for a in list(m.values()) if a is not None}
         for adapter in adapters.values():
@@ -177,8 +175,8 @@ class GatewaySessionWatchersMixin:
                         "fresh_idle=%s", session_key, still_pending, fresh_idle)
             notified_map.pop(session_key, None)  # re-arm so a FUTURE genuine stall notifies again
             return False
-        from gateway.warning_notifications import present_notification
         from gateway.run import _async_profile_runtime_scope
+        from gateway.warning_notifications import present_notification
         try:
             metadata = self._thread_metadata_for_source(source)
             notice = format_session_stall_notification(idle_seconds)
@@ -199,7 +197,7 @@ class GatewaySessionWatchersMixin:
             # Adapters often return SendResult(success=False) instead of raising.
             if result is not None and getattr(result, "success", True) is False:
                 raise RuntimeError(getattr(result, "error", "send returned success=False"))
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning(
                 "Session stall notify send timed out after %.0fs for %s; will retry next tick",
                 _STALL_NOTIFY_SEND_TIMEOUT_SECONDS, session_key,

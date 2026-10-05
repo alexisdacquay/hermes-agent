@@ -9,13 +9,10 @@ These tests lock the seam the bug lived in: what the wizard writes, and what the
 runtime resolver then makes of it.
 """
 
-import os
-
-import hermes_yaml as yaml
 
 import hermes_cli.runtime_provider as rp
+import hermes_yaml as yaml
 from hermes_cli.model_setup_flows_bedrock import _model_flow_bedrock_api_key
-
 
 REGION = "us-east-1"
 TOKEN = "test-bedrock-bearer-token"

@@ -6,25 +6,39 @@ so ``hermes_cli.auth.<name>`` patches still intercept (and no import cycle).
 
 from __future__ import annotations
 
-import logging
 import hashlib
 import json
+import logging
 import os
 import threading
 import time
 import uuid
+from collections.abc import Callable
 from contextlib import contextmanager, suppress
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Dict, FrozenSet, List, Optional
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
+
 from hermes_cli.auth_codex import _pool_entries
 from hermes_cli.auth_constants import (
-    _decode_jwt_claims, AUTH_LOCK_TIMEOUT_SECONDS, AuthError, DEFAULT_NOUS_CLIENT_ID,
-    DEFAULT_NOUS_INFERENCE_URL, DEFAULT_NOUS_PORTAL_URL, DEFAULT_NOUS_SCOPE, DEFAULT_NOUS_WELCOME_URL,
-    DEVICE_AUTH_POLL_INTERVAL_CAP_SECONDS, NOUS_AUTH_PATH_INVOKE_JWT, NOUS_BILLING_MANAGE_SCOPE,
-    NOUS_DEVICE_CODE_SOURCE, NOUS_INFERENCE_INVOKE_SCOPE, NOUS_INVOKE_JWT_MIN_TTL_SECONDS,
-    _nous_err, httpx)
+    AUTH_LOCK_TIMEOUT_SECONDS,
+    DEFAULT_NOUS_CLIENT_ID,
+    DEFAULT_NOUS_INFERENCE_URL,
+    DEFAULT_NOUS_PORTAL_URL,
+    DEFAULT_NOUS_SCOPE,
+    DEFAULT_NOUS_WELCOME_URL,
+    DEVICE_AUTH_POLL_INTERVAL_CAP_SECONDS,
+    NOUS_AUTH_PATH_INVOKE_JWT,
+    NOUS_BILLING_MANAGE_SCOPE,
+    NOUS_DEVICE_CODE_SOURCE,
+    NOUS_INFERENCE_INVOKE_SCOPE,
+    NOUS_INVOKE_JWT_MIN_TTL_SECONDS,
+    AuthError,
+    _decode_jwt_claims,
+    _nous_err,
+    httpx,
+)
 
 if TYPE_CHECKING:  # annotation-only; the runtime import would be a cycle
     from hermes_cli.auth import ProviderConfig
@@ -49,16 +63,16 @@ def _unusable_invoke_jwt_error(reason: str, *, no_refresh_token: bool = False) -
         "nous_auth_missing_refresh_token" if no_refresh_token else reason, relogin=True)
 
 
-def _token_fingerprint(token: Any) -> Optional[str]:
+def _token_fingerprint(token: Any) -> str | None:
     """Return a short hash fingerprint for telemetry without leaking token bytes."""
     cleaned = token.strip() if isinstance(token, str) else ""
     return hashlib.sha256(cleaned.encode("utf-8")).hexdigest()[:12] if cleaned else None
 
 
-def _oauth_trace(event: str, *, sequence_id: Optional[str] = None, **fields: Any) -> None:
+def _oauth_trace(event: str, *, sequence_id: str | None = None, **fields: Any) -> None:
     if os.getenv("HERMES_OAUTH_TRACE", "").strip().lower() not in {"1", "true", "yes", "on"}:
         return
-    payload: Dict[str, Any] = {"event": event}
+    payload: dict[str, Any] = {"event": event}
     if sequence_id:
         payload["sequence_id"] = sequence_id
     payload.update(fields)
@@ -67,21 +81,23 @@ def _oauth_trace(event: str, *, sequence_id: Optional[str] = None, **fields: Any
 
 def _iso_after(now: datetime, ttl_seconds: int) -> str:
     """ISO timestamp *ttl_seconds* after *now* (UTC)."""
-    return datetime.fromtimestamp(now.timestamp() + ttl_seconds, tz=timezone.utc).isoformat()
+    return datetime.fromtimestamp(now.timestamp() + ttl_seconds, tz=UTC).isoformat()
 
 
 # Nous agent-key slots; a fresh login persists them as None, quarantine strips them.
-_NOUS_EMPTY_AGENT_KEY_FIELDS: Dict[str, Any] = {
+_NOUS_EMPTY_AGENT_KEY_FIELDS: dict[str, Any] = {
     "agent_key": None, "agent_key_id": None, "agent_key_expires_at": None,
     "agent_key_expires_in": None, "agent_key_reused": None, "agent_key_obtained_at": None}
 
-_NOUS_STALE_PORTAL_HOSTS: FrozenSet[str] = frozenset({"api.nousresearch.com"})
+_NOUS_STALE_PORTAL_HOSTS: frozenset[str] = frozenset({"api.nousresearch.com"})
 
 
 def _portal_entitlement_message(capability: str) -> str:
     """Portal entitlement notice for *capability* (fresh account data), "" when unavailable."""
     from hermes_cli.nous_account import (
-        format_nous_portal_entitlement_message, get_nous_portal_account_info)
+        format_nous_portal_entitlement_message,
+        get_nous_portal_account_info,
+    )
     account_info = get_nous_portal_account_info(force_fresh=True)
     return format_nous_portal_entitlement_message(account_info, capability=capability) or ""
 
@@ -93,7 +109,7 @@ def _format_nous_entitlement_auth_error(error: AuthError) -> str:
     return f"{error} Check credits or billing in Nous Portal, then retry."
 
 
-def _migrate_stale_nous_portal_url(providers: Dict[str, Any]) -> None:
+def _migrate_stale_nous_portal_url(providers: dict[str, Any]) -> None:
     nous = providers.get("nous")
     if not isinstance(nous, dict):
         return
@@ -108,12 +124,12 @@ def _migrate_stale_nous_portal_url(providers: Dict[str, Any]) -> None:
 # else would leak. Consulted only for URLs from the NETWORK side (Portal refresh responses);
 # the NOUS_INFERENCE_BASE_URL env override bypasses it (documented dev/staging escape hatch, the
 # user set it themselves).
-_ALLOWED_NOUS_INFERENCE_HOSTS: FrozenSet[str] = frozenset({
+_ALLOWED_NOUS_INFERENCE_HOSTS: frozenset[str] = frozenset({
     "inference-api.nousresearch.com",
     # Free-tier (anonymous) host: serves the single ``nous/welcome`` model.
     "welcome-api.nousresearch.com"})
 
-def _nous_inference_host_allowed(hostname: Optional[str]) -> bool:
+def _nous_inference_host_allowed(hostname: str | None) -> bool:
     """Production hosts always; otherwise only the host the operator named in
     ``NOUS_INFERENCE_BASE_URL``.
 
@@ -132,7 +148,7 @@ def _nous_inference_host_allowed(hostname: Optional[str]) -> bool:
     return override is not None and urlparse(override).hostname == hostname
 
 
-def _validate_nous_inference_url_from_network(url: Optional[str]) -> Optional[str]:
+def _validate_nous_inference_url_from_network(url: str | None) -> str | None:
     """Validate a Portal-returned inference URL against the host allowlist.
 
     Defense-in-depth: a compromised refresh response (MITM, response injection) could otherwise
@@ -158,7 +174,7 @@ def _validate_nous_inference_url_from_network(url: Optional[str]) -> Optional[st
     return cleaned.rstrip("/")
 
 
-def _scoped_operator_override(*names: str) -> Optional[str]:
+def _scoped_operator_override(*names: str) -> str | None:
     """The first set operator routing override among ``names`` (``NOUS_INFERENCE_BASE_URL``,
     ``HERMES_PORTAL_BASE_URL`` / its ``NOUS_PORTAL_BASE_URL`` alias), resolved through the profile
     secret scope, or None.
@@ -186,7 +202,7 @@ def _scoped_operator_override(*names: str) -> Optional[str]:
         return None
 
 
-def _nous_inference_env_override() -> Optional[str]:
+def _nous_inference_env_override() -> str | None:
     """User-set ``NOUS_INFERENCE_BASE_URL`` override (trailing slash stripped) or None.
 
     Documented dev/staging escape hatch; the env source is trusted, so unlike Portal-returned URLs
@@ -198,7 +214,7 @@ def _nous_inference_env_override() -> Optional[str]:
     return _optional_base_url(_scoped_operator_override("NOUS_INFERENCE_BASE_URL"))
 
 
-def _nous_portal_env_override() -> Optional[str]:
+def _nous_portal_env_override() -> str | None:
     """``HERMES_PORTAL_BASE_URL`` / ``NOUS_PORTAL_BASE_URL`` override or None.
 
     Documented dev/staging escape hatch (e.g. hosted agents on the staging Portal). Trusted env
@@ -225,7 +241,7 @@ def _scope_values(raw_scope: Any) -> set[str]:
 
 def _nous_invoke_jwt_status(
     token: Any, *, scope: Any = None, expires_at: Any = None,
-    min_ttl_seconds: int = NOUS_INVOKE_JWT_MIN_TTL_SECONDS) -> Optional[str]:
+    min_ttl_seconds: int = NOUS_INVOKE_JWT_MIN_TTL_SECONDS) -> str | None:
     """Return None when the token can be used for inference, else a reason."""
     from hermes_cli.auth import _is_expiring
     claims = _decode_jwt_claims(token)
@@ -250,14 +266,14 @@ def _nous_invoke_jwt_is_usable(
         token, scope=scope, expires_at=expires_at, min_ttl_seconds=min_ttl_seconds) is None
 
 
-def _state_invoke_jwt_status(state: Dict[str, Any], token: Any) -> Optional[str]:
+def _state_invoke_jwt_status(state: dict[str, Any], token: Any) -> str | None:
     """``_nous_invoke_jwt_status`` for *token* using *state*'s scope / expires_at (patchable)."""
     from hermes_cli.auth import _nous_invoke_jwt_status
     return _nous_invoke_jwt_status(
         token, scope=state.get("scope"), expires_at=state.get("expires_at"))
 
 
-def _assert_nous_inference_jwt_usable(state: Dict[str, Any], *, access_token: Any = None) -> None:
+def _assert_nous_inference_jwt_usable(state: dict[str, Any], *, access_token: Any = None) -> None:
     token = state.get("access_token") if access_token is None else access_token
     reason = _state_invoke_jwt_status(state, token)
     if reason is not None:
@@ -273,17 +289,17 @@ def _remaining_ttl(expires_at: Any, fallback_expires_in: Any) -> int:
     return _coerce_ttl_seconds(fallback_expires_in)
 
 
-def _nous_jwt_expires_at(token: Any, fallback_expires_at: Any = None) -> Optional[str]:
+def _nous_jwt_expires_at(token: Any, fallback_expires_at: Any = None) -> str | None:
     claims = _decode_jwt_claims(token)
     exp = claims.get("exp")
     if isinstance(exp, (int, float)):
         with suppress(Exception):
-            return datetime.fromtimestamp(float(exp), tz=timezone.utc).isoformat()
+            return datetime.fromtimestamp(float(exp), tz=UTC).isoformat()
     return fallback_expires_at if isinstance(fallback_expires_at, str) else None
 
 
 def _set_nous_agent_key_from_invoke_jwt(
-    state: Dict[str, Any], *, obtained_at: Optional[str] = None) -> None:
+    state: dict[str, Any], *, obtained_at: str | None = None) -> None:
     from hermes_cli.auth import _nonempty_str
     access_token = state.get("access_token")
     if not _nonempty_str(access_token):
@@ -291,7 +307,7 @@ def _set_nous_agent_key_from_invoke_jwt(
     existing_obtained_at = state.get("agent_key_obtained_at")
     if not obtained_at:
         reuse = state.get("agent_key") == access_token and _nonempty_str(existing_obtained_at)
-        obtained_at = existing_obtained_at if reuse else datetime.now(timezone.utc).isoformat()
+        obtained_at = existing_obtained_at if reuse else datetime.now(UTC).isoformat()
     expires_at = _nous_jwt_expires_at(access_token, state.get("expires_at"))
     expires_in = _remaining_ttl(expires_at, state.get("expires_in"))
     if expires_at:
@@ -303,7 +319,7 @@ def _set_nous_agent_key_from_invoke_jwt(
 
 
 def _select_nous_invoke_jwt(
-    state: Dict[str, Any], *, access_token: Any = None, sequence_id: Optional[str] = None) -> None:
+    state: dict[str, Any], *, access_token: Any = None, sequence_id: str | None = None) -> None:
     from hermes_cli.auth import _nonempty_str
     if _nonempty_str(access_token):
         state["access_token"] = access_token
@@ -319,7 +335,7 @@ def _select_nous_invoke_jwt(
 _NOUS_EFFECTIVE_STATE_IGNORED_KEYS = frozenset({"expires_in", "agent_key_expires_in"})
 
 
-def _nous_effective_provider_state(state: Dict[str, Any]) -> Dict[str, Any]:
+def _nous_effective_provider_state(state: dict[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in state.items() if k not in _NOUS_EFFECTIVE_STATE_IGNORED_KEYS}
 
 
@@ -392,9 +408,13 @@ _NOUS_SHARED_STATE_KEYS = (
     "auth_method", "account_tier", "anon_token", "user_id", "org_id")
 
 
-def _merge_shared_nous_oauth_state(state: Dict[str, Any]) -> bool:
+def _merge_shared_nous_oauth_state(state: dict[str, Any]) -> bool:
     """Copy fresher shared OAuth tokens into a profile-local Nous state."""
-    from hermes_cli.auth import _nonempty_str, _parse_iso_timestamp, _read_shared_nous_state
+    from hermes_cli.auth import (
+        _nonempty_str,
+        _parse_iso_timestamp,
+        _read_shared_nous_state,
+    )
     shared = _read_shared_nous_state() or {}
     shared_refresh = shared.get("refresh_token")
     if not _nonempty_str(shared_refresh):
@@ -411,7 +431,7 @@ def _merge_shared_nous_oauth_state(state: Dict[str, Any]) -> bool:
     return True
 
 
-def _nous_shared_shape(src: Dict[str, Any]) -> Dict[str, Any]:
+def _nous_shared_shape(src: dict[str, Any]) -> dict[str, Any]:
     """The defaulted OAuth core (tokens + routing + expiry) shared across profiles."""
     return {
         "access_token": src.get("access_token"), "refresh_token": src.get("refresh_token"),
@@ -427,7 +447,7 @@ def _nous_shared_shape(src: Dict[str, Any]) -> Dict[str, Any]:
            if src.get(k) not in (None, "")}}
 
 
-def _write_shared_nous_state(state: Dict[str, Any]) -> None:
+def _write_shared_nous_state(state: dict[str, Any]) -> None:
     """Persist a minimal copy of the Nous OAuth state to the shared store.
 
     Best-effort: failures are logged and swallowed; per-profile auth.json stays the source of truth.
@@ -441,7 +461,7 @@ def _write_shared_nous_state(state: Dict[str, Any]) -> None:
         return
     shared = {
         "_schema": 1, **_nous_shared_shape(state),
-        "updated_at": datetime.now(timezone.utc).isoformat()}
+        "updated_at": datetime.now(UTC).isoformat()}
     try:
         with _nous_shared_store_lock():
             path = _nous_shared_store_path()
@@ -453,7 +473,7 @@ def _write_shared_nous_state(state: Dict[str, Any]) -> None:
         logger.debug("Failed to write shared Nous auth store: %s", exc)
 
 
-def _read_shared_nous_state() -> Optional[Dict[str, Any]]:
+def _read_shared_nous_state() -> dict[str, Any] | None:
     """Shared Nous OAuth state when present and well-formed, else None.
 
     None (missing / unreadable / malformed / lacking tokens) means "fall through to device-code".
@@ -487,7 +507,7 @@ def _clear_shared_nous_state(reason: str) -> None:
         logger.debug("Failed to clear shared Nous auth store: %s", exc)
 
 
-def _quarantine_forensics(state: Dict[str, Any], error: AuthError, reason: str) -> Dict[str, Any]:
+def _quarantine_forensics(state: dict[str, Any], error: AuthError, reason: str) -> dict[str, Any]:
     """Redaction-safe forensic record for a quarantine: fingerprints, sizes and booleans only.
 
     NEVER include a raw token/agent_key (credential-shaped literals get corrupted in logs). The
@@ -495,7 +515,7 @@ def _quarantine_forensics(state: Dict[str, Any], error: AuthError, reason: str) 
     provenance is client_id + agent_key_id (Nous state has no session_id).
     """
     from hermes_cli.auth import _auth_file_path
-    forensic: Dict[str, Any] = {
+    forensic: dict[str, Any] = {
         "reason": reason, "error_code": error.code, "client_id": state.get("client_id"),
         "agent_key_id": state.get("agent_key_id"),
         "refresh_token_fp": _token_fingerprint(state.get("refresh_token"))}
@@ -512,20 +532,20 @@ def _quarantine_forensics(state: Dict[str, Any], error: AuthError, reason: str) 
     except Exception as exc:  # pragma: no cover - never let logging break quarantine
         forensic["auth_json_stat_error"] = repr(exc)
     # Was the token already past its own expiry when it was rejected?
-    already_expired: Optional[bool] = None
+    already_expired: bool | None = None
     expires_at_raw = state.get("expires_at")
     if isinstance(expires_at_raw, str) and expires_at_raw:
         try:
             parsed = datetime.fromisoformat(expires_at_raw)
-            already_expired = (parsed.replace(tzinfo=parsed.tzinfo or timezone.utc)
-                               < datetime.now(timezone.utc))
+            already_expired = (parsed.replace(tzinfo=parsed.tzinfo or UTC)
+                               < datetime.now(UTC))
         except ValueError:
             already_expired = None
     forensic["token_already_expired"] = already_expired
     return forensic
 
 
-def _quarantine_nous_oauth_state(state: Dict[str, Any], error: AuthError, *, reason: str) -> None:
+def _quarantine_nous_oauth_state(state: dict[str, Any], error: AuthError, *, reason: str) -> None:
     """Keep routing metadata but remove dead OAuth material so it is not replayed.
 
     Only for terminal errors (``*_refresh_failed`` = HTTP 400/401/403 invalid_grant / revoked /
@@ -533,7 +553,10 @@ def _quarantine_nous_oauth_state(state: Dict[str, Any], error: AuthError, *, rea
     transient 429/5xx never quarantine.
     """
     from hermes_cli.auth import (
-        _FLAT_OAUTH_TOKEN_KEYS, _last_auth_error_marker, invalidate_nous_auth_status_cache)
+        _FLAT_OAUTH_TOKEN_KEYS,
+        _last_auth_error_marker,
+        invalidate_nous_auth_status_cache,
+    )
     # Forensics BEFORE clearing token material: a hosted agent quarantined here is otherwise only
     # visible as a later "No access token found" WARNING, too late to root-cause. Managed log
     # drains may be WARNING-only, so this MUST be logger.warning.
@@ -548,7 +571,7 @@ def _quarantine_nous_oauth_state(state: Dict[str, Any], error: AuthError, *, rea
 
 
 def _quarantine_nous_pool_entries(
-    auth_store: Dict[str, Any], error: AuthError, *, reason: str) -> bool:
+    auth_store: dict[str, Any], error: AuthError, *, reason: str) -> bool:
     """Remove singleton-seeded Nous pool entries that contain dead OAuth state."""
     entries = _pool_entries(auth_store, "nous")
     if entries is None:
@@ -563,22 +586,25 @@ def _quarantine_nous_pool_entries(
     return removed
 
 
-def _try_import_shared_nous_state(*, timeout_seconds: float = 15.0) -> Optional[Dict[str, Any]]:
+def _try_import_shared_nous_state(*, timeout_seconds: float = 15.0) -> dict[str, Any] | None:
     """Rehydrate Nous OAuth state from the shared store via a forced refresh.
 
     Returns auth_state ready for ``persist_nous_credentials()``; None on any failure (expired
     token, portal unreachable) so the caller falls through to device-code.
     """
     from hermes_cli.auth import (
-        _read_shared_nous_state, _write_shared_nous_state, refresh_nous_oauth_from_state,
-        _is_terminal_nous_refresh_error)
+        _is_terminal_nous_refresh_error,
+        _read_shared_nous_state,
+        _write_shared_nous_state,
+        refresh_nous_oauth_from_state,
+    )
     try:
         with _nous_shared_store_lock(timeout_seconds=_shared_lock_timeout(timeout_seconds)):
             shared = _read_shared_nous_state()
             if not shared:
                 return None
             # Full state dict so refresh_nous_oauth_from_state has every field it needs.
-            state: Dict[str, Any] = {
+            state: dict[str, Any] = {
                 **_nous_shared_shape(shared), "agent_key": None, "agent_key_expires_at": None,
                 "tls": {"insecure": False, "ca_bundle": None}}
             refreshed = refresh_nous_oauth_from_state(
@@ -599,7 +625,7 @@ def _try_import_shared_nous_state(*, timeout_seconds: float = 15.0) -> Optional[
 
 def _refresh_access_token(
     *, client: httpx.Client, portal_base_url: str, client_id: str, refresh_token: str,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     response = client.post(
         f"{portal_base_url}/api/oauth/token",
         headers={"x-nous-refresh-token": refresh_token},
@@ -661,11 +687,11 @@ def _refresh_access_token(
 
 
 def _refresh_nous_or_quarantine(
-    *, client: httpx.Client, auth_store: Dict[str, Any], state: Dict[str, Any],
+    *, client: httpx.Client, auth_store: dict[str, Any], state: dict[str, Any],
     portal_base_url: str, client_id: str, refresh_token: str, reason: str,
-    persist: Callable[[], None]) -> Dict[str, Any]:
+    persist: Callable[[], None]) -> dict[str, Any]:
     """Redeem the refresh token; on terminal failure quarantine state + pool, persist, re-raise."""
-    from hermes_cli.auth import _refresh_access_token, _is_terminal_nous_refresh_error
+    from hermes_cli.auth import _is_terminal_nous_refresh_error, _refresh_access_token
     try:
         return _refresh_access_token(
             client=client, portal_base_url=portal_base_url, client_id=client_id,
@@ -679,15 +705,15 @@ def _refresh_nous_or_quarantine(
 
 
 def _apply_nous_refreshed_tokens(
-    state: Dict[str, Any], refreshed: Dict[str, Any], refresh_token: str, *,
-    inference_base_url: Optional[str] = None) -> None:
+    state: dict[str, Any], refreshed: dict[str, Any], refresh_token: str, *,
+    inference_base_url: str | None = None) -> None:
     """Write a successful Nous token-refresh payload into *state* (tokens + expiry fields).
 
     *inference_base_url*, when given, is the healed network-provenance URL to persist alongside
     the rotated tokens (key order in auth.json is preserved from the original login shape).
     """
     from hermes_cli.auth import _coerce_ttl_seconds
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     access_ttl = _coerce_ttl_seconds(refreshed.get("expires_in"))
     state["access_token"] = refreshed["access_token"]
     state["refresh_token"] = refreshed.get("refresh_token") or refresh_token
@@ -700,7 +726,7 @@ def _apply_nous_refreshed_tokens(
     state["expires_at"] = _iso_after(now, access_ttl)
 
 
-def _healed_nous_inference_url(refreshed: Dict[str, Any]) -> str:
+def _healed_nous_inference_url(refreshed: dict[str, Any]) -> str:
     """Validated network-provenance inference URL from a refresh payload, healed to the default.
 
     A Portal URL rejected by the allowlist resets to the production default instead of leaving a
@@ -727,7 +753,7 @@ def _model_priority(mid: str) -> tuple:
 
 def fetch_nous_models(
     *, inference_base_url: str, api_key: str, timeout_seconds: float = 15.0,
-    verify: bool | str = True) -> List[str]:
+    verify: bool | str = True) -> list[str]:
     """Fetch available model IDs from the Nous inference API."""
     from hermes_cli.auth import _nonempty_str
     with _nous_http_client(timeout_seconds, verify) as client:
@@ -745,7 +771,7 @@ def fetch_nous_models(
     data = response.json().get("data")
     if not isinstance(data, list):
         return []
-    model_ids: List[str] = []
+    model_ids: list[str] = []
     for item in data:
         model_id = item.get("id") if isinstance(item, dict) else None
         # Hermes models aren't reliable for agentic tool-calling
@@ -755,7 +781,7 @@ def fetch_nous_models(
     return list(dict.fromkeys(model_ids))
 
 
-def _agent_key_is_usable(state: Dict[str, Any], min_ttl_seconds: int) -> bool:
+def _agent_key_is_usable(state: dict[str, Any], min_ttl_seconds: int) -> bool:
     from hermes_cli.auth import _nonempty_str
     key = state.get("agent_key")
     return _nonempty_str(key) and _nous_invoke_jwt_is_usable(
@@ -766,11 +792,11 @@ def _agent_key_is_usable(state: Dict[str, Any], min_ttl_seconds: int) -> bool:
 def refresh_nous_oauth_pure(
     access_token: str, refresh_token: str, client_id: str, portal_base_url: str,
     inference_base_url: str, *, token_type: str = "Bearer", scope: str = DEFAULT_NOUS_SCOPE,
-    obtained_at: Optional[str] = None, expires_at: Optional[str] = None,
-    agent_key: Optional[str] = None, agent_key_expires_at: Optional[str] = None,
-    timeout_seconds: float = 15.0, insecure: Optional[bool] = None, ca_bundle: Optional[str] = None,
+    obtained_at: str | None = None, expires_at: str | None = None,
+    agent_key: str | None = None, agent_key_expires_at: str | None = None,
+    timeout_seconds: float = 15.0, insecure: bool | None = None, ca_bundle: str | None = None,
     force_refresh: bool = False,
-    on_state_update: Optional[Callable[[Dict[str, Any], str], None]] = None) -> Dict[str, Any]:
+    on_state_update: Callable[[dict[str, Any], str], None] | None = None) -> dict[str, Any]:
     """Refresh Nous OAuth state without mutating auth.json directly.
 
     ``on_state_update`` fires after a successful access-token refresh so callers owning persistent
@@ -789,15 +815,18 @@ def refresh_nous_oauth_pure(
 
 
 def refresh_nous_oauth_from_state(
-    src: Dict[str, Any], *, timeout_seconds: float = 15.0, force_refresh: bool = False,
-    on_state_update: Optional[Callable[[Dict[str, Any], str], None]] = None) -> Dict[str, Any]:
+    src: dict[str, Any], *, timeout_seconds: float = 15.0, force_refresh: bool = False,
+    on_state_update: Callable[[dict[str, Any], str], None] | None = None) -> dict[str, Any]:
     """Refresh Nous OAuth from a state dict (defaults filled in) without mutating auth.json."""
     from hermes_cli.auth import (
-        _assert_nous_inference_jwt_usable, _refresh_access_token, _resolve_verify,
-        _select_nous_invoke_jwt)
+        _assert_nous_inference_jwt_usable,
+        _refresh_access_token,
+        _resolve_verify,
+        _select_nous_invoke_jwt,
+    )
     tls = src.get("tls") or {}
     insecure, ca_bundle = tls.get("insecure"), tls.get("ca_bundle")
-    state: Dict[str, Any] = {
+    state: dict[str, Any] = {
         "access_token": src.get("access_token", ""), "refresh_token": src.get("refresh_token", ""),
         "client_id": src.get("client_id") or DEFAULT_NOUS_CLIENT_ID,
         "portal_base_url": (src.get("portal_base_url") or DEFAULT_NOUS_PORTAL_URL).rstrip("/"),
@@ -833,7 +862,7 @@ def refresh_nous_oauth_from_state(
     return state
 
 
-def persist_nous_credentials(creds: Dict[str, Any], *, label: Optional[str] = None):
+def persist_nous_credentials(creds: dict[str, Any], *, label: str | None = None):
     """Persist Nous OAuth credentials as the singleton provider state.
 
     Nous credentials are read from ``providers.nous`` (401 recovery, pool seeding) AND
@@ -842,8 +871,9 @@ def persist_nous_credentials(creds: Dict[str, Any], *, label: Optional[str] = No
     canonical ``device_code`` entry in place. ``label`` rides in the singleton so re-seeding keeps
     it.
     """
-    from hermes_cli.auth import _save_active_provider_state, _write_shared_nous_state
     from agent.credential_pool import load_pool
+
+    from hermes_cli.auth import _save_active_provider_state, _write_shared_nous_state
     state = dict(creds)
     if label and str(label).strip():
         state["label"] = str(label).strip()
@@ -862,7 +892,7 @@ def _sync_nous_pool_from_auth_store() -> None:
         logger.debug("Failed to sync Nous credential pool from auth store: %s", exc)
 
 
-def _nous_effective_routing(state: Dict[str, Any]) -> tuple[str, str, str, str]:
+def _nous_effective_routing(state: dict[str, Any]) -> tuple[str, str, str, str]:
     """``(portal_url, stored_inference_url, effective_inference_url, client_id)`` from *state*.
 
     The stored inference URL is re-validated network-provenance (persisted); the effective one
@@ -908,8 +938,8 @@ class _NousRuntimeResolve:
     """
 
     def __init__(
-        self, auth_store: Dict[str, Any], state: Dict[str, Any], state_source_path: Optional[Path],
-        *, force_refresh: bool, stale_access_token: Optional[str], timeout_seconds: float) -> None:
+        self, auth_store: dict[str, Any], state: dict[str, Any], state_source_path: Path | None,
+        *, force_refresh: bool, stale_access_token: str | None, timeout_seconds: float) -> None:
         self.auth_store, self.state, self._source_path = auth_store, state, state_source_path
         self.force_refresh, self.stale_access_token = force_refresh, stale_access_token
         self.timeout_seconds = timeout_seconds
@@ -925,7 +955,10 @@ class _NousRuntimeResolve:
          self.client_id) = _nous_effective_routing(self.state)
 
     def persist(self, reason: str) -> None:
-        from hermes_cli.auth import _save_provider_state_to_source, _write_shared_nous_state
+        from hermes_cli.auth import (
+            _save_provider_state_to_source,
+            _write_shared_nous_state,
+        )
         state = self.state
         persisted = _nous_effective_provider_state(self._persisted_state)
         if _nous_effective_provider_state(state) == persisted:
@@ -952,7 +985,7 @@ class _NousRuntimeResolve:
     def has_access_token(self) -> bool:
         return isinstance(self.access_token, str) and bool(self.access_token)
 
-    def invoke_jwt_status(self) -> Optional[str]:
+    def invoke_jwt_status(self) -> str | None:
         return _state_invoke_jwt_status(self.state, self.access_token)
 
     def merge_shared(self) -> bool:
@@ -978,7 +1011,7 @@ class _NousRuntimeResolve:
                 access_token_fp=_token_fingerprint(token))
             self.force_refresh = False
 
-    def refresh(self, client: httpx.Client, invoke_jwt_status: Optional[str]) -> None:
+    def refresh(self, client: httpx.Client, invoke_jwt_status: str | None) -> None:
         """Redeem the refresh token, apply + persist the rotated pair (caller holds both locks)."""
         if not isinstance(self.refresh_token, str) or not self.refresh_token:
             raise _unusable_invoke_jwt_error(
@@ -1045,22 +1078,26 @@ class _NousRuntimeResolve:
 
 
 def resolve_nous_runtime_credentials(
-    *, timeout_seconds: float = 15.0, insecure: Optional[bool] = None,
-    ca_bundle: Optional[str] = None, force_refresh: bool = False,
-    stale_access_token: Optional[str] = None) -> Dict[str, Any]:
+    *, timeout_seconds: float = 15.0, insecure: bool | None = None,
+    ca_bundle: str | None = None, force_refresh: bool = False,
+    stale_access_token: str | None = None) -> dict[str, Any]:
     """Resolve Nous inference credentials for runtime use (refreshing under the auth-store lock).
 
     A guest whose ``anon_`` credential NAS no longer knows (reaped or claimed) is retired and a new
     identity is set up once, transparently -- the one client rule covering both reap and claim.
     """
-    from hermes_cli.anon_auth import AnonCredentialDead, clear_dead_guest, ensure_portal_identity
+    from hermes_cli.anon_auth import (
+        AnonCredentialDead,
+        clear_dead_guest,
+        ensure_portal_identity,
+    )
     try:
         return _resolve_nous_runtime_credentials(
             timeout_seconds=timeout_seconds, insecure=insecure, ca_bundle=ca_bundle,
             force_refresh=force_refresh, stale_access_token=stale_access_token)
     except AnonCredentialDead as dead_exc:
-        from hermes_cli.auth import get_provider_auth_state
         from hermes_cli.anon_auth import ANON_ACCOUNT_LOCKED
+        from hermes_cli.auth import get_provider_auth_state
         dead = get_provider_auth_state("nous") or {}
         clear_dead_guest(str(dead_exc.code or "anon_credential_dead"), dead_token=dead.get("anon_token"))
         # A locked account is retired but never silently replaced: the way forward is a sign-in.
@@ -1073,9 +1110,9 @@ def resolve_nous_runtime_credentials(
 
 
 def _resolve_nous_runtime_credentials(
-    *, timeout_seconds: float = 15.0, insecure: Optional[bool] = None,
-    ca_bundle: Optional[str] = None, force_refresh: bool = False,
-    stale_access_token: Optional[str] = None) -> Dict[str, Any]:
+    *, timeout_seconds: float = 15.0, insecure: bool | None = None,
+    ca_bundle: str | None = None, force_refresh: bool = False,
+    stale_access_token: str | None = None) -> dict[str, Any]:
     """Resolve Nous inference credentials for runtime use (refreshing under the auth-store lock).
 
     ``stale_access_token`` is the bearer that just failed upstream (401): with ``force_refresh``,
@@ -1083,9 +1120,14 @@ def _resolve_nous_runtime_credentials(
     usable token — a peer won the rotation; adopt it rather than invalidate a sibling's token.
     """
     from hermes_cli.auth import (
-        _assert_nous_inference_jwt_usable, _auth_file_path, _provider_state_transaction,
-        _resolve_verify, _select_nous_invoke_jwt, _sync_nous_pool_from_auth_store,
-        _tls_state_from_verify)
+        _assert_nous_inference_jwt_usable,
+        _auth_file_path,
+        _provider_state_transaction,
+        _resolve_verify,
+        _select_nous_invoke_jwt,
+        _sync_nous_pool_from_auth_store,
+        _tls_state_from_verify,
+    )
     with _provider_state_transaction("nous") as (auth_store, state, state_source_path):
         if not state:
             raise _nous_err("Hermes is not logged into Nous Portal.", "nous_auth_missing", relogin=True)
@@ -1126,14 +1168,14 @@ def _resolve_nous_runtime_credentials(
         "state_path": str(state_source_path or _auth_file_path())}
 
 
-def _empty_nous_auth_status() -> Dict[str, Any]:
+def _empty_nous_auth_status() -> dict[str, Any]:
     return {
         "logged_in": False, "portal_base_url": None, "inference_base_url": None,
         "access_expires_at": None, "agent_key_expires_at": None, "has_refresh_token": False,
         "inference_credential_present": False, "credential_source": None}
 
 
-def _snapshot_nous_pool_status() -> Dict[str, Any]:
+def _snapshot_nous_pool_status() -> dict[str, Any]:
     """Best-effort status from the credential pool.
 
     Fallback only: the auth-store provider state is the runtime source of truth because it is what
@@ -1150,7 +1192,7 @@ def _snapshot_nous_pool_status() -> Dict[str, Any]:
             _parse_iso_timestamp(getattr(e, "agent_key_expires_at", None)) or 0.0,
             _parse_iso_timestamp(getattr(e, "expires_at", None)) or 0.0,
             -int(getattr(e, "priority", 0) or 0)))
-        attr = lambda name, default=None: getattr(entry, name, default)  # noqa: E731
+        attr = lambda name, default=None: getattr(entry, name, default)
         if not attr("runtime_api_key"):
             return _empty_nous_auth_status()
         access_token, refresh_token = attr("access_token"), attr("refresh_token")
@@ -1174,7 +1216,7 @@ def _snapshot_nous_pool_status() -> Dict[str, Any]:
 
 
 def _nous_status_from_state(
-    state: Dict[str, Any], *, logged_in: bool, source: str) -> Dict[str, Any]:
+    state: dict[str, Any], *, logged_in: bool, source: str) -> dict[str, Any]:
     """Auth-store-backed Nous status snapshot (shared by the live and refresh-free variants)."""
     from hermes_cli.anon_auth import is_guest_state
     access_token = state.get("access_token")
@@ -1192,9 +1234,12 @@ def _nous_status_from_state(
         "free_tier": is_guest_state(state)}
 
 
-def _compute_nous_auth_status() -> Dict[str, Any]:
+def _compute_nous_auth_status() -> dict[str, Any]:
     """Uncached implementation of get_nous_auth_status(). See that function."""
-    from hermes_cli.auth import get_provider_auth_state, resolve_nous_runtime_credentials
+    from hermes_cli.auth import (
+        get_provider_auth_state,
+        resolve_nous_runtime_credentials,
+    )
     state = get_provider_auth_state("nous")
     if not state:
         return _snapshot_nous_pool_status()
@@ -1226,7 +1271,7 @@ def _compute_nous_auth_status() -> Dict[str, Any]:
     return base_status
 
 
-def _terminal_quarantine_marker(state: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def _terminal_quarantine_marker(state: dict[str, Any]) -> dict[str, Any] | None:
     """The persisted ``last_auth_error`` when it is a terminal quarantine with no credential left.
 
     Only terminal while there is no usable credential: if a later login repopulated tokens the stale
@@ -1239,7 +1284,7 @@ def _terminal_quarantine_marker(state: Dict[str, Any]) -> Optional[Dict[str, Any
     return None
 
 
-def get_nous_auth_status_local() -> Dict[str, Any]:
+def get_nous_auth_status_local() -> dict[str, Any]:
     """Refresh-free Nous auth snapshot for read-only display surfaces.
 
     NEVER calls ``resolve_nous_runtime_credentials()`` (no refresh POST / single-use token spent);
@@ -1300,8 +1345,8 @@ def get_nous_session_validity() -> str:
 
 def _pool_first_oauth_status(
     provider_id: str, *, is_expiring: Callable[[str, int], bool], auth_mode: str,
-    resolve: Callable[[], Dict[str, Any]],
-    on_pool_miss: Optional[Callable[[], Optional[Dict[str, Any]]]] = None) -> Dict[str, Any]:
+    resolve: Callable[[], dict[str, Any]],
+    on_pool_miss: Callable[[], dict[str, Any] | None] | None = None) -> dict[str, Any]:
     """Status snapshot for a store-backed OAuth provider (Codex, xAI).
 
     Pool first (where `hermes auth` / `hermes model` store device_code tokens), then
@@ -1348,15 +1393,23 @@ def _pool_first_oauth_status(
 
 
 def _nous_device_code_login(
-    *, portal_base_url: Optional[str] = None, inference_base_url: Optional[str] = None,
-    client_id: Optional[str] = None, scope: Optional[str] = None, open_browser: bool = True,
-    timeout_seconds: float = 15.0, insecure: bool = False, ca_bundle: Optional[str] = None,
-    on_verification: Optional[Callable[[str, str], None]] = None) -> Dict[str, Any]:
+    *, portal_base_url: str | None = None, inference_base_url: str | None = None,
+    client_id: str | None = None, scope: str | None = None, open_browser: bool = True,
+    timeout_seconds: float = 15.0, insecure: bool = False, ca_bundle: str | None = None,
+    on_verification: Callable[[str, str], None] | None = None) -> dict[str, Any]:
     """Run the Nous device-code flow and return full OAuth state without persisting."""
     from hermes_cli.auth import (
-        PROVIDER_REGISTRY, _coerce_ttl_seconds, _is_remote_session, _optional_base_url,
-        _poll_for_token, _print_device_code_instructions, _request_device_code,
-        _tls_state_from_verify, format_auth_error, refresh_nous_oauth_from_state)
+        PROVIDER_REGISTRY,
+        _coerce_ttl_seconds,
+        _is_remote_session,
+        _optional_base_url,
+        _poll_for_token,
+        _print_device_code_instructions,
+        _request_device_code,
+        _tls_state_from_verify,
+        format_auth_error,
+        refresh_nous_oauth_from_state,
+    )
     pconfig = PROVIDER_REGISTRY["nous"]
     portal_base_url = (
         portal_base_url or os.getenv("HERMES_PORTAL_BASE_URL") or os.getenv("NOUS_PORTAL_BASE_URL")
@@ -1395,7 +1448,7 @@ def _nous_device_code_login(
             client=client, portal_base_url=portal_base_url, client_id=client_id,
             device_code=str(device_data["device_code"]), expires_in=expires_in,
             poll_interval=interval)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     token_expires_in = _coerce_ttl_seconds(token_data.get("expires_in", 0))
     resolved_inference_url = (
         _optional_base_url(token_data.get("inference_base_url")) or requested_inference_url)
@@ -1425,9 +1478,12 @@ def _nous_device_code_login(
         raise
 
 
-def _mirror_nous_state_best_effort(auth_state: Dict[str, Any]) -> None:
+def _mirror_nous_state_best_effort(auth_state: dict[str, Any]) -> None:
     """Mirror to the shared store + reseed the pool, swallowing all errors (same as _login_nous)."""
-    from hermes_cli.auth import _sync_nous_pool_from_auth_store, _write_shared_nous_state
+    from hermes_cli.auth import (
+        _sync_nous_pool_from_auth_store,
+        _write_shared_nous_state,
+    )
     with suppress(Exception):
         _write_shared_nous_state(auth_state)
     with suppress(Exception):
@@ -1436,7 +1492,7 @@ def _mirror_nous_state_best_effort(auth_state: Dict[str, Any]) -> None:
 
 def step_up_nous_billing_scope(
     *, open_browser: bool = True, timeout_seconds: float = 15.0,
-    on_verification: Optional[Callable[[str, str], None]] = None) -> bool:
+    on_verification: Callable[[str, str], None] | None = None) -> bool:
     """Re-run the device flow requesting ``billing:manage`` (step-up on 403 insufficient_scope).
 
     The user must be ADMIN/OWNER and select "Allow Remote Spending" in the portal, else the
@@ -1444,8 +1500,11 @@ def step_up_nous_billing_scope(
     model picker.
     """
     from hermes_cli.auth import (
-        PROVIDER_REGISTRY, _nous_device_code_login, _save_active_provider_state,
-        get_provider_auth_state)
+        PROVIDER_REGISTRY,
+        _nous_device_code_login,
+        _save_active_provider_state,
+        get_provider_auth_state,
+    )
     prior = get_provider_auth_state("nous") or {}
     pconfig = PROVIDER_REGISTRY["nous"]
     # Step-up scope: existing scopes (if any) + billing:manage, deduped, order-stable. Falls back
@@ -1466,7 +1525,7 @@ def step_up_nous_billing_scope(
 
 
 def _pick_nous_model_after_login(
-    auth_state: Dict[str, Any], inference_base_url: str) -> Optional[str]:
+    auth_state: dict[str, Any], inference_base_url: str) -> str | None:
     """Fetch the curated Nous model list (tier/policy-filtered) and run the interactive picker.
 
     Returns the selected model id, or None when the user skipped / nothing was selectable.
@@ -1477,8 +1536,8 @@ def _pick_nous_model_after_login(
     if not isinstance(runtime_key, str) or not runtime_key:
         raise _nous_err("No runtime API key available to fetch models", "invalid_token")
     from hermes_cli.models import (
-        get_curated_nous_model_ids,
         check_nous_free_tier,
+        get_curated_nous_model_ids,
         partition_nous_models_by_tier,
         union_with_portal_free_recommendations,
         union_with_portal_paid_recommendations,
@@ -1536,14 +1595,14 @@ def _pick_nous_model_after_login(
     return None
 
 
-def _offer_shared_nous_import(timeout_seconds: float) -> Optional[Dict[str, Any]]:
+def _offer_shared_nous_import(timeout_seconds: float) -> dict[str, Any] | None:
     """Codex-style auto-import: offer to rehydrate a Nous credential from another profile.
 
     Checks the shared store before launching a fresh device-code flow. Returns the refreshed
     auth state when the user accepted and the import succeeded, else None.
     """
-    from hermes_cli.auth import _prompt_yes_no, _read_shared_nous_state
     from hermes_cli.anon_auth import is_guest_state
+    from hermes_cli.auth import _prompt_yes_no, _read_shared_nous_state
     shared = _read_shared_nous_state()
     if not shared or is_guest_state(shared):
         # A free-tier identity is not an OAuth credential to import; a real sign-in replaces it
@@ -1580,9 +1639,16 @@ def _restore_active_provider(prior_active_provider: Any) -> None:
 def _login_nous(args, pconfig: ProviderConfig) -> None:
     """Nous Portal device authorization flow."""
     from hermes_cli.auth import (
-        _auth_store_lock, _load_auth_store, _nous_device_code_login, _save_active_provider_state,
-        _save_model_choice, _sync_nous_pool_from_auth_store, _update_config_for_provider,
-        _write_shared_nous_state, format_auth_error)
+        _auth_store_lock,
+        _load_auth_store,
+        _nous_device_code_login,
+        _save_active_provider_state,
+        _save_model_choice,
+        _sync_nous_pool_from_auth_store,
+        _update_config_for_provider,
+        _write_shared_nous_state,
+        format_auth_error,
+    )
     timeout_seconds = getattr(args, "timeout", None) or 15.0
     ca_bundle = (
         getattr(args, "ca_bundle", None) or os.getenv("HERMES_CA_BUNDLE")
@@ -1643,5 +1709,5 @@ def _login_nous(args, pconfig: ProviderConfig) -> None:
         raise SystemExit(1)
 
 
-def _portal_host(portal_url: Optional[str]) -> str:
+def _portal_host(portal_url: str | None) -> str:
     return urlparse(portal_url or DEFAULT_NOUS_PORTAL_URL).hostname or "portal.nousresearch.com"

@@ -33,14 +33,12 @@ from __future__ import annotations
 import logging
 
 import pytest
-
 from fastapi.testclient import TestClient
-
 from hermes_cli import web_server
 from hermes_cli.dashboard_auth import clear_providers, register_provider
 from hermes_cli.dashboard_auth import prefix as prefix_mod
-from tests.hermes_cli.conftest_dashboard_auth import StubAuthProvider
 
+from tests.hermes_cli.conftest_dashboard_auth import StubAuthProvider
 
 HA_INGRESS_DASHBOARD_PREFIX = (
     "/api/hassio_ingress/8AbCdEfGhIjKlMnOpQrStUvWxYz0123456789AbCdEf"

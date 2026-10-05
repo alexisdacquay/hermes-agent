@@ -8,9 +8,8 @@ import threading
 import time
 from types import SimpleNamespace
 
-import pytest
-
 import hermes_state
+import pytest
 from hermes_state import SessionDB
 from hermes_state_errors import SessionTurnLeaseLostError
 

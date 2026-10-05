@@ -10,20 +10,25 @@ import signal
 import subprocess
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
-from hermes_constants import get_hermes_home, reset_hermes_home_override, set_hermes_home_override
-from tools.browser_tool_origin import origin as _bt
+from hermes_constants import (
+    get_hermes_home,
+    reset_hermes_home_override,
+    set_hermes_home_override,
+)
+
 from tools import browser_tool_cdp as _cdp
 from tools import browser_tool_cloud as _cloud
-from tools import browser_tool_session as _session
 from tools import browser_tool_install as _install
 from tools import browser_tool_real_profile as _real_profile
+from tools import browser_tool_session as _session
+from tools.browser_tool_origin import origin as _bt
 
 
-def _session_expiry_timestamp(session_info: Dict[str, Any]) -> Optional[float]:
+def _session_expiry_timestamp(session_info: dict[str, Any]) -> float | None:
     """Provider-authoritative session expiry as epoch seconds; None when absent or
     malformed (cloud providers may omit ``expires_at``; local browsers never have one)."""
     value = session_info.get("expires_at")
@@ -41,12 +46,12 @@ def _session_expiry_timestamp(session_info: Dict[str, Any]) -> Optional[float]:
         _bt.logger.warning("Ignoring invalid cloud browser session expiry timestamp")
         return None
     if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
+        parsed = parsed.replace(tzinfo=UTC)
     return parsed.timestamp()
 
 
 def _session_has_expired(
-    session_info: Dict[str, Any], *, now: Optional[float] = None
+    session_info: dict[str, Any], *, now: float | None = None
 ) -> bool:
     """Whether a cached browser session crossed its provider deadline."""
     expires_at = _session_expiry_timestamp(session_info)
@@ -118,7 +123,11 @@ def _session_owner_scope(task_id: str):
         yield
         return
 
-    from agent.secret_scope import build_profile_secret_scope, reset_secret_scope, set_secret_scope
+    from agent.secret_scope import (
+        build_profile_secret_scope,
+        reset_secret_scope,
+        set_secret_scope,
+    )
     from hermes_cli.env_loader import hydrate_profile_secret_sources
 
     home_token = set_hermes_home_override(owner_home)
@@ -264,7 +273,7 @@ def _verify_reapable_browser_daemon(daemon_pid: int, socket_dir: str,
     return True
 
 
-def _socket_dir_idle_seconds(socket_dir: str) -> Optional[float]:
+def _socket_dir_idle_seconds(socket_dir: str) -> float | None:
     """Seconds since anything in ``socket_dir`` was last written; None if unknown (fail safe).
     Every command rewrites ``_stdout_<cmd>`` there — a restart-proof activity marker — and
     rewriting doesn't touch the dir mtime, so entries are scanned too."""
@@ -286,7 +295,7 @@ def _socket_dir_idle_seconds(socket_dir: str) -> Optional[float]:
     return max(0.0, time.time() - latest)
 
 
-def _read_pid_file(path: str) -> Optional[int]:
+def _read_pid_file(path: str) -> int | None:
     """Integer PID from ``path``; None when missing or corrupt."""
     try:
         return int(Path(path).read_text(encoding="utf-8-sig").strip())
@@ -294,7 +303,7 @@ def _read_pid_file(path: str) -> Optional[int]:
         return None
 
 
-def _owner_pid_alive(socket_dir: str, session_name: str) -> Tuple[Optional[int], Optional[bool]]:
+def _owner_pid_alive(socket_dir: str, session_name: str) -> tuple[int | None, bool | None]:
     """Read ``<session>.owner_pid`` and report ``(pid, alive)``; ``(None, None)`` when missing/corrupt."""
     owner_pid = _read_pid_file(os.path.join(socket_dir, f"{session_name}.owner_pid"))
     if owner_pid is None:
@@ -309,6 +318,7 @@ def _terminate_verified_daemon(daemon_pid: int, session_name: str, log) -> bool:
     between check and kill is refused); False (logged via ``log``) when no fingerprint.
     Raises on OS errors."""
     from gateway.status import get_process_start_time
+
     from tools.process_registry import ProcessRegistry
     daemon_start = get_process_start_time(daemon_pid)
     if daemon_start is None:
@@ -477,7 +487,7 @@ def _update_session_activity(task_id: str):
         _bt._session_owner_homes.setdefault(task_id, str(get_hermes_home()))
 
 
-def _kill_process_tree(proc: "subprocess.Popen") -> None:
+def _kill_process_tree(proc: subprocess.Popen) -> None:
     """Best-effort kill of *proc* and every descendant; never raises.
 
     ``Popen.kill()`` only signals the direct child; npm/npx helpers and the detached
@@ -504,7 +514,7 @@ def _kill_process_tree(proc: "subprocess.Popen") -> None:
         _legacy_kill_process_tree(proc)
 
 
-def _legacy_kill_process_tree(proc: "subprocess.Popen") -> None:
+def _legacy_kill_process_tree(proc: subprocess.Popen) -> None:
     """Local tree-kill (SIGTERM then SIGKILL to the process group) — fallback when
     agent.deadline is unavailable; tests pin this signal sequence."""
     if os.name == "nt":
@@ -586,7 +596,7 @@ def _drop_last_active_binding(task_id: str) -> None:
         _bt._last_active_session_key.pop(bare_task_id, None)
 
 
-def cleanup_browser(task_id: Optional[str] = None) -> None:
+def cleanup_browser(task_id: str | None = None) -> None:
     """Clean up browser session(s) for a task: a bare task id reaps BOTH the primary
     session and any hybrid local sidecar; a ``::local`` key reaps only that one."""
     if task_id is None:
@@ -623,7 +633,7 @@ def _kill_verified_daemon(socket_dir: str, session_name: str) -> bool:
         return False
 
 
-def _release_session_resources(task_id: str, session_info: Dict[str, Any]) -> None:
+def _release_session_resources(task_id: str, session_info: dict[str, Any]) -> None:
     """Untrack ``task_id``, close its cloud provider session, kill its daemon — the
     unconditional tail of a teardown, and the whole of the janitor's force-reap path.
 
@@ -721,7 +731,9 @@ def cleanup_all_browsers() -> None:
         cleanup_browser(task_id)
 
     try:  # tear down CDP supervisors so background threads exit
-        from tools.browser_supervisor import SUPERVISOR_REGISTRY  # type: ignore[import-not-found]
+        from tools.browser_supervisor import (
+            SUPERVISOR_REGISTRY,  # type: ignore[import-not-found]
+        )
         SUPERVISOR_REGISTRY.stop_all()
     except Exception:
         pass

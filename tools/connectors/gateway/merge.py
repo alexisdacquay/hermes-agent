@@ -5,8 +5,9 @@ Correlate all remote results by original call position, never wire ``index``.
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Mapping, Optional, Sequence
+from typing import Any
 
 from tools.connectors.gateway.errors import render_connection_required
 from tools.connectors.gateway.names import parse_connector_name
@@ -109,7 +110,7 @@ def render_remote_entry(planned: PlannedCall, remote: Mapping[str, Any]) -> dict
 
 def splice_remote_results(
     planned: Sequence[PlannedCall],
-    remote_results: Optional[Sequence[Any]],
+    remote_results: Sequence[Any] | None,
 ) -> list[dict[str, Any]]:
     """Correlate results by request slot; missing slots become per-entry errors."""
     results = _as_sequence(remote_results)
@@ -150,7 +151,7 @@ def assemble_results(
         slot_count = max(0, int(total))
     except (TypeError, ValueError):
         slot_count = 0
-    slots: list[Optional[dict[str, Any]]] = [None] * slot_count
+    slots: list[dict[str, Any] | None] = [None] * slot_count
     for group in entry_groups:
         for entry in _as_sequence(group):
             if not isinstance(entry, Mapping):
@@ -192,7 +193,7 @@ def _as_sequence(value: Any) -> Sequence[Any]:
     return ()
 
 
-def _opt_str(value: Any) -> Optional[str]:
+def _opt_str(value: Any) -> str | None:
     if isinstance(value, str) and value:
         return value
     return None

@@ -3,13 +3,12 @@ from __future__ import annotations
 
 import importlib
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
-
 from pm._uv import _toolchain
 from pm.lock import Facts, Lockfile
 from pm.package import InstallError
@@ -17,12 +16,9 @@ from pm.packages import Python, Uv
 from pm.store import current_target
 
 
-
-
 @pytest.fixture
 def installed_uv(tmp_path, monkeypatch):
-    import pm.paths as paths
-    import pm.registry as registry
+    from pm import paths, registry
 
     uv = shutil.which("uv")
     assert uv, "the interpreter selection contract requires real uv"
@@ -60,7 +56,7 @@ def test_internal_tooling_cannot_escape_package_queries(installed_uv):
 
 
 def test_all_uv_commands_keep_the_pm_interpreter(installed_uv, monkeypatch):
-    import pm.registry as registry
+    from pm import registry
 
     root, uv, facts, target, digest = installed_uv
     selected = root / "store" / "selected-python"
@@ -105,8 +101,8 @@ def test_all_uv_commands_keep_the_pm_interpreter(installed_uv, monkeypatch):
 
 def test_project_environment_replaces_generation_when_pinned_python_moves(installed_uv, tmp_path, monkeypatch):
     """An unchanged dependency pin cannot reuse a venv made by another tools store."""
-    from pm import operations
-    import pm.registry as registry
+    from pm import operations, registry
+
     from tests.pm._fixtures import _run, _wheel, stage_host_python
 
     root, uv, facts, target, digest = installed_uv
@@ -182,8 +178,7 @@ def test_uv_refuses_discovery_when_pm_python_is_missing(installed_uv, monkeypatc
 
 @pytest.mark.platforms("windows")
 def test_bundled_uv_uses_a_verified_writable_python_without_changing_runtime(installed_uv, monkeypatch):
-    import pm.paths as paths
-    import pm.registry as registry
+    from pm import paths, registry
     from pm.store import Store, tree_digest
 
     root, uv_binary, facts, target, digest = installed_uv
@@ -252,7 +247,7 @@ def test_bundled_uv_uses_a_verified_writable_python_without_changing_runtime(ins
 
 @pytest.mark.parametrize("damage", [None, "source", "copy", "publication"])
 def test_copy_failure_preserves_previous_python(installed_uv, monkeypatch, damage):
-    import pm.registry as registry
+    from pm import registry
     from pm.store import Store, tree_digest
 
     root, _, facts, target, digest = installed_uv

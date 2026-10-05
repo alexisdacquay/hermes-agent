@@ -15,7 +15,6 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from gateway.config import GatewayConfig, Platform, PlatformConfig
 from gateway.session import SessionEntry, SessionSource, build_session_key
 
@@ -71,8 +70,9 @@ class _RecordingAdapter:
 
 
 def _make_runner_with_adapter(session_id: str = None):
-    from gateway.run import GatewayRunner
     import uuid
+
+    from gateway.run import GatewayRunner
 
     runner = object.__new__(GatewayRunner)
     runner.config = GatewayConfig(

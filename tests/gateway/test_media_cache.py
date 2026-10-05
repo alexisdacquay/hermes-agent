@@ -7,7 +7,6 @@ that's a behavioral regression, not a test to update casually.
 """
 
 import pytest
-
 from gateway.platforms.media_cache import (
     cache_media_bytes,
     ext_for_mime,

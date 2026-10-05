@@ -22,8 +22,8 @@ import sys
 import termios
 import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 from tests.e2e.core.terminal._vt import Screen
 from tests.fakes.fake_llm_provider import FakeLLMServer, write_hermes_home

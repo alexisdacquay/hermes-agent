@@ -10,7 +10,6 @@ import sys
 from pathlib import Path
 
 import pytest
-
 from tools.environments.local import LocalEnvironment
 
 

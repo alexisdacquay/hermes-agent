@@ -1,8 +1,8 @@
 from unittest.mock import Mock, patch
-from tools import browser_tool_cloud as bt_cloud
-from tools import browser_tool_cdp as bt_cdp
-from tools import browser_tool_session as bt_session
 
+from tools import browser_tool_cdp as bt_cdp
+from tools import browser_tool_cloud as bt_cloud
+from tools import browser_tool_session as bt_session
 
 HOST = "example-host"
 PORT = 9223
@@ -64,7 +64,7 @@ class TestResolveCdpOverride:
         assert logged_version_url.startswith("https://cdp.example")
 
     def test_normalizes_provider_returned_http_cdp_url_when_creating_session(self, monkeypatch):
-        import tools.browser_tool as browser_tool
+        from tools import browser_tool
 
         provider = Mock()
         provider.create_session.return_value = {
@@ -98,7 +98,7 @@ class TestResolveCdpOverride:
 
 class TestGetCdpOverride:
     def test_prefers_env_var_over_config(self, monkeypatch):
-        import tools.browser_tool as browser_tool
+        from tools import browser_tool
 
         monkeypatch.setenv("BROWSER_CDP_URL", HTTP_URL)
         monkeypatch.setattr(
@@ -207,6 +207,7 @@ class TestCDPSupervisorTimeoutRedaction:
     def _make_timed_out_supervisor(self, cdp_url: str):
         """Return a CDPSupervisor whose start() will time out immediately."""
         import threading
+
         from tools.browser_supervisor import CDPSupervisor
 
         sup = CDPSupervisor.__new__(CDPSupervisor)
@@ -273,6 +274,7 @@ class TestCDPSupervisorStartErrorRedaction:
         exactly as the real supervisor loop does on a first-connect failure.
         """
         import threading
+
         from tools.browser_supervisor import CDPSupervisor
 
         sup = CDPSupervisor.__new__(CDPSupervisor)

@@ -13,8 +13,6 @@ import logging
 import os
 import threading
 from pathlib import Path
-from typing import Dict, Optional
-
 
 # Stale-module bridge: this module binds ``utils.file_signature`` at import time, so a fresh
 # import in a post-pull updater process (pre-handoff purge keeps root modules cached) dies
@@ -32,8 +30,8 @@ _DEFAULT_MANAGED_DIR = Path("/etc/hermes")
 
 _CACHE_LOCK = threading.Lock()
 # path_key -> (*file_signature, parsed)
-_CONFIG_CACHE: Dict[str, tuple] = {}
-_ENV_CACHE: Dict[str, tuple] = {}
+_CONFIG_CACHE: dict[str, tuple] = {}
+_ENV_CACHE: dict[str, tuple] = {}
 
 
 def _under_pytest() -> bool:
@@ -42,7 +40,7 @@ def _under_pytest() -> bool:
     return "PYTEST_CURRENT_TEST" in os.environ
 
 
-def get_managed_dir() -> Optional[Path]:
+def get_managed_dir() -> Path | None:
     """Resolve the managed-scope directory, or None when no scope is present.
 
     Priority: ``$HERMES_MANAGED_DIR`` (IT-only bootstrap override; never persisted to any .env;
@@ -66,7 +64,7 @@ def invalidate_managed_cache() -> None:
         _ENV_CACHE.clear()
 
 
-def _cached_read(path: Path, cache: Dict[str, tuple], parse):
+def _cached_read(path: Path, cache: dict[str, tuple], parse):
     """Shared stat-signature-keyed read; returns a deepcopy of the parsed value.
 
     ``None`` when the file is absent or fails to parse (fail-open). A parse failure is logged
@@ -96,7 +94,7 @@ def _cached_read(path: Path, cache: Dict[str, tuple], parse):
     return parsed
 
 
-def _load_managed_file(name: str, cache: Dict[str, tuple], parse) -> dict:
+def _load_managed_file(name: str, cache: dict[str, tuple], parse) -> dict:
     managed_dir = get_managed_dir()
     if managed_dir is None:
         return {}
@@ -109,12 +107,12 @@ def load_managed_config() -> dict:
     return _load_managed_file("config.yaml", _CONFIG_CACHE, lambda p: fast_safe_load(p.read_text(encoding="utf-8-sig")) or {})
 
 
-def load_managed_env() -> Dict[str, str]:
+def load_managed_env() -> dict[str, str]:
     """Parsed managed .env (KEY=VALUE), or {} when absent (fail-open)."""
     return _load_managed_file(".env", _ENV_CACHE, _parse_managed_env)
 
 
-def _parse_managed_env(path: Path) -> Dict[str, str]:
+def _parse_managed_env(path: Path) -> dict[str, str]:
     from agent.secret_scope import load_env_file
 
     path.read_text(encoding="utf-8-sig")  # load_env_file swallows decode errors; an admin file must fail LOUD
@@ -135,7 +133,11 @@ def apply_managed_overlay(config: dict) -> dict:
         if not managed:
             return config
         # Imported lazily to avoid an import cycle (config imports managed_scope).
-        from hermes_cli.config import _deep_merge, _expand_env_vars, _normalize_root_model_keys
+        from hermes_cli.config import (
+            _deep_merge,
+            _expand_env_vars,
+            _normalize_root_model_keys,
+        )
         managed_expanded = _normalize_root_model_keys(_expand_env_vars(managed))
         # _normalize_root_model_keys only promotes the string when root provider/base_url
         # keys exist to migrate; handle the bare case here (matches cli.py) so _deep_merge
@@ -144,7 +146,7 @@ def apply_managed_overlay(config: dict) -> dict:
             managed_expanded = dict(managed_expanded)
             managed_expanded["model"] = {"default": managed_expanded["model"]}
         return _deep_merge(config, managed_expanded)
-    except Exception:  # noqa: BLE001 — overlay must never break a caller
+    except Exception:
         logger.warning("managed scope: failed to apply config overlay", exc_info=True)
         return config
 

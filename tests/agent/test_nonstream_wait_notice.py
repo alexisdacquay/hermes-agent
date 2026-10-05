@@ -1,10 +1,9 @@
 """Wait status describes request-local silence, never active generation."""
 
-from types import SimpleNamespace
 import threading
+from types import SimpleNamespace
 
 import pytest
-
 from agent import chat_completion_helpers as h
 from agent.chat_completion_nonstream import _NonStreamRequest
 from agent.chat_completion_wait_notice import WaitNoticeState

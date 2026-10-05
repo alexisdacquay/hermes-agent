@@ -10,9 +10,8 @@ import anyio
 import httpx
 import pytest
 from fastapi import FastAPI
-from starlette.concurrency import run_in_threadpool
-
 from hermes_cli import kanban_db as kb
+from starlette.concurrency import run_in_threadpool
 
 OK = 200
 BOARD_PATH = "/api/plugins/kanban/board"

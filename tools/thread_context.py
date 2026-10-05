@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import contextvars
 import logging
-from typing import Callable
+from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +24,7 @@ def _callback_api():
     Add a new per-thread prompt here — a callback missing from this table is silently absent on
     every parallel/timeout worker, so the tool believes nobody can answer."""
     from agent.vault_backends import unlock as vault_unlock
+
     from tools import terminal_tool as tt
 
     return ((tt._get_approval_callback, tt.set_approval_callback),

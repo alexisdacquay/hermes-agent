@@ -4,7 +4,6 @@ redispatched on reconnect, and handed to the adapter that replaces this one (#13
 import asyncio
 import logging
 import weakref
-from typing import Optional
 
 from gateway.platforms.event import MessageEvent
 from gateway.platforms.helpers import cancel_task
@@ -72,7 +71,7 @@ class TelegramHeldInboundMixin:
         if schedule and not self._should_drop_delayed_delivery():
             self._schedule_held_inbound_redispatch()
 
-    def adopt_held_inbound(self, predecessor: "TelegramHeldInboundMixin") -> None:
+    def adopt_held_inbound(self, predecessor: TelegramHeldInboundMixin) -> None:
         """Take over the hold queue of the instance the runner just replaced with us (#132829): it only
         drains on its own ``_mark_connected``, which never comes; later holds there forward here."""
         predecessor._held_inbound_successor = weakref.ref(self)
@@ -94,7 +93,7 @@ class TelegramHeldInboundMixin:
         for rest in events[idx:]:
             self._hold_inbound_event(rest, where=where, schedule=False)
 
-    async def _redispatch_held_inbound(self, prior: Optional[asyncio.Task] = None) -> None:
+    async def _redispatch_held_inbound(self, prior: asyncio.Task | None = None) -> None:
         """Drain the hold queue after reconnect or a connected-path hold; ``prior`` (previous
         redispatch task) is cancelled+awaited here so ``_mark_connected`` stays synchronous."""
         if prior is not asyncio.current_task():  # a self-redispatch must not cancel itself

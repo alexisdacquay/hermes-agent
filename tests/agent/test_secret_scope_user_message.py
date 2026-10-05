@@ -2,9 +2,8 @@
 `str(exc)` must be the one actionable sentence; the developer diagnosis stays in `__notes__`/logs.
 """
 
-import pytest
-
 import agent.secret_scope as ss
+import pytest
 
 
 @pytest.fixture

@@ -10,6 +10,7 @@ import time
 
 import pytest
 
+
 @pytest.fixture(scope="module")
 def rsa_keys():
     """An RS256 keypair: (private_pem, public_pem)."""

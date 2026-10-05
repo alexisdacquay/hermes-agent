@@ -17,10 +17,8 @@ import threading
 import time
 from pathlib import Path
 
-import pytest
-
-
 import hermes_startup_watchdog as sw
+import pytest
 from hermes_startup_watchdog import (
     SERVICE_RESTART_EXIT_CODE,
     StartupWatchdogHandle,

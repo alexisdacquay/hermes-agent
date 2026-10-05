@@ -11,7 +11,6 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
-
 from agent.anthropic_credentials import anthropic_route_is_oauth
 
 OAUTH = "sk-ant-oat01-keycmd-token"

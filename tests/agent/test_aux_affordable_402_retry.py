@@ -15,10 +15,8 @@ Two coordinated fixes:
 """
 
 from types import SimpleNamespace
-from unittest.mock import patch
 
 import pytest
-
 from agent.auxiliary_client import (
     _affordable_max_tokens_from_error,
     _build_call_kwargs,

@@ -17,9 +17,7 @@ All timing knobs are shrunk so no test sleeps longer than ~1s.
 import json
 
 import pytest
-
-import hermes_cli.gateway_windows as gateway_windows
-
+from hermes_cli import gateway_windows
 
 # ---------------------------------------------------------------------------
 # _wait_for_gateway_ready: confirmation window

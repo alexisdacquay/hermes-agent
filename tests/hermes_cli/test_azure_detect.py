@@ -5,12 +5,10 @@ from __future__ import annotations
 import http.server
 import json
 import threading
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
-
 from hermes_cli import azure_detect
-
 
 # ----------------------------------------------------------------------
 # Helpers

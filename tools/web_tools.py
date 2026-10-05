@@ -12,19 +12,42 @@ Debug: ``WEB_TOOLS_DEBUG=true`` writes ``logs/web_tools_debug_<UUID>.json``.
 import json
 import logging
 import os
-from typing import List, Any, Optional
+from typing import Any
+
 # Per-vendor client cache slots; plugins read/write these via tools.web_tools (tests reset them to None).
 _firecrawl_client = _firecrawl_client_config = _parallel_client = _async_parallel_client = _exa_client = None
 
-from plugins.web.firecrawl.provider import _is_tool_gateway_ready, check_firecrawl_api_key
+from plugins.web.firecrawl.provider import (
+    _is_tool_gateway_ready,
+    check_firecrawl_api_key,
+)
+
 from tools.debug_helpers import DebugSession
-from tools.tool_backend_helpers import NOUS_MANAGED_PROVIDER, read_selection, selection_exists
+from tools.tool_backend_helpers import (
+    NOUS_MANAGED_PROVIDER,
+    read_selection,
+    selection_exists,
+)
 from tools.url_safety import async_is_safe_url
-from tools.web_tools_rescue import _managed_search_fallback, _rescue_eligible, _rescue_search
-from tools.web_tools_truncate import _effective_char_limit, _trim_results, _truncate_results, convert_base64_images_to_links
 from tools.web_tools_extract import (
-    _extract_safe_urls, _merge_in_order, _no_provider_error, _resolve_extract_provider, _result_entry,
-    _strict_selection_error, _validate_extract_urls,
+    _extract_safe_urls,
+    _merge_in_order,
+    _no_provider_error,
+    _resolve_extract_provider,
+    _result_entry,
+    _strict_selection_error,
+    _validate_extract_urls,
+)
+from tools.web_tools_rescue import (
+    _managed_search_fallback,
+    _rescue_eligible,
+    _rescue_search,
+)
+from tools.web_tools_truncate import (
+    _effective_char_limit,
+    _trim_results,
+    _truncate_results,
+    convert_base64_images_to_links,
 )
 
 logger = logging.getLogger(__name__)
@@ -86,7 +109,7 @@ def _list_registered_web_providers():
     return _registry_call("list_providers", [])
 
 
-def _probe(provider, method: str, context: str = "") -> Optional[bool]:
+def _probe(provider, method: str, context: str = "") -> bool | None:
     """``bool(provider.<method>())``, or ``None`` if it raised (a broken provider is unavailable; *context* is
     appended to the debug log line, e.g. " during readiness check")."""
     try:
@@ -115,7 +138,7 @@ def _get_backend() -> str:
     return _autodetect_backend() or _keyless_backend() or "firecrawl"  # default (backward compat)
 
 
-def _autodetect_backend() -> Optional[str]:
+def _autodetect_backend() -> str | None:
     """Autodetect rungs above the keyless tier, or None. Explicit user credentials beat the managed-gateway
     probe (a Nous OAuth token's tier may not grant web access; the gateway then fails at runtime with no
     fallback). Free tiers trail paid."""
@@ -138,7 +161,7 @@ def _autodetect_backend() -> Optional[str]:
     return None
 
 
-def _keyless_backend() -> Optional[str]:
+def _keyless_backend() -> str | None:
     """Keyless free-tier backend name, or None. Strictly the last autodetect rung so it never
     pre-empts a keyed backend. Discovery must run first: reachable from contexts that haven't
     loaded plugins (subprocess runs, delegate children)."""
@@ -168,7 +191,10 @@ def _managed_web_search() -> bool:
     backend = _autodetect_backend()
     if backend == "firecrawl":
         return not (_has_env("FIRECRAWL_API_KEY") or _has_env("FIRECRAWL_API_URL")) and _is_tool_gateway_ready()
-    from tools.managed_tool_gateway import peek_nous_access_token, resolve_free_search_gateway
+    from tools.managed_tool_gateway import (
+        peek_nous_access_token,
+        resolve_free_search_gateway,
+    )
     return backend is None and resolve_free_search_gateway(token_reader=peek_nous_access_token) is not None
 
 
@@ -282,7 +308,7 @@ def _ensure_web_plugins_loaded() -> None:
         logger.warning("Web plugin discovery failed (non-fatal): %s", exc)
 
 
-def _finish_debug(call_name: str, debug_call_data: dict, error_msg: Optional[str] = None) -> Optional[str]:
+def _finish_debug(call_name: str, debug_call_data: dict, error_msg: str | None = None) -> str | None:
     """Log the call into the debug session; with *error_msg*, record it and return its ``tool_error`` envelope."""
     if error_msg is not None:
         logger.debug("%s", error_msg)
@@ -313,7 +339,8 @@ def web_search_tool(query: str, limit: int = 5) -> str:
             return tool_error("Interrupted", success=False)
         # Sync only — every provider's search() is sync.
         _ensure_web_plugins_loaded()
-        from agent.web_search_registry import get_active_search_provider, get_provider as _wsp_get_provider
+        from agent.web_search_registry import get_active_search_provider
+        from agent.web_search_registry import get_provider as _wsp_get_provider
         backend = _get_search_backend()
         provider = _wsp_get_provider(backend) if backend else None
         if provider is None or not provider.supports_search():
@@ -337,7 +364,7 @@ def web_search_tool(query: str, limit: int = 5) -> str:
         _finish_debug("web_search_tool", debug_call_data)
         return result_json
     except Exception as e:
-        return _finish_debug("web_search_tool", debug_call_data, f"Error searching web: {str(e)}")
+        return _finish_debug("web_search_tool", debug_call_data, f"Error searching web: {e!s}")
 
 
 def _memoized_search(provider, query: str, limit: int) -> dict:
@@ -351,7 +378,7 @@ def _memoized_search(provider, query: str, limit: int) -> dict:
         fetch_limit = bucket_limit(limit)
         try:
             resp = provider.search(query, fetch_limit)
-        except Exception as exc:  # noqa: BLE001 — candidate for fallback / rescue
+        except Exception as exc:
             served = _served_after_failure(str(exc), fetch_limit)
             if served is None:
                 raise
@@ -362,7 +389,7 @@ def _memoized_search(provider, query: str, limit: int) -> dict:
                 return served, True
         return resp, False
 
-    def _served_after_failure(error: str, fetch_limit: int) -> Optional[dict]:
+    def _served_after_failure(error: str, fetch_limit: int) -> dict | None:
         """Managed Firecrawl for a failed managed Perplexity call, else the one-shot keyless rescue when
         eligible; None means the vendor's own failure stands."""
         fallback = _managed_search_fallback(provider, error, query, fetch_limit)
@@ -382,7 +409,7 @@ def _memoized_search(provider, query: str, limit: int) -> dict:
     return slice_search_response(response_data, limit)
 
 
-async def web_extract_tool(urls: List[Any], format: str = None, char_limit: Optional[int] = None) -> str:
+async def web_extract_tool(urls: list[Any], format: str = None, char_limit: int | None = None) -> str:
     """Extract clean page content (no LLM) from URLs via the configured backend.
 
     Pages over ``char_limit`` (default web.extract_char_limit or 15000) are head+tail truncated with a footer
@@ -442,7 +469,7 @@ async def web_extract_tool(urls: List[Any], format: str = None, char_limit: Opti
         _finish_debug("web_extract_tool", debug_call_data)
         return cleaned_result
     except Exception as e:
-        return _finish_debug("web_extract_tool", debug_call_data, f"Error extracting content: {str(e)}")
+        return _finish_debug("web_extract_tool", debug_call_data, f"Error extracting content: {e!s}")
 
 
 def _provider_is_ready(provider) -> bool:
@@ -485,7 +512,10 @@ def check_web_api_key() -> bool:
     # Plugin path. Discovery must run first: check_fn fires at tool-registration time, before any dispatch.
     try:
         _ensure_web_plugins_loaded()
-        from agent.web_search_registry import get_active_search_provider, get_active_extract_provider
+        from agent.web_search_registry import (
+            get_active_extract_provider,
+            get_active_search_provider,
+        )
         for provider in (get_active_search_provider(), get_active_extract_provider()):
             if provider is not None and getattr(provider, "name", None) in _WEB_CHECK_SKIP:
                 # The registry's single-eligible / legacy walk picked a built-in that _get_backend

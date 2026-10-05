@@ -8,8 +8,6 @@ from tui_gateway import server
 from tui_gateway import ws as ws_mod
 
 
-
-
 def _run_disconnect(monkeypatch, seed):
     """Drive handle_ws to its disconnect `finally`, seeding sessions against the
     live WSTransport the moment it exists. Returns nothing; inspect _sessions."""
@@ -227,7 +225,7 @@ def test_ws_ping_is_answered_while_an_earlier_rpc_blocks_dispatch(monkeypatch):
     starve gateway.ping — the client's 45s heartbeat deadline would otherwise tear down a busy but healthy
     backend. Non-ping RPCs keep their serial arrival order."""
     ws, inbound, sent, log, release = _slow_dispatch_harness(monkeypatch)
-    ids = lambda: [f.get("id") for f in sent if "id" in f]  # noqa: E731
+    ids = lambda: [f.get("id") for f in sent if "id" in f]
 
     async def scenario():
         task = asyncio.create_task(ws_mod.handle_ws(ws))

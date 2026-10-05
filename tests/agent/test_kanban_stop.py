@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from agent.kanban_stop import (
     build_kanban_stop_nudge,
     kanban_stop_nudge_enabled,

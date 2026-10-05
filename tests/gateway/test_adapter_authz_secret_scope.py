@@ -12,7 +12,6 @@ import contextlib
 from types import SimpleNamespace
 
 import pytest
-
 from agent import secret_scope as ss
 from gateway.config import PlatformConfig
 

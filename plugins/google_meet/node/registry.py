@@ -9,12 +9,12 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from hermes_constants import get_hermes_home
+from utils import atomic_json_write
 
 from plugins.google_meet._jsonfile import read_json
-from utils import atomic_json_write
 
 
 def _default_path() -> Path:
@@ -24,19 +24,19 @@ def _default_path() -> Path:
 class NodeRegistry:
     """File-backed registry; single writer assumed (the gateway CLI)."""
 
-    def __init__(self, path: Optional[Path] = None) -> None:
+    def __init__(self, path: Path | None = None) -> None:
         self.path = Path(path) if path is not None else _default_path()
 
-    def _load(self) -> Dict[str, Dict[str, Any]]:
+    def _load(self) -> dict[str, dict[str, Any]]:
         """The ``nodes`` map (name → entry); empty when the file is missing or malformed."""
         data = read_json(self.path)
         nodes = data.get("nodes") if isinstance(data, dict) else None
         return nodes if isinstance(nodes, dict) else {}
 
-    def _save(self, nodes: Dict[str, Dict[str, Any]]) -> None:
+    def _save(self, nodes: dict[str, dict[str, Any]]) -> None:
         atomic_json_write(self.path, {"nodes": nodes})
 
-    def get(self, name: str) -> Optional[Dict[str, Any]]:
+    def get(self, name: str) -> dict[str, Any] | None:
         entry = self._load().get(name)
         return None if entry is None else {"name": name, **entry}
 
@@ -56,10 +56,10 @@ class NodeRegistry:
         self._save(nodes)
         return True
 
-    def list_all(self) -> List[Dict[str, Any]]:
+    def list_all(self) -> list[dict[str, Any]]:
         return [{"name": name, **entry} for name, entry in sorted(self._load().items())]
 
-    def resolve(self, chrome_node: Optional[str]) -> Optional[Dict[str, Any]]:
+    def resolve(self, chrome_node: str | None) -> dict[str, Any] | None:
         """Named node's entry, or (``chrome_node`` falsy) the sole registered node; None if unknown
         or when zero / several nodes are registered (ambiguous)."""
         if chrome_node:

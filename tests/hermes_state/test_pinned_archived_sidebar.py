@@ -8,7 +8,6 @@ a pinned row.
 import time
 
 import pytest
-
 from hermes_state import SessionDB
 
 

@@ -3,11 +3,10 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 import subprocess
+from pathlib import Path
 
 import pytest
-
 from tests.installation_launcher_fixture import publish_fixture_launcher
 
 ROOT = Path(__file__).resolve().parent.parent.parent.parent

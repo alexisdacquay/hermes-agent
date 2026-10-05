@@ -8,7 +8,6 @@ on whatever deployment (preview / staging / prod) the user is pointed at.
 from __future__ import annotations
 
 import pytest
-
 from hermes_cli.nous_billing import (
     BillingError,
     _absolutize_portal_url,

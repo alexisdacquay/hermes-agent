@@ -11,7 +11,7 @@ Usage::
 # IMPORTANT: hermes_bootstrap must be the very first import — UTF-8 stdio
 # on Windows.  No-op on POSIX.  See hermes_bootstrap.py for full rationale.
 try:
-    import hermes_bootstrap  # noqa: F401
+    import hermes_bootstrap
 except ModuleNotFoundError as exc:
     # Partial ``hermes update`` (git-reset landed, ``uv pip install -e .`` did not).
     if exc.name != "hermes_bootstrap":
@@ -33,8 +33,8 @@ import logging
 import os
 import sys
 from pathlib import Path
-from hermes_constants import get_hermes_home
 
+from hermes_constants import get_hermes_home
 
 # Liveness-probe methods outside the ACP schema. The router correctly answers JSON-RPC -32601
 # (clients treat that as "agent alive"), but the dispatching supervisor task also logs
@@ -112,6 +112,7 @@ def _print_version() -> None:
 
 def _run_check() -> None:
     import acp  # noqa: F401
+
     from acp_adapter.server import HermesACPAgent  # noqa: F401
 
     print("Hermes ACP check OK")
@@ -190,6 +191,7 @@ def main(argv: list[str] | None = None) -> None:
     install_truststore()
 
     import acp
+
     from .server import HermesACPAgent
 
     # Windows: import the configured memory provider (and numpy) on the main thread before

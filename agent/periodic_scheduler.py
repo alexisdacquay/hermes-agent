@@ -21,13 +21,13 @@ failure never retires the handle: it is re-queued and logged at warning.
 
 from __future__ import annotations
 
-from contextvars import copy_context
 import heapq
 import itertools
 import logging
 import threading
 import time
-from typing import Callable, Optional
+from collections.abc import Callable
+from contextvars import copy_context
 
 logger = logging.getLogger(__name__)
 
@@ -38,14 +38,14 @@ _CALLBACK_THREAD_PREFIX = "hermes-periodic-callback"
 class ScheduledHandle:
     """Cancel token for one scheduled periodic callback."""
 
-    __slots__ = ("_fn", "_interval", "_cancelled", "_scheduler", "_runner", "_context")
+    __slots__ = ("_cancelled", "_context", "_fn", "_interval", "_runner", "_scheduler")
 
-    def __init__(self, scheduler: "PeriodicScheduler", fn: Callable[[], object], interval: float):
+    def __init__(self, scheduler: PeriodicScheduler, fn: Callable[[], object], interval: float):
         self._scheduler = scheduler
         self._fn = fn
         self._interval = interval
         self._cancelled = False
-        self._runner: Optional[threading.Thread] = None
+        self._runner: threading.Thread | None = None
         # Safe to reuse because this scheduler never overlaps runs of one handle.
         self._context = copy_context()
 
@@ -53,7 +53,7 @@ class ScheduledHandle:
     def cancelled(self) -> bool:
         return self._cancelled
 
-    def cancel(self, wait: Optional[float] = None) -> None:
+    def cancel(self, wait: float | None = None) -> None:
         """Stop future runs.  ``wait`` (seconds) additionally blocks until an
         in-flight run of this callback finishes — the analogue of
         ``thread.join(timeout=wait)`` on the old per-child thread."""
@@ -65,7 +65,7 @@ class PeriodicScheduler:
         self._cond = threading.Condition()
         self._heap: list = []  # (due, seq, handle)
         self._seq = itertools.count()
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
 
     def schedule(self, fn: Callable[[], object], interval: float) -> ScheduledHandle:
         handle = ScheduledHandle(self, fn, float(interval))
@@ -77,7 +77,7 @@ class PeriodicScheduler:
             self._cond.notify()
         return handle
 
-    def _cancel(self, handle: ScheduledHandle, wait: Optional[float]) -> None:
+    def _cancel(self, handle: ScheduledHandle, wait: float | None) -> None:
         with self._cond:
             handle._cancelled = True
             self._cond.notify()

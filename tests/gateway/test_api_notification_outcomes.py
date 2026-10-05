@@ -3,7 +3,6 @@ import copy
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from gateway.config import PlatformConfig
 from gateway.platforms.api_server import APIServerAdapter, _ProviderAuthResolutionError
 
@@ -78,9 +77,10 @@ async def test_pre_agent_auth_diagnostic_obeys_policy_without_losing_logs(tmp_pa
 @pytest.mark.parametrize("stream", [False, True])
 @pytest.mark.parametrize("setting", [None, False, True])
 async def test_http_diagnostic_projection_keeps_source_and_terminal_flags(tmp_path, monkeypatch, stream, setting):
+    import json
+
     from aiohttp import web
     from aiohttp.test_utils import TestClient, TestServer
-    import json
 
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
     (tmp_path / "config.yaml").write_text("{}" if setting is None else
@@ -139,9 +139,10 @@ async def test_http_diagnostic_projection_keeps_source_and_terminal_flags(tmp_pa
 @pytest.mark.parametrize("stream", [False, True])
 @pytest.mark.parametrize("setting", [None, False, True])
 async def test_http_unhandled_diagnostic_error_is_quiet_but_failed(tmp_path, monkeypatch, caplog, stream, setting):
+    import json
+
     from aiohttp import web
     from aiohttp.test_utils import TestClient, TestServer
-    import json
 
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
     (tmp_path / "config.yaml").write_text("{}" if setting is None else

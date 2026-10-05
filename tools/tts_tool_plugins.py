@@ -7,11 +7,14 @@ tool module stays importable without the plugin machinery).
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 
 from tools.tts_command_provider import (
-    BUILTIN_TTS_PROVIDERS, DEFAULT_COMMAND_TTS_OUTPUT_FORMAT, _get_named_provider_config,
-    _is_command_provider_config)
+    BUILTIN_TTS_PROVIDERS,
+    DEFAULT_COMMAND_TTS_OUTPUT_FORMAT,
+    _get_named_provider_config,
+    _is_command_provider_config,
+)
 
 logger = logging.getLogger("tools.tts_tool")
 
@@ -31,7 +34,7 @@ def _lookup_plugin_provider(key: str, *, discover: bool = True, retry: bool = Fa
     return plugin_provider
 
 
-def _dispatch_to_plugin_provider(text: str, output_path: str, provider: str, tts_config: Dict[str, Any]) -> Optional[str]:
+def _dispatch_to_plugin_provider(text: str, output_path: str, provider: str, tts_config: dict[str, Any]) -> str | None:
     """Route to a plugin-registered TTS provider; None means "fall through".
 
     Invariants re-checked here so a caller refactor can't break them: built-in names never reach

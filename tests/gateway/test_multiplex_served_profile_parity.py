@@ -11,7 +11,6 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-
 from agent.secret_scope import set_multiplex_active
 from gateway.config import Platform, PlatformConfig
 from gateway.run import GatewayRunner, _profile_runtime_scope

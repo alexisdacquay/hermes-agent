@@ -7,9 +7,8 @@ console export is."""
 import json
 import sys
 
-import pytest
-
 import hermes_cli.main as main_mod
+import pytest
 from hermes_state import SessionDB
 
 SID = "20260929_120000_abcdef"

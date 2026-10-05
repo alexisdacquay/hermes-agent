@@ -27,10 +27,11 @@ from __future__ import annotations
 import json
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any, Callable, Union
+from typing import Any, Union
 
 MODEL_ID = "fake-model"
 
@@ -151,7 +152,7 @@ class FakeLLMServer:
         self._tool_seq = 0
 
     # lifecycle
-    def __enter__(self) -> "FakeLLMServer":
+    def __enter__(self) -> FakeLLMServer:
         self.start()
         return self
 
@@ -231,7 +232,7 @@ def _handler_for(server: FakeLLMServer) -> type[BaseHTTPRequestHandler]:
             self.end_headers()
             self.wfile.write(body)
 
-        def do_GET(self) -> None:  # noqa: N802
+        def do_GET(self) -> None:
             if server.record_get:
                 with server._lock:
                     server.requests.append({
@@ -245,7 +246,7 @@ def _handler_for(server: FakeLLMServer) -> type[BaseHTTPRequestHandler]:
                 return
             self._send_json(404, {"error": {"message": "not found"}})
 
-        def do_POST(self) -> None:  # noqa: N802
+        def do_POST(self) -> None:
             raw = self.rfile.read(int(self.headers.get("Content-Length", 0) or 0))
             try:
                 body = json.loads(raw or b"{}")

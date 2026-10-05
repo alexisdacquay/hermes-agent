@@ -1,17 +1,17 @@
 import json
 import sqlite3
 import tempfile
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
-
 from agent.verification_evidence import (
     classify_verification_command,
     mark_workspace_edited,
     record_terminal_result,
     verification_status,
 )
+
 
 @pytest.fixture(autouse=True)
 def _ledger_on(monkeypatch):
@@ -356,7 +356,7 @@ def test_recording_expires_old_edit_only_state(tmp_path, monkeypatch):
         cwd=tmp_path,
         paths=[str(tmp_path / "src" / "app.ts")],
     )
-    cutoff = (datetime.now(timezone.utc) - timedelta(days=31)).isoformat()
+    cutoff = (datetime.now(UTC) - timedelta(days=31)).isoformat()
     with sqlite3.connect(home / "verification_evidence.db") as conn:
         conn.execute("UPDATE verification_state SET last_edit_at = ?", (cutoff,))
         conn.commit()

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -15,13 +16,11 @@ from pathlib import Path
 import pytest
 from tests.termux_fixtures import build_deb
 
-import sys
-
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 sys.path.insert(0, str(REPO_ROOT / "scripts" / "termux"))
 
-import stage_runtime_libs as srl  # noqa: E402
+import stage_runtime_libs as srl
 
 PREFIX = srl.PREFIX_REL
 

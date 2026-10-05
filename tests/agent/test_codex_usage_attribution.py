@@ -8,13 +8,11 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
+import hermes_yaml as yaml
 import httpx
 import pytest
-import hermes_yaml as yaml
-
 from hermes_cli.version_info import get_version_info
 from hermes_constants import reset_hermes_home_override, set_hermes_home_override
-
 
 CODEX_URL = "https://chatgpt.com/backend-api/codex"
 MODEL = "gpt-5.4"

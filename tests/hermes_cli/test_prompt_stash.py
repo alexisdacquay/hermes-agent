@@ -12,7 +12,6 @@ Covers the pure state machine directly — no prompt_toolkit, no TUI:
 from __future__ import annotations
 
 import pytest
-
 from hermes_cli.prompt_stash import (
     ACTION_CLOSE_PANEL,
     ACTION_NOOP,
@@ -25,6 +24,7 @@ from hermes_cli.prompt_stash import (
     build_preview,
     resolve_ctrl_s,
 )
+
 
 class _FakeClock:
     """Deterministic monotonic clock for age assertions."""

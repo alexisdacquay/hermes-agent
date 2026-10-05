@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 import os
 import threading
-from typing import Optional
 
 from hermes_cli.auth import (
     ACCESS_TOKEN_REFRESH_SKEW_SECONDS,
@@ -35,10 +34,10 @@ NOUS_AUTH_KEEPALIVE_INTERVAL_CONFIG_KEY = "keepalive_interval_seconds"
 
 _keepalive_lock = threading.Lock()
 _keepalive_stop = threading.Event()
-_keepalive_thread: Optional[threading.Thread] = None
+_keepalive_thread: threading.Thread | None = None
 
 
-def _timeout_seconds(value: Optional[float]) -> float:
+def _timeout_seconds(value: float | None) -> float:
     if value is not None:
         return float(value)
     try:
@@ -58,7 +57,7 @@ def _nous_config() -> dict:
         return {}
 
 
-def _interval_seconds(value: Optional[int]) -> int:
+def _interval_seconds(value: int | None) -> int:
     """Tick interval: explicit argument, then ``nous.keepalive_interval_seconds`` in config.yaml,
     then the module default. Non-positive disables the keepalive thread (the documented way off).
     """
@@ -80,7 +79,7 @@ def _interval_seconds(value: Optional[int]) -> int:
         return NOUS_AUTH_KEEPALIVE_INTERVAL_SECONDS
 
 
-def _observed_lifetime_seconds() -> Optional[int]:
+def _observed_lifetime_seconds() -> int | None:
     """Server-issued lifetime (seconds) of the current Nous credentials; the shorter of the access
     token and the invoke agent key governs. None when nothing usable is stored.
     """
@@ -96,7 +95,7 @@ def _observed_lifetime_seconds() -> Optional[int]:
     return min(lifetimes, default=None)
 
 
-def _tick_seconds(configured_interval: int, lifetime: Optional[int]) -> int:
+def _tick_seconds(configured_interval: int, lifetime: int | None) -> int:
     """Tick fast enough to refresh several times per credential lifetime."""
     if not lifetime or lifetime <= 0:
         return configured_interval
@@ -115,7 +114,7 @@ def _entry_state(entry: object) -> dict:
     return {k: getattr(entry, k, None) for k in ("agent_key", "agent_key_expires_at", "scope")}
 
 
-def _refresh_selected_pool_entry(*, min_key_ttl_seconds: int, min_access_ttl_seconds: Optional[int] = None) -> Optional[bool]:
+def _refresh_selected_pool_entry(*, min_key_ttl_seconds: int, min_access_ttl_seconds: int | None = None) -> bool | None:
     """Refresh the current pool entry when stale. True = usable/refreshed; False = pool exists but
     no usable entry; None = no Nous pool.
     """
@@ -148,7 +147,7 @@ def _refresh_selected_pool_entry(*, min_key_ttl_seconds: int, min_access_ttl_sec
 
 def refresh_nous_auth_keepalive_once(
     *, min_key_ttl_seconds: int = NOUS_INVOKE_JWT_MIN_TTL_SECONDS,
-    min_access_ttl_seconds: Optional[int] = None, timeout_seconds: Optional[float] = None,
+    min_access_ttl_seconds: int | None = None, timeout_seconds: float | None = None,
 ) -> bool:
     """Refresh Nous auth once if credentials are configured (pool entry first, then singleton state)."""
     # This runs in a bare daemon thread, so it does not inherit a request's ContextVars. Once a
@@ -178,7 +177,7 @@ def refresh_nous_auth_keepalive_once(
 
 def _keepalive_loop(
     stop_event: threading.Event, *, interval_seconds: int, initial_delay_seconds: int,
-    min_key_ttl_seconds: int, timeout_seconds: Optional[float],
+    min_key_ttl_seconds: int, timeout_seconds: float | None,
 ) -> None:
     if initial_delay_seconds > 0 and stop_event.wait(initial_delay_seconds):
         return
@@ -194,10 +193,10 @@ def _keepalive_loop(
 
 
 def start_nous_auth_keepalive(
-    *, interval_seconds: Optional[int] = None,
+    *, interval_seconds: int | None = None,
     initial_delay_seconds: int = NOUS_AUTH_KEEPALIVE_INITIAL_DELAY_SECONDS,
-    min_key_ttl_seconds: int = NOUS_INVOKE_JWT_MIN_TTL_SECONDS, timeout_seconds: Optional[float] = None,
-) -> Optional[threading.Thread]:
+    min_key_ttl_seconds: int = NOUS_INVOKE_JWT_MIN_TTL_SECONDS, timeout_seconds: float | None = None,
+) -> threading.Thread | None:
     """Start the process-wide Nous auth keepalive thread (idempotent; None when disabled)."""
     interval_seconds = _interval_seconds(interval_seconds)
     if interval_seconds <= 0:

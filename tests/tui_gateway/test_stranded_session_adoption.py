@@ -10,7 +10,6 @@ primitive (SessionDB.adopt_session_lineage_from) and its invariants.
 from __future__ import annotations
 
 import pytest
-
 from hermes_state import SessionDB
 
 STRANDED_ID = "20260823_043331_c93770"

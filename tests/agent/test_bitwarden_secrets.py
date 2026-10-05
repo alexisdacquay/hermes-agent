@@ -17,13 +17,12 @@ from unittest import mock
 
 import pytest
 
-
 # Make the worktree importable without depending on the installed wheel.
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from agent.secret_sources import bitwarden as bw  # noqa: E402
+from agent.secret_sources import bitwarden as bw
 
 
 @pytest.fixture(autouse=True)

@@ -2,11 +2,11 @@
 import asyncio
 
 import pytest
-
 from gateway.platforms.signal_rate_limit import (
     SignalAttachmentScheduler,
     _reset_scheduler,
 )
+
 
 @pytest.fixture(autouse=True)
 def _reset_signal_scheduler():

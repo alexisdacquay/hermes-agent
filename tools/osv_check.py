@@ -13,7 +13,7 @@ import threading
 import time
 import urllib.request
 from pathlib import Path
-from typing import Optional, Tuple
+
 logger = logging.getLogger(__name__)
 
 _OSV_ENDPOINT = os.getenv("OSV_ENDPOINT", "https://api.osv.dev/v1/query")
@@ -40,7 +40,7 @@ _disk_cache_loaded = False
 _DISK_CACHE_VERSION = 1
 
 
-def _disk_cache_path() -> Optional[Path]:
+def _disk_cache_path() -> Path | None:
     """Return the path for the persistent OSV verdict cache.
 
     Uses ``hermes_constants.get_hermes_home()`` so the cache follows the
@@ -139,7 +139,7 @@ def _save_disk_cache() -> None:
         logger.debug("Failed to save OSV disk cache to %s: %s", path, exc)
 
 
-def _cache_get(key) -> Tuple[bool, Optional[str]]:
+def _cache_get(key) -> tuple[bool, str | None]:
     """Return (hit, result) for a fresh cache entry."""
     with _cache_lock:
         _load_disk_cache()
@@ -150,7 +150,7 @@ def _cache_get(key) -> Tuple[bool, Optional[str]]:
         return False, None
 
 
-def _cache_put(key, result: Optional[str]) -> None:
+def _cache_put(key, result: str | None) -> None:
     with _cache_lock:
         _load_disk_cache()
         if len(_cache) >= _CACHE_MAX_ENTRIES:
@@ -163,7 +163,7 @@ def _cache_put(key, result: Optional[str]) -> None:
         _save_disk_cache()
 
 
-def check_package_for_malware(command: str, args: list) -> Optional[str]:
+def check_package_for_malware(command: str, args: list) -> str | None:
     """Check an MCP server package (inferred from ``command``/``args``) for MAL-* advisories.
     Returns a BLOCKED message, else None — also on network errors/unknown commands (fail-open)."""
     ecosystem = _infer_ecosystem(command)
@@ -199,14 +199,14 @@ _ECOSYSTEM_BY_COMMAND = {
 }
 
 
-def _infer_ecosystem(command: str) -> Optional[str]:
+def _infer_ecosystem(command: str) -> str | None:
     # Split on BOTH separators: os.path.basename leaves ``C:\...\uvx.exe`` intact on POSIX
     # (config authored for Windows) and the preflight would silently skip. Only the shim
     # names each runner actually installs are listed; lookalikes stay fail-open.
     return _ECOSYSTEM_BY_COMMAND.get(re.split(r"[\\/]", command)[-1].lower())
 
 
-def _parse_package_from_args(args: list, ecosystem: str) -> Tuple[Optional[str], Optional[str]]:
+def _parse_package_from_args(args: list, ecosystem: str) -> tuple[str | None, str | None]:
     """Extract (package_name, version) from command args, or (None, None) if not parseable."""
     # Skip flags to find the package token. npx's explicit install target (--package=NAME /
     # --package NAME / -p NAME) names a package distinct from the executed binary.
@@ -234,7 +234,7 @@ def _parse_package_from_args(args: list, ecosystem: str) -> Tuple[Optional[str],
     return parser(package_token) if parser else (package_token, None)
 
 
-def _parse_npm_package(token: str) -> Tuple[Optional[str], Optional[str]]:
+def _parse_npm_package(token: str) -> tuple[str | None, str | None]:
     """Parse npm package: @scope/name@version or name@version."""
     if token.startswith("@"):
         match = re.match(r"^(@[^/]+/[^@]+)(?:@(.+))?$", token)
@@ -245,7 +245,7 @@ def _parse_npm_package(token: str) -> Tuple[Optional[str], Optional[str]]:
     return token, None
 
 
-def _parse_pypi_package(token: str) -> Tuple[Optional[str], Optional[str]]:
+def _parse_pypi_package(token: str) -> tuple[str | None, str | None]:
     """Parse PyPI package: name==version or name[extras]==version."""
     match = re.match(r"^([a-zA-Z0-9._-]+)(?:\[[^\]]*\])?(?:==(.+))?$", token)
     return (match.group(1), match.group(2)) if match else (token, None)
@@ -254,7 +254,7 @@ def _parse_pypi_package(token: str) -> Tuple[Optional[str], Optional[str]]:
 _PACKAGE_PARSERS = {"npm": _parse_npm_package, "PyPI": _parse_pypi_package}
 
 
-def _query_osv(package: str, ecosystem: str, version: Optional[str] = None) -> list:
+def _query_osv(package: str, ecosystem: str, version: str | None = None) -> list:
     """Query the OSV API; return only MAL-* advisories (regular CVEs ignored)."""
     payload = {"package": {"name": package, "ecosystem": ecosystem}}
     if version:

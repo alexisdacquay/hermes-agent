@@ -10,7 +10,6 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
-
 from gateway.config import Platform
 from gateway.platform_registry import PlatformEntry, platform_registry
 from tools.send_message_tool import resolve_send_target, send_message_tool

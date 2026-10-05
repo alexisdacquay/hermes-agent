@@ -10,12 +10,13 @@ from __future__ import annotations
 import logging
 import os
 import shutil
-from datetime import datetime, timezone
+from collections.abc import Iterable
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Iterable
+
+from pm.paths import install_root
 
 from hermes_cli._launchers import expose_cli
-from pm.paths import install_root
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +38,7 @@ def _backup_path(path: Path, stamp: str) -> Path:
 
 
 def _backup_existing(paths: Iterable[Path]) -> dict:
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     backups: dict = {}
     for path in paths:
         if not path.is_file():
@@ -132,6 +133,7 @@ def step_state_db_guard() -> dict:
     search. Read-only, idempotent.
     """
     from hermes_constants import get_hermes_home
+
     from hermes_cli.backup import verify_sqlite_integrity
 
     state_path = get_hermes_home() / "state.db"
@@ -157,6 +159,7 @@ def step_drop_live_plugin_catalog() -> dict:
     for the rest of its TTL (#119340). Per home, like the boot record.
     """
     from hermes_constants import get_hermes_home
+
     from hermes_cli.plugin_catalog import invalidate_live_cache_for_home
 
     invalidate_live_cache_for_home(get_hermes_home())
@@ -238,7 +241,7 @@ def step_adopt_blessed_checkout(project_root: Path | None = None) -> dict:
             "schemaVersion": 2,
             "updateMechanism": "self",
             "source": "adoption",
-            "adoptedAt": datetime.now(timezone.utc).isoformat(),
+            "adoptedAt": datetime.now(UTC).isoformat(),
         }
         try:
             fd, tmp_name = tempfile.mkstemp(

@@ -9,7 +9,6 @@ for the session, and never change the bytes sent to destinations that accepted t
 from types import SimpleNamespace
 
 import pytest
-
 from agent import moa_loop
 from agent.error_classifier import FailoverReason, classify_api_error
 

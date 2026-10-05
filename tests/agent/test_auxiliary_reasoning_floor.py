@@ -11,7 +11,6 @@ on that route starts at the floor without the guaranteed 400.
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from agent import auxiliary_reasoning_floor
 from agent.auxiliary_client import call_llm
 

@@ -12,11 +12,9 @@ import os
 import shutil
 import subprocess
 
-import pytest
-
-from agent.i18n import t
-
 import cli as cli_mod
+import pytest
+from agent.i18n import t
 from hermes_cli.cli_commands_mixin import CLICommandsMixin
 
 requires_git = pytest.mark.skipif(

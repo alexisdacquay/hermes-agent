@@ -7,23 +7,19 @@ suite stays fast and offline-safe.  A live resolve is exercised manually via
 
 from __future__ import annotations
 
-import json
 import os
-import subprocess
 import sys
-import time
 from pathlib import Path
 from unittest import mock
 
 import pytest
-
 
 # Make the worktree importable without depending on the installed wheel.
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from agent.secret_sources import onepassword as op  # noqa: E402
+from agent.secret_sources import onepassword as op
 
 
 @pytest.fixture(autouse=True)

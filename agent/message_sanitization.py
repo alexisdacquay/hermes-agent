@@ -11,8 +11,9 @@ import hashlib
 import json
 import logging
 import re
+from collections.abc import Callable
 from functools import partial
-from typing import Any, Callable
+from typing import Any
 
 from agent.message_metadata import DB_ROW_SNAPSHOT
 from agent.vision_message_prep import _provider_model_key
@@ -653,7 +654,7 @@ def matches_reasoning_echo_family(family: str, provider: Any, model: Any, base_u
     )
 
 
-def reasoning_echo_family(provider: Any, model: Any, base_url: Any) -> "str | None":
+def reasoning_echo_family(provider: Any, model: Any, base_url: Any) -> str | None:
     """``"kimi"`` / ``"deepseek"`` / ``"mimo"`` (first match in table order) when the
     endpoint enforces reasoning_content echo-back, else ``None`` (strip side)."""
     families = (rule[0] for rule in _REASONING_ECHO_RULES)
@@ -674,7 +675,9 @@ def stale_thinking_reaches_wire(api_mode: Any, provider: Any, model: Any, base_u
     ``codex_responses`` never reads the text keys (continuity rides the encrypted sidecar).
     """
     if (api_mode or "") == "anthropic_messages":
-        from agent.anthropic_thinking_policy import native_anthropic_preserves_prior_thinking
+        from agent.anthropic_thinking_policy import (
+            native_anthropic_preserves_prior_thinking,
+        )
         if native_anthropic_preserves_prior_thinking(base_url, model):
             return True
     return (api_mode or "") != "codex_responses" and needs_reasoning_echo(provider, model, base_url)

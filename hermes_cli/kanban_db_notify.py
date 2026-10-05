@@ -10,12 +10,9 @@ from __future__ import annotations
 import json
 import sqlite3
 import time
+from collections.abc import Iterable, Mapping
 from pathlib import Path
-from typing import Any
-from typing import Iterable
-from typing import Mapping
-from typing import Optional
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from hermes_cli.kanban_db import Event
@@ -32,11 +29,11 @@ _SCALAR_TYPES = (str, int, float, bool)
 _SUB_KEY_WHERE = "WHERE task_id = ? AND platform = ? AND chat_id = ? AND thread_id = ?"
 
 
-def _sub_key(task_id: str, platform: str, chat_id: str, thread_id: Optional[str]) -> tuple:
+def _sub_key(task_id: str, platform: str, chat_id: str, thread_id: str | None) -> tuple:
     return (task_id, platform, chat_id, thread_id or "")
 
 
-def _encode_notify_delivery_metadata(metadata: Optional[Mapping[str, Any]]) -> Optional[str]:
+def _encode_notify_delivery_metadata(metadata: Mapping[str, Any] | None) -> str | None:
     """Serialize platform send metadata stored on notification subscriptions."""
     if not isinstance(metadata, Mapping):
         return None
@@ -70,13 +67,13 @@ def add_notify_sub(
     task_id: str,
     platform: str,
     chat_id: str,
-    thread_id: Optional[str] = None,
-    user_id: Optional[str] = None,
-    user_id_alt: Optional[str] = None,
-    chat_type: Optional[str] = None,
-    notifier_profile: Optional[str] = None,
-    delivery_mode: Optional[str] = None,
-    delivery_metadata: Optional[Mapping[str, Any]] = None,
+    thread_id: str | None = None,
+    user_id: str | None = None,
+    user_id_alt: str | None = None,
+    chat_type: str | None = None,
+    notifier_profile: str | None = None,
+    delivery_mode: str | None = None,
+    delivery_metadata: Mapping[str, Any] | None = None,
 ) -> None:
     """Register a gateway source wanting terminal-state notifications for
     ``task_id``; idempotent on (task, platform, chat, thread).
@@ -142,7 +139,7 @@ def add_notify_sub(
 
 
 def _notify_profile_filter(
-    notifier_profiles: Optional[Iterable[str]],
+    notifier_profiles: Iterable[str] | None,
     *,
     include_unowned: bool,
 ) -> tuple[str, list[str]]:
@@ -165,9 +162,9 @@ def _notify_profile_filter(
 
 def list_notify_subs(
     conn: sqlite3.Connection,
-    task_id: Optional[str] = None,
+    task_id: str | None = None,
     *,
-    notifier_profiles: Optional[Iterable[str]] = None,
+    notifier_profiles: Iterable[str] | None = None,
     include_unowned: bool = False,
 ) -> list[dict]:
     """List subscriptions, optionally restricted to notifier profile owners.
@@ -200,14 +197,14 @@ def list_notify_subs(
 
 
 def count_notify_subs(
-    db_path: Optional[Path] = None,
+    db_path: Path | None = None,
     *,
-    board: Optional[str] = None,
-    notifier_profiles: Optional[Iterable[str]] = None,
+    board: str | None = None,
+    notifier_profiles: Iterable[str] | None = None,
     include_unowned: bool = False,
-    platform: Optional[str] = None,
-    chat_id: Optional[str] = None,
-    thread_id: Optional[str] = None,
+    platform: str | None = None,
+    chat_id: str | None = None,
+    thread_id: str | None = None,
 ) -> int:
     """Count ``kanban_notify_subs`` rows via a read-only connection — the
     notifier's cheap zero-subscription early exit. Unlike :func:`connect` it
@@ -258,7 +255,7 @@ def remove_notify_sub(
     task_id: str,
     platform: str,
     chat_id: str,
-    thread_id: Optional[str] = None,
+    thread_id: str | None = None,
 ) -> bool:
     with _kb.write_txn(conn):
         cur = conn.execute(
@@ -309,8 +306,8 @@ def purge_stale_done_notify_subs(conn: sqlite3.Connection, *, max_age_days: int 
 
 
 def _notify_cursor(
-    conn: sqlite3.Connection, task_id: str, platform: str, chat_id: str, thread_id: Optional[str],
-) -> Optional[int]:
+    conn: sqlite3.Connection, task_id: str, platform: str, chat_id: str, thread_id: str | None,
+) -> int | None:
     """``last_event_id`` of one subscription row, or ``None`` when unsubscribed."""
     row = conn.execute(
         "SELECT last_event_id FROM kanban_notify_subs " + _SUB_KEY_WHERE,
@@ -325,8 +322,8 @@ def unseen_events_for_sub(
     task_id: str,
     platform: str,
     chat_id: str,
-    thread_id: Optional[str] = None,
-    kinds: Optional[Iterable[str]] = None,
+    thread_id: str | None = None,
+    kinds: Iterable[str] | None = None,
 ) -> tuple[int, list[Event]]:
     """Return ``(new_cursor, events)`` with ``id > last_event_id``. The cursor
     is NOT advanced here; call :func:`advance_notify_cursor` after delivery.
@@ -355,8 +352,8 @@ def claim_unseen_events_for_sub(
     task_id: str,
     platform: str,
     chat_id: str,
-    thread_id: Optional[str] = None,
-    kinds: Optional[Iterable[str]] = None,
+    thread_id: str | None = None,
+    kinds: Iterable[str] | None = None,
 ) -> tuple[int, int, list[Event]]:
     """Atomically claim unseen events for one subscription.
 
@@ -395,7 +392,7 @@ def advance_notify_cursor(
     task_id: str,
     platform: str,
     chat_id: str,
-    thread_id: Optional[str] = None,
+    thread_id: str | None = None,
     new_cursor: int,
 ) -> None:
     with _kb.write_txn(conn):
@@ -407,7 +404,7 @@ def advance_notify_cursor(
 
 def record_notify_ping(
     conn: sqlite3.Connection, *, task_id: str, platform: str, chat_id: str,
-    thread_id: Optional[str] = None, event_id: int,
+    thread_id: str | None = None, event_id: int,
 ) -> None:
     """Checkpoint a sent ping independently of the retryable wake cursor."""
     with _kb.write_txn(conn):
@@ -424,7 +421,7 @@ def rewind_notify_cursor(
     task_id: str,
     platform: str,
     chat_id: str,
-    thread_id: Optional[str] = None,
+    thread_id: str | None = None,
     claimed_cursor: int,
     old_cursor: int,
 ) -> bool:
@@ -438,4 +435,4 @@ def rewind_notify_cursor(
 
 # Late-bound origin namespace (see module docstring); imported LAST so this
 # module is fully populated before ``kanban_db`` imports from it.
-from hermes_cli import kanban_db as _kb  # noqa: E402
+from hermes_cli import kanban_db as _kb

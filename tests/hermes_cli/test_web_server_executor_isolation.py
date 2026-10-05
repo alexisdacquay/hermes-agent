@@ -11,9 +11,9 @@ import asyncio
 import concurrent.futures
 import threading
 
-import pytest
 import hermes_cli.web_server_gateway as _web_server_gateway
 import hermes_cli.web_server_lifecycle as _web_server_lifecycle
+import pytest
 
 
 def _occupy_default_executor(loop: asyncio.AbstractEventLoop):
@@ -84,8 +84,8 @@ def test_profiles_route_survives_default_executor_starvation(monkeypatch):
 
 
 def test_toolsets_route_survives_default_executor_starvation(monkeypatch):
-    from hermes_cli import platforms, tools_config
     import toolsets
+    from hermes_cli import platforms, tools_config
 
     monkeypatch.setattr(
         tools_config,

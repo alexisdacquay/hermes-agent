@@ -15,11 +15,8 @@ import os
 from io import StringIO
 
 import pytest
-
 from acp.exceptions import RequestError
-
 from acp_adapter.entry import _BenignProbeMethodFilter
-
 
 # -- Unit tests on the filter itself ----------------------------------------
 
@@ -74,28 +71,28 @@ def test_filter_allows_different_message_even_for_ping() -> None:
 class _FakeAgent:
     """Minimal acp.Agent stub — we only need the router to build."""
 
-    async def initialize(self, **kwargs):  # noqa: ANN003
+    async def initialize(self, **kwargs):
         from acp.schema import AgentCapabilities, InitializeResponse
 
         return InitializeResponse(protocol_version=1, agent_capabilities=AgentCapabilities())
 
-    async def new_session(self, cwd, mcp_servers=None, **kwargs):  # noqa: ANN001, ANN003
+    async def new_session(self, cwd, mcp_servers=None, **kwargs):
         from acp.schema import NewSessionResponse
 
         return NewSessionResponse(session_id="test")
 
-    async def prompt(self, session_id, prompt, **kwargs):  # noqa: ANN001, ANN003
+    async def prompt(self, session_id, prompt, **kwargs):
         from acp.schema import PromptResponse
 
         return PromptResponse(stop_reason="end_turn")
 
-    async def cancel(self, session_id, **kwargs):  # noqa: ANN001, ANN003
+    async def cancel(self, session_id, **kwargs):
         pass
 
-    async def authenticate(self, **kwargs):  # noqa: ANN003
+    async def authenticate(self, **kwargs):
         pass
 
-    def on_connect(self, conn):  # noqa: ANN001
+    def on_connect(self, conn):
         pass
 
 
@@ -181,7 +178,7 @@ async def test_bare_ping_request_produces_proper_response_and_no_stderr_noise(
         in_write_file.close()
         try:
             await asyncio.wait_for(agent_task, timeout=2.0)
-        except (asyncio.TimeoutError, Exception):
+        except (TimeoutError, Exception):
             agent_task.cancel()
             try:
                 await agent_task

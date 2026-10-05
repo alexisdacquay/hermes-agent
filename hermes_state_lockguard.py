@@ -30,7 +30,6 @@ import os
 import struct
 import sys
 import threading
-from typing import Dict, Optional, Set, Tuple
 
 logger = logging.getLogger("hermes_state")
 
@@ -49,7 +48,7 @@ _SHM_DMS_BYTE = 128
 # the same way as a missing module and fall back to the no-op.
 if os.name == "nt":
     fcntl = None  # type: ignore[assignment]
-    _F_OFD_SETLK: Optional[int] = None
+    _F_OFD_SETLK: int | None = None
     _F_RDLCK = _F_UNLCK = _SEEK_SET = _F_SETLK = 0
 else:
     try:
@@ -73,13 +72,13 @@ else:
 # struct flock differs per libc: glibc/musl put type+whence first, Darwin/BSD last.
 _FLOCK_FORMAT = "@qqihh" if sys.platform == "darwin" or "bsd" in sys.platform else "@hhqqi"
 
-Identity = Tuple[int, int]
-Held = Dict[Identity, Tuple[int, int]]  # inode this handle guards -> its (start, length) range
+Identity = tuple[int, int]
+Held = dict[Identity, tuple[int, int]]  # inode this handle guards -> its (start, length) range
 
 # Handles per guarded inode in this process. Several SessionDB handles on one file share the
 # same descriptors' locks (hold() locks every matching descriptor), so the LAST handle unlocks.
 _LOCK = threading.Lock()
-_HANDLES: Dict[Identity, int] = {}
+_HANDLES: dict[Identity, int] = {}
 
 
 def supported() -> bool:
@@ -92,7 +91,7 @@ def _flock(lock_type: int, start: int, length: int) -> bytes:
     return struct.pack(_FLOCK_FORMAT, lock_type, _SEEK_SET, start, length, 0)
 
 
-def _ofd_lock(fd: int, lock_type: int, start: int, length: int, *, cmd: Optional[int] = None) -> bool:
+def _ofd_lock(fd: int, lock_type: int, start: int, length: int, *, cmd: int | None = None) -> bool:
     """Apply a non-blocking OFD lock (a process-owned POSIX one with ``cmd=_F_SETLK``); False when
     the range is held EXCLUSIVE elsewhere."""
     assert fcntl is not None and _F_OFD_SETLK is not None
@@ -103,7 +102,7 @@ def _ofd_lock(fd: int, lock_type: int, start: int, length: int, *, cmd: Optional
     return True
 
 
-def _identity(path: str) -> Optional[Identity]:
+def _identity(path: str) -> Identity | None:
     try:
         st = os.stat(path)
     except OSError:
@@ -111,7 +110,7 @@ def _identity(path: str) -> Optional[Identity]:
     return (st.st_dev, st.st_ino)
 
 
-def _own_fds_for(identities: Set[Identity]):
+def _own_fds_for(identities: set[Identity]):
     """Yield ``(fd, identity)`` for every descriptor of this process on one of *identities*
     (SQLite's own connection descriptors; the cached header-probe fd too, harmless)."""
     for fd_dir in ("/proc/self/fd", "/dev/fd"):
@@ -143,7 +142,7 @@ def _guard_ranges(db_path) -> Held:
     return ranges
 
 
-def hold(db_path, held: Optional[Held] = None) -> Held:
+def hold(db_path, held: Held | None = None) -> Held:
     """Lock the guard ranges on every descriptor this process has open on ``state.db`` and its
     ``-shm``. Returns the record :func:`release` needs; pass it back to extend an existing one
     (a ``-shm`` minted after open, a reopened connection). Idempotent per handle: an inode already

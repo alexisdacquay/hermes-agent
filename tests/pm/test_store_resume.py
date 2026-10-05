@@ -5,14 +5,12 @@ from __future__ import annotations
 import hashlib
 
 import pytest
-
+from pm import paths
 from pm.store import Store
 
-import pm.paths as paths
-
-from tests.pm._range_server import RangeHandler as _Handler, url as _url
+from tests.pm._range_server import RangeHandler as _Handler
 from tests.pm._range_server import dl_server as dl_server
-
+from tests.pm._range_server import url as _url
 
 
 def test_store_fetch_resumes_interrupted_download(tmp_path, dl_server, monkeypatch):
@@ -38,9 +36,8 @@ def test_store_fetch_resumes_interrupted_download(tmp_path, dl_server, monkeypat
     # First fetch: the server drops the connection ~halfway through the body,
     # so Store.fetch raises before publishing anything to the store.
     _Handler.abort_after = len(archive_bytes) // 2
-    with store.scratch() as scratch:
-        with pytest.raises(Exception):
-            store.fetch(url, sha, scratch)
+    with store.scratch() as scratch, pytest.raises(Exception):
+        store.fetch(url, sha, scratch)
 
     # The partial + range bitmap survive OUTSIDE scratch (scratch was just
     # rmtree'd by the context manager) — that is the resume state.

@@ -13,7 +13,6 @@ profile's scope would serve a secondary's inbound message with the LAUNCH profil
 from types import SimpleNamespace
 
 import pytest
-
 from agent import secret_scope
 from agent.secret_scope import UnscopedSecretError, get_secret
 from gateway.run_adapters import UNRESOLVED_PROFILE_HOME, GatewayAdapterLifecycleMixin

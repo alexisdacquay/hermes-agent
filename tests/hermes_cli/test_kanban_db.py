@@ -11,9 +11,8 @@ import time
 import types
 from pathlib import Path
 
-import pytest
-
 import hermes_state_wal
+import pytest
 from hermes_cli import kanban_db as kb
 from hermes_cli import kanban_db_connect as kbc
 from hermes_cli import kanban_db_dispatch as kbd
@@ -216,6 +215,7 @@ def test_stale_claim_reclaim_event_records_diagnostic_payload(
     (#23025: previous payload only had ``stale_lock`` which gives no
     timing context)."""
     import json
+
     import hermes_cli.kanban_db as _kb
 
     with kbc.connect() as conn:
@@ -560,7 +560,7 @@ def test_infrastructure_spawn_refusal_never_charges_the_card(
     never parks the card as a bare ``blocked``, the run is tagged
     ``infrastructure`` and the guard spaces the retries. A control spawn
     failure on the same card still counts."""
-    import tools.process_registry as process_registry
+    from tools import process_registry
 
     monkeypatch.setattr(process_registry, "_is_supervised_gateway_process", lambda: True)
     monkeypatch.setenv("INVOCATION_ID", "managed-gateway")
@@ -1301,9 +1301,8 @@ def test_connect_works_when_wal_is_silently_refused(tmp_path, monkeypatch, caplo
     with _patch(
         "hermes_cli.kanban_db.sqlite3.connect",
         side_effect=wal_silent_noop_connect,
-    ):
-        with caplog.at_level("ERROR", logger="hermes_state"):
-            conn = kbc.connect()
+    ), caplog.at_level("ERROR", logger="hermes_state"):
+        conn = kbc.connect()
 
     assert conn.execute("PRAGMA journal_mode").fetchone()[0].lower() == "delete"
     t = kb.create_task(conn, title="post-silent-fallback task")
@@ -1581,6 +1580,7 @@ def test_resolve_hermes_argv_prefers_module_form_over_path_shim(monkeypatch):
     explicit ``$HERMES_BIN`` overrides it."""
     import shutil
     import sys
+
     from hermes_cli import kanban_db_dispatch as kbd
 
     monkeypatch.delenv("HERMES_BIN", raising=False)
@@ -1603,10 +1603,11 @@ def test_resolve_hermes_argv_module_actually_runs():
     would fail and so would every dispatcher spawn that hits the fallback.
     Run it as a real subprocess to catch that regression.
     """
-    import subprocess
-    from hermes_cli import kanban_db_dispatch as kbd
     import shutil
-    import unittest.mock as mock
+    import subprocess
+    from unittest import mock
+
+    from hermes_cli import kanban_db_dispatch as kbd
 
     with mock.patch.dict(os.environ, {}, clear=False):
         os.environ.pop("HERMES_BIN", None)
@@ -1978,6 +1979,7 @@ def test_write_txn_check_reads_correct_header_fields(tmp_path):
     way the file must never come back clean.
     """
     import struct
+
     from hermes_cli.kanban_db_connect import connect
     from hermes_cli.sqlite_safe_read import file_length_matches_header
 

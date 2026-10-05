@@ -12,7 +12,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import PureWindowsPath
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 logger = logging.getLogger("tools.computer_use.cua_backend")
 
@@ -34,14 +34,14 @@ def _cb():
     from tools.computer_use import cua_backend
     return cua_backend
 
-def _driver_json(driver_cmd: str, *args: str, timeout: float) -> Optional[Dict[str, Any]]:
+def _driver_json(driver_cmd: str, *args: str, timeout: float) -> dict[str, Any] | None:
     """Run a driver verb and parse its stdout as a JSON object; None on spawn failure, empty stdout (older drivers
     print usage to stderr), unparseable or non-object output, or a non-zero exit."""
     proc = _cb()._run_driver(driver_cmd, *args, timeout=timeout, swallow=Exception)
     out = (proc.stdout or "").strip() if proc is not None else ""
     return None if proc is None or not out or proc.returncode != 0 else _json_object(out)
 
-def _json_object(text: str) -> Optional[Dict[str, Any]]:
+def _json_object(text: str) -> dict[str, Any] | None:
     """``json.loads`` that yields a dict or None (unparseable / non-object)."""
     try:
         data = json.loads(text)
@@ -49,7 +49,7 @@ def _json_object(text: str) -> Optional[Dict[str, Any]]:
         return None
     return data if isinstance(data, dict) else None
 
-def _valid_mcp_args(invocation: Any) -> Optional[List[str]]:
+def _valid_mcp_args(invocation: Any) -> list[str] | None:
     """``mcp_invocation.args`` when it is a list of strings (possibly empty), else None."""
     args = invocation.get("args") if isinstance(invocation, dict) else None
     return args if isinstance(args, list) and all(isinstance(a, str) for a in args) else None
@@ -72,7 +72,7 @@ def _wsl_windows_path_to_posix(path: str) -> str:
     drive = (win.drive or "").rstrip(":").lower()
     return "/".join(["/mnt", drive, *win.parts[1:]]) if wsl and drive else path
 
-def resolve_cua_driver_cmd(override: Optional[str] = None) -> Optional[str]:
+def resolve_cua_driver_cmd(override: str | None = None) -> str | None:
     """Read PM's selected binary without installing; never replace an explicit override."""
     configured = (override if override is not None else os.environ.get(_CUA_DRIVER_CMD_ENV, "")).strip()
     if configured:
@@ -92,7 +92,7 @@ def cua_driver_install_hint() -> str:
     return ("cua-driver is not installed. Install the pinned driver with:\n  hermes computer-use install\n"
             "Or run `hermes tools` and enable the Computer Use toolset to install it automatically.")
 
-def _mcp_args_with_overlay_flag(args: List[str], driver_cmd: str = _CUA_DRIVER_DEFAULT_CMD) -> List[str]:
+def _mcp_args_with_overlay_flag(args: list[str], driver_cmd: str = _CUA_DRIVER_DEFAULT_CMD) -> list[str]:
     """Return *args* with ``--no-overlay`` appended when configured and supported."""
     on = _cb()._cua_no_overlay() and _cua_driver_supports_no_overlay(driver_cmd)
     return [*args, "--no-overlay"] if on else list(args)
@@ -107,7 +107,7 @@ def _cua_driver_supports_no_overlay(driver_cmd: str) -> bool:
     except Exception:
         return False
 
-def _resolve_mcp_invocation(driver_cmd: str, *, timeout: float = 6.0) -> Tuple[str, List[str]]:
+def _resolve_mcp_invocation(driver_cmd: str, *, timeout: float = 6.0) -> tuple[str, list[str]]:
     """``(command, args)`` that spawn cua-driver's stdio MCP server, asked of the driver itself via ``cua-driver
     manifest`` (``mcp_invocation``) so a subcommand rename keeps working. Falls back to ``(driver_cmd, ["mcp"])``
     on older drivers or any discovery failure — the wrapper must not refuse to start over a failed discovery hop.
@@ -135,7 +135,7 @@ def _resolve_mcp_invocation(driver_cmd: str, *, timeout: float = 6.0) -> Tuple[s
     command = command if command and _has_path_separator(command) else driver_cmd
     return command, _mcp_args_with_overlay_flag(args, driver_cmd=command)
 
-def _manifest_contract_reason(manifest: Optional[Dict[str, Any]]) -> str:
+def _manifest_contract_reason(manifest: dict[str, Any] | None) -> str:
     """Why a parsed manifest fails the 0.20 contract, or ``""`` when it passes (version floor, MCP launch
     command, then the ``"<verb> <flag>"`` entries the advertised subcommands lack)."""
     if manifest is None:
@@ -147,7 +147,7 @@ def _manifest_contract_reason(manifest: Optional[Dict[str, Any]]) -> str:
         return "Hermes computer use requires cua-driver 0.20.0 or newer"
     if not _valid_mcp_args(manifest.get("mcp_invocation")):
         return "driver manifest does not provide an MCP launch command"
-    advertised: Dict[str, set[str]] = {
+    advertised: dict[str, set[str]] = {
         command["name"]: {arg["name"] for arg in command.get("args") or []
                           if isinstance(arg, dict) and isinstance(arg.get("name"), str)}
         for command in manifest.get("subcommands") or []
@@ -157,10 +157,10 @@ def _manifest_contract_reason(manifest: Optional[Dict[str, Any]]) -> str:
                for arg in sorted(required - advertised.get(command, set()))]
     return "driver manifest is missing: " + ", ".join(missing) if missing else ""
 
-def cua_driver_runtime_contract_status(binary: Optional[str] = None) -> Dict[str, Any]:
+def cua_driver_runtime_contract_status(binary: str | None = None) -> dict[str, Any]:
     """Report whether a local driver can host Hermes' 0.20 integration."""
     resolved = binary or resolve_cua_driver_cmd()
-    version: Optional[str] = None
+    version: str | None = None
     reason = "cua-driver is not installed"
     if resolved:
         try:
@@ -175,6 +175,6 @@ def cua_driver_runtime_contract_status(binary: Optional[str] = None) -> Dict[str
             version = str(manifest.get("binary_version") or "").strip() or None if manifest is not None else None
     return {"ready": not reason, "binary": resolved, "version": version, "reason": reason}
 
-def cua_driver_update_check(*, timeout: Optional[float] = None) -> Optional[Dict[str, Any]]:
+def cua_driver_update_check(*, timeout: float | None = None) -> dict[str, Any] | None:
     """Historical import: upstream release polling is retired; PM owns the pin."""
     return None

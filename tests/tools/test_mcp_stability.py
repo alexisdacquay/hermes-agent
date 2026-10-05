@@ -3,12 +3,11 @@
 import asyncio
 import os
 import signal
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from tools import mcp_tool_lifecycle as _mcp_lifecycle
 from tools import mcp_tool_loop as _mcp_loop
-
 
 # ---------------------------------------------------------------------------
 # Fix 1: MCP event loop exception handler
@@ -94,9 +93,12 @@ class TestStdioPidTracking:
 
     def test_kill_orphaned_handles_dead_pids(self):
         """_kill_orphaned_mcp_children gracefully handles already-dead PIDs."""
-        from tools.mcp_tool_lifecycle import (
-            _kill_orphaned_mcp_children, _orphan_stdio_pid_servers, _orphan_stdio_pids)
         from tools.mcp_tool import _lock
+        from tools.mcp_tool_lifecycle import (
+            _kill_orphaned_mcp_children,
+            _orphan_stdio_pid_servers,
+            _orphan_stdio_pids,
+        )
 
         # Use a PID that definitely doesn't exist
         fake_pid = 999999999
@@ -114,10 +116,10 @@ class TestStdioPidTracking:
 
     def test_run_stdio_reaps_orphans_before_spawn(self):
         """_run_stdio kills orphaned PIDs from prior failed attempts (#57355)."""
-        from tools.mcp_tool_lifecycle import (
-            _orphan_stdio_pids)
-        from tools.mcp_tool import _lock, MCPServerTask
-        from unittest.mock import patch, MagicMock, AsyncMock
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        from tools.mcp_tool import MCPServerTask, _lock
+        from tools.mcp_tool_lifecycle import _orphan_stdio_pids
 
         # Seed an orphan PID that belongs to a prior failed connection.
         fake_pid = 999999997
@@ -172,9 +174,12 @@ class TestStdioPidTracking:
 
     def test_kill_orphaned_can_filter_by_server_name(self):
         """Reconnect cleanup reaps only the orphan owned by that MCP server."""
-        from tools.mcp_tool_lifecycle import (
-            _kill_orphaned_mcp_children, _orphan_stdio_pid_servers, _orphan_stdio_pids)
         from tools.mcp_tool import _lock
+        from tools.mcp_tool_lifecycle import (
+            _kill_orphaned_mcp_children,
+            _orphan_stdio_pid_servers,
+            _orphan_stdio_pids,
+        )
 
         target_pid = 454545
         other_pid = 464646
@@ -212,9 +217,14 @@ class TestStdioPgroupReaping:
     """_kill_orphaned_mcp_children reaps via killpg when a pgid is tracked."""
 
     def _reset_state(self):
-        from tools.mcp_tool_lifecycle import (
-            _orphan_stdio_pid_servers, _orphan_stdio_pids, _stdio_pgids, _stdio_pids, _stdio_starttimes)
         from tools.mcp_tool import _lock
+        from tools.mcp_tool_lifecycle import (
+            _orphan_stdio_pid_servers,
+            _orphan_stdio_pids,
+            _stdio_pgids,
+            _stdio_pids,
+            _stdio_starttimes,
+        )
         with _lock:
             _stdio_pids.clear()
             _orphan_stdio_pids.clear()
@@ -230,9 +240,13 @@ class TestStdioPgroupReaping:
         not signal the stale number, or it kills a stranger (observed: a desktop
         browser whose session leader reused a dead MCP child's PID).
         """
-        from tools.mcp_tool_lifecycle import (
-            _kill_orphaned_mcp_children, _orphan_stdio_pids, _stdio_pgids, _stdio_starttimes)
         from tools.mcp_tool import _lock
+        from tools.mcp_tool_lifecycle import (
+            _kill_orphaned_mcp_children,
+            _orphan_stdio_pids,
+            _stdio_pgids,
+            _stdio_starttimes,
+        )
 
         self._reset_state()
         fake_pid = 454545
@@ -254,9 +268,13 @@ class TestStdioPgroupReaping:
 
     def test_kill_orphaned_signals_when_start_time_matches(self):
         """The orphan IS signalled when its leader start-time still matches."""
-        from tools.mcp_tool_lifecycle import (
-            _kill_orphaned_mcp_children, _orphan_stdio_pids, _stdio_pgids, _stdio_starttimes)
         from tools.mcp_tool import _lock
+        from tools.mcp_tool_lifecycle import (
+            _kill_orphaned_mcp_children,
+            _orphan_stdio_pids,
+            _stdio_pgids,
+            _stdio_starttimes,
+        )
 
         self._reset_state()
         fake_pid = 464646
@@ -275,9 +293,12 @@ class TestStdioPgroupReaping:
 
     def test_kill_orphaned_without_baseline_keeps_legacy_behaviour(self):
         """No recorded start time (macOS / capture raced exit) -> best-effort killpg."""
-        from tools.mcp_tool_lifecycle import (
-            _kill_orphaned_mcp_children, _orphan_stdio_pids, _stdio_pgids, _stdio_starttimes)
         from tools.mcp_tool import _lock
+        from tools.mcp_tool_lifecycle import (
+            _kill_orphaned_mcp_children,
+            _orphan_stdio_pids,
+            _stdio_pgids,
+        )
 
         self._reset_state()
         fake_pid = 474747
@@ -296,8 +317,12 @@ class TestStdioPgroupReaping:
 
     def test_killpg_used_when_pgid_tracked(self, monkeypatch):
         """SIGTERM and SIGKILL route through killpg when pgid is known."""
-        from tools.mcp_tool_lifecycle import _kill_orphaned_mcp_children, _orphan_stdio_pids, _stdio_pgids
         from tools.mcp_tool import _lock
+        from tools.mcp_tool_lifecycle import (
+            _kill_orphaned_mcp_children,
+            _orphan_stdio_pids,
+            _stdio_pgids,
+        )
 
         self._reset_state()
         fake_pid = 525252
@@ -335,8 +360,12 @@ class TestStdioPgroupReaping:
         group, killpg(pgid) would signal the gateway itself and crash it.
         The guard must skip killpg for that pgid and fall through to per-pid
         os.kill instead."""
-        from tools.mcp_tool_lifecycle import _kill_orphaned_mcp_children, _orphan_stdio_pids, _stdio_pgids
         from tools.mcp_tool import _lock
+        from tools.mcp_tool_lifecycle import (
+            _kill_orphaned_mcp_children,
+            _orphan_stdio_pids,
+            _stdio_pgids,
+        )
 
         if not hasattr(os, "killpg") or not hasattr(os, "getpgrp"):
             pytest.skip("os.killpg/os.getpgrp not available on this platform")
@@ -379,8 +408,11 @@ class TestStdioPgroupReaping:
 
     def test_no_pgid_uses_per_pid_kill(self, monkeypatch):
         """When no pgid is recorded (e.g. Windows), fall back to os.kill."""
-        from tools.mcp_tool_lifecycle import _kill_orphaned_mcp_children, _orphan_stdio_pids
         from tools.mcp_tool import _lock
+        from tools.mcp_tool_lifecycle import (
+            _kill_orphaned_mcp_children,
+            _orphan_stdio_pids,
+        )
 
         self._reset_state()
         fake_pid = 747474
@@ -471,10 +503,15 @@ class TestStdioPgroupReaping:
         assert os.getpgid(grandchild_pid) == parent_pgid
 
         # Drive the reaper: register the parent pid + pgid + start baseline as an orphan.
-        from tools.mcp_tool_lifecycle import (
-            _kill_orphaned_mcp_children, _orphan_stdio_pid_servers, _orphan_stdio_pids, _stdio_pgids, _stdio_pids,
-            _stdio_starttimes)
         from tools.mcp_tool import _lock
+        from tools.mcp_tool_lifecycle import (
+            _kill_orphaned_mcp_children,
+            _orphan_stdio_pid_servers,
+            _orphan_stdio_pids,
+            _stdio_pgids,
+            _stdio_pids,
+            _stdio_starttimes,
+        )
         with _lock:
             _stdio_pids.clear()
             _orphan_stdio_pids.clear()
@@ -573,6 +610,7 @@ class TestMCPLoopDrainOnStop:
         ``shutdown()``, so this drain is their only reaper.
         """
         import time
+
         import tools.mcp_tool as mcp_mod
 
         state = {
@@ -694,6 +732,7 @@ class TestMCPLoopDrainOnStop:
     ):
         """A blocked loop must drain after it resumes, not stop ahead of the drain."""
         import threading
+
         import tools.mcp_tool as mcp_mod
         from tools import mcp_tool_loop as _mcp_loop
 

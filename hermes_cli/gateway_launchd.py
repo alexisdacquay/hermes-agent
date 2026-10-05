@@ -6,7 +6,6 @@ intercepting the moved code.
 """
 from __future__ import annotations
 
-from pathlib import Path
 import contextlib
 import json
 import os
@@ -14,7 +13,8 @@ import shlex
 import subprocess
 import sys
 import time
-from xml.sax.saxutils import escape
+from datetime import UTC
+from pathlib import Path
 
 
 def _gw():
@@ -188,9 +188,9 @@ def _launchd_unsupported_marker_path() -> Path:
 
 def _write_launchd_unsupported_marker() -> None:
     """Persist that launchd cannot supervise the gateway on this host."""
-    from datetime import datetime, timezone
+    from datetime import datetime
     payload = {
-        "written_at": datetime.now(timezone.utc).isoformat(),
+        "written_at": datetime.now(UTC).isoformat(),
         "reason": "launchd domain unsupported (exit 5/125)",
     }
     with contextlib.suppress(OSError):
@@ -283,9 +283,10 @@ def _spawn_detached_gateway() -> bool:
     gateway.log, stderr is timestamped into gateway.error.log, and the PID is tracked via the gateway.pid
     file that `run_gateway` writes, so stop/status/restart keep working.
     """
-    from hermes_cli._subprocess_compat import windows_detach_popen_kwargs
     from hermes_constants import get_hermes_home
     from tools.environments.local import served_profile_child_env
+
+    from hermes_cli._subprocess_compat import windows_detach_popen_kwargs
     log_dir = _gw().get_hermes_home() / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
     child_env = served_profile_child_env(

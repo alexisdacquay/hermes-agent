@@ -13,7 +13,7 @@ import logging
 import re
 import threading
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +69,7 @@ def _maybe_json(value: Any, fallback: Any = _BAD_JSON) -> Any:
         return fallback
 
 
-def parse_drive_comment_event(data: Any) -> Optional[Dict[str, Any]]:
+def parse_drive_comment_event(data: Any) -> dict[str, Any] | None:
     """Extract a flat field dict from a ``drive.notice.comment_add_v1`` payload, or None when malformed. *data* is a ``CustomizedEvent`` (WebSocket; ``.event`` is a
     dict) or a ``SimpleNamespace`` (Webhook body)."""
     logger.debug("[Feishu-Comment] parse_drive_comment_event: data type=%s", type(data).__name__)
@@ -116,8 +116,8 @@ _ALLOWED_NOTICE_TYPES = {"add_comment", "add_reply"}
 _SESSION_MAX_MESSAGES = 50  # cross-card memory within one document: keep last N messages per document session
 _SESSION_TTL_S = 3600       # expire sessions after 1 hour of inactivity
 _session_cache_lock = threading.Lock()
-_session_cache: Dict[str, Dict] = {}  # key -> {"messages": [...], "last_access": float}
-Timeline = List[Tuple[str, str, bool]]  # [(user_id, text, is_self)]
+_session_cache: dict[str, dict] = {}  # key -> {"messages": [...], "last_access": float}
+Timeline = list[tuple[str, str, bool]]  # [(user_id, text, is_self)]
 
 
 async def update_comment_reaction(client: Any, action: str, *, file_token: str, file_type: str, reply_id: str, reaction_type: str = "OK") -> bool:
@@ -135,7 +135,7 @@ async def update_comment_reaction(client: Any, action: str, *, file_token: str, 
     return code == 0
 
 
-async def query_document_meta(client: Any, file_token: str, file_type: str) -> Dict[str, Any]:
+async def query_document_meta(client: Any, file_token: str, file_type: str) -> dict[str, Any]:
     """Fetch ``{"title", "url", "doc_type"}`` via the batch_query meta API; empty dict on failure."""
     logger.debug("[Feishu-Comment] query_document_meta: file_token=%s file_type=%s", file_token, file_type)
     code, msg, data = await _exec_request(client, "POST", _BATCH_QUERY_META_URI, body={"request_docs": [{"doc_token": file_token, "doc_type": file_type}], "with_url": True})
@@ -162,7 +162,7 @@ async def _retry_pause(attempt: int, retry_fmt: str, retry_args: tuple, fail_fmt
     return logger.warning(fail_fmt, *lead, _COMMENT_RETRY_LIMIT, *fail_args) or False
 
 
-async def batch_query_comment(client: Any, file_token: str, file_type: str, comment_id: str) -> Dict[str, Any]:
+async def batch_query_comment(client: Any, file_token: str, file_type: str, comment_id: str) -> dict[str, Any]:
     """Fetch one comment's details (``is_whole``, ``quote``, ``reply_list``...); empty dict on failure. Retries up to ``_COMMENT_RETRY_LIMIT`` times: the comment
     may not be queryable yet when the notice arrives."""
     logger.debug("[Feishu-Comment] batch_query_comment: file_token=%s comment_id=%s", file_token, comment_id)
@@ -184,10 +184,10 @@ async def batch_query_comment(client: Any, file_token: str, file_type: str, comm
     return item
 
 
-async def _list_all_pages(client: Any, uri: str, paths: dict, queries: list, *, fail_msg: str, page_msg: str = "") -> Tuple[List[Dict[str, Any]], bool]:
+async def _list_all_pages(client: Any, uri: str, paths: dict, queries: list, *, fail_msg: str, page_msg: str = "") -> tuple[list[dict[str, Any]], bool]:
     """GET up to ``_MAX_PAGES`` pages of ``items``; returns ``(items, fetch_ok)``. *fail_msg* is logged with ``(code, msg)`` on failure; *page_msg* (optional) at
     debug with ``(page_n, total)``."""
-    items_out: List[Dict[str, Any]] = []
+    items_out: list[dict[str, Any]] = []
     page_token = ""
     for _ in range(_MAX_PAGES):
         code, msg, data = await _exec_request(client, "GET", uri, paths=paths, queries=queries + ([("page_token", page_token)] if page_token else []))
@@ -203,7 +203,7 @@ async def _list_all_pages(client: Any, uri: str, paths: dict, queries: list, *, 
     return items_out, True
 
 
-async def list_whole_comments(client: Any, file_token: str, file_type: str) -> List[Dict[str, Any]]:
+async def list_whole_comments(client: Any, file_token: str, file_type: str) -> list[dict[str, Any]]:
     """List all whole-document comments (paginated, up to 500)."""
     logger.debug("[Feishu-Comment] list_whole_comments: file_token=%s", file_token)
     all_comments, _ = await _list_all_pages(
@@ -213,7 +213,7 @@ async def list_whole_comments(client: Any, file_token: str, file_type: str) -> L
     return all_comments
 
 
-async def list_comment_replies(client: Any, file_token: str, file_type: str, comment_id: str, *, expect_reply_id: str = "") -> List[Dict[str, Any]]:
+async def list_comment_replies(client: Any, file_token: str, file_type: str, comment_id: str, *, expect_reply_id: str = "") -> list[dict[str, Any]]:
     """List all replies in a comment thread (paginated, up to 500). If *expect_reply_id* is set and absent from the fetched thread, retries up to
     ``_COMMENT_RETRY_LIMIT`` times (the new reply may not be listed yet)."""
     logger.debug("[Feishu-Comment] list_comment_replies: file_token=%s comment_id=%s", file_token, comment_id)
@@ -234,7 +234,7 @@ def _sanitize_comment_text(text: str) -> str:
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
-async def reply_to_comment(client: Any, file_token: str, file_type: str, comment_id: str, text: str) -> Tuple[bool, int]:
+async def reply_to_comment(client: Any, file_token: str, file_type: str, comment_id: str, text: str) -> tuple[bool, int]:
     """Post a reply to a local comment thread. Returns ``(success, code)``."""
     text = _sanitize_comment_text(text)
     logger.info("[Feishu-Comment] reply_to_comment: comment_id=%s text=%s", comment_id, text[:100])
@@ -255,7 +255,7 @@ async def add_whole_comment(client: Any, file_token: str, file_type: str, text: 
     return code == 0
 
 
-def _chunk_text(text: str, limit: int = _REPLY_CHUNK_SIZE) -> List[str]:
+def _chunk_text(text: str, limit: int = _REPLY_CHUNK_SIZE) -> list[str]:
     """Split text into chunks for delivery, preferring line breaks."""
     chunks = []
     while len(text) > limit:
@@ -284,7 +284,7 @@ async def deliver_comment_reply(client: Any, file_token: str, file_type: str, co
     return True
 
 
-def _extract_reply_text(reply: Dict[str, Any], *, semantic: bool = False, self_open_id: str = "") -> str:
+def _extract_reply_text(reply: dict[str, Any], *, semantic: bool = False, self_open_id: str = "") -> str:
     """Plain text of a reply's content (text_run / docs_link / person elements). Person mentions render as ``@<user_id>``. In *semantic* mode (for the prompt's
     "current text"), the self @mention is dropped (routing, not content), an unknown mention renders as ``@`` and whitespace is collapsed."""
     raw = reply.get("content", {})
@@ -303,18 +303,18 @@ def _extract_reply_text(reply: Dict[str, Any], *, semantic: bool = False, self_o
     return " ".join(text.split()).strip() if semantic else text
 
 
-def _get_reply_user_id(reply: Dict[str, Any]) -> str:
+def _get_reply_user_id(reply: dict[str, Any]) -> str:
     """Extract user_id from a reply dict."""
     user_id = reply.get("user_id", "")
     return (user_id.get("open_id", "") or user_id.get("user_id", "")) if isinstance(user_id, dict) else str(user_id)
 
 
-def _reply_list_replies(whole_comment: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _reply_list_replies(whole_comment: dict[str, Any]) -> list[dict[str, Any]]:
     """Return the ``reply_list.replies`` of a whole comment (``reply_list`` may be a JSON string)."""
     return _maybe_json(whole_comment.get("reply_list", {}), {}).get("replies", [])
 
 
-def _extract_docs_links(replies: List[Dict[str, Any]]) -> List[Dict[str, str]]:
+def _extract_docs_links(replies: list[dict[str, Any]]) -> list[dict[str, str]]:
     """Extract unique ``{"url", "doc_type", "token"}`` document links from comment replies."""
     seen_tokens = set()
     links = []
@@ -331,19 +331,19 @@ def _extract_docs_links(replies: List[Dict[str, Any]]) -> List[Dict[str, str]]:
     return links
 
 
-async def _wiki_node(client: Any, queries: list, fail_msg: str, *fail_args) -> Optional[dict]:
+async def _wiki_node(client: Any, queries: list, fail_msg: str, *fail_args) -> dict | None:
     """GET a wiki node; logs *fail_msg* with ``(code, msg, *fail_args)`` and returns None on API failure."""
     code, msg, data = await _exec_request(client, "GET", _WIKI_GET_NODE_URI, queries=queries)
     return logger.warning(fail_msg, code, msg, *fail_args) if code != 0 else data.get("node", {})
 
 
-async def _reverse_lookup_wiki_token(client: Any, obj_type: str, obj_token: str) -> Optional[str]:
+async def _reverse_lookup_wiki_token(client: Any, obj_type: str, obj_token: str) -> str | None:
     """Return the wiki node_token owning *obj_token*, or None if not a wiki doc / API failure."""
     node = await _wiki_node(client, [("token", obj_token), ("obj_type", obj_type)], "[Feishu-Comment] Wiki reverse lookup failed: code=%s msg=%s obj=%s:%s", obj_type, obj_token)
     return (node.get("node_token", "") or None) if node is not None else None
 
 
-async def _resolve_wiki_nodes(client: Any, links: List[Dict[str, str]]) -> List[Dict[str, str]]:
+async def _resolve_wiki_nodes(client: Any, links: list[dict[str, str]]) -> list[dict[str, str]]:
     """Annotate wiki links in-place with ``resolved_type``/``resolved_token``; non-wiki links untouched."""
     for link in (l for l in links if l["doc_type"] == "wiki"):
         wiki_token = link["token"]
@@ -359,7 +359,7 @@ async def _resolve_wiki_nodes(client: Any, links: List[Dict[str, str]]) -> List[
     return links
 
 
-def _format_referenced_docs(links: List[Dict[str, str]], current_file_token: str = "") -> str:
+def _format_referenced_docs(links: list[dict[str, str]], current_file_token: str = "") -> str:
     """Format resolved document links for prompt embedding."""
     lines = ["", "Referenced documents in comments:"]
     for link in links:
@@ -368,7 +368,7 @@ def _format_referenced_docs(links: List[Dict[str, str]], current_file_token: str
     return "\n".join(lines) if links else ""
 
 
-async def _referenced_docs_text(client: Any, replies: List[Dict[str, Any]], file_token: str) -> str:
+async def _referenced_docs_text(client: Any, replies: list[dict[str, Any]], file_token: str) -> str:
     """Extract, wiki-resolve and format the document links found in *replies*."""
     doc_links = _extract_docs_links(replies)
     return _format_referenced_docs(await _resolve_wiki_nodes(client, doc_links) if doc_links else doc_links, file_token)
@@ -379,7 +379,7 @@ def _truncate(text: str, limit: int = _PROMPT_TEXT_LIMIT) -> str:
     return text if len(text) <= limit else text[:limit] + "..."
 
 
-def _select_timeline(timeline: Timeline, limit: int, center: int, pinned: Tuple[int, ...] = ()) -> Timeline:
+def _select_timeline(timeline: Timeline, limit: int, center: int, pinned: tuple[int, ...] = ()) -> Timeline:
     """Select up to *limit* entries: *pinned* + *center*, then expand outward from *center*. Out-of-range indices are ignored; if nothing is selectable, falls back
     to the last *limit* entries."""
     n = len(timeline)
@@ -412,7 +412,7 @@ If no reply is needed, output exactly NO_REPLY.
 """.strip()
 
 
-def _build_prompt(intro: List[str], doc_url: str, file_type: str, file_token: str, ids: List[str], label: str, timeline: Timeline, selected: Timeline, referenced_docs: str) -> str:
+def _build_prompt(intro: list[str], doc_url: str, file_type: str, file_token: str, ids: list[str], label: str, timeline: Timeline, selected: Timeline, referenced_docs: str) -> str:
     """Intro lines + document block + ``label`` timeline header, the selected entries, referenced docs and common instructions."""
     lines = [*intro, _MENTION_NOTE, f"Document link: {doc_url}", "Current commented document:", f"- file_type={file_type}", f"- file_token={file_token}",
              *ids, "", f"{label} ({len(selected)}/{len(timeline)} entries):"]
@@ -444,9 +444,13 @@ def build_whole_comment_prompt(
     return _build_prompt(intro, doc_url, file_type, file_token, [], "Whole-document comment timeline", timeline, selected, referenced_docs)
 
 
-def _resolve_model_and_runtime() -> Tuple[str, dict]:
+def _resolve_model_and_runtime() -> tuple[str, dict]:
     """Resolve model and provider credentials, same as gateway message handling."""
-    from gateway.run import _load_gateway_config, _resolve_gateway_model, _resolve_runtime_agent_kwargs
+    from gateway.run import (
+        _load_gateway_config,
+        _resolve_gateway_model,
+        _resolve_runtime_agent_kwargs,
+    )
     model = _resolve_gateway_model(_load_gateway_config())
     runtime_kwargs = _resolve_runtime_agent_kwargs()
     try:
@@ -466,7 +470,7 @@ def _session_key(file_type: str, file_token: str) -> str:
     return f"comment-doc:{file_type}:{file_token}"
 
 
-def _load_session_history(key: str) -> List[Dict[str, Any]]:
+def _load_session_history(key: str) -> list[dict[str, Any]]:
     """Load conversation history for a document session (expires after ``_SESSION_TTL_S``)."""
     with _session_cache_lock:
         entry = _session_cache.get(key)
@@ -479,7 +483,7 @@ def _load_session_history(key: str) -> List[Dict[str, Any]]:
         return list(entry["messages"]) if entry is not None else []
 
 
-def _save_session_history(key: str, messages: List[Dict[str, Any]]) -> None:
+def _save_session_history(key: str, messages: list[dict[str, Any]]) -> None:
     """Save the last N user/assistant messages (system messages and tool internals stripped)."""
     cleaned = [m for m in messages if m.get("role") in {"user", "assistant"} and m.get("content")][-_SESSION_MAX_MESSAGES:]
     with _session_cache_lock:
@@ -525,12 +529,12 @@ def _run_comment_agent(prompt: str, client: Any, session_key: str = "") -> str:
             mod.set_client(None)
 
 
-def _last_index_where(timeline: Timeline, pred) -> Optional[Tuple[str, int]]:
+def _last_index_where(timeline: Timeline, pred) -> tuple[str, int] | None:
     """Return ``(text, index)`` of the last timeline entry matching *pred*, or None."""
     return next(((timeline[i][1], i) for i in range(len(timeline) - 1, -1, -1) if pred(timeline[i])), None)
 
 
-def _timeline_entry(r: Dict[str, Any], self_open_id: str) -> Tuple[str, str, bool]:
+def _timeline_entry(r: dict[str, Any], self_open_id: str) -> tuple[str, str, bool]:
     uid = _get_reply_user_id(r)
     return uid, _extract_reply_text(r), (uid == self_open_id) if self_open_id else False
 
@@ -541,7 +545,7 @@ async def _whole_comment_prompt(client: Any, from_open_id: str, doc: dict) -> st
     file_token, file_type, self_open_id = doc["file_token"], doc["file_type"], doc["self_open_id"]
     logger.info("[Feishu-Comment] Fetching whole-document comments for timeline...")
     whole_comments = await list_whole_comments(client, file_token, file_type)
-    all_raw_replies: List[Dict[str, Any]] = [r for wc in whole_comments for r in _reply_list_replies(wc)]
+    all_raw_replies: list[dict[str, Any]] = [r for wc in whole_comments for r in _reply_list_replies(wc)]
     timeline: Timeline = [_timeline_entry(r, self_open_id) for r in all_raw_replies]
     current_text, current_index, nearest_self_index = "", -1, -1
     for idx, (r, (uid, _, is_self)) in enumerate(zip(all_raw_replies, timeline)):
@@ -595,7 +599,12 @@ async def handle_drive_comment_event(client: Any, data: Any, *, self_open_id: st
     logger.info("[Feishu-Comment] Event: notice=%s file=%s:%s comment=%s from=%s", notice_type, file_type, file_token, comment_id, from_open_id)
     # Access control. Wiki-hosted docs report their underlying obj token, so when no exact rule
     # matched and the config has wiki: keys, reverse-lookup the wiki node.
-    from plugins.platforms.feishu.feishu_comment_rules import load_config, resolve_rule, is_user_allowed, has_wiki_keys
+    from plugins.platforms.feishu.feishu_comment_rules import (
+        has_wiki_keys,
+        is_user_allowed,
+        load_config,
+        resolve_rule,
+    )
     comments_cfg = load_config()
     rule = resolve_rule(comments_cfg, file_type, file_token)
     if rule.match_source in {"wildcard", "top"} and has_wiki_keys(comments_cfg) and (wiki_token := await _reverse_lookup_wiki_token(client, file_type, file_token)):

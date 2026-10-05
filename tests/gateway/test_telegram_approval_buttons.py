@@ -7,7 +7,6 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from agent.i18n import t
 from gateway.platforms.base import unauthorized_action_notice, utf16_len
 
@@ -19,8 +18,8 @@ if _repo not in sys.path:
     sys.path.insert(0, _repo)
 
 
-from plugins.platforms.telegram.adapter import TelegramAdapter
 from gateway.config import Platform, PlatformConfig
+from plugins.platforms.telegram.adapter import TelegramAdapter
 
 
 def _make_adapter(extra=None):

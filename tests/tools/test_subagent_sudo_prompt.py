@@ -14,11 +14,9 @@ executor thread.
 """
 
 import contextvars
-import os
 import threading
 
 import pytest
-
 from agent.delegation_context import delegated_child_context
 from tools import terminal_tool as tt
 from tools import terminal_tool_sudo as tts

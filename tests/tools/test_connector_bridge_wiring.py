@@ -9,7 +9,6 @@ import json
 import logging
 
 import pytest
-
 from agent.tool_dispatch_helpers import _peel_bridge_call
 from tools.connectors.gateway.bridge import ConnectorLeg, connector_describe
 from tools.connectors.gateway.errors import GatewayAuthError
@@ -508,8 +507,8 @@ def test_peel_keeps_mixed_and_local_batches_as_sequential_barrier():
 
 
 def _connectors_on(monkeypatch, client_factory):
-    from tools.registry import invalidate_check_fn_cache
     from tools.connectors.gateway import bridge, config
+    from tools.registry import invalidate_check_fn_cache
 
     monkeypatch.setattr(config, "connectors_available", lambda: True)
     monkeypatch.setattr(bridge, "connectors_available", lambda: True)
@@ -633,7 +632,7 @@ def _sent_tools(transport):
 
 
 def test_hook_rewrite_and_restored_vendor_slug_reach_the_gateway_request_body(monkeypatch):
-    import hermes_cli.plugins as plugins
+    from hermes_cli import plugins
 
     transport = _RecordingTransport()
     _connectors_on(monkeypatch, _recording_client_factory(transport))

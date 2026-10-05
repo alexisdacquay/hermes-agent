@@ -9,16 +9,25 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import List, Optional
 
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-
 from hermes_cli._secrets_common import (
-    arg, cfg_str, cli_version, disable_secret_source, flag, print_status_panel, print_table,
-    prompt_index, register_subcommands, require_enabled, rotate_token, secret_cli_env, section_cfg,
+    arg,
+    cfg_str,
+    cli_version,
+    disable_secret_source,
+    flag,
+    print_status_panel,
+    print_table,
+    prompt_index,
+    register_subcommands,
+    require_enabled,
+    rotate_token,
+    secret_cli_env,
+    section_cfg,
     yn,
 )
 from hermes_cli.config import get_env_path, load_config, save_config, save_env_value
@@ -98,7 +107,7 @@ def _step(console: Console, n: int, title: str) -> None:
     console.print(f"[bold]Step {n}[/bold]  {title}")
 
 
-def _setup_binary(bw, console: Console) -> Optional[Path]:
+def _setup_binary(bw, console: Console) -> Path | None:
     """Step 1: locate or download bws; None (after printing) on failure."""
     _step(console, 1, "Install the bws CLI")
     try:
@@ -123,7 +132,7 @@ def _missing_noninteractive_flags(args: argparse.Namespace) -> list[str]:
     return [flag for flag, value in provided.items() if not (value and value.strip())]
 
 
-def _setup_token(args: argparse.Namespace, console: Console, token_env: str) -> Optional[str]:
+def _setup_token(args: argparse.Namespace, console: Console, token_env: str) -> str | None:
     """Step 2: take the token from ``--access-token`` or a masked prompt and persist it."""
     _step(console, 2, "Provide your access token")
     token = (args.access_token or "").strip() or masked_secret_prompt(f"  Paste access token ({token_env}): ").strip()
@@ -138,7 +147,7 @@ def _setup_token(args: argparse.Namespace, console: Console, token_env: str) -> 
     return token
 
 
-def _setup_project(binary: Path, token: str, console: Console, server_url: str) -> Optional[str]:
+def _setup_project(binary: Path, token: str, console: Console, server_url: str) -> str | None:
     """Step 4: list projects and let the user pick one; None (after printing) when none usable."""
     _step(console, 4, "Pick a project")
     projects = _list_projects(binary, token, console, server_url=server_url)
@@ -404,7 +413,7 @@ def cmd_install(args: argparse.Namespace) -> int:
 
 
 def _token_validation_status(
-    *, enabled: bool, binary: Optional[Path], token: str, server_url: str = "",
+    *, enabled: bool, binary: Path | None, token: str, server_url: str = "",
 ) -> tuple[str, list[str]]:
     for skipped, reason in ((not enabled, "integration disabled"), (not token, "token missing"),
                             (binary is None, "bws not installed")):
@@ -438,7 +447,7 @@ _PROJECT_LIST_HINTS = (
 
 def _list_projects(
     binary: Path, token: str, console: Console, *, server_url: str = ""
-) -> Optional[List[dict]]:
+) -> list[dict] | None:
     """Call ``bws project list`` and return the parsed list, or None on failure."""
     env = secret_cli_env()
     env["BWS_ACCESS_TOKEN"] = token
@@ -479,7 +488,7 @@ _REGION_PRESETS = [
 
 def _resolve_server_url(
     args: argparse.Namespace, secrets_cfg: dict, console: Console,
-) -> Optional[str]:
+) -> str | None:
     """Pick a Bitwarden server URL: ``--server-url``, then ``BWS_SERVER_URL``, then the existing
     ``secrets.bitwarden.server_url``, then the interactive US / EU / self-hosted menu. None (after
     printing) when a custom URL is left empty."""

@@ -1,22 +1,21 @@
 """Tests for hermes_state.py — SessionDB SQLite CRUD, FTS5 search, export."""
 
 import contextlib
-import re
-import sqlite3
-import time
 import json
 import os
+import re
+import sqlite3
 import stat
 import threading
+import time
 from pathlib import Path
 from unittest import mock
 
-import pytest
-
 import hermes_state
-import hermes_state_wal
 import hermes_state_common
 import hermes_state_schema
+import hermes_state_wal
+import pytest
 from agent.session_activity import ActivityProvenance, build_activity_snapshot
 from hermes_state import SessionDB
 from hermes_state_common import FTS_SQL, FTS_STORAGE_VERSION, SCHEMA_SQL, SCHEMA_VERSION
@@ -722,7 +721,7 @@ class TestMessageStorage:
             conn = real_connect(*args, **kwargs)
             conn.set_trace_callback(
                 lambda stmt: writes.append(stmt)
-                if re.match(r"\s*(INSERT|UPDATE|DELETE|REPLACE|ALTER|DROP\s+TRIGGER)\b", stmt, re.I) and "temp." not in stmt
+                if re.match(r"\s*(INSERT|UPDATE|DELETE|REPLACE|ALTER|DROP\s+TRIGGER)\b", stmt, re.IGNORECASE) and "temp." not in stmt
                 else None
             )
             return conn
@@ -2403,11 +2402,11 @@ class TestFtsRebuildLoopWithoutTrigram:
         otherwise silently reintroduce an unsatisfiable check.
         """
         from hermes_state_common import (
+            _FTS_TRIGGERS,
             FTS_SQL,
             FTS_TRIGRAM_SQL,
             LEGACY_FTS_SQL,
             LEGACY_FTS_TRIGRAM_SQL,
-            _FTS_TRIGGERS,
         )
         from hermes_state_schema import _FTS_BASE_TRIGGERS, _FTS_TRIGRAM_TRIGGERS
 
@@ -4889,6 +4888,7 @@ class TestApplyWalProbe:
     def test_sets_wal_on_fresh_connection(self, tmp_path):
         """Probe sees 'delete', then set-pragma runs and returns 'wal'."""
         import sqlite3
+
         from hermes_state_wal import apply_wal_with_fallback
 
         class _TracingConn(sqlite3.Connection):
@@ -4919,9 +4919,10 @@ class TestApplyWalProbe:
 
     def test_apply_wal_concurrent_connects_no_eio(self, tmp_path):
         """20 threads calling connect() on the same DB must not see disk I/O error."""
+        import sqlite3
         import sys
         import threading
-        import sqlite3
+
         from hermes_state_wal import apply_wal_with_fallback
 
         db_path = tmp_path / "concurrent.db"
@@ -6059,6 +6060,7 @@ class TestApplyDatabasePragmas:
 
     def test_honors_wal_autocheckpoint_from_config(self, tmp_path, monkeypatch):
         import sqlite3
+
         from hermes_state import apply_database_pragmas
 
         conn = sqlite3.connect(str(tmp_path / "pragmas.db"))
@@ -6072,6 +6074,7 @@ class TestApplyDatabasePragmas:
 
     def test_honors_journal_size_limit_from_config(self, tmp_path, monkeypatch):
         import sqlite3
+
         from hermes_state import apply_database_pragmas
 
         conn = sqlite3.connect(str(tmp_path / "pragmas.db"))
@@ -6089,6 +6092,7 @@ class TestApplyDatabasePragmas:
 
     def test_noop_when_database_section_missing(self, tmp_path, monkeypatch):
         import sqlite3
+
         from hermes_state import apply_database_pragmas
 
         conn = sqlite3.connect(str(tmp_path / "pragmas.db"))
@@ -6104,6 +6108,7 @@ class TestApplyDatabasePragmas:
         """journal_mode is owned by apply_wal_with_fallback — a database:
         journal_mode entry must NOT cause a second, unguarded mode switch."""
         import sqlite3
+
         from hermes_state import apply_database_pragmas
 
         conn = sqlite3.connect(str(tmp_path / "pragmas.db"))
@@ -6117,6 +6122,7 @@ class TestApplyDatabasePragmas:
 
     def test_ignores_non_integer_values(self, tmp_path, monkeypatch):
         import sqlite3
+
         from hermes_state import apply_database_pragmas
 
         conn = sqlite3.connect(str(tmp_path / "pragmas.db"))
@@ -6134,6 +6140,7 @@ class TestApplyDatabasePragmas:
     def test_ignores_non_integer_performance_values(self, tmp_path, monkeypatch):
         """Garbage cache_size/mmap_size/temp_store values must be rejected."""
         import sqlite3
+
         from hermes_state import apply_database_pragmas
 
         conn = sqlite3.connect(str(tmp_path / "pragmas.db"))

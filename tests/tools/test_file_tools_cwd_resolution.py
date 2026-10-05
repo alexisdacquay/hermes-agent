@@ -20,10 +20,9 @@ import os
 from pathlib import Path, PurePosixPath
 
 import pytest
-
 import tools.file_tools as ft
 import tools.file_tools_paths as ftp
-import tools.terminal_tool as terminal_tool
+from tools import terminal_tool
 
 
 @pytest.fixture

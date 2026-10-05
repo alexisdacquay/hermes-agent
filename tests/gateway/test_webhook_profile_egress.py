@@ -9,7 +9,6 @@ import os
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from gateway.authz_mixin import GatewayAuthorizationMixin
 from gateway.config import GatewayConfig, HomeChannel, Platform, PlatformConfig
 from gateway.platforms.api_server import APIServerAdapter, _api_request_profile

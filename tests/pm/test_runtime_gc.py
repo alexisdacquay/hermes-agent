@@ -1,12 +1,11 @@
 """Superseded and aborted PM runtime generations are collected; running workers are not."""
 import json
 import os
-from pathlib import Path
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
-
 from pm.runtime import collect_runtime_generations
 
 

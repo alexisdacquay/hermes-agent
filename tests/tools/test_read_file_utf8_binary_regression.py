@@ -22,7 +22,6 @@ import os
 import shutil
 
 import pytest
-
 from tools.environments.local import LocalEnvironment
 from tools.file_operations import ShellFileOperations
 

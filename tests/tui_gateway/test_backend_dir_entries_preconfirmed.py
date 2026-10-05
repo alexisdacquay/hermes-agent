@@ -11,7 +11,6 @@ idle Desktop makes model calls around the clock (#115478).
 import json
 
 import pytest
-
 from tui_gateway.methods_complete import _backend_dir_entries
 
 

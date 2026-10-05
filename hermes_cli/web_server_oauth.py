@@ -3,22 +3,22 @@ Anthropic/Copilot/Claude-Code status probes.
 """
 
 import contextlib
-import logging
 import functools
+import logging
 import os
 import threading
 import time
-from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 # Same logger the code used before extraction (record parity).
 _log = logging.getLogger("hermes_cli.web_server")
 
 
-_LOGGED_OUT: Dict[str, Any] = {"logged_in": False, "source": None}
+_LOGGED_OUT: dict[str, Any] = {"logged_in": False, "source": None}
 
 
-def _truncate_token(value: Optional[str], visible: int = 6) -> str:
+def _truncate_token(value: str | None, visible: int = 6) -> str:
     """``…XXXXXX`` (last N chars) for UI display. JWTs show only the tail of the signature
     segment. A callable (Azure Foundry Entra-ID bearer provider) is NEVER invoked — it yields
     the ``<entra-id-bearer>`` placeholder."""
@@ -32,7 +32,7 @@ def _truncate_token(value: Optional[str], visible: int = 6) -> str:
     return s if len(s) <= visible else f"…{s[-visible:]}"
 
 
-def _token_status(source: str, source_label: str, creds: Dict[str, Any]) -> Dict[str, Any]:
+def _token_status(source: str, source_label: str, creds: dict[str, Any]) -> dict[str, Any]:
     return {
         "logged_in": True, "source": source, "source_label": source_label,
         "token_preview": _truncate_token(creds.get("accessToken")),
@@ -40,7 +40,7 @@ def _token_status(source: str, source_label: str, creds: Dict[str, Any]) -> Dict
     }
 
 
-def _anthropic_oauth_status() -> Dict[str, Any]:
+def _anthropic_oauth_status() -> dict[str, Any]:
     """Status for the "Anthropic Account" card: Hermes-managed PKCE file first, then the
     registry-ordered env vars (process env — where Bitwarden-sourced secrets land — then .env).
 
@@ -48,7 +48,10 @@ def _anthropic_oauth_status() -> Dict[str, Any]:
     ``claude-code`` entry, and counting it here would shadow a real ANTHROPIC_API_KEY.
     """
     try:
-        from agent.anthropic_credentials import read_hermes_oauth_credentials, _get_hermes_oauth_file
+        from agent.anthropic_credentials import (
+            _get_hermes_oauth_file,
+            read_hermes_oauth_credentials,
+        )
         hermes_creds = read_hermes_oauth_credentials()
     except Exception:
         hermes_creds = None
@@ -73,7 +76,7 @@ def _anthropic_oauth_status() -> Dict[str, Any]:
     return dict(_LOGGED_OUT)
 
 
-def _claude_code_only_status() -> Dict[str, Any]:
+def _claude_code_only_status() -> dict[str, Any]:
     """Claude Code CLI credentials as their own entry, independent of the Anthropic card.
 
     Connected follows the same local validity gate as Anthropic resolution. A
@@ -92,7 +95,7 @@ def _claude_code_only_status() -> Dict[str, Any]:
     return dict(_LOGGED_OUT)
 
 
-def _copilot_acp_status() -> Dict[str, Any]:
+def _copilot_acp_status() -> dict[str, Any]:
     """Status for copilot-acp. ``logged_in`` only on positive evidence (env token or known on-disk
     store); the CLI may hold its session in an OS keychain Hermes can't read, so the unverified
     state reads "managed by the Copilot CLI" — never signed out."""
@@ -120,7 +123,10 @@ def _external_process_cli_command(provider_id: str, default: str) -> str:
     """Render an external-process provider's sign-in command with the CLI actually configured
     (``HERMES_COPILOT_ACP_COMMAND`` / ``COPILOT_CLI_PATH``); others get ``default`` untouched."""
     try:
-        from hermes_cli.auth import PROVIDER_REGISTRY, get_external_process_provider_status
+        from hermes_cli.auth import (
+            PROVIDER_REGISTRY,
+            get_external_process_provider_status,
+        )
         pconfig = PROVIDER_REGISTRY.get(provider_id)
         if not pconfig or pconfig.auth_type != "external_process":
             return default
@@ -141,7 +147,7 @@ def _external_process_cli_command(provider_id: str, default: str) -> str:
 # providers appear automatically. Also carries two non-catalog rows the Accounts tab needs:
 # the Anthropic credential-status card and the synthetic ``claude-code`` row.
 # ``flow``: ``device_code`` = show code + URL + poll; ``external`` = delegated to a terminal/CLI.
-_OAUTH_PROVIDER_CATALOG: tuple[Dict[str, Any], ...] = (
+_OAUTH_PROVIDER_CATALOG: tuple[dict[str, Any], ...] = (
     # status_fn None → dispatched via auth.get_<provider>_auth_status.
     {"id": "nous", "name": "Nous Portal", "flow": "device_code", "cli_command": "hermes auth add nous",
      "docs_url": "https://portal.nousresearch.com", "status_fn": None},
@@ -173,11 +179,11 @@ _OAUTH_PROVIDER_CATALOG: tuple[Dict[str, Any], ...] = (
      "flow": "external", "cli_command": "claude setup-token",
      "docs_url": "https://docs.claude.com/en/docs/claude-code", "status_fn": _claude_code_only_status},
 )
-_oauth_sessions: Dict[str, Dict[str, Any]] = {}
+_oauth_sessions: dict[str, dict[str, Any]] = {}
 _oauth_sessions_lock = threading.Lock()
 
 
-def _oauth_profile_name(profile: Optional[str]) -> Optional[str]:
+def _oauth_profile_name(profile: str | None) -> str | None:
     requested = (profile or "").strip()
     if not requested or requested.lower() == "current":
         return None
@@ -216,7 +222,7 @@ def _oauth_poller(label: str):
     return deco
 
 
-def _record_sign_in_state(sess: Dict[str, Any], state: Any) -> None:
+def _record_sign_in_state(sess: dict[str, Any], state: Any) -> None:
     """Write one ``anon_auth.SignInState`` onto the dashboard session, under the sessions lock.
 
     The whole desktop mapping lives here: the state carries its own copy, so nothing below turns a
@@ -271,7 +277,7 @@ def _record_sign_in_state(sess: Dict[str, Any], state: Any) -> None:
 
 
 @_oauth_poller("nous")
-def _nous_promotion_poller(session_id: str, sess: Dict[str, Any]) -> None:
+def _nous_promotion_poller(session_id: str, sess: dict[str, Any]) -> None:
     """Drain the sign-in the start route began: one shared flow, rendered onto the session.
 
     The generator was created and advanced to its ``Code`` state by ``_start_nous_device_code``, so
@@ -292,16 +298,21 @@ def _nous_promotion_poller(session_id: str, sess: Dict[str, Any]) -> None:
 
 
 @_oauth_poller("nous")
-def _nous_plain_poller(session_id: str, sess: Dict[str, Any]) -> None:
+def _nous_plain_poller(session_id: str, sess: dict[str, Any]) -> None:
     """Background poller for a plain Nous device-code login (no free-tier identity to transfer).
 
     A sign-in that carries the free tier's connectors runs through ``anon_auth.run_sign_in`` and
     ``_nous_promotion_poller`` instead; this is the "connect another Nous account" path.
     """
-    from hermes_cli.web_server_profiles import _profile_scope
-    from hermes_cli.auth import _poll_for_token, persist_nous_credentials, refresh_nous_oauth_from_state
-    from hermes_cli import anon_auth
     import httpx
+
+    from hermes_cli import anon_auth
+    from hermes_cli.auth import (
+        _poll_for_token,
+        persist_nous_credentials,
+        refresh_nous_oauth_from_state,
+    )
+    from hermes_cli.web_server_profiles import _profile_scope
     portal_base_url, client_id = sess["portal_base_url"], sess["client_id"]
 
     def _cancelled() -> bool:
@@ -322,7 +333,7 @@ def _nous_plain_poller(session_id: str, sess: Dict[str, Any]) -> None:
     if _cancelled():
         return
     # Same post-processing as _nous_device_code_login (validate/refresh JWT)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     token_ttl = int(token_data.get("expires_in") or 0)
     auth_state = {
         "portal_base_url": portal_base_url,
@@ -334,7 +345,7 @@ def _nous_plain_poller(session_id: str, sess: Dict[str, Any]) -> None:
         "refresh_token": token_data.get("refresh_token"),
         "obtained_at": now.isoformat(),
         "expires_at": (
-            datetime.fromtimestamp(now.timestamp() + token_ttl, tz=timezone.utc).isoformat()
+            datetime.fromtimestamp(now.timestamp() + token_ttl, tz=UTC).isoformat()
             if token_ttl else None
         ),
         "expires_in": token_ttl,
@@ -358,17 +369,21 @@ def _nous_plain_poller(session_id: str, sess: Dict[str, Any]) -> None:
 
 
 @_oauth_poller("minimax")
-def _minimax_poller(session_id: str, sess: Dict[str, Any]) -> None:
+def _minimax_poller(session_id: str, sess: dict[str, Any]) -> None:
     """MiniMax poller: PKCE-style ``code_verifier`` + ``user_code`` instead of Nous's
     ``device_code``. Builds the same auth_state as the CLI's ``_minimax_oauth_login`` and persists
     via ``_minimax_save_auth_state`` so the system ends up as after ``hermes auth add minimax-oauth``.
     Region is fixed to "global" here; cn-region operators use the CLI's ``--region cn``."""
-    from hermes_cli.web_server_profiles import _profile_scope
-    from hermes_cli.auth import (
-        _minimax_poll_token, _minimax_resolve_token_expiry_unix, _minimax_save_auth_state,
-        MINIMAX_OAUTH_GLOBAL_INFERENCE, MINIMAX_OAUTH_SCOPE,
-    )
     import httpx
+
+    from hermes_cli.auth import (
+        MINIMAX_OAUTH_GLOBAL_INFERENCE,
+        MINIMAX_OAUTH_SCOPE,
+        _minimax_poll_token,
+        _minimax_resolve_token_expiry_unix,
+        _minimax_save_auth_state,
+    )
+    from hermes_cli.web_server_profiles import _profile_scope
     portal_base_url, client_id = sess["portal_base_url"], sess["client_id"]
     with httpx.Client(
         timeout=httpx.Timeout(15.0), headers={"Accept": "application/json"}, follow_redirects=True
@@ -378,7 +393,7 @@ def _minimax_poller(session_id: str, sess: Dict[str, Any]) -> None:
             user_code=sess["user_code"], code_verifier=sess["code_verifier"],
             expired_in=sess["expired_in_raw"], interval_ms=sess.get("interval_ms"),
         )
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     expires_at_ts = _minimax_resolve_token_expiry_unix(int(token_data["expired_in"]), now=now)
     auth_state = {
         "provider": "minimax-oauth",
@@ -392,7 +407,7 @@ def _minimax_poller(session_id: str, sess: Dict[str, Any]) -> None:
         "refresh_token": token_data["refresh_token"],
         "resource_url": token_data.get("resource_url"),
         "obtained_at": now.isoformat(),
-        "expires_at": datetime.fromtimestamp(expires_at_ts, tz=timezone.utc).isoformat(),
+        "expires_at": datetime.fromtimestamp(expires_at_ts, tz=UTC).isoformat(),
         "expires_in": max(0, int(expires_at_ts - now.timestamp())),
     }
     with _profile_scope(sess.get("profile")):
@@ -406,14 +421,18 @@ def _minimax_poller(session_id: str, sess: Dict[str, Any]) -> None:
 
 
 @_oauth_poller("xai")
-def _xai_device_poller(session_id: str, sess: Dict[str, Any]) -> None:
+def _xai_device_poller(session_id: str, sess: dict[str, Any]) -> None:
     """Background poller for xAI's OAuth device-code flow."""
-    from hermes_cli.web_server_profiles import _profile_scope
     import httpx
+
     from hermes_cli.auth import (
-        _save_xai_oauth_tokens, _xai_oauth_discovery, _xai_oauth_poll_device_token,
-        mark_provider_active_if_unset, unsuppress_credential_source,
+        _save_xai_oauth_tokens,
+        _xai_oauth_discovery,
+        _xai_oauth_poll_device_token,
+        mark_provider_active_if_unset,
+        unsuppress_credential_source,
     )
+    from hermes_cli.web_server_profiles import _profile_scope
 
     discovery = _xai_oauth_discovery(20.0)
     with httpx.Client(timeout=httpx.Timeout(20.0), headers={"Accept": "application/json"}) as client:
@@ -436,7 +455,7 @@ def _xai_device_poller(session_id: str, sess: Dict[str, Any]) -> None:
         # set_active=False: persist without hijacking an existing active chat provider.
         _save_xai_oauth_tokens(
             tokens, discovery=discovery, auth_mode="oauth_device_code", set_active=False,
-            last_refresh=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            last_refresh=datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         )
         # Mirror `hermes auth add xai-oauth`: first credential may become active; never overwrite.
         mark_provider_active_if_unset("xai-oauth")

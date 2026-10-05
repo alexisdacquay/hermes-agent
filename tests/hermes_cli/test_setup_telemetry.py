@@ -53,9 +53,8 @@ def test_disabling_collection_closes_the_send_consent_window(monkeypatch, tmp_pa
     config = {"telemetry": {"shared_metrics": {"enabled": True, "send": True}}}
     # Consent was granted earlier, so a window is open — that is precisely
     # the state whose closure must be recorded.
-    with store._connection() as connection:
-        with write_txn(connection):
-            reconcile_send_consent(connection, True)
+    with store._connection() as connection, write_txn(connection):
+        reconcile_send_consent(connection, True)
 
     setup_telemetry(config)
 

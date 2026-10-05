@@ -11,7 +11,7 @@ import subprocess
 import time
 from collections.abc import Callable, Iterable, Mapping
 from itertools import chain
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 from prompt_toolkit.auto_suggest import AutoSuggest, Suggestion
 from prompt_toolkit.completion import Completer, Completion
@@ -19,18 +19,17 @@ from prompt_toolkit.completion import Completer, Completion
 from hermes_cli.commands import COMMANDS, SUBCOMMANDS
 
 # (config-file signature, personalities) memo for /personality completion.
-_personalities_memo: Optional[
-    Tuple[Tuple[Optional[str], Optional[int], Optional[int]], Dict[str, Any]]
-] = None
+_personalities_memo: tuple[tuple[str | None, int | None, int | None], dict[str, Any]] | None = None
 
 
-def _personalities_from_cli_config() -> Dict[str, Any]:
+def _personalities_from_cli_config() -> dict[str, Any]:
     """``available_personalities(load_cli_config())`` memoised on config path+signature:
     load_cli_config() is a full YAML parse + deep merge and the completer runs per keystroke.
     Falls back to a fresh load when the file cannot be stat'ed."""
     global _personalities_memo
     from cli import load_cli_config
     from utils import file_signature
+
     from hermes_cli.personality import available_personalities
     try:
         from hermes_cli.config import get_config_path
@@ -124,7 +123,10 @@ def _tools_completions(sub_text: str, sub_lower: str):
     already = set(completed[1:])
     from hermes_cli.config import load_config_readonly
     from hermes_cli.tools_config import (
-        CONFIGURABLE_TOOLSETS, _get_platform_tools, _get_plugin_toolset_keys)
+        CONFIGURABLE_TOOLSETS,
+        _get_platform_tools,
+        _get_plugin_toolset_keys,
+    )
     # Readonly loader: per keystroke and never mutates, so skip load_config()'s deepcopy.
     # Read-only path: the completer only inspects the config (toolset enable state + MCP server names) — it
     # never mutates it. Use the readonly loader so the per-keystroke completion doesn't pay the defensive
@@ -219,7 +221,7 @@ def _dir_completions(
 def _path_completions(word: str, limit: int = 30):
     """Path completions for *word*, keeping the user's style (~, absolute, relative)."""
     if word.startswith("~"):
-        text_for = lambda fp: "~/" + os.path.relpath(fp, os.path.expanduser("~"))  # noqa: E731
+        text_for = lambda fp: "~/" + os.path.relpath(fp, os.path.expanduser("~"))
     else:
         text_for = str if os.path.isabs(word) else os.path.relpath
     yield from _dir_completions(os.path.expanduser(word), word, limit, text_for)

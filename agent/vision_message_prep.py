@@ -3,20 +3,24 @@
 Vision capability probes, non-vision text fallbacks (cached ``vision_analyze`` descriptions), tool-result
 image stripping, and provider quirks (Anthropic dot preservation, Qwen portal message shaping).
 """
-import logging
 import asyncio
 import base64
 import copy
 import hashlib
 import json
+import logging
 import os
 import tempfile
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any
+
+from utils import base_url_host_matches, base_url_hostname
 
 from agent.lazy_forward import forward_static as _forward_static
-from agent.tool_dispatch_helpers import _is_multimodal_tool_result, _multimodal_text_summary
-from utils import base_url_host_matches, base_url_hostname
+from agent.tool_dispatch_helpers import (
+    _is_multimodal_tool_result,
+    _multimodal_text_summary,
+)
 
 # Same logger name as the origin module so log records / caplog filters are unchanged.
 logger = logging.getLogger("run_agent")
@@ -32,10 +36,10 @@ def _is_image_part(part: Any) -> bool:
     return isinstance(part, dict) and part.get("type") in _IMAGE_PART_TYPES
 
 
-def _salvage_text_parts(content: list, *, any_dict_text: bool) -> List[str]:
+def _salvage_text_parts(content: list, *, any_dict_text: bool) -> list[str]:
     """Stripped, non-empty text from string parts and text-typed dict parts (or any dict's
     ``text`` when ``any_dict_text``), in order."""
-    texts: List[str] = []
+    texts: list[str] = []
     for part in content:
         if isinstance(part, str):
             text = part.strip()
@@ -68,7 +72,7 @@ class VisionMessagePrepMixin:
     _MAX_DATA_URL_BASE64_BYTES = 20 * 1024 * 1024
 
     @staticmethod
-    def _materialize_data_url_for_vision(image_url: str) -> tuple[str, Optional[Path]]:
+    def _materialize_data_url_for_vision(image_url: str) -> tuple[str, Path | None]:
         header, _, data = str(image_url or "").partition(",")
         if len(data) > VisionMessagePrepMixin._MAX_DATA_URL_BASE64_BYTES:
             logger.warning("data-URL payload too large (%d bytes), skipping", len(data))
@@ -104,7 +108,7 @@ class VisionMessagePrepMixin:
 
         vision_source = str(image_url or "")
         is_data_url = vision_source.startswith("data:")
-        cleanup_path: Optional[Path] = None
+        cleanup_path: Path | None = None
         if is_data_url:
             vision_source, cleanup_path = self._materialize_data_url_for_vision(vision_source)
 
@@ -135,6 +139,7 @@ class VisionMessagePrepMixin:
         > models.dev; see ``image_routing._supports_vision_override``)."""
         try:
             from hermes_cli.config import load_config
+
             from agent.image_routing import _lookup_supports_vision
             provider = (getattr(self, "provider", "") or "").strip()
             model = (getattr(self, "model", "") or "").strip()
@@ -159,7 +164,7 @@ class VisionMessagePrepMixin:
         if not self._content_has_image_parts(content):
             return content
 
-        image_notes: List[str] = []
+        image_notes: list[str] = []
         for part in filter(_is_image_part, content):
             image_data = part.get("image_url", {})
             image_url = image_data.get("url", "") if isinstance(image_data, dict) else str(image_data or "")

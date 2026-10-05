@@ -3,7 +3,6 @@
 import textwrap
 
 import pytest
-
 from tools import bot_mode_probe
 
 

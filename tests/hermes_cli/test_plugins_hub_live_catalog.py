@@ -12,14 +12,12 @@ import os
 from pathlib import Path
 from types import SimpleNamespace
 
-import pytest
-
-from hermes_cli import plugin_catalog as pc
-from hermes_cli import plugins_cmd
-from hermes_cli import web_server
 import hermes_cli.config as _cfg_mod
 import hermes_cli.web_server_dashboard as _web_server_dashboard
 import hermes_cli.web_server_memory as _web_server_memory
+import pytest
+from hermes_cli import plugin_catalog as pc
+from hermes_cli import plugins_cmd, web_server
 from tools import registry as tools_registry
 
 
@@ -83,17 +81,17 @@ def test_hub_rebuild_and_plugins_list_resolve_the_kill_list_once(monkeypatch, tm
     (tmp_path / "removed.yaml").write_text("removed:\n- name: demo\n  reason: exfiltrated env vars\n")
 
     monkeypatch.setattr(web_server, "_get_dashboard_plugins", lambda force_rescan=False: [])
-    monkeypatch.setattr(_web_server_memory, "_discover_memory_provider_statuses", lambda: [])
+    monkeypatch.setattr(_web_server_memory, "_discover_memory_provider_statuses", list)
     monkeypatch.setattr(_cfg_mod, "get_hermes_home", lambda: Path("/tmp/hermes-home"))
     monkeypatch.setattr(_cfg_mod, "load_config", lambda: {"dashboard": {"hidden_plugins": []}})
     monkeypatch.setattr(plugins_cmd, "_discover_all_plugins", lambda: list(_PLUGIN_ROWS))
     monkeypatch.setattr(plugins_cmd, "_get_current_context_engine", lambda: "compressor")
     monkeypatch.setattr(plugins_cmd, "_get_current_memory_provider", lambda: "")
-    monkeypatch.setattr(plugins_cmd, "_discover_context_engines", lambda: [])
+    monkeypatch.setattr(plugins_cmd, "_discover_context_engines", list)
     monkeypatch.setattr(plugins_cmd, "_get_disabled_set", lambda: set())
     monkeypatch.setattr(plugins_cmd, "_get_enabled_set", lambda: {"demo"})
     monkeypatch.setattr(plugins_cmd, "_read_manifest", lambda _path: {"provides_tools": []})
-    monkeypatch.setattr(plugins_cmd, "_read_install_metadata", lambda: {})
+    monkeypatch.setattr(plugins_cmd, "_read_install_metadata", dict)
     monkeypatch.setattr(tools_registry.registry, "get_entry", lambda _name: SimpleNamespace(check_fn=None))
 
     payload = _web_server_dashboard._merged_plugins_hub(force_refresh=True)
@@ -129,9 +127,8 @@ def test_update_invalidates_the_live_catalog_cache_for_every_profile(tmp_path, m
     """Post-update maintenance drops the cached live catalog under the active home AND every
     sibling profile's — the checkout is shared, so one profile's update changes every
     profile's catalog truth at once (#119340)."""
-    from hermes_cli import update_cmd
-    from hermes_cli import update_cmd_maint
     from hermes_cli import backup as _backup
+    from hermes_cli import update_cmd, update_cmd_maint
 
     root = tmp_path / "home"
     alpha = root / "profiles" / "alpha"

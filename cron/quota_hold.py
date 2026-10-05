@@ -18,9 +18,10 @@ from __future__ import annotations
 import logging
 import re
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any
 
-from hermes_time import now as _hermes_now, safe_strftime
+from hermes_time import now as _hermes_now
+from hermes_time import safe_strftime
 
 logger = logging.getLogger("cron.scheduler")
 
@@ -35,7 +36,7 @@ HOLD_SLACK_SECONDS = 60
 _RETRY_AFTER_RE = re.compile(r"retry after (\d+)s", re.IGNORECASE)
 
 
-def hold_seconds_from_failure(exc: BaseException) -> Optional[float]:
+def hold_seconds_from_failure(exc: BaseException) -> float | None:
     """Seconds the provider said it will stay closed, or None when *exc* (or anything in its
     cause chain) is not a rate-limited ``AuthError`` carrying a wait hint. Anchored on the
     AuthError itself, never on arbitrary text, so an unrelated "retry after" in an agent's
@@ -43,7 +44,7 @@ def hold_seconds_from_failure(exc: BaseException) -> Optional[float]:
     from hermes_cli.auth import AuthError, is_rate_limited_auth_error
 
     seen: set[int] = set()
-    cur: Optional[BaseException] = exc
+    cur: BaseException | None = exc
     while cur is not None and id(cur) not in seen:
         seen.add(id(cur))
         if isinstance(cur, AuthError) and is_rate_limited_auth_error(cur):
@@ -56,20 +57,23 @@ def hold_seconds_from_failure(exc: BaseException) -> Optional[float]:
     return None
 
 
-def hold_active(job: Dict[str, Any], now: Optional[datetime] = None) -> bool:
+def hold_active(job: dict[str, Any], now: datetime | None = None) -> bool:
     """True while the job is parked inside a provider window (an expired marker is inert)."""
-    from cron.jobs import _instant_after, _parse_aware  # late: jobs imports this module's helpers
+    from cron.jobs import (  # late: jobs imports this module's helpers
+        _instant_after,
+        _parse_aware,
+    )
 
     until = _parse_aware(job.get(STATE_KEY)) if job.get(STATE_KEY) else None
     return until is not None and _instant_after(until, now or _hermes_now())
 
 
-def clear_state(job: Dict[str, Any]) -> None:
+def clear_state(job: dict[str, Any]) -> None:
     job.pop(STATE_KEY, None)
     job.pop(SCHEDULE_EXPR_KEY, None)
 
 
-def is_recovery_fire(job: Dict[str, Any], next_run: str) -> bool:
+def is_recovery_fire(job: dict[str, Any], next_run: str) -> bool:
     """True for the exact off-lattice cron fire parked by ``plan_hold``.
 
     The expression fingerprint keeps a direct ``jobs.json`` schedule edit from inheriting the
@@ -90,7 +94,7 @@ def _window_end(hold_seconds: float) -> datetime:
 
 
 def _recovery_worthwhile(
-    job: Dict[str, Any], natural_next: datetime, window_end: datetime,
+    job: dict[str, Any], natural_next: datetime, window_end: datetime,
 ) -> bool:
     """One off-lattice recovery fire, and only for a sparse schedule.
 
@@ -110,7 +114,7 @@ def _recovery_worthwhile(
 
 
 def plan_hold(
-    job: Dict[str, Any], hold_seconds: float, *, recover_consumed_fire: bool = False,
+    job: dict[str, Any], hold_seconds: float, *, recover_consumed_fire: bool = False,
 ) -> bool:
     """Called under the jobs lock AFTER ``_advance_after_run`` computed the schedule's natural
     ``next_run_at`` for a failed run. A scheduled sparse cron may retry its consumed fire at the
@@ -150,7 +154,7 @@ def plan_hold(
     return True
 
 
-def hold_notice(job: Dict[str, Any], hold_seconds: Optional[float]) -> str:
+def hold_notice(job: dict[str, Any], hold_seconds: float | None) -> str:
     """Line appended to the ONE failure alert delivered on entering the hold, else ""."""
     if not hold_seconds or (job.get("schedule") or {}).get("kind") not in {"cron", "interval"}:
         return ""

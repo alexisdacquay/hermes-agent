@@ -2,23 +2,22 @@
 client/origin/auth gates, chat argv resolution, gateway/sidecar URL building.
 """
 
-import logging
 import asyncio
 import atexit
 import concurrent.futures
 import contextlib
 import hmac
+import logging
 import os
 import re
 import sys
 import tempfile
 import threading
 import urllib.request
-from typing import Optional
+from pathlib import Path
 
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
-from pathlib import Path
-from typing import Optional  # noqa: F811 — historical duplicate import kept
+
 from hermes_cli.pty_session import PtySessionRegistry
 
 # Same logger the code used before extraction (record parity).
@@ -30,7 +29,8 @@ _log = logging.getLogger("hermes_cli.web_server")
 # Windows uses win_pty_bridge (pywinpty/ConPTY); same surface, no handler guards.
 try:
     if sys.platform.startswith("win"):
-        from hermes_cli.win_pty_bridge import WinPtyBridge as PtyBridge, PtyUnavailableError
+        from hermes_cli.win_pty_bridge import PtyUnavailableError
+        from hermes_cli.win_pty_bridge import WinPtyBridge as PtyBridge
     else:
         from hermes_cli.pty_bridge import PtyBridge, PtyUnavailableError
     _PTY_BRIDGE_AVAILABLE = True
@@ -51,7 +51,7 @@ PTY_REGISTRY = PtySessionRegistry(
     ttl=30 * 60, max_sessions=16, buffer_cap=1 * 1024 * 1024, read_timeout=_PTY_READ_CHUNK_TIMEOUT)
 
 
-async def _close_stalled_pty_input(ws: "WebSocket", *, path: str) -> None:
+async def _close_stalled_pty_input(ws: WebSocket, *, path: str) -> None:
     """Close only the terminal socket when its child stops accepting input."""
     _log.warning("pty input stalled path=%s; recycling terminal session", path)
     try:
@@ -60,7 +60,7 @@ async def _close_stalled_pty_input(ws: "WebSocket", *, path: str) -> None:
         pass
 
 
-async def _legacy_pump(ws: "WebSocket", bridge) -> None:
+async def _legacy_pump(ws: WebSocket, bridge) -> None:
     """Original 1:1 socket<->PTY pump: stream until disconnect, then close the
     bridge. Used when no ``?attach=`` token is supplied (keep-alive opt-in).
 
@@ -136,7 +136,7 @@ async def _legacy_pump(ws: "WebSocket", bridge) -> None:
 _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost", "testclient"})
 
 
-def _ws_client_reason(ws: "WebSocket") -> Optional[str]:
+def _ws_client_reason(ws: WebSocket) -> str | None:
     """Return a rejection reason token for the peer IP, or None when allowed.
 
     Loopback bind: only loopback peers (the legacy ``?token=`` is the only auth,
@@ -159,12 +159,12 @@ def _ws_client_reason(ws: "WebSocket") -> Optional[str]:
     return f"peer_not_loopback peer={client_host} bound={bound_host or '?'}"
 
 
-def _ws_client_is_allowed(ws: "WebSocket") -> bool:
+def _ws_client_is_allowed(ws: WebSocket) -> bool:
     """True when the peer IP passes :func:`_ws_client_reason`."""
     return _ws_client_reason(ws) is None
 
 
-def _ws_host_origin_reason(ws: "WebSocket") -> Optional[str]:
+def _ws_host_origin_reason(ws: WebSocket) -> str | None:
     """Return ``host_mismatch …`` / ``origin_mismatch …``, or None when allowed.
 
     HTTP middleware does not run for WebSocket routes, so the DNS-rebinding
@@ -194,12 +194,12 @@ def _ws_host_origin_reason(ws: "WebSocket") -> Optional[str]:
     return None
 
 
-def _ws_host_origin_is_allowed(ws: "WebSocket") -> bool:
+def _ws_host_origin_is_allowed(ws: WebSocket) -> bool:
     """True when the upgrade passes the dashboard Host/Origin guard."""
     return _ws_host_origin_reason(ws) is None
 
 
-def _ws_request_is_allowed(ws: "WebSocket") -> bool:
+def _ws_request_is_allowed(ws: WebSocket) -> bool:
     """Return True when the WebSocket upgrade matches dashboard boundaries."""
     return _ws_host_origin_is_allowed(ws) and _ws_client_is_allowed(ws)
 
@@ -208,7 +208,7 @@ _GATEWAY_WS_PROTOCOL = "hermes-gateway-v1"
 _GATEWAY_WS_TICKET_PROTOCOL_PREFIX = "hermes-gateway-ticket."
 
 
-def _gateway_ws_ticket_from_subprotocol(ws: "WebSocket") -> tuple[str, str]:
+def _gateway_ws_ticket_from_subprotocol(ws: WebSocket) -> tuple[str, str]:
     """Return ``(ticket, reason)`` from an unambiguous gateway protocol set."""
     raw = str(ws.headers.get("sec-websocket-protocol", "") or "")
     protocols = [value.strip() for value in raw.split(",") if value.strip()]
@@ -222,7 +222,7 @@ def _gateway_ws_ticket_from_subprotocol(ws: "WebSocket") -> tuple[str, str]:
     return (ticket, "ok") if ticket else ("", "invalid")
 
 
-def _ws_request_view(ws: "WebSocket") -> "Request":
+def _ws_request_view(ws: WebSocket) -> Request:
     """A ``Request`` facade over a ``WebSocket`` for the auth helpers.
 
     ``_verify_access_token`` only touches ``request.headers`` (X-Forwarded-For
@@ -236,7 +236,7 @@ def _ws_request_view(ws: "WebSocket") -> "Request":
     return Request({
         "type": "http",
         "headers": [(k.lower().encode("latin-1"), v.encode("latin-1"))
-                    for k, v in getattr(ws.headers, "items", lambda: {})()],
+                    for k, v in getattr(ws.headers, "items", dict)()],
         "client": (ws.client.host, 0) if ws.client else None,
         "server": None,
         "scheme": "ws",
@@ -247,7 +247,7 @@ def _ws_request_view(ws: "WebSocket") -> "Request":
     })
 
 
-def _ws_auth_reason(ws: "WebSocket") -> tuple[Optional[str], str]:
+def _ws_auth_reason(ws: WebSocket) -> tuple[str | None, str]:
     """Validate WS-upgrade auth; return ``(reason, credential)``.
 
     ``reason`` is None when accepted, else a short token (``no_credential``,
@@ -271,7 +271,10 @@ def _ws_auth_reason(ws: "WebSocket") -> tuple[Optional[str], str]:
         # that don't bring in the dashboard_auth layer.
         from hermes_cli.dashboard_auth.audit import AuditEvent, audit_log
         from hermes_cli.dashboard_auth.ws_tickets import (
-            TicketInvalid, consume_internal_credential, consume_ticket)
+            TicketInvalid,
+            consume_internal_credential,
+            consume_ticket,
+        )
 
         def _reject(reason: str) -> None:
             audit_log(
@@ -374,15 +377,15 @@ def _ws_auth_reason(ws: "WebSocket") -> tuple[Optional[str], str]:
     return "token_mismatch", "token"
 
 
-def _ws_auth_ok(ws: "WebSocket") -> bool:
+def _ws_auth_ok(ws: WebSocket) -> bool:
     """True when the WS-upgrade credential is accepted. See _ws_auth_reason."""
     return _ws_auth_reason(ws)[0] is None
 
 
 def _resolve_chat_argv(
-    resume: Optional[str] = None, sidecar_url: Optional[str] = None, profile: Optional[str] = None,
-    active_session_file: Optional[str] = None,
-    workspace_cwd: Optional[str] = None) -> tuple[list[str], Optional[str], Optional[dict]]:
+    resume: str | None = None, sidecar_url: str | None = None, profile: str | None = None,
+    active_session_file: str | None = None,
+    workspace_cwd: str | None = None) -> tuple[list[str], str | None, dict | None]:
     """Resolve the argv + cwd + env for the chat PTY (what ``hermes --tui`` runs).
 
     Tests monkeypatch this with a tiny fake command.  Env contract: resume goes
@@ -398,12 +401,18 @@ def _resolve_chat_argv(
     passes as the explicit ``cwd`` of ``session.create`` when attached to the
     in-memory gateway, whose own cwd is the dashboard's launch dir).
     """
-    from hermes_cli.web_server_profiles import _config_profile_scope, _resolve_profile_dir
-    from hermes_cli.web_server_sessions import _open_session_db_for_profile, _session_latest_descendant
     from hermes_cli.main import PROJECT_ROOT
     from hermes_cli.main_tui_launch import _apply_tui_python_env, _make_tui_argv
+    from hermes_cli.web_server_profiles import (
+        _config_profile_scope,
+        _resolve_profile_dir,
+    )
+    from hermes_cli.web_server_sessions import (
+        _open_session_db_for_profile,
+        _session_latest_descendant,
+    )
 
-    profile_dir: Optional[Path] = None
+    profile_dir: Path | None = None
     requested = (profile or "").strip()
     if requested and requested.lower() != "current":
         profile_dir = _resolve_profile_dir(requested)
@@ -417,7 +426,10 @@ def _resolve_chat_argv(
         env["HERMES_HOME"] = str(profile_dir)
     try:
         from hermes_cli.config import (
-            apply_terminal_config_to_env, read_raw_config, terminal_config_owned_env_vars)
+            apply_terminal_config_to_env,
+            read_raw_config,
+            terminal_config_owned_env_vars,
+        )
 
         if profile_dir is not None:
             # Drop only the terminal keys the launch profile owns before applying
@@ -475,7 +487,7 @@ def _resolve_chat_argv(
 _WILDCARD_HOSTS = frozenset({"0.0.0.0", "::"})
 
 
-def _resolve_client_ws_host() -> Optional[str]:
+def _resolve_client_ws_host() -> str | None:
     """Host the in-container WS client should dial: ``HERMES_DASHBOARD_WS_HOST``
     wins always; a wildcard bind becomes ``127.0.0.1``; others verbatim."""
     from hermes_cli.web_server import app
@@ -488,7 +500,7 @@ def _resolve_client_ws_host() -> Optional[str]:
     return "127.0.0.1" if host in _WILDCARD_HOSTS else host
 
 
-def _server_internal_ws_url(path: str, **extra_qs) -> Optional[str]:
+def _server_internal_ws_url(path: str, **extra_qs) -> str | None:
     """``ws://<host>:<port><path>?<auth>&<extra>`` for server-spawned WS clients,
     or None when unbound.
 
@@ -511,20 +523,20 @@ def _server_internal_ws_url(path: str, **extra_qs) -> Optional[str]:
     return f"ws://{netloc}{path}?{urllib.parse.urlencode({**auth, **extra_qs})}"
 
 
-def _build_gateway_ws_url() -> Optional[str]:
+def _build_gateway_ws_url() -> str | None:
     """ws:// URL the PTY child attaches to for JSON-RPC gateway traffic."""
     return _server_internal_ws_url("/api/ws")
 
 
-def _build_sidecar_url(channel: str) -> Optional[str]:
+def _build_sidecar_url(channel: str) -> str | None:
     """ws:// URL the PTY child publishes events to, or None when unbound."""
     return _server_internal_ws_url("/api/pub", channel=channel)
 
 
 async def _resolve_chat_argv_async(
-    resume: Optional[str] = None, sidecar_url: Optional[str] = None, profile: Optional[str] = None,
-    active_session_file: Optional[str] = None,
-    workspace_cwd: Optional[str] = None) -> tuple[list[str], Optional[str], Optional[dict]]:
+    resume: str | None = None, sidecar_url: str | None = None, profile: str | None = None,
+    active_session_file: str | None = None,
+    workspace_cwd: str | None = None) -> tuple[list[str], str | None, dict | None]:
     """Resolve chat argv off the event loop (it may run ``npm run build``); the
     async lock keeps one-build-at-a-time without parking worker threads."""
     from hermes_cli.web_server import _get_chat_argv_lock, app
@@ -538,7 +550,7 @@ async def _resolve_chat_argv_async(
         return await asyncio.to_thread(_resolve_chat_argv, **kwargs)
 
 
-def _active_session_file_for_channel(app: "FastAPI", channel: str) -> Path:
+def _active_session_file_for_channel(app: FastAPI, channel: str) -> Path:
     """Return the per-channel file where a dashboard TUI writes its active sid."""
     from hermes_cli.web_server import _get_pty_active_session_files
     files = _get_pty_active_session_files(app)
@@ -552,7 +564,7 @@ def _active_session_file_for_channel(app: "FastAPI", channel: str) -> Path:
 # On timeout asyncio cancels the awaitable but the console thread keeps running;
 # a small dedicated pool caps the leak instead of exhausting the default pool.
 _CONSOLE_EXECUTOR_MAX_WORKERS = 4
-_console_executor: Optional[concurrent.futures.ThreadPoolExecutor] = None
+_console_executor: concurrent.futures.ThreadPoolExecutor | None = None
 _console_executor_lock = threading.Lock()
 
 

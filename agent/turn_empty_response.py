@@ -12,7 +12,7 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from agent import empty_response_guard as _empty_guard
 from agent.message_metadata import append_message
@@ -36,7 +36,7 @@ class EmptyResponseVerdict:
     (unreachable: every path exits; kept for the contract)."""
 
     action: str
-    result: Optional[Dict[str, Any]]
+    result: dict[str, Any] | None
     final_response: Any
     turn_exit_reason: Any
     active_system_prompt: Any
@@ -139,19 +139,22 @@ def _terminal_empty(agent: Any, assistant_message: Any, finish_reason: str, mess
 
 def recover_empty_response(
     agent: Any, assistant_message: Any, response: Any, finish_reason: str, *, final_response: Any,
-    messages: List[Dict[str, Any]], api_messages: Any, conversation_history: Any,
+    messages: list[dict[str, Any]], api_messages: Any, conversation_history: Any,
     active_system_prompt: Any, api_call_count: int, turn_exit_reason: Any,
     preflight_compression_blocked: bool,
 ) -> EmptyResponseVerdict:
     """Recover from a final response with no visible content (see module docstring for
     the ladder). Role alternation is preserved: the post-tool nudge appends the empty
     assistant row BEFORE the user-level hint (APIs reject tool→user)."""
-    from agent.conversation_loop import _EMPTY_TOOL_RESPONSE_NUDGE, _sync_failover_system_message
+    from agent.conversation_loop import (
+        _EMPTY_TOOL_RESPONSE_NUDGE,
+        _sync_failover_system_message,
+    )
 
     _turn_exit_reason = turn_exit_reason
     _preflight_compression_blocked = preflight_compression_blocked
 
-    def _verdict(action: str, result: Optional[Dict[str, Any]] = None) -> EmptyResponseVerdict:
+    def _verdict(action: str, result: dict[str, Any] | None = None) -> EmptyResponseVerdict:
         return EmptyResponseVerdict(
             action=action, result=result, final_response=final_response,
             turn_exit_reason=_turn_exit_reason, active_system_prompt=active_system_prompt,

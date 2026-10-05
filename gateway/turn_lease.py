@@ -12,7 +12,6 @@ CLI-continuity processes are outside this lock; mid-turn rotation alias is close
 import asyncio
 import logging
 import time
-from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +24,7 @@ DEFAULT_MAX_LEASES = 512
 DEFAULT_LEASE_WAIT = 5.0
 
 
-def _holder_desc(holder: Optional["TurnLeaseToken"]) -> tuple:
+def _holder_desc(holder: TurnLeaseToken | None) -> tuple:
     return (holder.owner_key, holder.generation) if holder else ("?", "?")
 
 
@@ -43,9 +42,9 @@ class TurnLeaseToken:
     """Held-lease handle from :meth:`SessionTurnLeaseRegistry.acquire`; ``released`` makes
     release idempotent."""
 
-    __slots__ = ("session_id", "owner_key", "generation", "released", "lease")
+    __slots__ = ("generation", "lease", "owner_key", "released", "session_id")
 
-    def __init__(self, session_id: str, owner_key: str, generation: int, lease: "_SessionLease") -> None:
+    def __init__(self, session_id: str, owner_key: str, generation: int, lease: _SessionLease) -> None:
         self.session_id, self.owner_key, self.generation = session_id, owner_key, generation
         self.released = False
         # The concrete lease, so release resolves by identity even after a rotation re-aliases
@@ -58,11 +57,11 @@ class TurnLeaseToken:
 
 
 class _SessionLease:
-    __slots__ = ("lock", "holder", "acquired_at", "last_used", "pending_acquires")
+    __slots__ = ("acquired_at", "holder", "last_used", "lock", "pending_acquires")
 
     def __init__(self) -> None:
         self.lock = asyncio.Lock()
-        self.holder: Optional[TurnLeaseToken] = None
+        self.holder: TurnLeaseToken | None = None
         self.acquired_at, self.last_used, self.pending_acquires = 0.0, time.time(), 0
 
     @property
@@ -76,7 +75,7 @@ class SessionTurnLeaseRegistry:
     visibility scope as the routing-key guards it extends); call only from the gateway loop."""
 
     def __init__(self, max_entries: int = DEFAULT_MAX_LEASES) -> None:
-        self._leases: Dict[str, _SessionLease] = {}
+        self._leases: dict[str, _SessionLease] = {}
         self._max_entries = max(1, int(max_entries))
 
     def _get_or_create(self, session_id: str) -> _SessionLease:
@@ -96,8 +95,8 @@ class SessionTurnLeaseRegistry:
             self._leases.pop(sid, None)
 
     async def acquire(
-        self, session_id: str, *, owner_key: str, generation: int, timeout: Optional[float] = None
-    ) -> Optional[TurnLeaseToken]:
+        self, session_id: str, *, owner_key: str, generation: int, timeout: float | None = None
+    ) -> TurnLeaseToken | None:
         """Acquire the lease for ``session_id``, waiting if held. Raises
         :class:`TurnLeaseTimeoutError` when the wait budget expires; None for a falsy id."""
         if not session_id:
@@ -120,7 +119,7 @@ class SessionTurnLeaseRegistry:
         lease.pending_acquires += 1
         try:
             await asyncio.wait_for(lease.lock.acquire(), timeout=wait)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.error(
                 "turn lease wait timed out after %.0fs on session %s (waiter: routing key %s gen "
                 "%s; holder: routing key %s gen %s) — failing closed: refusing to run this turn "
@@ -136,7 +135,7 @@ class SessionTurnLeaseRegistry:
         lease.acquired_at = lease.last_used = time.time()
         return token
 
-    def rebind(self, token: Optional[TurnLeaseToken], new_session_id: str) -> bool:
+    def rebind(self, token: TurnLeaseToken | None, new_session_id: str) -> bool:
         """Alias a HELD lease onto ``new_session_id`` after mid-turn rotation (compression) so the
         flush target stays serialized: the SAME ``_SessionLease`` is registered under the new id
         (old mapping idle-evicts later), only the holder may rebind, the token follows. A live
@@ -162,7 +161,7 @@ class SessionTurnLeaseRegistry:
         token.session_id = new_session_id
         return True
 
-    def release(self, token: Optional[TurnLeaseToken]) -> bool:
+    def release(self, token: TurnLeaseToken | None) -> bool:
         """Release ``token``'s lease. Idempotent; True only when this exact token was the current
         holder (a re-release or a stale token whose slot went to a newer turn is a safe no-op)."""
         if token is None or token.released:

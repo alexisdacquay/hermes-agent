@@ -13,7 +13,6 @@ import zipfile
 from pathlib import Path
 
 import pytest
-
 from tools.binary_extensions import (
     has_opaque_document_extension,
     is_pdf_path,

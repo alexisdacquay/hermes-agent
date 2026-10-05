@@ -2,7 +2,6 @@ import asyncio
 import time
 
 import pytest
-
 from hermes_cli.pty_session import RingBuffer
 
 

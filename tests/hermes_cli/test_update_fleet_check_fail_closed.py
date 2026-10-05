@@ -26,7 +26,6 @@ from __future__ import annotations
 import types
 
 import pytest
-
 from hermes_cli.main import _fleet_probe_expected_runtimes
 from hermes_cli.update_inventory import RuntimeRecord
 
@@ -39,7 +38,9 @@ class TestCallSiteWiring:
     @pytest.mark.parametrize("had_gateway", [False, True], ids=["idle", "plan-saw-gateway"])
     def test_empty_probe_settles_and_fails_only_when_rows_expected(self, monkeypatch, tmp_path, capsys, had_gateway):
         import json
-        from hermes_cli import main, update_cmd, update_cmd_fleet as fleet, update_receipt
+
+        from hermes_cli import main, update_cmd, update_receipt
+        from hermes_cli import update_cmd_fleet as fleet
 
         monkeypatch.setattr(main, "PROJECT_ROOT", tmp_path)
         monkeypatch.setattr(fleet, "_print_legacy_units_warning", lambda: None)

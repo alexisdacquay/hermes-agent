@@ -1,15 +1,15 @@
 """Native whole-script publication; POSIX setup/install lives in the fresh E2E."""
 import json
 import os
-from pathlib import Path
 import shutil
 import subprocess
+from pathlib import Path
 
 import pytest
-
 from hermes_platform.host.facts import native_arch
 from pm.environments import install_state_dir, site_packages
 from pm.lock import Lockfile
+
 from tests.hermes_cli.test_source_launcher_publication import fixture_tree
 
 ROOT = Path(__file__).resolve().parents[2]

@@ -19,7 +19,6 @@ import json
 import pytest
 from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
-
 from gateway.config import PlatformConfig
 from gateway.platforms.webhook import WebhookAdapter
 from gateway.run import GatewayRunner

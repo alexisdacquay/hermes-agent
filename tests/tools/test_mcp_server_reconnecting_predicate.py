@@ -7,7 +7,6 @@ reconnecting would run the job tool-less forever with no blocked_config alert.
 import asyncio
 
 import pytest
-
 import tools.mcp_tool as core
 from tools.mcp_tool_discovery import mcp_server_reconnecting
 

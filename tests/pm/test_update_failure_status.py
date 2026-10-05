@@ -3,7 +3,6 @@ import importlib
 from argparse import Namespace
 
 import pytest
-
 from pm import cli, paths, registry
 from pm.lock import Lockfile
 from pm.package import Package

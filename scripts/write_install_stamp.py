@@ -31,7 +31,7 @@ import os
 import re
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 # Bootstrap the repo root onto sys.path so the canary tag shape can come
@@ -39,8 +39,8 @@ from pathlib import Path
 # re-typed regex (hermes_cli/__init__.py is import-light).
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from hermes_cli import update_channel  # noqa: E402
-from hermes_cli.steward import UPDATE_MECHANISMS  # noqa: E402
+from hermes_cli import update_channel
+from hermes_cli.steward import UPDATE_MECHANISMS
 
 STAMP_SCHEMA_VERSION = 2
 _REPO_ROOT = Path(__file__).parent.parent.resolve()
@@ -145,7 +145,11 @@ def build_stamp(
     # Only a caller-supplied commit may stand in for a missing release version.
     commit_admitted = commit is not None
     if channel_request is not None:
-        from scripts.bundles.desktop_prepare import git, require_source, validate_channel_request
+        from scripts.bundles.desktop_prepare import (
+            git,
+            require_source,
+            validate_channel_request,
+        )
         channel_request = validate_channel_request(channel_request)
         if os.environ.get("HERMES_BUILD_COMMIT") or os.environ.get("HERMES_PAYLOAD_TAG"):
             raise ValueError("channel request conflicts with commit-build or tag identity")
@@ -255,7 +259,7 @@ def build_stamp(
         "commit": commit,
         "commitDate": commit_date,
         "branch": branch,
-        "builtAt": datetime.now(timezone.utc).isoformat(),
+        "builtAt": datetime.now(UTC).isoformat(),
         "dirty": dirty,
         "source": source,
         "distribution": distribution,

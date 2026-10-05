@@ -3,9 +3,8 @@
 import os
 from pathlib import Path
 
-import pytest
-
 import agent.skill_utils as su
+import pytest
 
 
 @pytest.fixture

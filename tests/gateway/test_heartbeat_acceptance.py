@@ -4,12 +4,11 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
-
+from evals.heartbeat_idle_wire import WireAdapter
 from gateway.config import Platform, PlatformConfig
 from gateway.run import GatewayRunner
 from gateway.session import SessionSource, build_session_key
 from hermes_cli.heartbeat import HeartbeatManager, HeartbeatState, save_heartbeat
-from evals.heartbeat_idle_wire import WireAdapter
 
 
 @pytest.mark.asyncio
@@ -78,7 +77,6 @@ async def test_runner_rejection_does_not_consume_tick_or_overwrite_replacement()
 
     async def replaced(event):
         HeartbeatManager('rejected-test').set('replacement', 120)
-        return None
 
     adapter.set_message_handler(replaced)
     await runner._heartbeat_poll_once(watch)

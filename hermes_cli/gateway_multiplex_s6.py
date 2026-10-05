@@ -11,9 +11,9 @@ the root slot" through :func:`fold_named_slot_intent` so they can never disagree
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Optional, Sequence
 
 logger = logging.getLogger(__name__)
 
@@ -30,8 +30,8 @@ class FoldDecision:
     root_should_start: bool
 
 
-def fold_named_slot_intent(default_prior_state: Optional[str],
-                           named_states: Iterable[tuple[str, Optional[str]]]) -> FoldDecision:
+def fold_named_slot_intent(default_prior_state: str | None,
+                           named_states: Iterable[tuple[str, str | None]]) -> FoldDecision:
     """The ONE rule for folding per-profile s6 slots into the root slot.
 
     A named slot is never booted from its own intent (a started named slot IS a second gateway on

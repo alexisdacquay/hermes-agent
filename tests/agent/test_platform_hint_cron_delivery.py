@@ -9,7 +9,6 @@ attachments there, and ``platform_hints.<channel>.append`` never reached schedul
 import types
 
 import pytest
-
 from agent.prompt_builder import PLATFORM_HINTS
 from agent.system_prompt import platform_hint
 from gateway.session_context import _VAR_MAP

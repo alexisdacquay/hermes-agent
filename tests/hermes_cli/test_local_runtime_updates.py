@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import pytest
-
 import pm
+import pytest
 from pm import paths
 from pm.lock import Facts, Lockfile
 from pm.store import tree_digest

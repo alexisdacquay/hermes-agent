@@ -6,7 +6,6 @@ stale provider cache cannot freeze the gateway on blocking HTTP fetches.
 import threading
 
 import pytest
-
 from gateway.config import Platform
 from gateway.platforms.event import MessageEvent, MessageType
 from gateway.run import GatewayRunner
@@ -44,7 +43,7 @@ def _isolated_config(tmp_path, monkeypatch):
     hermes_home.mkdir()
     (hermes_home / "config.yaml").write_text("model:\n  default: gpt-x\n  provider: openrouter\nproviders: {}\n", encoding="utf-8")
     monkeypatch.setattr(gateway_run, "_hermes_home", hermes_home)
-    monkeypatch.setattr("agent.models_dev.fetch_models_dev", lambda: {})
+    monkeypatch.setattr("agent.models_dev.fetch_models_dev", dict)
     return hermes_home
 
 

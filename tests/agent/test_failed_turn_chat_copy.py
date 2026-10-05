@@ -10,12 +10,18 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
-
 from agent.error_classifier import classify_api_error
-from agent.error_surface import LAYER_GATEWAY, LAYER_PROVIDER, build_error_surface_from_result
-from agent.turn_loop_errors import handle_outer_loop_error
-from agent.turn_recovery import max_retries_exhausted_result, nonretryable_client_error_result
+from agent.error_surface import (
+    LAYER_GATEWAY,
+    LAYER_PROVIDER,
+    build_error_surface_from_result,
+)
 from agent.turn_failure_copy import SITE_FAILURE_CODES
+from agent.turn_loop_errors import handle_outer_loop_error
+from agent.turn_recovery import (
+    max_retries_exhausted_result,
+    nonretryable_client_error_result,
+)
 from agent.turn_response_check import retry_invalid_response
 
 

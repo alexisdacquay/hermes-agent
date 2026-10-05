@@ -4,8 +4,7 @@ from __future__ import annotations
 import io
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
-
+from typing import Any
 
 MIGRATION_GUIDE_URL = "https://docs.x.ai/developers/migration/may-15-retirement"
 RETIREMENT_DATE = "May 15, 2026"
@@ -13,7 +12,7 @@ RETIREMENT_DATE = "May 15, 2026"
 
 # Official mapping per xAI migration guide. ``grok-4.3`` reasons by default, so ``*-non-reasoning``
 # variants need ``reasoning_effort="none"`` to emulate their behavior.
-_RETIRED_MODELS: Dict[str, Dict[str, Optional[str]]] = {
+_RETIRED_MODELS: dict[str, dict[str, str | None]] = {
     "grok-4-0709":                  {"replacement": "grok-4.3", "reasoning_effort": None,  "note": None},
     "grok-4-fast-reasoning":        {"replacement": "grok-4.3", "reasoning_effort": None,  "note": None},
     "grok-4-fast-non-reasoning":    {"replacement": "grok-4.3", "reasoning_effort": "none", "note": None},
@@ -32,8 +31,8 @@ class RetirementIssue:
     config_path: str            # e.g. "principal.model" or "auxiliary.vision.model"
     current_model: str          # exact value found in config (preserves casing/prefix)
     replacement: str
-    reasoning_effort: Optional[str] = None  # set for non-reasoning variant migration
-    note: Optional[str] = None
+    reasoning_effort: str | None = None  # set for non-reasoning variant migration
+    note: str | None = None
 
 
 def _normalize(model_id: str) -> str:
@@ -45,17 +44,17 @@ def _normalize(model_id: str) -> str:
     return m
 
 
-def _looks_like_xai(model_id: Optional[str]) -> bool:
+def _looks_like_xai(model_id: str | None) -> bool:
     return isinstance(model_id, str) and _normalize(model_id).startswith("grok-")
 
 
-def find_retired_xai_refs(config: Dict[str, Any]) -> List[RetirementIssue]:
+def find_retired_xai_refs(config: dict[str, Any]) -> list[RetirementIssue]:
     """Walk all model slots in a Hermes config and return retirement issues.
 
     Slots scanned: ``principal.model``, ``auxiliary.<any>.model`` (introspective, covers future
     aux slots), ``delegation.model``, ``tts.xai.model``, ``plugins.image_gen.xai.model``.
     """
-    issues: List[RetirementIssue] = []
+    issues: list[RetirementIssue] = []
     if not isinstance(config, dict):
         return issues
 
@@ -69,7 +68,7 @@ def find_retired_xai_refs(config: Dict[str, Any]) -> List[RetirementIssue]:
                 reasoning_effort=entry.get("reasoning_effort"),
                 note=entry.get("note")))
 
-    def _section(*keys: str) -> Optional[Dict[str, Any]]:
+    def _section(*keys: str) -> dict[str, Any] | None:
         node: Any = config
         for key in keys:
             if not isinstance(node, dict):
@@ -106,12 +105,12 @@ class ApplyResult:
     """Outcome of an apply_migration call."""
 
     file_path: Path
-    backup_path: Optional[Path]
-    issues_resolved: List[RetirementIssue]
+    backup_path: Path | None
+    issues_resolved: list[RetirementIssue]
     config_changed: bool
 
 
-def _walk_to_parent(yaml_doc: Any, dotted_path: str) -> "tuple[Any, str]":
+def _walk_to_parent(yaml_doc: Any, dotted_path: str) -> tuple[Any, str]:
     """Resolve a dotted slot path to (parent_mapping, leaf_key)."""
     *parents, leaf = dotted_path.split(".")
     if not parents:
@@ -125,7 +124,7 @@ def _walk_to_parent(yaml_doc: Any, dotted_path: str) -> "tuple[Any, str]":
 
 
 def apply_migration(
-    config_path: Path, issues: List[RetirementIssue], backup: bool = True) -> ApplyResult:
+    config_path: Path, issues: list[RetirementIssue], backup: bool = True) -> ApplyResult:
     """Rewrite ``config_path`` in place (ruamel round-trip: comments, order, type literals kept).
 
     Unless ``backup=False`` a copy goes to ``backups/config/`` (reason ``pre-migrate-xai``).
@@ -147,7 +146,7 @@ def apply_migration(
     if doc is None:
         return unchanged
 
-    resolved: List[RetirementIssue] = []
+    resolved: list[RetirementIssue] = []
     for issue in issues:
         try:
             parent, leaf = _walk_to_parent(doc, issue.config_path)
@@ -160,13 +159,14 @@ def apply_migration(
     if not resolved:
         return unchanged
 
-    backup_path: Optional[Path] = None
+    backup_path: Path | None = None
     if backup:
         from hermes_cli.config_backups import backup_config
         backup_path = backup_config(config_path, "pre-migrate-xai")
 
-    from hermes_cli.config import require_readable_config_before_write
     from utils import atomic_write_text
+
+    from hermes_cli.config import require_readable_config_before_write
     require_readable_config_before_write(config_path)
     # Dump to a buffer, then atomic-write: ``open(path, "w")`` truncates before the dump runs, so a
     # crash mid-write would leave config.yaml empty (and with ``--no-backup`` that is the only

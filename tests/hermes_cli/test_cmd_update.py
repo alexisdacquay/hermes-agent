@@ -4,7 +4,6 @@ import subprocess
 from unittest.mock import patch
 
 import pytest
-
 from hermes_cli import update_cmd
 
 
@@ -13,7 +12,7 @@ def _isolate_venv_holders(monkeypatch):
     """The update flow's venv-holder guard sees the live gateway processes on
     a dev machine and aborts with SystemExit 2 before reaching the branch
     logic under test.  Isolate it so the test exercises the intended path."""
-    monkeypatch.setattr("hermes_cli.update_cmd_windows._detect_venv_python_processes", lambda: [])
+    monkeypatch.setattr("hermes_cli.update_cmd_windows._detect_venv_python_processes", list)
 
 
 class TestGitTrampolineSelfHeal:
@@ -43,7 +42,6 @@ class TestGitTrampolineSelfHeal:
 
     @pytest.mark.platforms("windows")
     def test_healthy_git_command_unchanged(self):
-        from hermes_cli import update_cmd
 
         git_cmd = ["git", "-c", "windows.appendAtomically=false"]
         with (
@@ -61,7 +59,6 @@ class TestGitTrampolineSelfHeal:
     def test_trampoline_swaps_to_real_git(self, capsys):
         from pathlib import Path
 
-        from hermes_cli import update_cmd
 
         git_cmd = ["git", "-c", "windows.appendAtomically=false"]
         real = Path(r"C:\Program Files\Git\mingw64\libexec\git-core\git.exe")
@@ -81,7 +78,6 @@ class TestGitTrampolineSelfHeal:
 
     @pytest.mark.platforms("windows")
     def test_trampoline_no_real_git_keeps_command(self, capsys):
-        from hermes_cli import update_cmd
 
         git_cmd = ["git", "-c", "windows.appendAtomically=false"]
         with (
@@ -98,7 +94,6 @@ class TestGitTrampolineSelfHeal:
 
     @pytest.mark.platforms("not windows")
     def test_off_windows_noop(self):
-        from hermes_cli import update_cmd
 
         git_cmd = ["git"]
         with patch("hermes_cli.update_cmd.subprocess.run") as run:

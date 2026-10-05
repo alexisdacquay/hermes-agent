@@ -12,7 +12,6 @@ from __future__ import annotations
 import logging
 import os
 import urllib.parse
-from typing import Optional
 
 _log = logging.getLogger(__name__)
 
@@ -49,7 +48,7 @@ def _warn_if_malformed(source: str, raw: str) -> None:
         source, cleaned, cleaned.split("://")[-1] or "hermes.example.com")
 
 
-def _warn_if_malformed_prefix(raw: Optional[str], reason: str) -> None:
+def _warn_if_malformed_prefix(raw: str | None, reason: str) -> None:
     """Warn once when a non-empty X-Forwarded-Prefix value is rejected."""
     cleaned = raw.strip() if raw else ""
     _warn_once(
@@ -58,7 +57,7 @@ def _warn_if_malformed_prefix(raw: Optional[str], reason: str) -> None:
         "Dashboard URLs will be generated without a reverse-proxy path prefix.", cleaned, reason)
 
 
-def normalise_prefix(raw: Optional[str]) -> str:
+def normalise_prefix(raw: str | None) -> str:
     """``"/hermes"`` form (no trailing slash) or ``""`` when unset/malformed. ``..``, ``//`` and
     injection characters are rejected so a hostile proxy cannot smuggle HTML or traversal."""
     p = raw.strip() if raw else ""
@@ -83,7 +82,7 @@ def prefix_from_request(request) -> str:
 
 # --- HERMES_DASHBOARD_PUBLIC_URL / dashboard.public_url --------------------
 
-def _normalise_public_url(raw: Optional[str]) -> str:
+def _normalise_public_url(raw: str | None) -> str:
     """Cleaned ``scheme://netloc[/path]`` (trailing slash stripped) or ``""`` when
     empty/malformed/injection-suspect (= fall back to request reconstruction)."""
     url = raw.strip() if raw else ""

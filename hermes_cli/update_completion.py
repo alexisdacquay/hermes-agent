@@ -10,10 +10,10 @@ import codecs
 import json
 import os
 import signal
-from pathlib import Path
 import subprocess
 import sys
 import tempfile
+from pathlib import Path
 
 
 def _write_json(path: Path, data: dict) -> None:
@@ -150,7 +150,9 @@ def _prepare(request: dict, request_path: Path, result_path: Path) -> int:
     root = Path(request["source"])
     update_id = request["receipt"]["update_id"]
     from hermes_cli.venv_sync import (
-        arm_completion, collect_superseded_generations, refuse_foreign_owned_venv,
+        arm_completion,
+        collect_superseded_generations,
+        refuse_foreign_owned_venv,
     )
 
     refuse_foreign_owned_venv(root)
@@ -252,8 +254,9 @@ class _ForwardedOutput:
 
 
 def _finish(request: dict, result_path: Path) -> int:
-    from hermes_cli import update_receipt
     from pm.receipt import accept_worker_receipt
+
+    from hermes_cli import update_receipt
 
     _resume_receipt(request["receipt"])
     accept_worker_receipt(request.get("pm_receipt"), request["receipt"]["update_id"])

@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +64,7 @@ def resolve() -> Placement:
     return Placement(REFUSED, backend, reason)
 
 
-def terminal_environment(*, create: bool = True) -> Optional[Any]:
+def terminal_environment(*, create: bool = True) -> Any | None:
     """This profile's terminal environment object (the one ``terminal`` runs commands in). ``create=False``
     only returns an already-running one."""
     from tools import terminal_tool as tt

@@ -19,7 +19,6 @@ import threading
 import types
 
 import pytest
-
 from tui_gateway import server
 
 # A vendor-documented data-training tier. The data-policy guard keys on the

@@ -1,12 +1,13 @@
 """Real Git local-work safety: caller divergence, restore faults and rescue retention."""
 import contextlib
-from pathlib import Path
 import subprocess
-from unittest.mock import patch
+from datetime import UTC
+from pathlib import Path
 
 import pytest
+from hermes_cli import main as hermes_main
+from hermes_cli import update_cmd
 
-from hermes_cli import main as hermes_main, update_cmd
 from tests.hermes_cli.test_update_target_identity import git, update_tree  # noqa: F401
 
 
@@ -83,12 +84,12 @@ def test_update_preserves_local_work_and_rescues_orphan_before_reset(
 
 @pytest.mark.parametrize('mode', ['count', 'age', 'unparseable'])
 def test_rescue_retention_uses_real_refs(tmp_path, monkeypatch, mode):
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
     git(tmp_path, 'init', '-q', '-b', 'main')
     git(tmp_path, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid',
         '-c', 'commit.gpgsign=false', 'commit', '--allow-empty', '-qm', 'base')
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     prefix = 'refs/hermes-update-backups/orphan-main-'
     if mode == 'count':
         refs = [prefix + (now - timedelta(hours=20-i)).strftime('%Y%m%d-%H%M%S') + '-abc'
@@ -237,7 +238,6 @@ def test_update_autostash_survives_undeletable_untracked_dir(tmp_path):
     """Behavioral E2E of the whole permission-denied class with real git:
     root-owned-style undeletable untracked dir → stash succeeds, update-style
     reset works, restore round-trips, nothing lost. (#70127 follow-up)"""
-    import contextlib
     import os
     import shutil
     import subprocess
@@ -317,8 +317,7 @@ def test_restore_stays_parked_when_untracked_baseline_is_unknown(
     monkeypatch, tmp_path, capsys
 ):
     """Unknown cleanup scope must not turn into a destructive empty baseline."""
-    from hermes_cli import update_cmd
-    import hermes_cli.update_cmd_stash as update_cmd_stash
+    from hermes_cli import update_cmd, update_cmd_stash
 
     monkeypatch.setattr(update_cmd, "_git_untracked_paths", lambda *_args: None)
     monkeypatch.setattr(update_cmd_stash, "_git_untracked_paths", lambda *_args: None)
@@ -338,8 +337,7 @@ def test_reject_does_not_claim_cleanup_when_git_state_is_unknown(
     monkeypatch, tmp_path, capsys
 ):
     """Cleanup failures must not be reported as a restored clean tree."""
-    from hermes_cli import update_cmd
-    import hermes_cli.update_cmd_stash as update_cmd_stash
+    from hermes_cli import update_cmd, update_cmd_stash
 
     monkeypatch.setattr(update_cmd, "_git_untracked_paths", lambda *_args: None)
     monkeypatch.setattr(update_cmd_stash, "_git_untracked_paths", lambda *_args: None)
@@ -494,7 +492,7 @@ def _active_receipt(probe):
 
 def test_conflicted_restore_records_parked_step_in_receipt(monkeypatch, tmp_path):
     import subprocess
-    from hermes_cli import update_receipt
+
 
     def git(*args, check=True):
         return subprocess.run(["git", *args], cwd=tmp_path, capture_output=True, text=True, check=check)
@@ -533,7 +531,7 @@ def test_conflicted_restore_records_parked_step_in_receipt(monkeypatch, tmp_path
 
 def test_clean_restore_records_restored_step_in_receipt(monkeypatch, tmp_path):
     import subprocess
-    from hermes_cli import update_receipt
+
 
     def git(*args, check=True):
         return subprocess.run(["git", *args], cwd=tmp_path, capture_output=True, text=True, check=check)
@@ -566,7 +564,6 @@ def test_clean_restore_records_restored_step_in_receipt(monkeypatch, tmp_path):
 def test_keep_stash_park_records_parked_step_in_receipt(capsys):
     probe = _ReceiptProbe()
     import hermes_cli.update_cmd_stash as stash_mod
-    from hermes_cli import update_receipt
 
     with _active_receipt(probe):
         stash_mod._park_stashed_changes("deadbeefcafe")

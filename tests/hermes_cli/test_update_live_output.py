@@ -1,14 +1,10 @@
 """Live output must reach disk before exit, without concealing silence."""
 import io
-import os
-from pathlib import Path
-import subprocess
 import sys
 import threading
 import time
 
 import pytest
-
 from hermes_cli import main_dashboard as output
 from hermes_cli import update_cmd
 

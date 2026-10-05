@@ -3,9 +3,9 @@ import asyncio
 import sys
 import time
 import types
-import pytest
-from unittest.mock import MagicMock, patch, AsyncMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from gateway.config import Platform, PlatformConfig
 from gateway.platforms.event import MessageType
 
@@ -174,7 +174,7 @@ def _make_fake_mautrix():
     mautrix_crypto_store = types.ModuleType("mautrix.crypto.store")
 
     class MemoryCryptoStore:
-        def __init__(self, account_id="", pickle_key=""):  # noqa: S301
+        def __init__(self, account_id="", pickle_key=""):
             self.account_id = account_id
             self.pickle_key = pickle_key
 
@@ -199,7 +199,7 @@ def _make_fake_mautrix():
     class PgCryptoStore:
         upgrade_table = MagicMock()
 
-        def __init__(self, account_id="", pickle_key="", db=None):  # noqa: S301
+        def __init__(self, account_id="", pickle_key="", db=None):
             self.account_id = account_id
             self.pickle_key = pickle_key
             self.db = db
@@ -720,8 +720,9 @@ class TestMatrixRequirements:
         a confusing ``No module named 'asyncpg'`` deep in
         ``MatrixAdapter.connect()``.
         """
-        from plugins.platforms.matrix.adapter import _check_e2ee_deps
         import builtins
+
+        from plugins.platforms.matrix.adapter import _check_e2ee_deps
         real_import = builtins.__import__
 
         def _blocking_import(name, *args, **kwargs):
@@ -738,8 +739,9 @@ class TestMatrixRequirements:
         Mautrix's ``Database.create("sqlite:///...")`` driver lookup imports
         aiosqlite lazily — without it, connect fails at ``crypto_db.start()``.
         """
-        from plugins.platforms.matrix.adapter import _check_e2ee_deps
         import builtins
+
+        from plugins.platforms.matrix.adapter import _check_e2ee_deps
         real_import = builtins.__import__
 
         def _blocking_import(name, *args, **kwargs):
@@ -1260,7 +1262,7 @@ class TestMatrixSyncLoop:
             ),
             # Plain timeout echoing the pagination token, which embeds "401".
             (
-                asyncio.TimeoutError(
+                TimeoutError(
                     "Connection timeout to host https://matrix.example.org/_matrix/"
                     "client/v3/sync?timeout=30000&since=s72802_401975_486_12943_11759"
                 ),
@@ -1965,7 +1967,7 @@ class TestMatrixImageOnlyMediaNormalization:
     async def test_external_media_download_follows_safe_redirect(self, monkeypatch):
         """A redirect to another allowed URL is followed and its body returned."""
         import aiohttp
-        import tools.url_safety as url_safety
+        from tools import url_safety
 
         class _Content:
             async def iter_chunked(self, _size):
@@ -2033,7 +2035,7 @@ class TestMatrixImageOnlyMediaNormalization:
     @pytest.mark.asyncio
     async def test_send_image_failure_log_redacts_signed_url(self, caplog, monkeypatch):
         from gateway.platforms.base import SendResult
-        import tools.url_safety as url_safety
+        from tools import url_safety
 
         signed_url = "https://example.com/image.png?signature=secret-token#frag"
         self.adapter._download_external_media_with_cap = AsyncMock(
@@ -2052,7 +2054,7 @@ class TestMatrixImageOnlyMediaNormalization:
     @pytest.mark.asyncio
     async def test_send_image_failure_response_preserves_caption(self, monkeypatch):
         from gateway.platforms.base import SendResult
-        import tools.url_safety as url_safety
+        from tools import url_safety
 
         signed_url = "https://example.com/image.png?signature=secret-token#fragment"
         self.adapter._download_external_media_with_cap = AsyncMock(
@@ -2904,6 +2906,7 @@ class TestCryptoStoreResetOnDeviceChange:
         must win, and the store must be reset.
         """
         import logging
+
         from plugins.platforms.matrix.adapter import MatrixAdapter
 
         config = PlatformConfig(

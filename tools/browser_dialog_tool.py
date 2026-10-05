@@ -8,12 +8,12 @@ appears together with ``browser_cdp``. Design: ``website/docs/developer-guide/br
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, Optional
+from typing import Any
 
 from tools.browser_supervisor import SUPERVISOR_REGISTRY
 from tools.registry import registry
 
-BROWSER_DIALOG_SCHEMA: Dict[str, Any] = {
+BROWSER_DIALOG_SCHEMA: dict[str, Any] = {
     "name": "browser_dialog",
     "description": (
         "Respond to a native JavaScript dialog (alert / confirm / prompt / "
@@ -69,9 +69,9 @@ BROWSER_DIALOG_SCHEMA: Dict[str, Any] = {
 
 def browser_dialog(
     action: str,
-    prompt_text: Optional[str] = None,
-    dialog_id: Optional[str] = None,
-    task_id: Optional[str] = None,
+    prompt_text: str | None = None,
+    dialog_id: str | None = None,
+    task_id: str | None = None,
 ) -> str:
     """Respond to a pending dialog on the active task's CDP supervisor."""
     supervisor = SUPERVISOR_REGISTRY.get(task_id or "default")

@@ -23,13 +23,11 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from gateway.response_filters import (
     is_intentional_silence_response,
     is_partial_silence_marker,
 )
 from gateway.stream_consumer import GatewayStreamConsumer, StreamConsumerConfig
-
 
 # --------------------------------------------------------------------------
 # is_partial_silence_marker — mid-stream hold-back predicate

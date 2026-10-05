@@ -16,7 +16,6 @@ import time
 from pathlib import Path
 
 import pytest
-
 from tools import bot_mode_dm, bot_mode_probe, bot_relay
 
 
@@ -715,7 +714,6 @@ def test_live_dm_wait_rechecks_receipt_when_owner_disappears_at_claim(tmp_path, 
         claimed = live.claim_pending_delivery(tmp_path, owner)
         assert claimed is not None
         live.complete_delivery(tmp_path, claimed["delivery_id"], status="settled", reply="PONG")
-        return None
 
     monkeypatch.setattr(live, "find_canonical_live_owner", settle_during_owner_check)
     assert bot_mode_dm._wait_live_dm(str(tmp_path), record["delivery_id"]) == 0
@@ -738,7 +736,6 @@ def test_live_dm_wait_keeps_claimed_turn_until_it_settles(tmp_path, monkeypatch,
 
     def owner_gone_then_settle(_home):
         settling.start()
-        return None
 
     monkeypatch.setattr(live, "find_canonical_live_owner", owner_gone_then_settle)
     try:
@@ -1328,8 +1325,8 @@ def test_live_owner_ack_carries_the_poll_return_path_when_session_cannot_receive
     """#101142 sibling: a live-owner (Desktop) target still runs the same tracked runner whose
     stdout carries the reply. On a non-push sender the live-owner ack must propagate
     ``reply_delivery="poll"`` and the wait instruction instead of 'finish your turn'."""
-    from tools import bot_live_delivery as live
     import tools.terminal_tool as terminal_tool_module
+    from tools import bot_live_delivery as live
 
     home = _managed_home(tmp_path)
     target = home / "profiles" / "researcher"

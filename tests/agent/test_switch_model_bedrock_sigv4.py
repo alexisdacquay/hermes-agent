@@ -7,7 +7,6 @@ paths handed the ``aws-sdk`` sentinel to the generic Anthropic/OpenAI builders (
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from agent.bedrock_adapter import BedrockOpenAISigV4Auth
 from agent.context_compressor import ContextCompressor
 from run_agent import AIAgent

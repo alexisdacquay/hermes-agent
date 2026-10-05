@@ -8,13 +8,11 @@ helpers `scan_for_threats()` / `first_threat_message()`.
 import time
 
 import pytest
-
 from tools.threat_patterns import (
     MAX_SCAN_CHARS,
     first_threat_message,
     scan_for_threats,
 )
-
 
 # =========================================================================
 # Scope behaviour

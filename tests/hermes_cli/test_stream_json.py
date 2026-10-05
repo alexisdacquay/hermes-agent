@@ -4,7 +4,6 @@ import json
 import signal
 
 import pytest
-
 from hermes_cli.stream_json import StreamJsonEmitter
 
 

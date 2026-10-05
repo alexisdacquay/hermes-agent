@@ -12,7 +12,6 @@ import time
 from unittest.mock import MagicMock
 
 import pytest
-
 from tools.environments.base_output import _BoundedOutputCollector, _drain_fd_windows
 
 

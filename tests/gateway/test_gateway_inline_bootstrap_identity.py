@@ -15,7 +15,6 @@ import subprocess
 from pathlib import Path
 
 import pytest
-
 from gateway.status import looks_like_gateway_command_line
 from hermes_cli import _launchers, venv_sync
 from hermes_cli.update_cmd_windows import _hermes_holder_subcommand

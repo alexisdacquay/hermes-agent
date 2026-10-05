@@ -23,7 +23,6 @@ real connection count and make such assertions flaky.
 """
 
 import pytest
-
 from hermes_state import SessionDB
 
 
@@ -62,10 +61,9 @@ def test_exception_inside_the_block_still_closes_and_propagates(tmp_path):
     path = tmp_path / "state.db"
     db = SessionDB(db_path=path)
 
-    with pytest.raises(ValueError, match="boom"):
-        with db:
-            db.create_session(session_id="s1", source="cli", model="m")
-            raise ValueError("boom")
+    with pytest.raises(ValueError, match="boom"), db:
+        db.create_session(session_id="s1", source="cli", model="m")
+        raise ValueError("boom")
 
     assert db._conn is None
     assert _live_count(path) == 0

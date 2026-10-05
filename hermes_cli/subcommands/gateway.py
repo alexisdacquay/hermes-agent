@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import argparse
-from typing import Callable
+from collections.abc import Callable
 
 from hermes_cli.subcommands._shared import add_accept_hooks_flag
-
 
 # `start`/`restart` on a named profile refuse while the default multiplexer serves it (a second gateway
 # would double-bind its platforms); `gateway run` carries its own broader --force text.

@@ -1,8 +1,7 @@
 """Backend selection uses reviewed target pins and never installs on lookup."""
 
-import pytest
-
 import pm
+import pytest
 from hermes_cli.local_runtime import binaries
 from pm import paths
 from pm.lock import Lockfile

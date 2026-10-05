@@ -20,15 +20,14 @@ import contextlib
 import io
 from pathlib import Path
 
-from hermes_constants import get_hermes_home
-from hermes_state import SessionDB
-from run_agent import AIAgent
-
 from agent.agent_init import (
     _codex_gpt55_autoraise_notice_marker,
     _codex_gpt55_autoraise_notice_seen,
     _record_codex_gpt55_autoraise_notice,
 )
+from hermes_constants import get_hermes_home
+from hermes_state import SessionDB
+from run_agent import AIAgent
 
 # The dict agent_init stashes when the Codex gpt-5.5 override fires.
 AUTORAISE = {"model": "gpt-5.5", "from": 0.50, "to": 0.85}
@@ -76,7 +75,7 @@ def _make_codex_agent(monkeypatch, tmp_path: Path, *, show_notice: bool):
     return agent, stdout.getvalue()
 
 def _threshold_ratio(agent: AIAgent) -> float:
-    compressor = getattr(agent, "context_compressor")
+    compressor = agent.context_compressor
     return round(compressor.threshold_tokens / compressor.context_length, 2)
 
 # ── config display gate ──────────────────────────────────────────────────────
@@ -87,12 +86,12 @@ def test_codex_gpt55_autoraise_notice_deduped_across_agent_inits(monkeypatch, tm
     # silent because the per-profile marker was recorded.
     agent1, stdout1 = _make_codex_agent(monkeypatch, tmp_path, show_notice=True)
     assert "auto-compaction was raised" in stdout1
-    assert getattr(agent1, "_compression_warning") is not None
+    assert agent1._compression_warning is not None
 
     agent2, stdout2 = _make_codex_agent(monkeypatch, tmp_path, show_notice=True)
     assert _threshold_ratio(agent2) == 0.85  # autoraise still applies
     assert "auto-compaction was raised" not in stdout2
-    assert getattr(agent2, "_compression_warning") is None
+    assert agent2._compression_warning is None
 
 # ── per-profile dedupe marker (#54432) ───────────────────────────────────────
 

@@ -11,7 +11,6 @@ import threading
 from contextlib import ExitStack, contextmanager, nullcontext
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 from pm import paths
 from pm.downloader import DownloadPaused, ProgressFn
@@ -176,7 +175,11 @@ def lazy_installs_allowed() -> bool:
     ):
         return False
     try:
-        from hermes_cli.config import cfg_get, load_config_readonly, require_readable_config_before_write
+        from hermes_cli.config import (
+            cfg_get,
+            load_config_readonly,
+            require_readable_config_before_write,
+        )
     except ModuleNotFoundError as exc:
         return exc.name in {"hermes_cli", "hermes_cli.config"}
     except ImportError:
@@ -513,7 +516,7 @@ def _install_operation():
 def ensure(
     name: str,
     *,
-    base_env: Optional[dict] = None,
+    base_env: dict | None = None,
     explicit: bool = False,
     verify: bool = True,
     progress=None,
@@ -571,7 +574,7 @@ def ensure(
     return Runner(name, env_for(name, base_env=base_env))
 
 
-def env_for(*names: str, base_env: Optional[dict] = None) -> dict[str, str]:
+def env_for(*names: str, base_env: dict | None = None) -> dict[str, str]:
     """Composed env of already-installed packages only. Never installs,
     never raises on missing packages — they contribute nothing."""
     lockfile = _lockfile()
@@ -630,6 +633,7 @@ def _still_declared(package, recorded: list[str]) -> list[str]:
     recorded spelling is what reaches uv.
     """
     import re
+
     from pm.features import declared_extras
 
     def normalized(name: str) -> str:
@@ -664,7 +668,7 @@ def venv_is_current(*, extras: list[str] | None = None, plugins: Members | Candi
     return _runtime_state_matches(fact, stamp, project_root=root)
 
 
-def _feature_policy(extras: Optional[list[str]], *, repair: bool) -> tuple[list[str] | None, list[str] | None]:
+def _feature_policy(extras: list[str] | None, *, repair: bool) -> tuple[list[str] | None, list[str] | None]:
     """Refuse extras this platform or a frozen bundle cannot carry; return (shipped, frozen)."""
     from pm.features import read_features
 
@@ -695,8 +699,9 @@ def _feature_policy(extras: Optional[list[str]], *, repair: bool) -> tuple[list[
 @contextmanager
 def _venv_install_lock(*, patient: bool):
     """Hold the dependency lock, or refuse when an impatient caller would queue."""
-    from pm import receipt
     from hermes_cli.runtime_state import INSTALL_LOCK_TIMEOUT_SECONDS, runtime_lock
+
+    from pm import receipt
 
     # Holding this lock means rebuilding the whole dependency environment, which takes tens of
     # seconds on a bundle. Only an install the user asked for may queue for it; an opportunistic
@@ -727,8 +732,9 @@ def _publication(plugins: PluginInput | None):
 
 def _publish_inactive(change) -> None:
     """A disabled plugin's code changes without touching the dependency environment."""
-    from pm import receipt
     from hermes_cli.runtime_state import finish_publication, recover_publication
+
+    from pm import receipt
 
     try:
         change.publish(paths.repo_root())
@@ -758,8 +764,9 @@ def _target_selection(package, fact: dict, *, extras, inputs: dict, repair: bool
 def _commit_selection(package, facts: Facts, change, *, enabled: list[str], stamp: str, inputs: dict,
                       current: bool, repair: bool, explicit: bool, skip_invalid_secondary: bool = False) -> None:
     """Build (unless current), publish the plugin change, then record the selection."""
-    from pm import receipt
     from hermes_cli.runtime_state import finish_publication, recover_publication
+
+    from pm import receipt
 
     try:
         result = {} if current else (package.apply(enabled, explicit=explicit,
@@ -781,7 +788,7 @@ def _commit_selection(package, facts: Facts, change, *, enabled: list[str], stam
         raise
 
 
-def sync_venv(extras: Optional[list[str]] = None, *, explicit: bool = False,
+def sync_venv(extras: list[str] | None = None, *, explicit: bool = False,
               plugins: PluginInput | None = None, repair: bool = False,
               evict_incompatible_plugins: bool = False) -> None:
     """Make the venv match uv.lock + the enabled extras. Extras union into
@@ -820,6 +827,7 @@ def sync_venv(extras: Optional[list[str]] = None, *, explicit: bool = False,
         shipped, frozen = _feature_policy(extras, repair=repair)
         package = get_package("venv")
         from hermes_cli.runtime_state import recover_publication
+
         from pm.publication import StagedPlugin
         with _venv_install_lock(patient=explicit or repair):
             recover_publication(paths.repo_root())

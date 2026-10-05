@@ -6,10 +6,7 @@ stays the single late-binding seam tests monkeypatch (``web_deps.late``).
 Usage: ``python -m hermes_cli.main web [--port 8080]``.
 """
 
-from contextlib import asynccontextmanager
-
 import asyncio
-from collections import deque
 import hmac
 import logging
 import os
@@ -21,13 +18,14 @@ import sysconfig
 import threading
 import time
 import urllib.parse
+from collections import deque
+from contextlib import asynccontextmanager
+from pathlib import Path
+from typing import Any
 
 from hermes_cli.install_identity import get_install_id as _shared_get_install_id
 from hermes_cli.process_identity import is_desktop_owned_backend
 from hermes_cli.pty_session import run_reaper
-from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
-
 
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
 if str(PROJECT_ROOT) not in sys.path:
@@ -48,7 +46,9 @@ except ImportError:
         from pm import ensure_import
         ensure_import("web")
         from fastapi import (
-            FastAPI, HTTPException, Request,
+            FastAPI,
+            HTTPException,
+            Request,
         )
         from fastapi.middleware.cors import CORSMiddleware
         from fastapi.responses import JSONResponse
@@ -62,7 +62,7 @@ WEB_DIST = Path(os.environ["HERMES_WEB_DIST"]) if "HERMES_WEB_DIST" in os.enviro
 _log = logging.getLogger(__name__)
 
 
-from hermes_cli.web_server_lifecycle import (  # noqa: E402
+from hermes_cli.web_server_lifecycle import (
     PORT_IN_USE_EXIT_CODE,
     _dashboard_forwarded_allow_ips,
     _eager_reconcile_own_session_db,
@@ -81,13 +81,16 @@ def _gateway_owns_cron(name: str, home) -> bool:
     """A gateway already ticks this profile's store with live adapters: its OWN process, or the
     live default multiplexer (a served satellite has no gateway.pid of its own). Winning the
     tick-lock race here would deliver through the standalone path (#52202, #100489, #107485)."""
-    from hermes_cli.profiles import _check_gateway_running, _served_by_running_multiplexer
+    from hermes_cli.profiles import (
+        _check_gateway_running,
+        _served_by_running_multiplexer,
+    )
 
     return _check_gateway_running(Path(home)) or (
         name != "default" and _served_by_running_multiplexer(name))
 
 
-def _start_desktop_cron_ticker(stop_event: "threading.Event", interval: int = 60) -> None:
+def _start_desktop_cron_ticker(stop_event: threading.Event, interval: int = 60) -> None:
     """Tick the cron scheduler from inside the desktop dashboard backend.
 
     The desktop spawns a ``hermes dashboard`` backend, not a gateway, so without
@@ -177,7 +180,7 @@ _DESKTOP_MCP_DISCOVERY_DELAY_S = 1.0
 
 
 @asynccontextmanager
-async def _lifespan(app: "FastAPI"):
+async def _lifespan(app: FastAPI):
     app.state.event_channels = {}  # dict[str, set]
     app.state.event_lock = asyncio.Lock()
     app.state.pty_active_session_files = {}  # dict[str, Path]
@@ -217,8 +220,8 @@ async def _lifespan(app: "FastAPI"):
     # Hosted Bot rooms belong to the backend process. Recovery may need a
     # contended state.db migration, so keep it off the pre-yield path: Group
     # Chat must degrade on its own rather than block every Desktop feature.
+    import tui_gateway.server
     from tui_gateway import methods_groups as _hosted_groups
-    import tui_gateway.server  # noqa: F401
 
     try:
         tui_gateway.server.install_tui_message_injector()
@@ -246,8 +249,8 @@ async def _lifespan(app: "FastAPI"):
     # Desktop-spawned backends fire cron jobs themselves, since the app has no
     # gateway running the scheduler. Server `hermes dashboard` is unaffected —
     # it relies on its own gateway.
-    cron_stop: "threading.Event | None" = None
-    cron_thread: "threading.Thread | None" = None
+    cron_stop: threading.Event | None = None
+    cron_thread: threading.Thread | None = None
     desktop_owned = is_desktop_owned_backend()
     if desktop_owned:
         # Reap an orphaned gateway from an abnormal previous exit (reparented to
@@ -331,7 +334,7 @@ async def _lifespan(app: "FastAPI"):
         eager_reconcile_thread.join()
 
 
-def _app_state_default(app: "FastAPI", name: str, factory):
+def _app_state_default(app: FastAPI, name: str, factory):
     """Return ``app.state.<name>``, lazily creating it for non-``with`` TestClient usages.
 
     The lifespan normally initialises these on the running event loop (an
@@ -345,24 +348,24 @@ def _app_state_default(app: "FastAPI", name: str, factory):
         return value
 
 
-def _get_chat_argv_lock(app: "FastAPI") -> asyncio.Lock:
+def _get_chat_argv_lock(app: FastAPI) -> asyncio.Lock:
     return _app_state_default(app, "chat_argv_lock", asyncio.Lock)
 
 
-def _get_pty_active_session_files(app: "FastAPI") -> dict[str, Path]:
+def _get_pty_active_session_files(app: FastAPI) -> dict[str, Path]:
     return _app_state_default(app, "pty_active_session_files", dict)
 
 
 app = FastAPI(title="Hermes Agent", version=get_version_info().base_version, lifespan=_lifespan)
 
-from hermes_cli.dashboard_auth.body_limit import AuthBodyLimitMiddleware  # noqa: E402
+from hermes_cli.dashboard_auth.body_limit import AuthBodyLimitMiddleware
 
 # Register first (innermost): auth gates run before this, JSON parsing after it.
 app.add_middleware(AuthBodyLimitMiddleware)
 
 
 # Memory-provider OAuth connect routes live in the memory layer, not here.
-from hermes_cli.memory_oauth import router as _memory_oauth_router  # noqa: E402
+from hermes_cli.memory_oauth import router as _memory_oauth_router
 
 app.include_router(_memory_oauth_router)
 
@@ -375,9 +378,9 @@ def _resolve_session_token() -> str:
 
 _SESSION_TOKEN = _resolve_session_token()
 _SESSION_HEADER_NAME = "X-Hermes-Session-Token"
-_SSH_OWNER_NONCE: Optional[str] = None
-_SSH_RUNTIME_PURELIB: Optional[Tuple[str, int, int]] = None
-_SSH_RUNTIME_MARKER: Optional[str] = None
+_SSH_OWNER_NONCE: str | None = None
+_SSH_RUNTIME_PURELIB: tuple[str, int, int] | None = None
+_SSH_RUNTIME_MARKER: str | None = None
 
 
 def _apply_ssh_session_token(token: str) -> None:
@@ -386,7 +389,7 @@ def _apply_ssh_session_token(token: str) -> None:
         _SESSION_TOKEN = token
 
 
-def _apply_ssh_owner_nonce(nonce: Optional[str]) -> None:
+def _apply_ssh_owner_nonce(nonce: str | None) -> None:
     global _SSH_OWNER_NONCE, _SSH_RUNTIME_PURELIB, _SSH_RUNTIME_MARKER
     _SSH_OWNER_NONCE = nonce
     _SSH_RUNTIME_PURELIB = None
@@ -531,7 +534,7 @@ def should_require_auth(host: str, allow_public: bool = False) -> bool:
 
 def should_require_dashboard_auth(
     host: str,
-    trusted_public_hosts: Optional[frozenset[str]] = None,
+    trusted_public_hosts: frozenset[str] | None = None,
 ) -> bool:
     """Gate required for a non-loopback bind OR a non-loopback ``dashboard.public_url``.
 
@@ -545,8 +548,8 @@ def should_require_dashboard_auth(
 
 def _desktop_loopback_auth_exempt(
     host: str,
-    ssh_session_token: Optional[str] = None,
-    ssh_owner_nonce: Optional[str] = None,
+    ssh_session_token: str | None = None,
+    ssh_owner_nonce: str | None = None,
 ) -> bool:
     """True for a Desktop-owned loopback backend (#96490).
 
@@ -673,7 +676,7 @@ async def _plugin_api_runtime_gate(request: Request, call_next):
             # Gate: only serve user plugins that are in plugins.enabled and not in plugins.disabled. This
             # prevents the frontend from loading JS/CSS from plugins the user has not explicitly activated.
             # (#46435)
-            from hermes_cli.plugins_cmd import _get_enabled_set, _get_disabled_set
+            from hermes_cli.plugins_cmd import _get_disabled_set, _get_enabled_set
             enabled_set = _get_enabled_set()
             disabled_set = _get_disabled_set()
         except Exception:
@@ -744,13 +747,13 @@ class DashboardHealth:
 
     def __init__(self, window_seconds: float = _DASHBOARD_HEALTH_WINDOW_SECONDS) -> None:
         self.window_seconds = window_seconds
-        self._error_times: "deque[float]" = deque(maxlen=256)
-        self.last_error_type: Optional[str] = None
-        self.last_error_path: Optional[str] = None  # internal-only, never serialized
-        self.last_error_at: Optional[float] = None
+        self._error_times: deque[float] = deque(maxlen=256)
+        self.last_error_type: str | None = None
+        self.last_error_path: str | None = None  # internal-only, never serialized
+        self.last_error_at: float | None = None
         self.selftest_status: str = "unknown"  # unknown | ok | failing
-        self.selftest_http_status: Optional[int] = None
-        self.selftest_at: Optional[float] = None
+        self.selftest_http_status: int | None = None
+        self.selftest_at: float | None = None
 
     def record_error(self, exc_type: str, path: str) -> None:
         now = time.time()
@@ -759,7 +762,7 @@ class DashboardHealth:
         self.last_error_path = path
         self.last_error_at = now
 
-    def record_selftest(self, passed: bool, http_status: Optional[int]) -> None:
+    def record_selftest(self, passed: bool, http_status: int | None) -> None:
         self.selftest_status = "ok" if passed else "failing"
         self.selftest_http_status = http_status
         self.selftest_at = time.time()
@@ -770,7 +773,7 @@ class DashboardHealth:
             self._error_times.popleft()
         return len(self._error_times)
 
-    def snapshot(self) -> Dict[str, Any]:
+    def snapshot(self) -> dict[str, Any]:
         """Public component payload: status enum + counts + timestamps only."""
         errors = self.recent_error_count()
         status = "degraded" if (errors or self.selftest_status == "failing") else "ok"
@@ -838,14 +841,18 @@ async def _dashboard_selftest_loop() -> None:
 
 # Action registries/spawner are owned by web_server_gateway; routers and tests reach them
 # there, so this module reads them through the module too (one patch seam).
-from hermes_cli import web_server_gateway as _gateway_mod  # noqa: E402
-from hermes_cli.web_server_gateway import _ACTION_LOG_FILES, _terminate_desktop_managed_gateway  # noqa: E402
-from hermes_cli.web_server_sessions import _auto_archive_ticker_loop  # noqa: E402
-from hermes_cli.web_server_chat import PTY_REGISTRY  # noqa: E402
-from hermes_cli.web_server_dashboard import (  # noqa: E402
-    _discover_dashboard_plugins, _mount_plugin_api_routes, mount_spa,
+from hermes_cli import web_server_gateway as _gateway_mod
+from hermes_cli.web_server_chat import PTY_REGISTRY
+from hermes_cli.web_server_dashboard import (
+    _discover_dashboard_plugins,
+    _mount_plugin_api_routes,
+    mount_spa,
 )
-
+from hermes_cli.web_server_gateway import (
+    _ACTION_LOG_FILES,
+    _terminate_desktop_managed_gateway,
+)
+from hermes_cli.web_server_sessions import _auto_archive_ticker_loop
 
 _GATEWAY_HEALTH_URL = os.getenv("GATEWAY_HEALTH_URL")
 _GATEWAY_HEALTH_TIMEOUT_MAX = 1.0
@@ -882,10 +889,10 @@ _UPLOAD_CHUNK_BYTES = 1024 * 1024
 # persisted under the ROOT Hermes home (not the profile HERMES_HOME) so every
 # profile reports the same id and the desktop can collapse duplicate roster rows
 # for one backend. Must never change across restarts, so cached per process.
-_INSTALL_ID_CACHE: Dict[str, Optional[str]] = {"root": None, "value": None}
+_INSTALL_ID_CACHE: dict[str, str | None] = {"root": None, "value": None}
 
 
-def get_install_id() -> Optional[str]:
+def get_install_id() -> str | None:
     """Process-lifetime-cached stable install id."""
     return _shared_get_install_id(cache=_INSTALL_ID_CACHE)
 
@@ -906,10 +913,10 @@ GATEWAY_RESTART_COOLDOWN_SECONDS = 10.0
 
 # ``(monotonic spawn time, Popen, command)`` of the last restart. Deliberately
 # NOT read from ``_ACTION_PROCS``: entries there vanish when the child exits.
-_LAST_GATEWAY_RESTART: Optional[Tuple[float, subprocess.Popen, Tuple[str, ...]]] = None
+_LAST_GATEWAY_RESTART: tuple[float, subprocess.Popen, tuple[str, ...]] | None = None
 
 
-def _spawn_gateway_restart(profile: Optional[str] = None) -> Tuple[subprocess.Popen, bool]:
+def _spawn_gateway_restart(profile: str | None = None) -> tuple[subprocess.Popen, bool]:
     """Spawn ``hermes gateway restart``, reusing an in-flight or recent restart.
 
     Concurrent children race each other on the kill-and-start path, so a live
@@ -952,10 +959,10 @@ def _spawn_gateway_restart(profile: Optional[str] = None) -> Tuple[subprocess.Po
 # Collapses repeated identical ElevenLabs voice-list failures (the desktop
 # re-polls on every settings focus) to one log line; re-arms on success or a
 # changed signature.
-_voice_list_last_error: Optional[str] = None
+_voice_list_last_error: str | None = None
 
 
-def _voice_list_error_logged_once(signature: Optional[str]) -> bool:
+def _voice_list_error_logged_once(signature: str | None) -> bool:
     """True if ``signature`` is new and should be logged now; ``None`` clears the latch."""
     global _voice_list_last_error
     if signature is None:
@@ -970,7 +977,7 @@ def _voice_list_error_logged_once(signature: Optional[str]) -> bool:
 _ACTION_LOG_FILES.setdefault("computer-use-grant", "action-computer-use-grant.log")
 
 # Cache discovered plugins per-process (refresh on explicit re-scan).
-_dashboard_plugins_cache: Optional[list] = None
+_dashboard_plugins_cache: list | None = None
 
 
 def _get_dashboard_plugins(force_rescan: bool = False) -> list:
@@ -985,31 +992,77 @@ def _get_dashboard_plugins(force_rescan: bool = False) -> list:
 
 # Router mounting. ORDER IS ROUTE-MATCHING ORDER: literal paths must land before
 # templated siblings (e.g. /api/sessions/bulk-delete before /api/sessions/{id}).
-from hermes_cli.web_routers import (  # noqa: E402
-    files as _files_routes,
-    git as _git_routes,
-    local_models as _local_models_routes,
-    status as _status_routes,
+from hermes_cli.web_routers import (
     actions as _actions_routes,
-    audio as _audio_routes,
-    display as _display_routes,
-    sessions as _sessions_routes,
-    profiles as _profiles_routes,
-    memory_providers as _memory_providers_routes,
-    config_env as _config_env_routes,
-    models as _models_routes,
-    messaging as _messaging_routes,
-    oauth as _oauth_routes,
-    cron as _cron_routes,
-    mcp as _mcp_routes,
-    ops as _ops_routes,
-    skills as _skills_routes,
-    tools as _tools_routes,
+)
+from hermes_cli.web_routers import (
     analytics as _analytics_routes,
-    chat_ws as _chat_ws_routes,
+)
+from hermes_cli.web_routers import (
+    audio as _audio_routes,
+)
+from hermes_cli.web_routers import (
     chat_workspaces as _chat_workspaces_routes,
+)
+from hermes_cli.web_routers import (
+    chat_ws as _chat_ws_routes,
+)
+from hermes_cli.web_routers import (
+    config_env as _config_env_routes,
+)
+from hermes_cli.web_routers import (
+    cron as _cron_routes,
+)
+from hermes_cli.web_routers import (
     dashboard_ui as _dashboard_ui_routes,
+)
+from hermes_cli.web_routers import (
+    display as _display_routes,
+)
+from hermes_cli.web_routers import (
+    files as _files_routes,
+)
+from hermes_cli.web_routers import (
+    git as _git_routes,
+)
+from hermes_cli.web_routers import (
+    local_models as _local_models_routes,
+)
+from hermes_cli.web_routers import (
+    mcp as _mcp_routes,
+)
+from hermes_cli.web_routers import (
+    memory_providers as _memory_providers_routes,
+)
+from hermes_cli.web_routers import (
+    messaging as _messaging_routes,
+)
+from hermes_cli.web_routers import (
+    models as _models_routes,
+)
+from hermes_cli.web_routers import (
+    oauth as _oauth_routes,
+)
+from hermes_cli.web_routers import (
+    ops as _ops_routes,
+)
+from hermes_cli.web_routers import (
+    profiles as _profiles_routes,
+)
+from hermes_cli.web_routers import (
+    sessions as _sessions_routes,
+)
+from hermes_cli.web_routers import (
     shared_metrics as _shared_metrics_routes,
+)
+from hermes_cli.web_routers import (
+    skills as _skills_routes,
+)
+from hermes_cli.web_routers import (
+    status as _status_routes,
+)
+from hermes_cli.web_routers import (
+    tools as _tools_routes,
 )
 
 app.include_router(_files_routes.router)
@@ -1048,7 +1101,9 @@ app.include_router(_shared_metrics_routes.router)
 # mount before the SPA catch-all so /{full_path:path} doesn't swallow them. Auth
 # routes are always mounted — the gate middleware decides enforcement.
 _mount_plugin_api_routes()
-from hermes_cli.dashboard_auth.routes import router as _dashboard_auth_router  # noqa: E402
+from hermes_cli.dashboard_auth.routes import (
+    router as _dashboard_auth_router,
+)
 
 app.include_router(_dashboard_auth_router)
 mount_spa(app)
@@ -1142,8 +1197,8 @@ def _no_auth_provider_message(host: str) -> str:
 def _configure_auth_gate(
     host: str,
     allow_public: bool,
-    ssh_session_token: Optional[str],
-    ssh_owner_nonce: Optional[str],
+    ssh_session_token: str | None,
+    ssh_owner_nonce: str | None,
 ) -> None:
     """Resolve the trusted public hosts + auth-gate flag onto ``app.state``.
 
@@ -1233,7 +1288,11 @@ def _build_uvicorn_server(host: str, port: int, *, ssh_isolated: bool = False):
         _ws_ping_setting("ws_ping_interval"), _ws_ping_setting("ws_ping_timeout"))
     if ssh_isolated:
         from hermes_cli.web_server_idle_exit import (
-            TUNNEL_WS_PING_INTERVAL_S, TUNNEL_WS_PING_TIMEOUT_S, IdleClientTracker, wrap_asgi_with_ws_tracking)
+            TUNNEL_WS_PING_INTERVAL_S,
+            TUNNEL_WS_PING_TIMEOUT_S,
+            IdleClientTracker,
+            wrap_asgi_with_ws_tracking,
+        )
         app.state.ssh_isolated_clients = IdleClientTracker()
         served_app = wrap_asgi_with_ws_tracking(app, app.state.ssh_isolated_clients)
         ping_interval, ping_timeout = TUNNEL_WS_PING_INTERVAL_S, TUNNEL_WS_PING_TIMEOUT_S
@@ -1324,7 +1383,7 @@ def _on_server_started(
     open_browser: bool,
     initial_profile: str,
     start_mcp_discovery_after_bind: bool,
-    ssh_lock_path: Optional[Path] = None,
+    ssh_lock_path: Path | None = None,
 ) -> None:
     """Post-bind arming on the serving loop right after ``server.startup()``.
 
@@ -1357,7 +1416,10 @@ def _on_server_started(
     # SSH-isolated backends are detached from any parent on purpose (#91668); their liveness signal
     # is "does a client still hold a WebSocket" (#101626).
     if getattr(app.state, "ssh_isolated_clients", None) is not None:
-        from hermes_cli.web_server_idle_exit import DEFAULT_IDLE_GRACE_S, start_idle_watchdog
+        from hermes_cli.web_server_idle_exit import (
+            DEFAULT_IDLE_GRACE_S,
+            start_idle_watchdog,
+        )
         try:
             grace = float((load_config().get("dashboard") or {}).get("ssh_isolated_idle_grace_s", DEFAULT_IDLE_GRACE_S))
         except (TypeError, ValueError):
@@ -1391,7 +1453,10 @@ def _on_server_started(
     # ACTUAL port — what lets `hermes update` relaunch a manually-started serve
     # on its real endpoint (#63206).
     def _register_identity() -> None:
-        from hermes_cli.process_identity import attach_self_to_kill_on_close_job, register_self
+        from hermes_cli.process_identity import (
+            attach_self_to_kill_on_close_job,
+            register_self,
+        )
 
         register_self(
             "serve" if headless else "dashboard",
@@ -1537,10 +1602,10 @@ def start_server(
     initial_profile: str = "",
     headless: bool = False,
     isolated: bool = False,
-    ssh_session_token: Optional[str] = None,
-    ssh_owner_nonce: Optional[str] = None,
+    ssh_session_token: str | None = None,
+    ssh_owner_nonce: str | None = None,
     start_mcp_discovery_after_bind: bool = False,
-    ssh_lock_path: Optional[Path] = None,
+    ssh_lock_path: Path | None = None,
 ):
     """Start the web UI server.
 
@@ -1614,7 +1679,9 @@ def start_server(
     # rotated by a later boot step would otherwise be invisible for the process lifetime. No-op on a
     # single-profile host; `gateway.multiplex_profiles: false` is retired and no longer skips it.
     try:
-        from tui_gateway.launch_profile_policy import activate_multi_profile_hosting_eagerly
+        from tui_gateway.launch_profile_policy import (
+            activate_multi_profile_hosting_eagerly,
+        )
 
         activate_multi_profile_hosting_eagerly()
     except Exception:
@@ -1642,7 +1709,9 @@ def start_server(
                 ssh_lock_path=ssh_lock_path,
             )
             if headless:
-                from hermes_cli.observability.shared_metrics_startup import record_process_ready
+                from hermes_cli.observability.shared_metrics_startup import (
+                    record_process_ready,
+                )
                 record_process_ready("serve_boot", background=True)
 
             await server.main_loop()

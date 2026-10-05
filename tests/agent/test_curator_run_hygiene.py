@@ -17,12 +17,12 @@ def env(tmp_path, monkeypatch):
     (home / "skills").mkdir(parents=True)
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
     monkeypatch.setenv("HERMES_HOME", str(home))
-    import tools.skill_usage as usage
-    import agent.curator as curator
     import agent.curator_backup as cb
+    import tools.skill_usage as usage
+    from agent import curator
     for m in (usage, cb, curator):
         importlib.reload(m)
-    monkeypatch.setattr(curator, "_load_config", lambda: {})
+    monkeypatch.setattr(curator, "_load_config", dict)
     monkeypatch.setattr(curator, "_run_llm_review", lambda prompt: "llm-stub")
     yield {"home": home, "curator": curator, "cb": cb}
     for t in threading.enumerate():

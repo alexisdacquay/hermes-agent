@@ -6,9 +6,8 @@ The whole point is that changing one token never disturbs the rest of the look
 
 import os
 
-import pytest
 import hermes_yaml as yaml
-
+import pytest
 from hermes_cli import skin_cmd
 from hermes_constants import get_hermes_home
 

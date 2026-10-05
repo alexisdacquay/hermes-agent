@@ -7,13 +7,13 @@ round-trips through the gateway's blocking-prompt bridge like ``read_terminal``
 `desktop_preview`; the agent dispatches here with the injected callback.
 """
 
-from typing import Callable, Optional
+from collections.abc import Callable
 
 from tools.read_terminal_tool import read_pane
 
 
 def read_preview_tool(
-    start: Optional[int] = None, count: Optional[int] = None, callback: Optional[Callable] = None
+    start: int | None = None, count: int | None = None, callback: Callable | None = None
 ) -> str:
     """Return the active preview tab's contents (+ metadata) as a JSON string."""
     return read_pane(callback, (("start", start, 0), ("count", count, 1)), (

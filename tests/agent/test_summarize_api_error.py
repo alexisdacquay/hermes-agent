@@ -15,7 +15,6 @@ from typing import Any
 
 import httpx
 import pytest
-
 from run_agent import AIAgent
 
 

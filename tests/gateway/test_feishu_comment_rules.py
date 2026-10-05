@@ -3,14 +3,13 @@
 import json
 import os
 import tempfile
-import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
 from plugins.platforms.feishu.feishu_comment_rules import (
-    CommentsConfig,
     CommentDocumentRule,
+    CommentsConfig,
     ResolvedCommentRule,
     _MtimeCache,
     _parse_document_rule,
@@ -19,7 +18,6 @@ from plugins.platforms.feishu.feishu_comment_rules import (
     load_config,
     pairing_add,
     pairing_list,
-    pairing_remove,
     resolve_rule,
 )
 
@@ -159,7 +157,10 @@ class TestRulesFollowActiveProfile(unittest.TestCase):
     their mtime caches must follow the context-local HERMES_HOME override, one slot per profile."""
 
     def test_rules_and_pairing_follow_home_override(self):
-        from hermes_constants import reset_hermes_home_override, set_hermes_home_override
+        from hermes_constants import (
+            reset_hermes_home_override,
+            set_hermes_home_override,
+        )
         from plugins.platforms.feishu import feishu_comment_rules as fcr
 
         def under(home, fn):

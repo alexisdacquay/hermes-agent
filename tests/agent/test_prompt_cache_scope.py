@@ -13,7 +13,6 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
-
 from agent.prompt_cache_scope import resolve_prompt_cache_scope
 from agent.transports.codex import _cache_scope_from_session_id, _content_cache_key
 from hermes_state import SessionDB

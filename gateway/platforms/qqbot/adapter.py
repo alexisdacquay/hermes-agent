@@ -10,7 +10,6 @@ tries QQ's free ``asr_refer_text`` first, then the configured STT provider.
 
 from __future__ import annotations
 
-from pm import install_hint
 import asyncio
 import contextlib
 import json
@@ -19,10 +18,13 @@ import os
 import re
 import time
 import uuid
-from datetime import datetime, timezone
+from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
+from typing import Any
 from urllib.parse import urlparse
+
+from pm import install_hint
 
 try:
     import aiohttp
@@ -39,14 +41,18 @@ except ImportError:
     httpx = None  # type: ignore[assignment]
 
 from gateway.config import Platform, PlatformConfig
+from gateway.platforms.access_policy_mixin import OwnAccessPolicyMixin
 from gateway.platforms.base import (
-    gateway_trust_env, BasePlatformAdapter, ExecApprovalPrompt, SendResult,
-    _ssrf_redirect_guard, cache_document_from_bytes_async, cache_image_from_bytes_async,
+    BasePlatformAdapter,
+    ExecApprovalPrompt,
+    SendResult,
+    _ssrf_redirect_guard,
+    cache_document_from_bytes_async,
+    cache_image_from_bytes_async,
+    gateway_trust_env,
 )
 from gateway.platforms.event import MessageEvent, MessageType
-from gateway.platforms.helpers import strip_markdown
-from gateway.platforms.helpers import MessageDeduplicator, cancel_task
-from gateway.platforms.access_policy_mixin import OwnAccessPolicyMixin
+from gateway.platforms.helpers import MessageDeduplicator, cancel_task, strip_markdown
 from gateway.platforms.media_cache import ext_for_mime
 
 logger = logging.getLogger(__name__)
@@ -61,20 +67,48 @@ class QQCloseError(Exception):
         super().__init__(f"WebSocket closed (code={self.code}, reason={self.reason})")
 
 
-from gateway.platforms.qqbot.constants import (
-    API_BASE, TOKEN_URL, GATEWAY_URL_PATH, DEFAULT_API_TIMEOUT, FILE_UPLOAD_TIMEOUT,
-    CONNECT_TIMEOUT_SECONDS, RECONNECT_BACKOFF, MAX_RECONNECT_ATTEMPTS, RATE_LIMIT_DELAY,
-    QUICK_DISCONNECT_THRESHOLD, MAX_QUICK_DISCONNECT_COUNT, MAX_MESSAGE_LENGTH,
-    DEDUP_WINDOW_SECONDS, DEDUP_MAX_SIZE, MSG_TYPE_TEXT, MSG_TYPE_MARKDOWN, MSG_TYPE_MEDIA,
-    MSG_TYPE_INPUT_NOTIFY, MEDIA_TYPE_IMAGE, MEDIA_TYPE_VIDEO, MEDIA_TYPE_VOICE, MEDIA_TYPE_FILE)
-from gateway.platforms.qqbot.utils import coerce_list as _coerce_list, build_user_agent
-from gateway.platforms.qqbot.chunked_upload import (
-    ChunkedUploader, UploadDailyLimitExceededError, UploadFileTooLargeError)
-from gateway.platforms.qqbot.keyboards import (
-    ApprovalRequest, InlineKeyboard, InteractionEvent, build_approval_keyboard,
-    build_update_prompt_keyboard, parse_approval_button_data, parse_interaction_event,
-    parse_update_prompt_button_data)
 from gateway.platforms._shared import get_scoped_secret as _resolve_qq_secret
+from gateway.platforms.qqbot.chunked_upload import (
+    ChunkedUploader,
+    UploadDailyLimitExceededError,
+    UploadFileTooLargeError,
+)
+from gateway.platforms.qqbot.constants import (
+    API_BASE,
+    CONNECT_TIMEOUT_SECONDS,
+    DEDUP_MAX_SIZE,
+    DEDUP_WINDOW_SECONDS,
+    DEFAULT_API_TIMEOUT,
+    FILE_UPLOAD_TIMEOUT,
+    GATEWAY_URL_PATH,
+    MAX_MESSAGE_LENGTH,
+    MAX_QUICK_DISCONNECT_COUNT,
+    MAX_RECONNECT_ATTEMPTS,
+    MEDIA_TYPE_FILE,
+    MEDIA_TYPE_IMAGE,
+    MEDIA_TYPE_VIDEO,
+    MEDIA_TYPE_VOICE,
+    MSG_TYPE_INPUT_NOTIFY,
+    MSG_TYPE_MARKDOWN,
+    MSG_TYPE_MEDIA,
+    MSG_TYPE_TEXT,
+    QUICK_DISCONNECT_THRESHOLD,
+    RATE_LIMIT_DELAY,
+    RECONNECT_BACKOFF,
+    TOKEN_URL,
+)
+from gateway.platforms.qqbot.keyboards import (
+    ApprovalRequest,
+    InlineKeyboard,
+    InteractionEvent,
+    build_approval_keyboard,
+    build_update_prompt_keyboard,
+    parse_approval_button_data,
+    parse_interaction_event,
+    parse_update_prompt_button_data,
+)
+from gateway.platforms.qqbot.utils import build_user_agent
+from gateway.platforms.qqbot.utils import coerce_list as _coerce_list
 
 
 def check_qq_requirements() -> bool:
@@ -154,27 +188,27 @@ class QQAdapter(OwnAccessPolicyMixin, BasePlatformAdapter):
         self._group_policy = str(extra.get("group_policy", "pairing")).strip().lower()
         self._group_allow_from = _coerce_list(extra.get("group_allow_from") or extra.get("groupAllowFrom"))
 
-        self._session: Optional[aiohttp.ClientSession] = None
-        self._ws: Optional[aiohttp.ClientWebSocketResponse] = None
-        self._http_client: Optional[httpx.AsyncClient] = None
-        self._listen_task: Optional[asyncio.Task] = None
-        self._heartbeat_task: Optional[asyncio.Task] = None
+        self._session: aiohttp.ClientSession | None = None
+        self._ws: aiohttp.ClientWebSocketResponse | None = None
+        self._http_client: httpx.AsyncClient | None = None
+        self._listen_task: asyncio.Task | None = None
+        self._heartbeat_task: asyncio.Task | None = None
         self._heartbeat_interval: float = 30.0  # seconds, updated by Hello
-        self._session_id: Optional[str] = None
-        self._last_seq: Optional[int] = None
-        self._chat_type_map: Dict[str, str] = {}  # chat_id → "c2c"|"group"|"guild"|"dm"
-        self._pending_responses: Dict[str, asyncio.Future] = {}  # request/response correlation
+        self._session_id: str | None = None
+        self._last_seq: int | None = None
+        self._chat_type_map: dict[str, str] = {}  # chat_id → "c2c"|"group"|"guild"|"dm"
+        self._pending_responses: dict[str, asyncio.Future] = {}  # request/response correlation
         self._dedup = MessageDeduplicator(max_size=DEDUP_MAX_SIZE, ttl_seconds=DEDUP_WINDOW_SECONDS)
-        self._last_msg_id: Dict[str, str] = {}  # last inbound message ID per chat (send_typing)
-        self._typing_sent_at: Dict[str, float] = {}  # typing debounce: chat_id → last send_typing ts
-        self._access_token: Optional[str] = None
+        self._last_msg_id: dict[str, str] = {}  # last inbound message ID per chat (send_typing)
+        self._typing_sent_at: dict[str, float] = {}  # typing debounce: chat_id → last send_typing ts
+        self._access_token: str | None = None
         self._token_expires_at: float = 0.0
         self._token_lock = asyncio.Lock()
 
         # Inline-keyboard interaction routing: invoked for every INTERACTION_CREATE
         # after the adapter ACKed it. Defaults to the approval/update-prompt
         # dispatcher; override via set_interaction_callback() (None drops clicks).
-        self._interaction_callback: Optional[Callable[[InteractionEvent], Awaitable[None]]] = (
+        self._interaction_callback: Callable[[InteractionEvent], Awaitable[None]] | None = (
             self._default_interaction_dispatch)
 
     # ── Properties ──
@@ -206,8 +240,9 @@ class QQAdapter(OwnAccessPolicyMixin, BasePlatformAdapter):
         try:
             # Tighter keepalive pool so idle CLOSE_WAIT sockets drain faster behind proxies.
             # See #18451.
-            from gateway.platforms._http_client_limits import platform_httpx_limits
             from tools.url_safety import create_ssrf_safe_async_client
+
+            from gateway.platforms._http_client_limits import platform_httpx_limits
             self._http_client = create_ssrf_safe_async_client(
                 timeout=30.0, follow_redirects=True,
                 event_hooks={"response": [_ssrf_redirect_guard]}, limits=platform_httpx_limits())
@@ -256,7 +291,7 @@ class QQAdapter(OwnAccessPolicyMixin, BasePlatformAdapter):
 
     # ── Token management ──
 
-    async def _fetch_json(self, what: str, request: Callable[[], Awaitable[Any]]) -> Dict[str, Any]:
+    async def _fetch_json(self, what: str, request: Callable[[], Awaitable[Any]]) -> dict[str, Any]:
         """Run an httpx request and return its JSON; any failure → RuntimeError."""
         try:
             resp = await request()
@@ -459,7 +494,7 @@ class QQAdapter(OwnAccessPolicyMixin, BasePlatformAdapter):
                 except Exception as exc:
                     logger.debug("[%s] Heartbeat failed: %s", self._log_tag, exc)
 
-    async def _send_ws_auth(self, name: str, payload: Dict[str, Any], sent_msg: str, *log_args) -> bool:
+    async def _send_ws_auth(self, name: str, payload: dict[str, Any], sent_msg: str, *log_args) -> bool:
         """Send an Identify/Resume payload; returns False if the send raised."""
         try:
             if self._ws and not self._ws.closed:
@@ -507,7 +542,7 @@ class QQAdapter(OwnAccessPolicyMixin, BasePlatformAdapter):
         if self._ws and not self._ws.closed:
             self._create_task(self._ws.close())
 
-    def _dispatch_payload(self, payload: Dict[str, Any]) -> None:
+    def _dispatch_payload(self, payload: dict[str, Any]) -> None:
         """Route inbound WebSocket payloads (dispatch synchronously, spawn async handlers)."""
         op, t, s, d = payload.get("op"), payload.get("t"), payload.get("s"), payload.get("d")
         if isinstance(s, int) and (self._last_seq is None or s > self._last_seq):
@@ -553,7 +588,7 @@ class QQAdapter(OwnAccessPolicyMixin, BasePlatformAdapter):
     # ── JSON helpers ──
 
     @staticmethod
-    def _parse_json(raw: Any) -> Optional[Dict[str, Any]]:
+    def _parse_json(raw: Any) -> dict[str, Any] | None:
         try:
             payload = json.loads(raw)
         except Exception:
@@ -591,7 +626,7 @@ class QQAdapter(OwnAccessPolicyMixin, BasePlatformAdapter):
 
     # ── Inline-keyboard interactions (INTERACTION_CREATE) ──
 
-    def set_interaction_callback(self, callback: Optional[Callable[[InteractionEvent], Awaitable[None]]]) -> None:
+    def set_interaction_callback(self, callback: Callable[[InteractionEvent], Awaitable[None]] | None) -> None:
         """Register (or clear) the callback invoked per ACKed INTERACTION_CREATE."""
         self._interaction_callback = callback
 
@@ -641,7 +676,7 @@ class QQAdapter(OwnAccessPolicyMixin, BasePlatformAdapter):
     _APPROVAL_BUTTON_TO_CHOICE = {"allow-once": "once", "allow-always": "always", "deny": "deny"}
 
     @staticmethod
-    def _parse_gateway_session_key(session_key: str) -> Optional[Dict[str, str]]:
+    def _parse_gateway_session_key(session_key: str) -> dict[str, str] | None:
         """Parse ``agent:<namespace>:<platform>:<chat_type>:<chat_id>[:<user_id>]``.
 
         The namespace slot carries the multiplex profile ("main" for the
@@ -704,7 +739,9 @@ class QQAdapter(OwnAccessPolicyMixin, BasePlatformAdapter):
                     self._log_tag, session_key, event.operator_openid)
                 return
             try:
-                from tools.approval import resolve_gateway_approval  # lazy: keep adapter light
+                from tools.approval import (
+                    resolve_gateway_approval,  # lazy: keep adapter light
+                )
                 count = resolve_gateway_approval(session_key, choice)
                 logger.info(
                     "[%s] Button resolved %d approval(s) for session %s (choice=%s, operator=%s)",
@@ -818,7 +855,7 @@ class QQAdapter(OwnAccessPolicyMixin, BasePlatformAdapter):
         return (text + "\n\n" + block).strip() if text.strip() else block
 
     async def _ingest(
-        self, d: Dict[str, Any], msg_id: str, content: str, attachments: Any, timestamp: str, *,
+        self, d: dict[str, Any], msg_id: str, content: str, attachments: Any, timestamp: str, *,
         chat_id: str, qq_chat_type: str, verbose: bool = False, **source_kwargs: Any) -> None:
         """Shared inbound tail: fold attachment transcripts/file info and quoted context
         into the text, drop empty events, remember the QQ chat kind and dispatch."""
@@ -852,7 +889,7 @@ class QQAdapter(OwnAccessPolicyMixin, BasePlatformAdapter):
 
     # ── Quoted-message handling ──
 
-    async def _process_quoted_context(self, d: Dict[str, Any]) -> Dict[str, Any]:
+    async def _process_quoted_context(self, d: dict[str, Any]) -> dict[str, Any]:
         """Process the quoted message a user is replying to (``message_type == 103``;
         referenced content + attachments live in ``msg_elements``). Quoted attachments
         go through _process_attachments so quoted voice gets STT and quoted images are
@@ -874,7 +911,7 @@ class QQAdapter(OwnAccessPolicyMixin, BasePlatformAdapter):
         att_result = await self._process_attachments(all_attachments)
         quoted_images = att_result.get("image_urls") or []
 
-        lines: List[str] = [" ".join(quoted_text_parts)] if quoted_text_parts else []
+        lines: list[str] = [" ".join(quoted_text_parts)] if quoted_text_parts else []
         lines.extend(att_result.get("voice_transcripts") or [])
         if att_result.get("attachment_info"):
             lines.append(att_result["attachment_info"])
@@ -911,14 +948,14 @@ class QQAdapter(OwnAccessPolicyMixin, BasePlatformAdapter):
         logger.debug("Unknown media content_type '%s', defaulting to TEXT", first_type)
         return MessageType.TEXT
 
-    async def _process_attachments(self, attachments: Any) -> Dict[str, Any]:
+    async def _process_attachments(self, attachments: Any) -> dict[str, Any]:
         """Process inbound attachments uniformly. Returns ``{"image_urls",
         "image_media_types", "voice_transcripts", "attachment_info"}`` (cached image
         paths + MIME types, "[Voice] ..." transcripts, text description of other files)."""
-        image_urls: List[str] = []
-        image_media_types: List[str] = []
-        voice_transcripts: List[str] = []
-        other_attachments: List[str] = []
+        image_urls: list[str] = []
+        image_media_types: list[str] = []
+        voice_transcripts: list[str] = []
+        other_attachments: list[str] = []
 
         for att in attachments if isinstance(attachments, list) else ():
             if not isinstance(att, dict):
@@ -970,10 +1007,10 @@ class QQAdapter(OwnAccessPolicyMixin, BasePlatformAdapter):
             "attachment_info": "\n".join(other_attachments)}
 
     @staticmethod
-    def _opt_str(value: Any) -> Optional[str]:
+    def _opt_str(value: Any) -> str | None:
         return (value.strip() if isinstance(value, str) else "") or None
 
-    async def _download_and_cache(self, url: str, content_type: str, original_name: str = "") -> Optional[str]:
+    async def _download_and_cache(self, url: str, content_type: str, original_name: str = "") -> str | None:
         """Download a URL and cache it locally (``original_name`` falls back to the URL basename)."""
         from tools.url_safety import is_safe_url
 
@@ -1009,13 +1046,13 @@ class QQAdapter(OwnAccessPolicyMixin, BasePlatformAdapter):
             return False
         return filename.strip().lower().endswith(_VOICE_EXTENSIONS)
 
-    def _qq_media_headers(self) -> Dict[str, str]:
+    def _qq_media_headers(self) -> dict[str, str]:
         """Authorization header for QQ multimedia CDN downloads (required, else non-200)."""
         return {"Authorization": f"QQBot {self._access_token}"} if self._access_token else {}
 
     async def _stt_voice_attachment(
-        self, url: str, content_type: str, filename: str, *, asr_refer_text: Optional[str] = None,
-        voice_wav_url: Optional[str] = None) -> Optional[str]:
+        self, url: str, content_type: str, filename: str, *, asr_refer_text: str | None = None,
+        voice_wav_url: str | None = None) -> str | None:
         """Transcribe a voice attachment. Priority: QQ's free ``asr_refer_text`` →
         STT on ``voice_wav_url`` (pre-converted WAV, no SILK decode) → STT on the
         original URL (SILK→WAV). Returns the transcript or None."""
@@ -1073,7 +1110,7 @@ class QQAdapter(OwnAccessPolicyMixin, BasePlatformAdapter):
             else:
                 logger.warning("[%s] STT: ASR returned empty transcript", self._log_tag)
             return transcript
-        except (httpx.HTTPStatusError, httpx.TransportError, IOError) as exc:
+        except (OSError, httpx.HTTPStatusError, httpx.TransportError) as exc:
             logger.warning("[%s] STT failed for voice attachment: %s: %s", self._log_tag, type(exc).__name__, exc)
             return None
 
@@ -1097,12 +1134,12 @@ class QQAdapter(OwnAccessPolicyMixin, BasePlatformAdapter):
         return Path(wav_path).exists() and Path(wav_path).stat().st_size > 44
 
     @classmethod
-    def _temp_pair(cls, audio_data: bytes, ext: str) -> Tuple[str, str]:
+    def _temp_pair(cls, audio_data: bytes, ext: str) -> tuple[str, str]:
         """Write *audio_data* to a temp ``<x>{ext}`` and return ``(src_path, sibling .wav path)``."""
         src_path = cls._write_temp(audio_data, ext)
         return src_path, src_path.rsplit(".", 1)[0] + ".wav"
 
-    async def _convert_audio_to_wav_file(self, audio_data: bytes, filename: str) -> Optional[str]:
+    async def _convert_audio_to_wav_file(self, audio_data: bytes, filename: str) -> str | None:
         """Convert audio bytes to a temp .wav: pilk (SILK, which ffmpeg can't decode)
         → ffmpeg → raw-PCM last resort. Returns the wav path or None."""
         ext = Path(filename).suffix.lower() or self._guess_ext_from_data(audio_data)
@@ -1131,7 +1168,7 @@ class QQAdapter(OwnAccessPolicyMixin, BasePlatformAdapter):
     def _looks_like_silk(cls, data: bytes) -> bool:
         return cls._guess_ext_from_data(data) == ".silk"
 
-    async def _convert_silk_to_wav(self, src_path: str, wav_path: str) -> Optional[str]:
+    async def _convert_silk_to_wav(self, src_path: str, wav_path: str) -> str | None:
         """Convert to WAV with pilk: as-is first, then copied to .silk (pilk checks the extension)."""
         try:
             import pilk
@@ -1160,7 +1197,7 @@ class QQAdapter(OwnAccessPolicyMixin, BasePlatformAdapter):
             self._unlink_quiet(silk_path)
         return None
 
-    async def _convert_raw_to_wav(self, audio_data: bytes, wav_path: str) -> Optional[str]:
+    async def _convert_raw_to_wav(self, audio_data: bytes, wav_path: str) -> str | None:
         """Last resort: wrap bytes as raw PCM 16-bit mono 16kHz WAV (garbage if not
         PCM, but the ASR engine returns empty instead of crashing)."""
         try:
@@ -1176,7 +1213,7 @@ class QQAdapter(OwnAccessPolicyMixin, BasePlatformAdapter):
             logger.debug("[%s] raw PCM fallback failed: %s", self._log_tag, exc)
             return None
 
-    async def _convert_ffmpeg_to_wav(self, src_path: str, wav_path: str) -> Optional[str]:
+    async def _convert_ffmpeg_to_wav(self, src_path: str, wav_path: str) -> str | None:
         try:
             proc = await asyncio.create_subprocess_exec(
                 "ffmpeg", "-y", "-i", src_path, "-ar", "16000", "-ac", "1", wav_path,
@@ -1188,7 +1225,7 @@ class QQAdapter(OwnAccessPolicyMixin, BasePlatformAdapter):
                     "[%s] ffmpeg failed for %s: %s",
                     self._log_tag, Path(src_path).name, stderr[:200].decode(errors="replace"))
                 return None
-        except (asyncio.TimeoutError, FileNotFoundError) as exc:
+        except (TimeoutError, FileNotFoundError) as exc:
             logger.warning("[%s] ffmpeg conversion error: %s", self._log_tag, exc)
             return None
 
@@ -1200,12 +1237,15 @@ class QQAdapter(OwnAccessPolicyMixin, BasePlatformAdapter):
             self._log_tag, Path(src_path).name, Path(wav_path).stat().st_size)
         return wav_path
 
-    def _resolve_stt_config(self) -> Optional[Dict[str, Any]]:
+    def _resolve_stt_config(self) -> dict[str, Any] | None:
         """Resolve STT backend: ``extra["stt"]`` config first, then ``QQ_STT_*`` env
         vars; None when unconfigured (QQ's built-in ASR still works). ``timeout`` (seconds,
         default 60) follows the shared STT client default so a self-hosted model's cold start
         is not cut off at 30s (#112939)."""
-        from tools.transcription_common import DEFAULT_STT_TIMEOUT, _config_number  # lazy: keep adapter light
+        from tools.transcription_common import (  # lazy: keep adapter light
+            DEFAULT_STT_TIMEOUT,
+            _config_number,
+        )
         stt_cfg = (self.config.extra or {}).get("stt")
         if isinstance(stt_cfg, dict) and stt_cfg.get("enabled") is not False:
             base_url = stt_cfg.get("baseUrl") or stt_cfg.get("base_url", "")
@@ -1231,7 +1271,7 @@ class QQAdapter(OwnAccessPolicyMixin, BasePlatformAdapter):
                     "timeout": DEFAULT_STT_TIMEOUT}
         return None
 
-    async def _call_stt(self, wav_path: str) -> Optional[str]:
+    async def _call_stt(self, wav_path: str) -> str | None:
         """Transcribe a wav via an OpenAI-compatible STT API; None if unconfigured/failed."""
         stt_cfg = self._resolve_stt_config()
         if not stt_cfg:
@@ -1253,11 +1293,11 @@ class QQAdapter(OwnAccessPolicyMixin, BasePlatformAdapter):
             choices = result.get("choices", [])
             content = choices[0].get("message", {}).get("content", "") if choices else ""
             return content.strip() or result.get("text", "").strip() or None
-        except (httpx.HTTPStatusError, IOError) as exc:
+        except (OSError, httpx.HTTPStatusError) as exc:
             logger.warning("[%s] STT API call failed (model=%s, base=%s): %s", self._log_tag, model, base_url[:50], exc)
             return None
 
-    async def _convert_audio_to_wav(self, audio_data: bytes, source_url: str) -> Optional[str]:
+    async def _convert_audio_to_wav(self, audio_data: bytes, source_url: str) -> str | None:
         """Convert audio bytes to .wav (pilk for SILK, else ffmpeg) and cache the result;
         on conversion failure the original bytes are cached as ``qq_voice<ext>``."""
         ext = Path(urlparse(source_url).path).suffix.lower()
@@ -1285,14 +1325,14 @@ class QQAdapter(OwnAccessPolicyMixin, BasePlatformAdapter):
 
     # ── Outbound messaging — REST API ──
 
-    def _require_http_client(self) -> "httpx.AsyncClient":
+    def _require_http_client(self) -> httpx.AsyncClient:
         if not self._http_client:
             raise RuntimeError("HTTP client not initialized — not connected?")
         return self._http_client
 
     async def _api_request(
-        self, method: str, path: str, body: Optional[Dict[str, Any]] = None, timeout: float = DEFAULT_API_TIMEOUT,
-    ) -> Dict[str, Any]:
+        self, method: str, path: str, body: dict[str, Any] | None = None, timeout: float = DEFAULT_API_TIMEOUT,
+    ) -> dict[str, Any]:
         client = self._require_http_client()
         headers = await self._auth_headers()
         try:
@@ -1304,17 +1344,17 @@ class QQAdapter(OwnAccessPolicyMixin, BasePlatformAdapter):
         except httpx.TimeoutException as exc:
             raise RuntimeError(f"QQ Bot API timeout [{path}]: {exc}") from exc
 
-    async def _auth_headers(self) -> Dict[str, str]:
+    async def _auth_headers(self) -> dict[str, str]:
         """JSON REST headers with a fresh bot token."""
         token = await self._ensure_token()
         return {"Authorization": f"QQBot {token}", "Content-Type": "application/json", "User-Agent": build_user_agent()}
 
     async def _upload_media(
-        self, target_type: str, target_id: str, file_type: int, url: Optional[str] = None,
-        file_data: Optional[str] = None, srv_send_msg: bool = False, file_name: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        self, target_type: str, target_id: str, file_type: int, url: str | None = None,
+        file_data: str | None = None, srv_send_msg: bool = False, file_name: str | None = None,
+    ) -> dict[str, Any]:
         path = self._rest_path(target_type, target_id, "files")
-        body: Dict[str, Any] = {"file_type": file_type, "srv_send_msg": srv_send_msg}
+        body: dict[str, Any] = {"file_type": file_type, "srv_send_msg": srv_send_msg}
         if url:
             body["url"] = url
         elif file_data:
@@ -1357,7 +1397,7 @@ class QQAdapter(OwnAccessPolicyMixin, BasePlatformAdapter):
         return self.is_connected or await self._wait_for_reconnection()
 
     async def send(
-        self, chat_id: str, content: str, reply_to: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None,
+        self, chat_id: str, content: str, reply_to: str | None = None, metadata: dict[str, Any] | None = None,
     ) -> SendResult:
         """Send text/markdown: format, split via truncate_message(), retry transient failures."""
         del metadata
@@ -1377,8 +1417,8 @@ class QQAdapter(OwnAccessPolicyMixin, BasePlatformAdapter):
 
     _PERMANENT_SEND_ERRORS = ("invalid", "forbidden", "not found")
 
-    async def _send_chunk(self, chat_id: str, content: str, reply_to: Optional[str] = None) -> SendResult:
-        last_exc: Optional[Exception] = None
+    async def _send_chunk(self, chat_id: str, content: str, reply_to: str | None = None) -> SendResult:
+        last_exc: Exception | None = None
         sender = self._text_sender(self._guess_chat_type(chat_id))
         if sender is None:
             return SendResult(success=False, error=f"Unknown chat type for {chat_id}")
@@ -1409,14 +1449,14 @@ class QQAdapter(OwnAccessPolicyMixin, BasePlatformAdapter):
     def _messages_path(cls, chat_type: str, target_id: str) -> str:
         return cls._rest_path(chat_type, target_id, "messages")
 
-    async def _post_message(self, path: str, body: Dict[str, Any]) -> SendResult:
+    async def _post_message(self, path: str, body: dict[str, Any]) -> SendResult:
         """POST a message body and wrap the response as a successful SendResult."""
         data = await self._api_request("POST", path, body)
         return SendResult(success=True, message_id=str(data.get("id", uuid.uuid4().hex[:12])), raw_response=data)
 
     async def _send_text_to(
-        self, chat_type: str, target_id: str, content: str, reply_to: Optional[str] = None,
-        keyboard: Optional[InlineKeyboard] = None) -> SendResult:
+        self, chat_type: str, target_id: str, content: str, reply_to: str | None = None,
+        keyboard: InlineKeyboard | None = None) -> SendResult:
         """Send text (optionally with an inline keyboard) to a c2c user or group."""
         self._next_msg_seq(reply_to or target_id)
         body = self._build_text_body(content, reply_to)
@@ -1441,8 +1481,8 @@ class QQAdapter(OwnAccessPolicyMixin, BasePlatformAdapter):
         name = self._TEXT_SENDERS.get(chat_type)
         return getattr(self, name) if name else None
 
-    async def _send_guild_text(self, channel_id: str, content: str, reply_to: Optional[str] = None) -> SendResult:
-        body: Dict[str, Any] = {"content": content[: self.MAX_MESSAGE_LENGTH]}
+    async def _send_guild_text(self, channel_id: str, content: str, reply_to: str | None = None) -> SendResult:
+        body: dict[str, Any] = {"content": content[: self.MAX_MESSAGE_LENGTH]}
         if reply_to:
             body["msg_id"] = reply_to
         return await self._post_message(f"/channels/{channel_id}/messages", body)
@@ -1450,7 +1490,7 @@ class QQAdapter(OwnAccessPolicyMixin, BasePlatformAdapter):
     # ── Inline-keyboard outbound helpers (approval / update-prompt flows) ──
 
     async def send_with_keyboard(
-        self, chat_id: str, content: str, keyboard: InlineKeyboard, reply_to: Optional[str] = None,
+        self, chat_id: str, content: str, keyboard: InlineKeyboard, reply_to: str | None = None,
     ) -> SendResult:
         """Send ONE text message with an inline keyboard (no chunking — splitting
         would orphan the buttons; keep bodies short). Guild chats are unsupported."""
@@ -1469,7 +1509,7 @@ class QQAdapter(OwnAccessPolicyMixin, BasePlatformAdapter):
             return SendResult(success=False, error=str(exc) or type(exc).__name__)
 
     async def send_approval_request(
-        self, chat_id: str, req: ApprovalRequest, reply_to: Optional[str] = None) -> SendResult:
+        self, chat_id: str, req: ApprovalRequest, reply_to: str | None = None) -> SendResult:
         """Send a 3-button approval request (allow-once / allow-always / deny);
         clicks come back as INTERACTION_CREATE decoded by parse_approval_button_data."""
         from gateway.platforms.qqbot.keyboards import build_approval_text
@@ -1498,7 +1538,7 @@ class QQAdapter(OwnAccessPolicyMixin, BasePlatformAdapter):
 
     async def send_update_prompt(
         self, chat_id: str, prompt: str, default: str = "", session_key: str = "",
-        metadata: Optional[Dict[str, Any]] = None) -> SendResult:
+        metadata: dict[str, Any] | None = None) -> SendResult:
         """Yes/No update-confirmation prompt; button clicks (``update_prompt:y|n``)
         are written to ``~/.hermes/.update_response`` by the interaction callback."""
         del session_key, metadata  # present for contract parity only.
@@ -1508,12 +1548,12 @@ class QQAdapter(OwnAccessPolicyMixin, BasePlatformAdapter):
             chat_id, content, build_update_prompt_keyboard(), reply_to=self._last_msg_id.get(chat_id)
         )
 
-    def _build_text_body(self, content: str, reply_to: Optional[str] = None) -> Dict[str, Any]:
+    def _build_text_body(self, content: str, reply_to: str | None = None) -> dict[str, Any]:
         msg_seq = self._next_msg_seq(reply_to or "default")
         text = content[: self.MAX_MESSAGE_LENGTH]
         if self._markdown_support:
             return {"markdown": {"content": text}, "msg_type": MSG_TYPE_MARKDOWN, "msg_seq": msg_seq}
-        body: Dict[str, Any] = {"content": text, "msg_type": MSG_TYPE_TEXT, "msg_seq": msg_seq}
+        body: dict[str, Any] = {"content": text, "msg_type": MSG_TYPE_TEXT, "msg_seq": msg_seq}
         if reply_to:
             body["message_reference"] = {"message_id": reply_to}
         return body
@@ -1521,8 +1561,8 @@ class QQAdapter(OwnAccessPolicyMixin, BasePlatformAdapter):
     # ── Native media sending ──
 
     async def send_image(
-        self, chat_id: str, image_url: str, caption: Optional[str] = None, reply_to: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None) -> SendResult:
+        self, chat_id: str, image_url: str, caption: str | None = None, reply_to: str | None = None,
+        metadata: dict[str, Any] | None = None) -> SendResult:
         """Send an image natively via QQ Bot API upload; URL sources fall back to text."""
         del metadata
         result = await self._send_media(chat_id, image_url, MEDIA_TYPE_IMAGE, "image", caption, reply_to)
@@ -1548,8 +1588,8 @@ class QQAdapter(OwnAccessPolicyMixin, BasePlatformAdapter):
             chat_id, file_path, MEDIA_TYPE_FILE, "file", caption, reply_to, file_name=file_name)
 
     async def _send_media(
-        self, chat_id: str, media_source: str, file_type: int, kind: str, caption: Optional[str] = None,
-        reply_to: Optional[str] = None, file_name: Optional[str] = None) -> SendResult:
+        self, chat_id: str, media_source: str, file_type: int, kind: str, caption: str | None = None,
+        reply_to: str | None = None, file_name: str | None = None) -> SendResult:
         """Upload media and send as a native message. HTTP(S) URLs → single ``POST
         .../files`` with ``url=`` (QQ fetches it). Local files → chunked upload
         (prepare / PUT parts / complete), up to the platform's ~100 MB per-file limit."""
@@ -1571,7 +1611,7 @@ class QQAdapter(OwnAccessPolicyMixin, BasePlatformAdapter):
             file_info = upload.get("file_info") or (upload.get("data", {}) or {}).get("file_info")
             if not file_info:
                 return SendResult(success=False, error=f"Upload returned no file_info: {upload}")
-            body: Dict[str, Any] = {
+            body: dict[str, Any] = {
                 "msg_type": MSG_TYPE_MEDIA, "media": {"file_info": file_info}, "msg_seq": self._next_msg_seq(chat_id)}
             if caption:
                 body["content"] = caption[: self.MAX_MESSAGE_LENGTH]
@@ -1596,8 +1636,8 @@ class QQAdapter(OwnAccessPolicyMixin, BasePlatformAdapter):
             return SendResult(success=False, error=str(exc) or type(exc).__name__)
 
     async def _upload_local_file(
-        self, chat_type: str, chat_id: str, media_source: str, file_type: int, file_name: Optional[str],
-    ) -> Dict[str, Any]:
+        self, chat_type: str, chat_id: str, media_source: str, file_type: int, file_name: str | None,
+    ) -> dict[str, Any]:
         """Chunked-upload a local file; returns the complete response whose ``file_info`` goes
         into the RichMedia body. Raises UploadDailyLimitExceededError / UploadFileTooLargeError
         from the uploader, ValueError for placeholder paths like ``<path>``, FileNotFoundError."""
@@ -1644,7 +1684,7 @@ class QQAdapter(OwnAccessPolicyMixin, BasePlatformAdapter):
         """Pass markdown through when supported, else strip it (as BlueBubbles/SMS do)."""
         return content if self._markdown_support else strip_markdown(content)
 
-    async def get_chat_info(self, chat_id: str) -> Dict[str, Any]:
+    async def get_chat_info(self, chat_id: str) -> dict[str, Any]:
         chat_type = self._guess_chat_type(chat_id)
         return {"name": chat_id, "type": "group" if chat_type in {"group", "guild"} else "dm"}
 
@@ -1660,7 +1700,7 @@ class QQAdapter(OwnAccessPolicyMixin, BasePlatformAdapter):
     def _strip_at_mention(content: str) -> str:
         return re.sub(r"^@\S+\s*", "", content.strip())
 
-    def _entry_matches(self, entries: List[str], target: str) -> bool:
+    def _entry_matches(self, entries: list[str], target: str) -> bool:
         normalized_target = str(target).strip().lower()
         return any(str(e).strip().lower() in ("*", normalized_target) for e in entries)
 
@@ -1670,5 +1710,5 @@ class QQAdapter(OwnAccessPolicyMixin, BasePlatformAdapter):
             with contextlib.suppress(ValueError, TypeError):
                 return datetime.fromisoformat(raw)
             with contextlib.suppress(ValueError, TypeError):
-                return datetime.fromtimestamp(int(raw) / 1000, tz=timezone.utc)
-        return datetime.now(tz=timezone.utc)
+                return datetime.fromtimestamp(int(raw) / 1000, tz=UTC)
+        return datetime.now(tz=UTC)

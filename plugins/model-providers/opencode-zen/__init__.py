@@ -4,6 +4,7 @@ Both route api_mode per model in core; these profiles carry the
 chat_completions reasoning translations (GLM-5.2, Kimi K2, DeepSeek, Ox Alpha).
 """
 
+from datetime import UTC
 from typing import Any
 
 from agent import reasoning_effort as re_
@@ -63,7 +64,6 @@ class OpenCodeGoProfile(ProviderProfile):
         from datetime import datetime, timezone
 
         import httpx
-
         from agent.account_usage import AccountUsageSnapshot, AccountUsageWindow
         from hermes_cli.runtime_provider import resolve_runtime_provider
 
@@ -85,7 +85,7 @@ class OpenCodeGoProfile(ProviderProfile):
             reset_at = datetime.fromisoformat(reset_raw) if reset_raw else None
             windows.append(AccountUsageWindow(label=label, used_percent=float(window["percent"]), reset_at=reset_at))
         return AccountUsageSnapshot(provider=self.name, source="go_usage_api",
-                                    fetched_at=datetime.now(timezone.utc), windows=tuple(windows))
+                                    fetched_at=datetime.now(UTC), windows=tuple(windows))
 
     def build_api_kwargs_extras(
         self, *, reasoning_config: dict | None = None, model: str | None = None, **context

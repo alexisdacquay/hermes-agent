@@ -5,7 +5,6 @@ import subprocess
 import time
 
 import pytest
-
 from tools.approval import detect_dangerous_command, detect_hardline_command
 
 

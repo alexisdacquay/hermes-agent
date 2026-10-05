@@ -10,7 +10,6 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-
 from tools.bot_desktop import browser, runtime
 
 
@@ -206,7 +205,7 @@ def test_status_reports_the_headed_browser_or_its_absence(monkeypatch):
     test means the same thing on every CI lane."""
     monkeypatch.setattr(runtime, "is_supported_host", lambda: True)
     monkeypatch.setattr(runtime, "_launcher_pid", lambda: None)
-    monkeypatch.setattr(runtime, "published_env", lambda: {})
+    monkeypatch.setattr(runtime, "published_env", dict)
     monkeypatch.setattr(runtime, "geometry", lambda: "1440x900")
     monkeypatch.setattr(browser, "executable", lambda: None)
     assert runtime.status().as_dict()["browser"] is None
@@ -277,7 +276,7 @@ def test_headed_chromium_spawn_asks_the_screen_to_start_but_the_env_builder_neve
 
     calls: list = []
     monkeypatch.setattr(runtime, "ensure_started_for_tool", lambda: calls.append(1))
-    monkeypatch.setattr(runtime, "published_env", lambda: {})
+    monkeypatch.setattr(runtime, "published_env", dict)
     monkeypatch.setattr(cloud, "_is_headed_mode", lambda: headed)
     bt._build_browser_env()
     assert calls == []
@@ -298,7 +297,8 @@ def test_headed_chromium_spawn_asks_the_screen_to_start_but_the_env_builder_neve
 def test_janitor_keeps_the_shared_browser_alive_while_a_human_holds_the_lease(monkeypatch):
     """#110064: the agent goes idle BECAUSE the human took over to log in; the janitor must count the human's
     lease as activity for the shared local browser, and reap it again once the lease is handed back."""
-    from tools import browser_tool_lifecycle as lifecycle, browser_tool_session as session
+    from tools import browser_tool_lifecycle as lifecycle
+    from tools import browser_tool_session as session
     from tools.bot_desktop import lease
 
     monkeypatch.setattr(runtime, "published_env", lambda: {"DISPLAY": ":37"})
@@ -337,7 +337,7 @@ def test_daemon_idle_timer_defers_to_the_janitor_only_for_the_shared_headed_brow
     monkeypatch.setattr(session._cloud, "_is_headed_mode", lambda: False)
     assert session._daemon_idle_timeout_seconds() == 120
     monkeypatch.setattr(session._cloud, "_is_headed_mode", lambda: True)
-    monkeypatch.setattr(runtime, "published_env", lambda: {})
+    monkeypatch.setattr(runtime, "published_env", dict)
     assert session._daemon_idle_timeout_seconds() == 120
 
 

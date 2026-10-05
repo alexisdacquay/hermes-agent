@@ -7,7 +7,6 @@ Only ``handoff_state='completed'`` widens the contract — ``failed``/``pending`
 import time
 
 import pytest
-
 from hermes_state import SessionDB
 
 PEER = dict(

@@ -16,26 +16,39 @@ import logging
 import re
 import sqlite3
 import time
+from collections.abc import Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing, contextmanager
 from dataclasses import asdict
 from functools import partial
 from pathlib import Path
-from typing import Any, Callable, Iterator, Optional
+from typing import Any
 
 from fastapi import (
-    APIRouter, File, Form, HTTPException, Query, UploadFile, WebSocket, WebSocketDisconnect, status as http_status)
+    APIRouter,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    UploadFile,
+    WebSocket,
+    WebSocketDisconnect,
+)
+from fastapi import status as http_status
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field
-
 from hermes_cli import kanban_db
-from hermes_cli.web_read_coalescing import coalesced_read
 from hermes_cli import kanban_db_connect as kbc
-from hermes_cli import kanban_db_notify as kbn
 from hermes_cli import kanban_db_dispatch as kbd
+from hermes_cli import kanban_db_notify as kbn
 from hermes_cli import kanban_db_workspace as kbw
 from hermes_cli import kanban_diagnostics as kd
-from hermes_cli.kanban_db import KANBAN_ATTACHMENT_MAX_BYTES, _collision_free_path, _safe_attachment_name
+from hermes_cli.kanban_db import (
+    KANBAN_ATTACHMENT_MAX_BYTES,
+    _collision_free_path,
+    _safe_attachment_name,
+)
+from hermes_cli.web_read_coalescing import coalesced_read
+from pydantic import BaseModel, Field
 
 log = logging.getLogger(__name__)
 
@@ -46,7 +59,7 @@ _BOARD_Q = Query(None, description="Kanban board slug (omit for current)")
 
 # --- Connection / board helpers ---------------------------------------------
 
-def _ws_upgrade_authorized(ws: "WebSocket") -> bool:
+def _ws_upgrade_authorized(ws: WebSocket) -> bool:
     """Authorize a WS upgrade via the dashboard's canonical gate (``web_server_chat._ws_auth_ok``:
     ``?token=`` / ``?ticket=`` / ``?internal=``) so this endpoint can never drift from core
     auth; accepts when the dashboard isn't importable (bare-FastAPI test harness)."""
@@ -57,12 +70,12 @@ def _ws_upgrade_authorized(ws: "WebSocket") -> bool:
     return bool(_ws._ws_auth_ok(ws))
 
 
-def _normalize_slug_or_400(slug: str) -> Optional[str]:
+def _normalize_slug_or_400(slug: str) -> str | None:
     with _value_error_400():
         return kanban_db._normalize_board_slug(slug)
 
 
-def _resolve_board(board: Optional[str]) -> Optional[str]:
+def _resolve_board(board: str | None) -> str | None:
     """Validate/normalise a board slug query param (400 malformed, 404 unknown);
     ``None`` when omitted so ``kb.connect()`` falls through to the active board."""
     if board is None or board == "":
@@ -81,7 +94,7 @@ def _existing_board_slug(slug: str) -> str:
     return normed
 
 
-def _conn(board: Optional[str] = None):
+def _conn(board: str | None = None):
     """Connect to the already-normalised ``board`` (``None`` = active). ``init_db`` is
     idempotent; running it here lets a fresh install self-heal if POST /tasks arrives first."""
     try:
@@ -92,14 +105,14 @@ def _conn(board: Optional[str] = None):
 
 
 @contextmanager
-def _board_conn(board: Optional[str]) -> Iterator[tuple[Optional[str], sqlite3.Connection]]:
+def _board_conn(board: str | None) -> Iterator[tuple[str | None, sqlite3.Connection]]:
     """Resolve the ``board`` query param, open a connection, close it on exit."""
     board = _resolve_board(board)
     with closing(_conn(board=board)) as conn:
         yield board, conn
 
 
-def _with_board_pinned(board: Optional[str], fn: Callable[[], Any]) -> Any:
+def _with_board_pinned(board: str | None, fn: Callable[[], Any]) -> Any:
     """Run ``fn`` with the board pinned context-locally, not via the process-global
     ``HERMES_KANBAN_BOARD`` env var (concurrent requests for different boards would cross-write)."""
     with kanban_db.scoped_current_board(_resolve_board(board) or kanban_db.DEFAULT_BOARD):
@@ -113,7 +126,7 @@ def _require(getter: Callable, conn: sqlite3.Connection, ident, label: str):
     return obj
 
 
-def _run_aux(board: Optional[str], module: str, fn: str, task_id: str, author: Optional[str]) -> Any:
+def _run_aux(board: str | None, module: str, fn: str, task_id: str, author: str | None) -> Any:
     """Run a slow auxiliary-LLM task helper (``hermes_cli.<module>.<fn>``) with the board pinned;
     the module is imported lazily so a missing aux client can't break plugin load."""
     def _run():
@@ -171,8 +184,8 @@ BOARD_COLUMNS: list[str] = ["triage", "todo", "scheduled", "ready", "running", "
 _CARD_SUMMARY_PREVIEW_CHARS = 200
 
 
-def _task_dict(task: kanban_db.Task, *, latest_summary: Optional[str] = None,
-               current_run_started_at: Optional[int] = None) -> dict[str, Any]:
+def _task_dict(task: kanban_db.Task, *, latest_summary: str | None = None,
+               current_run_started_at: int | None = None) -> dict[str, Any]:
     d = asdict(task)
     # Derived age metrics so the UI can colour stale cards without client deltas.
     try:
@@ -198,7 +211,7 @@ def _placeholders(ids: list) -> str:
     return ",".join(["?"] * len(ids))
 
 
-def _compute_task_diagnostics(conn: sqlite3.Connection, task_ids: Optional[list[str]] = None) -> dict[str, list[dict]]:
+def _compute_task_diagnostics(conn: sqlite3.Connection, task_ids: list[str] | None = None) -> dict[str, list[dict]]:
     """``{task_id: [diagnostic_dict, ...]}`` (tasks with none omitted) via three aggregate
     queries (tasks, events, runs) — slurps the board; paginate if profiling shows a hotspot."""
     from hermes_cli.config import load_config
@@ -234,7 +247,7 @@ def _compute_task_diagnostics(conn: sqlite3.Connection, task_ids: Optional[list[
     return out
 
 
-def _warnings_summary_from_diagnostics(diagnostics: list[dict]) -> Optional[dict]:
+def _warnings_summary_from_diagnostics(diagnostics: list[dict]) -> dict | None:
     """Compact card badge summary ``{count, kinds, latest_at, highest_severity}``; None when empty."""
     if not diagnostics:
         return None
@@ -252,7 +265,7 @@ def _warnings_summary_from_diagnostics(diagnostics: list[dict]) -> Optional[dict
     return {"count": count, "kinds": kinds, "latest_at": latest, "highest_severity": highest_sev}
 
 
-def _attach_diagnostics(task_d: dict, diags: Optional[list[dict]]) -> None:
+def _attach_diagnostics(task_d: dict, diags: list[dict] | None) -> None:
     """Full list in the payload (drawer renders without a second round-trip); card badge gets the summary."""
     if diags:
         task_d["diagnostics"] = diags
@@ -281,11 +294,11 @@ def _link_tasks(conn: sqlite3.Connection, links: dict[str, list[str]]) -> list[d
 # --- GET /board -------------------------------------------------------------
 
 def get_board(
-    tenant: Optional[str] = Query(None, description="Filter to a single tenant"),
+    tenant: str | None = Query(None, description="Filter to a single tenant"),
     include_archived: bool = Query(False),
-    board: Optional[str] = _BOARD_Q,
-    workflow_template_id: Optional[str] = Query(None, description="Restrict to tasks using this workflow template id"),
-    current_step_key: Optional[str] = Query(None, description="Restrict to tasks at this workflow step key")):
+    board: str | None = _BOARD_Q,
+    workflow_template_id: str | None = Query(None, description="Restrict to tasks using this workflow template id"),
+    current_step_key: str | None = Query(None, description="Restrict to tasks at this workflow step key")):
     """Full board grouped by status column; omitting ``board`` uses the active board
     (``HERMES_KANBAN_BOARD`` env → on-disk ``current`` pointer → ``default``)."""
     with _board_conn(board) as (board, conn):
@@ -346,11 +359,11 @@ _read_board = coalesced_read(get_board)
 
 @router.get("/board")
 async def get_board_endpoint(
-    tenant: Optional[str] = Query(None, description="Filter to a single tenant"),
+    tenant: str | None = Query(None, description="Filter to a single tenant"),
     include_archived: bool = Query(False),
-    board: Optional[str] = _BOARD_Q,
-    workflow_template_id: Optional[str] = Query(None, description="Restrict to tasks using this workflow template id"),
-    current_step_key: Optional[str] = Query(None, description="Restrict to tasks at this workflow step key"),
+    board: str | None = _BOARD_Q,
+    workflow_template_id: str | None = Query(None, description="Restrict to tasks using this workflow template id"),
+    current_step_key: str | None = Query(None, description="Restrict to tasks at this workflow step key"),
 ):
     # Resolve selection before keying so a board switch cannot join an older read.
     return await _read_board(
@@ -367,9 +380,9 @@ async def get_board_endpoint(
 @router.get("/tasks/{task_id}")
 def get_task(
     task_id: str,
-    board: Optional[str] = Query(None),
-    run_state_type: Optional[str] = Query(None, description="With run_state_name: filter runs by column 'status' or 'outcome'"),
-    run_state_name: Optional[str] = Query(None, description="With run_state_type: exact value for that run column")):
+    board: str | None = Query(None),
+    run_state_type: str | None = Query(None, description="With run_state_name: filter runs by column 'status' or 'outcome'"),
+    run_state_name: str | None = Query(None, description="With run_state_type: exact value for that run column")):
     with _board_conn(board) as (board, conn):
         if (run_state_type is None) ^ (run_state_name is None):
             raise HTTPException(status_code=400, detail="run_state_type and run_state_name must be passed together or omitted")
@@ -401,27 +414,27 @@ def get_task(
 
 class CreateTaskBody(BaseModel):
     title: str
-    body: Optional[str] = None
-    assignee: Optional[str] = None
-    tenant: Optional[str] = None
+    body: str | None = None
+    assignee: str | None = None
+    tenant: str | None = None
     priority: int = 0
-    workspace_kind: Optional[str] = None  # None = scratch, or the board project's worktree when scoped
-    workspace_path: Optional[str] = None
+    workspace_kind: str | None = None  # None = scratch, or the board project's worktree when scoped
+    workspace_path: str | None = None
     parents: list[str] = Field(default_factory=list)
     triage: bool = False
-    idempotency_key: Optional[str] = None
-    max_runtime_seconds: Optional[int] = None
-    skills: Optional[list[str]] = None
+    idempotency_key: str | None = None
+    max_runtime_seconds: int | None = None
+    skills: list[str] | None = None
     goal_mode: bool = False
-    goal_max_turns: Optional[int] = None
-    model_override: Optional[str] = None
-    provider_override: Optional[str] = None
-    reasoning_effort: Optional[str] = None  # none|minimal|…|ultra; None inherits the profile's level
-    project_id: Optional[str] = None  # None inherits the board's scoped project (if any)
+    goal_max_turns: int | None = None
+    model_override: str | None = None
+    provider_override: str | None = None
+    reasoning_effort: str | None = None  # none|minimal|…|ultra; None inherits the profile's level
+    project_id: str | None = None  # None inherits the board's scoped project (if any)
 
 
 @router.post("/tasks")
-def create_task(payload: CreateTaskBody, board: Optional[str] = Query(None)):
+def create_task(payload: CreateTaskBody, board: str | None = Query(None)):
     with _board_conn(board) as (board, conn), _value_error_400():
         # CreateTaskBody field names match create_task's keyword parameters.
         task_id = kanban_db.create_task(conn, created_by="dashboard", board=board, **payload.model_dump())
@@ -450,7 +463,7 @@ def create_task(payload: CreateTaskBody, board: Optional[str] = Query(None)):
 # dashboard, agent toolset, and CLI share one implementation.
 
 @router.get("/tasks/{task_id}/attachments")
-def list_task_attachments(task_id: str, board: Optional[str] = Query(None)):
+def list_task_attachments(task_id: str, board: str | None = Query(None)):
     with _board_conn(board) as (board, conn):
         _require_task(conn, task_id)
         return {"attachments": [_attachment_dict(a) for a in kanban_db.list_attachments(conn, task_id)]}
@@ -460,8 +473,8 @@ def list_task_attachments(task_id: str, board: Optional[str] = Query(None)):
 async def upload_task_attachment(
     task_id: str,
     file: UploadFile = File(...),
-    board: Optional[str] = Query(None),
-    uploaded_by: Optional[str] = Form(None)):
+    board: str | None = Query(None),
+    uploaded_by: str | None = Form(None)):
     """Store an upload under ``attachments_root(board)/<task_id>/`` (sanitised,
     collision-resolved name; ``_safe_attachment_name`` ValueError → 400) and record it."""
     with _board_conn(board) as (board, conn), _value_error_400():
@@ -491,7 +504,7 @@ async def upload_task_attachment(
 
 
 @router.get("/attachments/{attachment_id}")
-def download_attachment(attachment_id: int, board: Optional[str] = Query(None)):
+def download_attachment(attachment_id: int, board: str | None = Query(None)):
     with _board_conn(board) as (board, conn):
         att = kanban_db.get_attachment(conn, attachment_id)
         if att is None:
@@ -509,7 +522,7 @@ def download_attachment(attachment_id: int, board: Optional[str] = Query(None)):
 
 
 @router.delete("/attachments/{attachment_id}")
-def remove_attachment(attachment_id: int, board: Optional[str] = Query(None)):
+def remove_attachment(attachment_id: int, board: str | None = Query(None)):
     with _board_conn(board) as (board, conn):
         if kanban_db.delete_attachment(conn, attachment_id) is None:
             raise HTTPException(status_code=404, detail="attachment not found")
@@ -519,41 +532,41 @@ def remove_attachment(attachment_id: int, board: Optional[str] = Query(None)):
 # --- PATCH /tasks/:id  and  POST /tasks/bulk ---------------------------------
 
 class UpdateTaskBody(BaseModel):
-    status: Optional[str] = None
-    assignee: Optional[str] = None
-    priority: Optional[int] = None
-    title: Optional[str] = None
-    body: Optional[str] = None
-    result: Optional[str] = None
-    block_reason: Optional[str] = None
+    status: str | None = None
+    assignee: str | None = None
+    priority: int | None = None
+    title: str | None = None
+    body: str | None = None
+    result: str | None = None
+    block_reason: str | None = None
     # Handoff fields forwarded to complete_task on -> 'done' (parity with ``hermes kanban complete``).
-    summary: Optional[str] = None
-    metadata: Optional[dict] = None
+    summary: str | None = None
+    metadata: dict | None = None
     # In a PATCH ``None`` means "field not sent", so ``clear_*=True`` is the explicit clear signal.
     # ``reasoning_effort="none"`` is a VALUE (thinking off); it is cleared separately so
     # dropping a model override doesn't silently reset the depth.
-    model_override: Optional[str] = None
-    provider_override: Optional[str] = None
+    model_override: str | None = None
+    provider_override: str | None = None
     clear_model_override: bool = False
-    reasoning_effort: Optional[str] = None
+    reasoning_effort: str | None = None
     clear_reasoning_effort: bool = False
 
 
 class BulkTaskBody(BaseModel):
     ids: list[str]
-    status: Optional[str] = None
-    assignee: Optional[str] = None  # "" or None = unassign
-    priority: Optional[int] = None
+    status: str | None = None
+    assignee: str | None = None  # "" or None = unassign
+    priority: int | None = None
     archive: bool = False
-    result: Optional[str] = None
-    summary: Optional[str] = None
-    metadata: Optional[dict] = None
+    result: str | None = None
+    summary: str | None = None
+    metadata: dict | None = None
     reclaim_first: bool = False
     # Same semantics as UpdateTaskBody.
-    model_override: Optional[str] = None
-    provider_override: Optional[str] = None
+    model_override: str | None = None
+    provider_override: str | None = None
     clear_model_override: bool = False
-    reasoning_effort: Optional[str] = None
+    reasoning_effort: str | None = None
     clear_reasoning_effort: bool = False
 
 
@@ -602,7 +615,7 @@ def _apply_status(conn, task_id: str, s: str, p, unknown_detail: str) -> bool:
     return handler(conn, task_id, p)
 
 
-def _set_priority(conn, task_id: str, priority: int, board: Optional[str]) -> None:
+def _set_priority(conn, task_id: str, priority: int, board: str | None) -> None:
     kanban_db.edit_task(conn, task_id, priority=int(priority), board=board)
 
 
@@ -643,7 +656,7 @@ def _patch_status(conn, task_id: str, payload: UpdateTaskBody, review_assignee_d
     raise _conflict(_open_parent_refusal(conn, task_id, s) or f"status transition to {s!r} not valid from current state")
 
 
-def _open_parent_refusal(conn, task_id: str, s: str) -> Optional[str]:
+def _open_parent_refusal(conn, task_id: str, s: str) -> str | None:
     """complete_task/request_review return bare False for a dependency refusal too;
     for a refused ``done``/``review`` name the open parents instead of the generic text."""
     if s not in ("done", "review"):
@@ -655,7 +668,7 @@ def _open_parent_refusal(conn, task_id: str, s: str) -> Optional[str]:
     return f"cannot move {task_id} to {s!r}: unsatisfied parent dependencies: {detail}; complete the parents first (done or archived)"
 
 
-def _patch_title_body(conn, task_id: str, payload: UpdateTaskBody, board: Optional[str]) -> None:
+def _patch_title_body(conn, task_id: str, payload: UpdateTaskBody, board: str | None) -> None:
     """PATCH title/body phase: one UPDATE + ``edited`` event, then the post-commit observer
     (field names only — values never leave the DB via this payload)."""
     with kanban_db.write_txn(conn):
@@ -678,7 +691,7 @@ def _patch_title_body(conn, task_id: str, payload: UpdateTaskBody, board: Option
 
 
 @router.patch("/tasks/{task_id}")
-def update_task(task_id: str, payload: UpdateTaskBody, board: Optional[str] = Query(None)):
+def update_task(task_id: str, payload: UpdateTaskBody, board: str | None = Query(None)):
     with _board_conn(board) as (board, conn):
         _require_task(conn, task_id)
         # For a combined assignee+review patch, request_review must capture the
@@ -705,7 +718,7 @@ def update_task(task_id: str, payload: UpdateTaskBody, board: Optional[str] = Qu
 
 
 @router.delete("/tasks/{task_id}")
-def delete_task(task_id: str, board: Optional[str] = Query(None)):
+def delete_task(task_id: str, board: str | None = Query(None)):
     with _board_conn(board) as (board, conn):
         if not kanban_db.delete_task(conn, task_id):
             raise HTTPException(status_code=404, detail=f"task {task_id} not found")
@@ -731,7 +744,7 @@ def _set_status_direct(conn: sqlite3.Connection, task_id: str, new_status: str) 
     """Direct status write for drag-drop moves without a structured verb (todo<->ready,
     running<->ready) + a ``status`` event. Leaving ``running`` closes the run as 'reclaimed'
     so attempt history isn't orphaned; the worker is killed only AFTER the txn commits."""
-    terminations: list[tuple[Optional[int], Optional[str], Optional[int]]] = []
+    terminations: list[tuple[int | None, str | None, int | None]] = []
     effective_status = new_status
     with kanban_db.write_txn(conn):
         prev = conn.execute(
@@ -784,11 +797,11 @@ def _set_status_direct(conn: sqlite3.Connection, task_id: str, new_status: str) 
 
 class CommentBody(BaseModel):
     body: str
-    author: Optional[str] = "dashboard"
+    author: str | None = "dashboard"
 
 
 @router.post("/tasks/{task_id}/comments")
-def add_comment(task_id: str, payload: CommentBody, board: Optional[str] = Query(None)):
+def add_comment(task_id: str, payload: CommentBody, board: str | None = Query(None)):
     if not payload.body.strip():
         raise HTTPException(status_code=400, detail="body is required")
     with _board_conn(board) as (board, conn):
@@ -803,19 +816,19 @@ class LinkBody(BaseModel):
 
 
 @router.post("/links")
-def add_link(payload: LinkBody, board: Optional[str] = Query(None)):
+def add_link(payload: LinkBody, board: str | None = Query(None)):
     with _board_conn(board) as (board, conn), _value_error_400():
         gated = kanban_db.link_tasks(conn, payload.parent_id, payload.child_id)
         return {"ok": True, "gated": gated}
 
 
 @router.delete("/links")
-def delete_link(parent_id: str = Query(...), child_id: str = Query(...), board: Optional[str] = Query(None)):
+def delete_link(parent_id: str = Query(...), child_id: str = Query(...), board: str | None = Query(None)):
     with _board_conn(board) as (board, conn):
         return {"ok": bool(kanban_db.unlink_tasks(conn, parent_id, child_id))}
 
 
-def _bulk_apply_one(conn, tid: str, payload: BulkTaskBody, board: Optional[str], entry: dict) -> None:
+def _bulk_apply_one(conn, tid: str, payload: BulkTaskBody, board: str | None, entry: dict) -> None:
     """Apply the bulk patch to one task, recording refusals in ``entry`` without aborting the
     remaining ops — except a rejected status verb (``_StatusRejected`` propagates)."""
     if payload.archive and not kanban_db.archive_task(conn, tid):
@@ -844,7 +857,7 @@ def _bulk_apply_one(conn, tid: str, payload: BulkTaskBody, board: Optional[str],
 
 
 @router.post("/tasks/bulk")
-def bulk_update(payload: BulkTaskBody, board: Optional[str] = Query(None)):
+def bulk_update(payload: BulkTaskBody, board: str | None = Query(None)):
     """Apply the same patch to every id. Independent iteration — per-task
     failures don't abort siblings; returns per-id outcome for partials."""
     ids = [i for i in (payload.ids or []) if i]
@@ -869,8 +882,8 @@ def bulk_update(payload: BulkTaskBody, board: Optional[str] = Query(None)):
 
 @router.get("/diagnostics")
 def list_diagnostics(
-    board: Optional[str] = _BOARD_Q,
-    severity: Optional[str] = Query(None, description="Filter by severity: warning|error|critical")):
+    board: str | None = _BOARD_Q,
+    severity: str | None = Query(None, description="Filter by severity: warning|error|critical")):
     """Tasks with an active diagnostic, highest severity first then most recent; also
     consumed by ``hermes kanban diagnostics`` when the dashboard runs."""
     with _board_conn(board) as (board, conn):
@@ -906,7 +919,7 @@ except ImportError:
 
 
 @router.get("/workers/active")
-def list_active_workers(board: Optional[str] = _BOARD_Q):
+def list_active_workers(board: str | None = _BOARD_Q):
     """Every running worker: an open ``task_runs`` row with a ``worker_pid`` whose
     task is ``running``. Returns ``{workers, count, checked_at}``."""
     with _board_conn(board) as (board, conn):
@@ -922,14 +935,14 @@ def list_active_workers(board: Optional[str] = _BOARD_Q):
 
 
 @router.get("/runs/{run_id}")
-def get_run_endpoint(run_id: int, board: Optional[str] = _BOARD_Q):
+def get_run_endpoint(run_id: int, board: str | None = _BOARD_Q):
     """``{run: {...}}`` with the same serialisation as ``GET /tasks/{id}``; 404 if unknown."""
     with _board_conn(board) as (board, conn):
         return {"run": asdict(_require_run(conn, run_id))}
 
 
 @router.get("/runs/{run_id}/inspect")
-def inspect_run_endpoint(run_id: int, board: Optional[str] = _BOARD_Q):
+def inspect_run_endpoint(run_id: int, board: str | None = _BOARD_Q):
     """Live psutil stats for a run's worker; ``{alive: false, reason}`` when unavailable and
     access-denied reported inline rather than as a 500."""
     with _board_conn(board) as (board, conn):
@@ -967,11 +980,11 @@ def inspect_run_endpoint(run_id: int, board: Optional[str] = _BOARD_Q):
 
 
 class TerminateRunBody(BaseModel):
-    reason: Optional[str] = None
+    reason: str | None = None
 
 
 @router.post("/runs/{run_id}/terminate")
-def terminate_run_endpoint(run_id: int, payload: TerminateRunBody, board: Optional[str] = _BOARD_Q):
+def terminate_run_endpoint(run_id: int, payload: TerminateRunBody, board: str | None = _BOARD_Q):
     """Terminate an in-flight run via ``reclaim_task`` (same SIGTERM->SIGKILL flow, bookkeeping
     and events as ``POST /tasks/{id}/reclaim``); 409 if already ended / not reclaimable.
 
@@ -990,11 +1003,11 @@ def terminate_run_endpoint(run_id: int, payload: TerminateRunBody, board: Option
 # --- Recovery actions — reclaim / specify / reassign / estimate -------------
 
 class ReclaimBody(BaseModel):
-    reason: Optional[str] = None
+    reason: str | None = None
 
 
 @router.post("/tasks/{task_id}/reclaim")
-def reclaim_task_endpoint(task_id: str, payload: ReclaimBody, board: Optional[str] = Query(None)):
+def reclaim_task_endpoint(task_id: str, payload: ReclaimBody, board: str | None = Query(None)):
     """Release an active worker claim without waiting for the claim TTL
     (``hermes kanban reclaim <task_id> --reason ...``)."""
     with _board_conn(board) as (board, conn):
@@ -1007,11 +1020,11 @@ class SpecifyBody(BaseModel):
     """Only the author is configurable; model + prompt come from
     ``auxiliary.triage_specifier`` in config.yaml, same as the CLI."""
 
-    author: Optional[str] = None
+    author: str | None = None
 
 
 @router.post("/tasks/{task_id}/specify")
-def specify_task_endpoint(task_id: str, payload: SpecifyBody, board: Optional[str] = Query(None)):
+def specify_task_endpoint(task_id: str, payload: SpecifyBody, board: str | None = Query(None)):
     """Flesh out a triage task via the auxiliary LLM (``hermes kanban specify``). Non-OK is NOT
     an HTTP error — the UI renders the reason inline. Sync ``def`` → runs in the threadpool."""
     outcome = _run_aux(board, "kanban_specify", "specify_task", task_id, payload.author)
@@ -1019,13 +1032,13 @@ def specify_task_endpoint(task_id: str, payload: SpecifyBody, board: Optional[st
 
 
 class ReassignBody(BaseModel):
-    profile: Optional[str] = None  # "" or None = unassign
+    profile: str | None = None  # "" or None = unassign
     reclaim_first: bool = False
-    reason: Optional[str] = None
+    reason: str | None = None
 
 
 @router.post("/tasks/{task_id}/reassign")
-def reassign_task_endpoint(task_id: str, payload: ReassignBody, board: Optional[str] = Query(None)):
+def reassign_task_endpoint(task_id: str, payload: ReassignBody, board: str | None = Query(None)):
     """Reassign to another profile, optionally reclaiming first
     (``hermes kanban reassign <task_id> <profile> [--reclaim]``)."""
     with _board_conn(board) as (board, conn):
@@ -1053,7 +1066,7 @@ _ESTIMATE_SYSTEM_PROMPT = (
 
 class EstimateBody(BaseModel):
     title: str = ""
-    body: Optional[str] = None
+    body: str | None = None
 
 
 @router.post("/estimate")
@@ -1063,19 +1076,19 @@ def estimate_text_endpoint(payload: EstimateBody):
 
 
 @router.post("/tasks/{task_id}/estimate")
-def estimate_task_endpoint(task_id: str, board: Optional[str] = Query(None)):
+def estimate_task_endpoint(task_id: str, board: str | None = Query(None)):
     """Estimate for an existing task; ``{ok, est_tokens, complexity, rationale, model}``."""
     with _board_conn(board) as (board, conn):
         task = _require_task(conn, task_id)
     return _run_estimate(task.title, task.body, task_id=task_id)
 
 
-def _cap(s: Optional[str], n: int) -> str:
+def _cap(s: str | None, n: int) -> str:
     s = (s or "").strip()
     return s if len(s) <= n else s[:n] + "…"
 
 
-def _run_estimate(title: str, body: Optional[str], *, task_id: Optional[str]) -> dict:
+def _run_estimate(title: str, body: str | None, *, task_id: str | None) -> dict:
     """Never raises — config/parse/API errors become ``{"ok": False, "reason"}`` so the UI renders them inline."""
     if not (title or "").strip():
         return {"ok": False, "reason": "a title is required to estimate"}
@@ -1087,7 +1100,11 @@ def _run_estimate(title: str, body: Optional[str], *, task_id: Optional[str]) ->
     # Headless like specify/decompose's _call_aux: without a bound affinity scope the relay-affinity
     # headers are omitted and the OpenCode Go relay answers 400 MissingSessionID (#112043). The
     # create dialog has no task yet, so it shares one stable key.
-    from agent.portal_tags import get_affinity_scope, reset_affinity_scope, set_affinity_scope
+    from agent.portal_tags import (
+        get_affinity_scope,
+        reset_affinity_scope,
+        set_affinity_scope,
+    )
     affinity_token = None if get_affinity_scope() else set_affinity_scope(f"kanban:{task_id or 'estimate'}")
     try:
         resp = call_llm(
@@ -1182,7 +1199,7 @@ def _home_for_platform(platform: str, detail: str) -> dict:
 
 
 @router.get("/home-channels")
-def get_home_channels(task_id: Optional[str] = Query(None), board: Optional[str] = Query(None)):
+def get_home_channels(task_id: str | None = Query(None), board: str | None = Query(None)):
     """Every platform with a home channel plus whether *task_id* (if given) is
     subscribed to it; without ``task_id`` every ``subscribed`` is false."""
     homes = _configured_home_channels()
@@ -1197,7 +1214,7 @@ def get_home_channels(task_id: Optional[str] = Query(None), board: Optional[str]
 
 
 @router.post("/tasks/{task_id}/home-subscribe/{platform}")
-def subscribe_home(task_id: str, platform: str, board: Optional[str] = Query(None)):
+def subscribe_home(task_id: str, platform: str, board: str | None = Query(None)):
     """Subscribe *task_id* to *platform*'s home channel. Idempotent at the DB
     layer; 404 when the platform has no home or the task doesn't exist."""
     home = _home_for_platform(
@@ -1214,7 +1231,7 @@ def subscribe_home(task_id: str, platform: str, board: Optional[str] = Query(Non
 
 
 @router.delete("/tasks/{task_id}/home-subscribe/{platform}")
-def unsubscribe_home(task_id: str, platform: str, board: Optional[str] = Query(None)):
+def unsubscribe_home(task_id: str, platform: str, board: str | None = Query(None)):
     """Remove any notify subscription on *task_id* matching *platform*'s home."""
     home = _home_for_platform(platform, f"No home channel configured for platform {platform!r}.")
     with _board_conn(board) as (board, conn):
@@ -1226,14 +1243,14 @@ def unsubscribe_home(task_id: str, platform: str, board: Optional[str] = Query(N
 # --- Stats / assignees / worker log / dispatch / model options ---------------
 
 @router.get("/stats")
-def get_stats(board: Optional[str] = Query(None)):
+def get_stats(board: str | None = Query(None)):
     """Per-status + per-assignee counts + oldest-ready age (HUD and router profiles)."""
     with _board_conn(board) as (board, conn):
         return kanban_db.board_stats(conn)
 
 
 @router.get("/assignees")
-def get_assignees(board: Optional[str] = Query(None)):
+def get_assignees(board: str | None = Query(None)):
     """Union of on-disk profiles and assignees used on the board, so a fresh
     profile appears in the picker before it has any task."""
     with _board_conn(board) as (board, conn):
@@ -1241,7 +1258,7 @@ def get_assignees(board: Optional[str] = Query(None)):
 
 
 @router.get("/tasks/{task_id}/log")
-def get_task_log(task_id: str, tail: Optional[int] = Query(None, ge=1, le=2_000_000), board: Optional[str] = Query(None)):
+def get_task_log(task_id: str, tail: int | None = Query(None, ge=1, le=2_000_000), board: str | None = Query(None)):
     """Worker stdout/stderr log. ``tail`` caps the response bytes; 404 if the
     task never spawned. On-disk log rotates at 2 MiB with one ``.log.1`` kept."""
     with _board_conn(board) as (board, conn):
@@ -1255,7 +1272,7 @@ def get_task_log(task_id: str, tail: Optional[int] = Query(None, ge=1, le=2_000_
 
 
 @router.post("/dispatch")
-def dispatch(dry_run: bool = Query(False), max_n: int = Query(8, alias="max"), board: Optional[str] = Query(None)):
+def dispatch(dry_run: bool = Query(False), max_n: int = Query(8, alias="max"), board: str | None = Query(None)):
     """Dispatch nudge so the UI doesn't wait out the 60 s dispatcher tick."""
     with _board_conn(board) as (board, conn):
         result = kbd.dispatch_once(conn, dry_run=dry_run, max_spawn=max_n, board=board)
@@ -1290,24 +1307,24 @@ def model_options():
 
 class CreateBoardBody(BaseModel):
     slug: str
-    name: Optional[str] = None
-    description: Optional[str] = None
-    icon: Optional[str] = None
-    color: Optional[str] = None
-    default_workdir: Optional[str] = None
+    name: str | None = None
+    description: str | None = None
+    icon: str | None = None
+    color: str | None = None
+    default_workdir: str | None = None
     # Project (id or slug) scoping the board: default_workdir mirrors its primary repo, tasks inherit it.
-    project_id: Optional[str] = None
+    project_id: str | None = None
     switch: bool = False
 
 
 class RenameBoardBody(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-    icon: Optional[str] = None
-    color: Optional[str] = None
+    name: str | None = None
+    description: str | None = None
+    icon: str | None = None
+    color: str | None = None
     # For both fields: ``None`` = leave unchanged; "" = clear; value = validate/resolve + set.
-    default_workdir: Optional[str] = None
-    project_id: Optional[str] = None
+    default_workdir: str | None = None
+    project_id: str | None = None
 
 
 # Board transfer exchanges filesystem PATHS, not bytes (same contract as profile export/import):
@@ -1321,7 +1338,7 @@ class ExportBoardBody(BaseModel):
 
 class ImportBoardBody(BaseModel):
     archive: str  # path to a board .tar.gz on the backend's filesystem
-    slug: Optional[str] = None  # override the archive's slug; collisions auto-suffix
+    slug: str | None = None  # override the archive's slug; collisions auto-suffix
     switch: bool = False
 
 
@@ -1330,7 +1347,7 @@ def _board_display_kwargs(p: BaseModel) -> dict[str, Any]:
     return {"name": p.name, "description": p.description, "icon": p.icon, "color": p.color}
 
 
-def _resolve_project(ref: Optional[str]) -> tuple[Optional[str], Optional[str], Optional[str]]:
+def _resolve_project(ref: str | None) -> tuple[str | None, str | None, str | None]:
     """Resolve a project id/slug to ``(id, name, primary_path)``; ``(None,)*3``
     for a falsy ref, 400 when a non-empty ref doesn't resolve."""
     if not ref or not ref.strip():
@@ -1447,12 +1464,12 @@ def rename_board(slug: str, payload: RenameBoardBody):
     """Update display metadata / default workdir / project scope (slug is immutable)."""
     normed = _existing_board_slug(slug)
     # write_board_metadata treats a falsy value as "clear", so pass "" through.
-    default_workdir: Optional[str] = None
+    default_workdir: str | None = None
     if payload.default_workdir is not None:
         raw = payload.default_workdir.strip()
         default_workdir = _validate_workdir(raw) if raw else ""
     # A resolved project mirrors its repo into default_workdir unless the caller set it explicitly.
-    project_id: Optional[str] = None
+    project_id: str | None = None
     if payload.project_id is not None:
         if payload.project_id.strip():
             project_id, _pname, primary_path = _resolve_project(payload.project_id)
@@ -1531,7 +1548,7 @@ def switch_board(slug: str):
 # --- Profile metadata & description editing (kanban orchestrator) ------------
 
 class DescribeBody(BaseModel):
-    description: Optional[str] = None  # explicit user-authored text
+    description: str | None = None  # explicit user-authored text
 
 
 class DescribeAutoBody(BaseModel):
@@ -1584,11 +1601,11 @@ def auto_describe_profile(profile_name: str, payload: DescribeAutoBody):
 # --- Decompose (built-in decomposer fan-out) ----------------------------------
 
 class DecomposeBody(BaseModel):
-    author: Optional[str] = None
+    author: str | None = None
 
 
 @router.post("/tasks/{task_id}/decompose")
-def decompose_task_endpoint(task_id: str, payload: DecomposeBody, board: Optional[str] = Query(None)):
+def decompose_task_endpoint(task_id: str, payload: DecomposeBody, board: str | None = Query(None)):
     """Fan a triage task out into child tasks via the auxiliary LLM (``hermes kanban decompose``).
     Non-OK is NOT an HTTP error. Sync ``def`` → runs in the threadpool."""
     outcome = _run_aux(board, "kanban_decompose", "decompose_task", task_id, payload.author)
@@ -1601,10 +1618,10 @@ def decompose_task_endpoint(task_id: str, payload: DecomposeBody, board: Optiona
 #     auto_decompose / auto_promote_children) ----------------------------------
 
 class OrchestrationSettingsBody(BaseModel):
-    orchestrator_profile: Optional[str] = None
-    default_assignee: Optional[str] = None
-    auto_decompose: Optional[bool] = None
-    auto_promote_children: Optional[bool] = None
+    orchestrator_profile: str | None = None
+    default_assignee: str | None = None
+    auto_decompose: bool | None = None
+    auto_promote_children: bool | None = None
 
 
 _PROFILE_SETTINGS = ("orchestrator_profile", "default_assignee")
@@ -1639,7 +1656,7 @@ def get_orchestration_settings():
         "active_profile": active_default}
 
 
-def _validated_profile_name(raw: Optional[str], profiles_mod) -> str:
+def _validated_profile_name(raw: str | None, profiles_mod) -> str:
     """Strip a profile name; 400 if non-empty and unknown. Fails open when the lookup itself errors."""
     name = (raw or "").strip()
     if name and profiles_mod is not None:
@@ -1680,7 +1697,7 @@ def set_orchestration_settings(payload: OrchestrationSettingsBody):
 _EVENT_POLL_SECONDS = 0.3
 
 
-def _since_param(ws: WebSocket) -> Optional[int]:
+def _since_param(ws: WebSocket) -> int | None:
     """The client's event cursor, or None when it sent none (or garbage).
 
     None starts the stream at the board's current tail. Only an explicit
@@ -1697,7 +1714,7 @@ def _since_param(ws: WebSocket) -> Optional[int]:
         return None
 
 
-def _ws_board(raw: Optional[str]) -> Optional[str]:
+def _ws_board(raw: str | None) -> str | None:
     try:
         return kanban_db._normalize_board_slug(raw) if raw else None
     except ValueError:
@@ -1709,10 +1726,10 @@ class _EventTail:
     dedicated single-thread executor (connections are thread-affine); reusing it avoids
     churning WAL/SHM sidecars while an idle dashboard polls."""
 
-    def __init__(self, board: Optional[str]) -> None:
+    def __init__(self, board: str | None) -> None:
         self._board = board
-        self._conn: Optional[sqlite3.Connection] = None
-        self._executor: Optional[ThreadPoolExecutor] = None
+        self._conn: sqlite3.Connection | None = None
+        self._executor: ThreadPoolExecutor | None = None
 
     def _latest(self) -> int:
         """The board's current tail: the cursor a client without one starts from."""
@@ -1788,7 +1805,7 @@ async def stream_events(ws: WebSocket):
                 msg = await asyncio.wait_for(ws.receive(), timeout=_EVENT_POLL_SECONDS)
                 if msg["type"] == "websocket.disconnect":
                     return
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 pass  # no client message — poll the DB
             cursor, events = await tail.poll(cursor)
             if events:

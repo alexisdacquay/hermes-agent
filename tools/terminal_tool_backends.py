@@ -8,18 +8,26 @@ import inspect
 import logging
 import shutil
 import subprocess
-from typing import Any, Dict, Optional
+from typing import Any
 
 from tools.environments.docker import DockerEnvironment as _DockerEnvironment
 from tools.environments.local import LocalEnvironment as _LocalEnvironment
-from tools.environments.managed_modal import ManagedModalEnvironment as _ManagedModalEnvironment
+from tools.environments.managed_modal import (
+    ManagedModalEnvironment as _ManagedModalEnvironment,
+)
 from tools.environments.modal import ModalEnvironment as _ModalEnvironment
-from tools.environments.singularity import SingularityEnvironment as _SingularityEnvironment
+from tools.environments.singularity import (
+    SingularityEnvironment as _SingularityEnvironment,
+)
 from tools.environments.ssh import SSHEnvironment as _SSHEnvironment
 from tools.managed_tool_gateway import is_managed_tool_gateway_ready
 from tools.terminal_tool_config import _get_plugin_env_provider
-from tools.tool_backend_helpers import (has_direct_modal_credentials, managed_nous_tools_enabled,
-                                        nous_tool_gateway_unavailable_message, resolve_modal_backend_state)
+from tools.tool_backend_helpers import (
+    has_direct_modal_credentials,
+    managed_nous_tools_enabled,
+    nous_tool_gateway_unavailable_message,
+    resolve_modal_backend_state,
+)
 
 # Log-record parity with the origin module.
 logger = logging.getLogger("tools.terminal_tool")
@@ -27,7 +35,7 @@ logger = logging.getLogger("tools.terminal_tool")
 # Human reason for the most recent failed requirements check (None after a passing one). The CLI
 # startup notice and `hermes doctor` read it through terminal_backend_unavailable_reason() so the user
 # hears WHY the terminal tool is missing instead of discovering it on first use.
-_last_unavailable_reason: Optional[str] = None
+_last_unavailable_reason: str | None = None
 
 
 def _reject(reason: str) -> bool:
@@ -38,13 +46,13 @@ def _reject(reason: str) -> bool:
     return False
 
 
-def _record_unavailable_reason(reason: Optional[str]) -> None:
+def _record_unavailable_reason(reason: str | None) -> None:
     """Store (or clear) the last failure reason without logging; used by check_terminal_requirements."""
     global _last_unavailable_reason
     _last_unavailable_reason = reason
 
 
-def terminal_backend_unavailable_reason() -> Optional[str]:
+def terminal_backend_unavailable_reason() -> str | None:
     """Why the last terminal requirements check failed, in plain words; None when it passed."""
     return _last_unavailable_reason
 
@@ -78,17 +86,17 @@ _DOCKER_KWARGS = (
 )
 
 
-def _ssh_config_from_config(config: Dict[str, Any]) -> dict:
+def _ssh_config_from_config(config: dict[str, Any]) -> dict:
     """``ssh_config`` for :func:`_create_environment` (shared with the lazy ``ensure_task_env``)."""
     return {out: config.get(key, default) for out, key, default in _SSH_KEYS}
 
 
-def _container_config_from_config(config: Dict[str, Any]) -> dict:
+def _container_config_from_config(config: dict[str, Any]) -> dict:
     """``container_config`` for :func:`_create_environment` (shared with the lazy ``ensure_task_env``)."""
     return {k: config.get(k, d) for k, d in _CONTAINER_KEYS}
 
 
-def _resources(cc: Dict[str, Any]) -> dict:
+def _resources(cc: dict[str, Any]) -> dict:
     """Common sandbox resource kwargs (cpu/memory in MB/disk in MB/persistence)."""
     return {out: cc.get(key, default) for out, key, default in _RESOURCE_KEYS}
 
@@ -97,13 +105,13 @@ def _is_supported_vercel_runtime(runtime: str) -> bool:
     return not runtime or runtime in _SUPPORTED_VERCEL_RUNTIMES
 
 
-def _get_modal_backend_state(modal_mode: object | None) -> Dict[str, Any]:
+def _get_modal_backend_state(modal_mode: object | None) -> dict[str, Any]:
     """Resolve direct vs managed Modal backend selection."""
     return resolve_modal_backend_state(modal_mode, has_direct=has_direct_modal_credentials(),
                                        managed_ready=is_managed_tool_gateway_ready("modal"))
 
 
-def _modal_unavailable_reason(modal_state: Dict[str, Any]) -> tuple[str, str]:
+def _modal_unavailable_reason(modal_state: dict[str, Any]) -> tuple[str, str]:
     """(log message, ValueError message) for a modal_state with no selected backend.
     Single decision shared by the requirements checker and the env builder."""
     gateway = nous_tool_gateway_unavailable_message("managed Modal execution")
@@ -132,8 +140,11 @@ def _build_local_env(*, cwd, timeout, **_):
 
 
 def _build_docker_env(*, image, cwd, timeout, cc, task_id, host_cwd, **_):
-    from tools.terminal_tool import (_docker_session_isolation_enabled, _has_isolation_overrides,
-                                     _maybe_reap_docker_orphans)
+    from tools.terminal_tool import (
+        _docker_session_isolation_enabled,
+        _has_isolation_overrides,
+        _maybe_reap_docker_orphans,
+    )
     # One-shot reaper for labeled containers orphaned by prior Hermes processes that died before
     # atexit (SIGKILL / OOM / closed terminal); ``terminal.docker_orphan_reaper: false`` disables it.
     _maybe_reap_docker_orphans(cc)
@@ -238,7 +249,7 @@ _ENV_BUILDERS = {"local": _build_local_env, "docker": _build_docker_env, "singul
 def _create_environment(env_type: str, image: str, cwd: str, timeout: int,
                         ssh_config: dict = None, container_config: dict = None,
                         local_config: dict = None, task_id: str = "default",
-                        host_cwd: Optional[str] = None, probe_only: bool = False):
+                        host_cwd: str | None = None, probe_only: bool = False):
     """Create an execution environment (instance with ``execute()``) for *env_type*. ``image`` is ignored
     for local/ssh/vercel; ``container_config`` carries the container_*/docker_* resource keys; ``host_cwd`` is
     the host dir bound into Docker when cwd mounting is enabled. ``probe_only`` asks ssh for a throwaway
@@ -263,7 +274,7 @@ def _create_environment(env_type: str, image: str, cwd: str, timeout: int,
 #   pre(config) -> True (satisfied) / False (rejected, already logged) / None (continue);
 #   binary=(finder, version_arg, missing_log_or_None) runs ``<binary> <arg>``, ok iff rc == 0;
 #   module=(find_spec name, log message when absent);  post(config) -> bool.
-def _check_vercel(config: Dict[str, Any]) -> bool:
+def _check_vercel(config: dict[str, Any]) -> bool:
     """Runtime -> disk -> SDK -> auth (OIDC token, else the full TOKEN/PROJECT_ID/TEAM_ID tuple)."""
     runtime = (config.get("vercel_runtime") or "").strip()
     disk = config.get("container_disk", 51200)
@@ -289,7 +300,7 @@ def _check_vercel(config: Dict[str, Any]) -> bool:
     return _reject(f"Vercel Sandbox backend {head} VERCEL_OIDC_TOKEN is supported for one-off local development only.")
 
 
-def _modal_pre(config: Dict[str, Any]) -> Optional[bool]:
+def _modal_pre(config: dict[str, Any]) -> bool | None:
     modal_state = _get_modal_backend_state(config.get("modal_mode"))
     if modal_state["selected_backend"] == "managed":
         return True
@@ -298,20 +309,22 @@ def _modal_pre(config: Dict[str, Any]) -> Optional[bool]:
     return None
 
 
-def _ssh_pre(config: Dict[str, Any]) -> bool:
+def _ssh_pre(config: dict[str, Any]) -> bool:
     if config.get("ssh_host") and config.get("ssh_user"):
         return True
     return _reject("the SSH host and user are not configured (TERMINAL_SSH_HOST / TERMINAL_SSH_USER); "
                    "run `hermes setup terminal` to enter them or pick the 'local' backend")
 
 
-def _daytona_post(config: Dict[str, Any]) -> bool:
-    from daytona import Daytona  # noqa: F401 — SDK presence check (ImportError propagates)
+def _daytona_post(config: dict[str, Any]) -> bool:
     from agent.secret_scope import get_secret
+    from daytona import (
+        Daytona,  # noqa: F401 — SDK presence check (ImportError propagates)
+    )
     return get_secret("DAYTONA_API_KEY") is not None
 
 
-_BACKEND_SPECS: Dict[str, Dict[str, Any]] = {
+_BACKEND_SPECS: dict[str, dict[str, Any]] = {
     "local": {},
     "docker": {"binary": (lambda: importlib.import_module("tools.environments.docker").find_docker(), "version",
                           "Docker is not installed — no docker executable in PATH or the usual install locations")},
@@ -330,7 +343,7 @@ _PROBE_FAILED_REASONS = {
 }
 
 
-def _check_requirements(env_type: str, config: Dict[str, Any]) -> bool:
+def _check_requirements(env_type: str, config: dict[str, Any]) -> bool:
     _record_unavailable_reason(None)
     spec = _BACKEND_SPECS[env_type]
     verdict = spec["pre"](config) if "pre" in spec else None
@@ -352,7 +365,7 @@ def _check_requirements(env_type: str, config: Dict[str, Any]) -> bool:
     return True
 
 
-def _check_plugin_requirements(config: Dict[str, Any]) -> bool:
+def _check_plugin_requirements(config: dict[str, Any]) -> bool:
     _record_unavailable_reason(None)
     env_type = config["env_type"]
     provider = _get_plugin_env_provider(env_type)

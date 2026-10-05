@@ -9,19 +9,20 @@ from __future__ import annotations
 import re
 import shutil
 import subprocess
+from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Any
 
 import hermes_yaml as yaml
-
 from hermes_constants import get_hermes_home, get_optional_mcps_dir
-from hermes_cli._subprocess_compat import noninteractive_git_env
-from hermes_cli.colors import Colors, color
-from hermes_cli.config import load_config, save_config, get_env_value, save_env_value
-from hermes_cli.cli_output import prompt as _prompt_input
 from utils import rmtree_readonly
+
+from hermes_cli._subprocess_compat import noninteractive_git_env
+from hermes_cli.cli_output import prompt as _prompt_input
+from hermes_cli.colors import Colors, color
+from hermes_cli.config import get_env_value, load_config, save_config, save_env_value
 
 _MANIFEST_VERSION = 1
 
@@ -41,13 +42,13 @@ class EnvVarSpec:
 @dataclass
 class AuthSpec:
     type: str  # "api_key" | "oauth" | "none"
-    env: List[EnvVarSpec] = field(default_factory=list)
-    provider: Optional[str] = None  # OAuth-specific (third-party provider like Google)
-    scopes: List[str] = field(default_factory=list)
-    env_var: Optional[str] = None
+    env: list[EnvVarSpec] = field(default_factory=list)
+    provider: str | None = None  # OAuth-specific (third-party provider like Google)
+    scopes: list[str] = field(default_factory=list)
+    env_var: str | None = None
     # Pre-registered OAuth client block copied verbatim to ``mcp_servers.<name>.oauth`` (vendors
     # without Dynamic Client Registration). Secrets stay ``${VAR}`` references declared in ``env``.
-    oauth: Dict[str, Any] = field(default_factory=dict)
+    oauth: dict[str, Any] = field(default_factory=dict)
 
 
 # ``auth.oauth`` keys a manifest may pin; everything else is a user-side tuning knob.
@@ -58,13 +59,13 @@ _ENV_REF_RE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 @dataclass
 class TransportSpec:
     type: str  # "stdio" | "http"
-    command: Optional[str] = None
-    args: List[str] = field(default_factory=list)
-    url: Optional[str] = None
-    version: Optional[str] = None  # informational, pinned
+    command: str | None = None
+    args: list[str] = field(default_factory=list)
+    url: str | None = None
+    version: str | None = None  # informational, pinned
     # Static env for the stdio subprocess (telemetry opt-outs, mode flags). NOT for secrets — those
     # go through auth.env so they are prompted for and land in ~/.hermes/.env.
-    env: Dict[str, str] = field(default_factory=dict)
+    env: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -73,7 +74,7 @@ class InstallSpec:
     type: str  # "git"
     url: str
     ref: str  # commit/tag/branch — pinned, never floats
-    bootstrap: List[str] = field(default_factory=list)
+    bootstrap: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -86,8 +87,8 @@ class ToolsSpec:
     the server adds later (for huge OpenAPI-derived surfaces). Mutually exclusive.
     """
 
-    default_enabled: Optional[List[str]] = None
-    default_excluded: Optional[List[str]] = None
+    default_enabled: list[str] | None = None
+    default_excluded: list[str] | None = None
 
 
 @dataclass
@@ -98,10 +99,10 @@ class SuggestSpec:
     per-host OAuth app (generic DCR 404s) and the bundled github/* skills are far more capable.
     """
 
-    keywords: List[str] = field(default_factory=list)  # lowercase whole-word/phrase triggers
-    hosts: List[str] = field(default_factory=list)  # hostname suffixes ("atlassian.net")
-    applications: List[str] = field(default_factory=list)  # reviewed local app labels/aliases
-    examples: List[str] = field(default_factory=list)  # capability examples, not executable instructions
+    keywords: list[str] = field(default_factory=list)  # lowercase whole-word/phrase triggers
+    hosts: list[str] = field(default_factory=list)  # hostname suffixes ("atlassian.net")
+    applications: list[str] = field(default_factory=list)  # reviewed local app labels/aliases
+    examples: list[str] = field(default_factory=list)  # capability examples, not executable instructions
     requires_app: bool = False  # local app prerequisite, unlike cloud services with desktop clients
 
 
@@ -112,11 +113,11 @@ class CatalogEntry:
     source: str
     transport: TransportSpec
     auth: AuthSpec
-    connector_slug: Optional[str] = None
+    connector_slug: str | None = None
     tools: ToolsSpec = field(default_factory=ToolsSpec)
-    install: Optional[InstallSpec] = None
+    install: InstallSpec | None = None
     post_install: str = ""
-    suggest: Optional[SuggestSpec] = None
+    suggest: SuggestSpec | None = None
     manifest_path: Path = field(default_factory=Path)
 
 
@@ -231,7 +232,7 @@ def _parse_tools(path: Path, raw: Any) -> ToolsSpec:
     return ToolsSpec(default_enabled=default_enabled, default_excluded=default_excluded)
 
 
-def _parse_suggest(path: Path, suggest_raw: Any) -> Optional[SuggestSpec]:
+def _parse_suggest(path: Path, suggest_raw: Any) -> SuggestSpec | None:
     if suggest_raw is None:
         return None
     _require_mapping(path, "suggest", suggest_raw)
@@ -261,7 +262,7 @@ def _parse_suggest(path: Path, suggest_raw: Any) -> Optional[SuggestSpec]:
         applications=applications, examples=examples, requires_app=requires_app)
 
 
-def _parse_connector_slug(path: Path, value: Any) -> Optional[str]:
+def _parse_connector_slug(path: Path, value: Any) -> str | None:
     if value is None:
         return None
     if not isinstance(value, str) or not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", value):
@@ -269,7 +270,7 @@ def _parse_connector_slug(path: Path, value: Any) -> Optional[str]:
     return value
 
 
-def _parse_install(path: Path, install_raw: Any) -> Optional[InstallSpec]:
+def _parse_install(path: Path, install_raw: Any) -> InstallSpec | None:
     if install_raw is None:
         return None
     _require_mapping(path, "install", install_raw)
@@ -322,10 +323,10 @@ def _parse_manifest(path: Path) -> CatalogEntry:
 
 # Populated by list_catalog(); inspected by the picker / catalog UIs so the user gets actionable
 # feedback instead of a silently-shorter list.
-_CATALOG_DIAGNOSTICS: List[tuple] = []
+_CATALOG_DIAGNOSTICS: list[tuple] = []
 
 
-def list_catalog() -> List[CatalogEntry]:
+def list_catalog() -> list[CatalogEntry]:
     """Return all valid catalog entries, sorted by name.
 
     Invalid manifests are skipped silently (CI catches them); future ``manifest_version`` ones are
@@ -334,7 +335,7 @@ def list_catalog() -> List[CatalogEntry]:
     root = _catalog_root()
     if not root.exists():
         return []
-    entries: List[CatalogEntry] = []
+    entries: list[CatalogEntry] = []
     _CATALOG_DIAGNOSTICS.clear()
     for child in sorted(root.iterdir()):
         manifest = child / "manifest.yaml"
@@ -349,20 +350,19 @@ def list_catalog() -> List[CatalogEntry]:
     return entries
 
 
-def catalog_diagnostics() -> List[tuple]:
+def catalog_diagnostics() -> list[tuple]:
     """``(entry_name, kind, message)`` tuples from the most recent :func:`list_catalog` call;
     ``kind`` is ``future_manifest`` (newer than this Hermes) or ``invalid`` (malformed)."""
     return list(_CATALOG_DIAGNOSTICS)
 
 
-def get_entry(name: str) -> Optional[CatalogEntry]:
+def get_entry(name: str) -> CatalogEntry | None:
     """Look up a single entry by name. ``official/<name>`` prefix accepted."""
-    if name.startswith("official/"):
-        name = name[len("official/"):]
+    name = name.removeprefix("official/")
     return next((e for e in list_catalog() if e.name == name), None)
 
 
-def installed_servers() -> Dict[str, dict]:
+def installed_servers() -> dict[str, dict]:
     """Return current ``mcp_servers`` block from config.yaml."""
     from hermes_cli.mcp_config import _get_mcp_servers
 
@@ -403,7 +403,7 @@ def _install_root() -> Path:
     return root
 
 
-def _run_bootstrap(cwd: Path, commands: List[str]) -> None:
+def _run_bootstrap(cwd: Path, commands: list[str]) -> None:
     """Execute bootstrap commands in *cwd*. Raise CatalogError on first failure."""
     for cmd in commands:
         _say(f"  $ {cmd}", Colors.DIM)
@@ -457,7 +457,7 @@ def _do_git_install(entry: CatalogEntry) -> Path:
     return dest
 
 
-def _expand_install_dir(value: str, install_dir: Optional[Path]) -> str:
+def _expand_install_dir(value: str, install_dir: Path | None) -> str:
     if _INSTALL_DIR_VAR not in value:
         return value
     if install_dir is None:
@@ -465,7 +465,7 @@ def _expand_install_dir(value: str, install_dir: Optional[Path]) -> str:
     return value.replace(_INSTALL_DIR_VAR, str(install_dir))
 
 
-def _prompt_env_vars(specs: List[EnvVarSpec], preloaded: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+def _prompt_env_vars(specs: list[EnvVarSpec], preloaded: dict[str, str] | None = None) -> dict[str, str]:
     """Prompt for each env spec.
 
     Secrets persist to ~/.hermes/.env. Non-secrets are only collected and
@@ -474,7 +474,7 @@ def _prompt_env_vars(specs: List[EnvVarSpec], preloaded: Optional[Dict[str, str]
     (``preloaded``, e.g. from a dashboard form) skip the prompt.
     """
     preloaded = preloaded or {}
-    collected: Dict[str, str] = {}
+    collected: dict[str, str] = {}
     for spec in specs:
         pre = preloaded.get(spec.name)
         if pre:
@@ -511,7 +511,7 @@ def _inline_non_secret_value(obj: Any, name: str, value: str) -> Any:
     return obj
 
 
-def _build_server_config(entry: CatalogEntry, install_dir: Optional[Path]) -> dict:
+def _build_server_config(entry: CatalogEntry, install_dir: Path | None) -> dict:
     """Translate a manifest into the ``mcp_servers.<name>`` block format used by hermes_cli/mcp_config.py."""
     cfg: dict = {}
     t = entry.transport
@@ -534,7 +534,7 @@ def _build_server_config(entry: CatalogEntry, install_dir: Optional[Path]) -> di
     return cfg
 
 
-def _read_prior_tool_list(name: str, key: str) -> Optional[List[str]]:
+def _read_prior_tool_list(name: str, key: str) -> list[str] | None:
     """The user's prior ``tools.<key>`` (``include``/``exclude``) for *name*, if well-formed.
 
     Read BEFORE a reinstall overwrites the entry: a prior include list pre-checks the checklist and a
@@ -548,7 +548,7 @@ def _read_prior_tool_list(name: str, key: str) -> Optional[List[str]]:
     return list(value) if ok else None
 
 
-def _probe_tools(name: str) -> Optional[List[tuple]]:
+def _probe_tools(name: str) -> list[tuple] | None:
     """Connect to a freshly-configured MCP and list its tools.
 
     ``(tool_name, description)`` tuples on success, ``None`` on any failure (unreachable, OAuth not
@@ -558,7 +558,9 @@ def _probe_tools(name: str) -> Optional[List[tuple]]:
     if not server_cfg:
         return None
     try:
-        from hermes_cli.mcp_config import _probe_single_server  # lazy: keep this module cheap
+        from hermes_cli.mcp_config import (
+            _probe_single_server,  # lazy: keep this module cheap
+        )
 
         tools = _probe_single_server(name, server_cfg)
         return list(tools) if tools is not None else []
@@ -567,7 +569,7 @@ def _probe_tools(name: str) -> Optional[List[tuple]]:
         return None
 
 
-def _write_tools_filter(name: str, mode: str, values: Optional[List[str]]) -> None:
+def _write_tools_filter(name: str, mode: str, values: list[str] | None) -> None:
     """Persist ``mcp_servers.<name>.tools.<mode>`` (``include``/``exclude``), clearing the other
     mode; ``values=None`` drops the whole tools block (no filter)."""
     cfg = load_config()
@@ -590,8 +592,8 @@ def _write_tools_filter(name: str, mode: str, values: Optional[List[str]]) -> No
 def _apply_tool_selection(
     entry: CatalogEntry,
     *,
-    prior_selection: Optional[List[str]],
-    prior_exclude: Optional[List[str]] = None) -> None:
+    prior_selection: list[str] | None,
+    prior_exclude: list[str] | None = None) -> None:
     """Probe the server and let the user pick which tools to enable.
 
     Probe-success: curses checklist; pre-check priority *prior_selection* (reinstall) > manifest
@@ -719,7 +721,7 @@ def card_install_config(entry: CatalogEntry) -> dict:
     return cfg
 
 
-def record_mcp_install(source: str, name: Optional[str], outcome: str) -> None:
+def record_mcp_install(source: str, name: str | None, outcome: str) -> None:
     """One shared-metrics extension install for an MCP server (catalog entry name, or None when custom)."""
     from hermes_cli.observability.shared_metrics_events import record_extension_install
 
@@ -741,12 +743,12 @@ def recorded_catalog_install(name: str) -> Iterator[None]:
         record_mcp_install("catalog", name, "success")
 
 
-def install_entry(entry: CatalogEntry, *, enable: bool = True, preloaded_env: Optional[Dict[str, str]] = None) -> None:
+def install_entry(entry: CatalogEntry, *, enable: bool = True, preloaded_env: dict[str, str] | None = None) -> None:
     with recorded_catalog_install(entry.name):
         _install_entry(entry, enable=enable, preloaded_env=preloaded_env)
 
 
-def _install_entry(entry: CatalogEntry, *, enable: bool, preloaded_env: Optional[Dict[str, str]]) -> None:
+def _install_entry(entry: CatalogEntry, *, enable: bool, preloaded_env: dict[str, str] | None) -> None:
     """Install a catalog entry end-to-end.
 
     Order: git clone + bootstrap (if any); credential prompts (``auth.env``) to .env; write
@@ -766,7 +768,7 @@ def _install_entry(entry: CatalogEntry, *, enable: bool, preloaded_env: Optional
 
     install_dir = _do_git_install(entry) if entry.install is not None else None
 
-    env_values: Dict[str, str] = {}
+    env_values: dict[str, str] = {}
     if entry.auth.env:
         print()
         _say("  Configure credentials:", Colors.CYAN)

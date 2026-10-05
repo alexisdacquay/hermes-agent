@@ -10,7 +10,6 @@ import logging
 import os
 import re
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger("hermes.security_audit")
 
@@ -27,7 +26,7 @@ def _is_root() -> bool:
         return False
 
 
-def _running_as_root() -> Optional[str]:
+def _running_as_root() -> str | None:
     return None if not _is_root() else (
         "Running as ROOT. The agent's terminal/file tools execute with full root privileges — a single "
         "prompt-injection or exposed endpoint is a full host compromise. Run Hermes as an unprivileged user "
@@ -51,7 +50,7 @@ def _iter_sshd_config_lines() -> list[str]:
     return lines
 
 
-def _ssh_password_auth_enabled() -> Optional[str]:
+def _ssh_password_auth_enabled() -> str | None:
     """Warn when sshd has password auth enabled — the classic brute-force surface, which pairs
     badly with a root-capable agent box. None when there is no sshd config to read.
     """
@@ -104,7 +103,7 @@ def _path_is_mounted(path: Path) -> bool:
     return best_fstype not in ("overlay", "tmpfs", "aufs")
 
 
-def _container_no_volume_mount(hermes_home: Optional[Path]) -> Optional[str]:
+def _container_no_volume_mount(hermes_home: Path | None) -> str | None:
     if not _in_container():
         return None
     if hermes_home is None:
@@ -118,7 +117,7 @@ def _container_no_volume_mount(hermes_home: Optional[Path]) -> Optional[str]:
             "volume over the HERMES_HOME data directory.")
 
 
-def _network_listener_without_auth(config: Optional[dict]) -> list[str]:
+def _network_listener_without_auth(config: dict | None) -> list[str]:
     """Warn about a network-accessible API server with no API_SERVER_KEY. Read-only against
     config + env; overlaps the hard fail-closed guards but surfaces the posture at startup.
     """
@@ -139,7 +138,7 @@ def _network_listener_without_auth(config: Optional[dict]) -> list[str]:
             "Set a strong API_SERVER_KEY."]
 
 
-def run_security_audit(*, hermes_home: Optional[Path] = None, config: Optional[dict] = None) -> list[str]:
+def run_security_audit(*, hermes_home: Path | None = None, config: dict | None = None) -> list[str]:
     """Run all checks and return human-readable warning strings. Pure (no logging); a check that
     raises simply contributes no finding.
     """
@@ -158,7 +157,7 @@ def run_security_audit(*, hermes_home: Optional[Path] = None, config: Optional[d
 
 
 def log_startup_security_warnings(
-    *, hermes_home: Optional[Path] = None, config: Optional[dict] = None, force: bool = False
+    *, hermes_home: Path | None = None, config: dict | None = None, force: bool = False
 ) -> list[str]:
     """Run the audit once per process (``force=True`` re-runs) and log each finding as a warning."""
     global _AUDIT_RAN

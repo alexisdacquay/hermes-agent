@@ -14,10 +14,7 @@ not snapshots of any current value.
 from __future__ import annotations
 
 import pytest
-
 from hermes_cli.observability import shared_metrics_contract as contract
-
-
 
 
 def test_acp_sessions_are_interactive():

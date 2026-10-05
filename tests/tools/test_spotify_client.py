@@ -3,10 +3,8 @@ from __future__ import annotations
 import json
 
 import pytest
-
 from hermes_cli.auth import AuthError
 from plugins.spotify import client as spotify_mod
-from plugins.spotify import tools as spotify_tool
 
 
 class _FakeResponse:

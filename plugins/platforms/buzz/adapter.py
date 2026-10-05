@@ -22,7 +22,7 @@ import time
 from collections import OrderedDict
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
 # Profile-scoped read (adapter startup, Slack pattern #59739): a scoped read honors the profile's own
@@ -30,7 +30,15 @@ from urllib.parse import urlsplit, urlunsplit
 # env, which is that profile's own value.
 from agent.secret_scope import is_multiplex_active as _is_multiplex_active
 from gateway.platforms._shared import (
-    apply_yaml_bridge as _apply_yaml_bridge, get_scoped_secret as _shared_scoped_secret, profile_scoped as _profile_scoped,
+    apply_yaml_bridge as _apply_yaml_bridge,
+)
+from gateway.platforms._shared import (
+    get_scoped_secret as _shared_scoped_secret,
+)
+from gateway.platforms._shared import (
+    profile_scoped as _profile_scoped,
+)
+from gateway.platforms._shared import (
     seed_extra_from_env as _seed_extra_from_env,
 )
 from gateway.platforms._shared import send_error
@@ -61,13 +69,15 @@ def _scoped_platform_setting(env_name, extra, key):
 
 logger = logging.getLogger(__name__)
 
-from gateway.platforms.base import (
-    BasePlatformAdapter, CachedMedia, SendResult, cache_media_bytes_async,
-)
-from gateway.platforms.helpers import cancel_task
-from gateway.platforms.event import MessageEvent, MessageType
 from gateway.config import Platform
-
+from gateway.platforms.base import (
+    BasePlatformAdapter,
+    CachedMedia,
+    SendResult,
+    cache_media_bytes_async,
+)
+from gateway.platforms.event import MessageEvent, MessageType
+from gateway.platforms.helpers import cancel_task
 
 _CHAT_KIND = 9  # ``messages get`` also returns housekeeping kinds, never dispatched
 # Chat + forum post/comment; stream kinds wait for confirmed semantics. ``_is_direct_message_event``
@@ -82,7 +92,7 @@ _BUZZ_PRESENTATION_MENTION_SEPARATOR = "\u200b"
 _HEX64_RE = re.compile(r"[0-9a-f]{64}")
 
 
-def _escape_unresolved_presentation_mention(content: str, error: str) -> Optional[str]:
+def _escape_unresolved_presentation_mention(content: str, error: str) -> str | None:
     """Make a CLI-rejected ``@name`` presentation-only via an invisible separator after the ``@`` (Buzz
     p-tags whitespace-prefixed @tokens at publish, so prose like ``@session:...`` fails preflight)."""
     match = _UNRESOLVED_MENTION_ERROR_RE.search(error or "")
@@ -125,7 +135,7 @@ def _safe_attachment_filename(value: str) -> str:
     return f"{safe_stem or 'attachment'}{suffix}"
 
 
-def _attachment_origin(value: str) -> Optional[tuple[str, int]]:
+def _attachment_origin(value: str) -> tuple[str, int] | None:
     """Normalize a configured host/URL to an exact HTTPS-equivalent origin."""
     raw = str(value or "").strip()
     if not raw:
@@ -168,7 +178,7 @@ def _consume_ws_read_task(task: asyncio.Task) -> None:
             task.exception()
 
 
-def _effective_port(parsed) -> Optional[int]:
+def _effective_port(parsed) -> int | None:
     try:
         if parsed.port is not None:
             return parsed.port
@@ -187,11 +197,11 @@ def _is_relay_media_url(url: str, relay_url: str) -> bool:
     )
 
 
-def _find_relay_media_refs(text: str, relay_url: str) -> Tuple[List[str], List[Tuple[int, int, str]]]:
+def _find_relay_media_refs(text: str, relay_url: str) -> tuple[list[str], list[tuple[int, int, str]]]:
     """Find same-relay media URLs and their safe text replacements."""
-    urls: List[str] = []
-    replacements: List[Tuple[int, int, str]] = []
-    markdown_spans: List[Tuple[int, int]] = []
+    urls: list[str] = []
+    replacements: list[tuple[int, int, str]] = []
+    markdown_spans: list[tuple[int, int]] = []
     for match in _MARKDOWN_MEDIA_RE.finditer(text):
         url = match.group("url")
         if not _is_relay_media_url(url, relay_url):
@@ -212,7 +222,7 @@ def _find_relay_media_refs(text: str, relay_url: str) -> Tuple[List[str], List[T
     return urls, replacements
 
 
-def _replace_media_refs(text: str, replacements: List[Tuple[int, int, str]]) -> str:
+def _replace_media_refs(text: str, replacements: list[tuple[int, int, str]]) -> str:
     for start, end, replacement in sorted(replacements, reverse=True):
         text = f"{text[:start]}{replacement}{text[end:]}"
     return re.sub(r"\n{3,}", "\n\n", re.sub(r"[ \t]+\n", "\n", text)).strip()
@@ -236,12 +246,18 @@ def _load_nostr_auth():
 _nostr_auth = _load_nostr_auth()
 
 # bech32 (BIP-173) npub <-> hex so mention detection and allow-lists accept either form.
-from gateway.authz_mixin import (  # noqa: E402
-    _BECH32_CHARSET, _bech32_hrp_expand, _bech32_polymod, _convertbits, _npub_to_hex as npub_to_hex,
+from gateway.authz_mixin import (
+    _BECH32_CHARSET,
+    _bech32_hrp_expand,
+    _bech32_polymod,
+    _convertbits,
+)
+from gateway.authz_mixin import (
+    _npub_to_hex as npub_to_hex,
 )
 
 
-def hex_to_npub(pubkey_hex: str) -> Optional[str]:
+def hex_to_npub(pubkey_hex: str) -> str | None:
     """Encode a 64-char hex pubkey as an ``npub1…`` bech32 string."""
     try:
         raw = bytes.fromhex(pubkey_hex)
@@ -275,14 +291,14 @@ def _ttl_get(cache: dict, key, ttl: float):
     return cached[1] if cached is not None and (time.monotonic() - cached[0]) < ttl else None
 
 
-def _add_pubkey(bucket: List[str], raw) -> None:
+def _add_pubkey(bucket: list[str], raw) -> None:
     """Append the lowercased pubkey once (empty values are skipped)."""
     pk = str(raw or "").lower()
     if pk and pk not in bucket:
         bucket.append(pk)
 
 
-def _normalize_user_ref(ref: str) -> Optional[str]:
+def _normalize_user_ref(ref: str) -> str | None:
     """Normalize a user reference (hex pubkey or npub) to lowercase hex."""
     ref = (ref or "").strip().lower()
     if not ref:
@@ -316,7 +332,7 @@ def _configured_cli_path(extra: dict) -> str:
     return _resolve_cli_path(str(raw or "").strip() or str(extra.get("cli_path", "") or ""))
 
 
-def _configured_credentials_file(extra: Optional[dict]) -> str:
+def _configured_credentials_file(extra: dict | None) -> str:
     # Scoped: a miss falls to the profile's own extra, never the default profile's env; unscoped keeps env precedence.
     configured = str(_get_scoped_secret("BUZZ_CREDENTIALS_FILE", "") or "").strip()
     return configured or str((extra or {}).get("credentials_file", "") or "").strip()
@@ -333,7 +349,7 @@ def _resolve_cli_path(configured: str = "") -> str:
     return str(fallback) if fallback.is_file() else ""
 
 
-def _credentials_candidates(extra: Optional[dict] = None) -> List[Path]:
+def _credentials_candidates(extra: dict | None = None) -> list[Path]:
     configured = _configured_credentials_file(extra)
     if configured:
         return [Path(configured).expanduser()]
@@ -357,7 +373,7 @@ def _credentials_key(data: dict) -> str:
     return ""
 
 
-def _resolve_credentials_data(extra: Optional[dict] = None) -> dict:
+def _resolve_credentials_data(extra: dict | None = None) -> dict:
     """Load the first credential record containing a private key."""
     for path in _credentials_candidates(extra):
         try:
@@ -369,13 +385,13 @@ def _resolve_credentials_data(extra: Optional[dict] = None) -> dict:
     return {}
 
 
-def _resolve_private_key(extra: Optional[dict] = None) -> str:
+def _resolve_private_key(extra: dict | None = None) -> str:
     """Resolve the Nostr private key: scoped secret first, then credentials JSON. NEVER log it."""
     key = str(_get_scoped_secret("BUZZ_PRIVATE_KEY", "") or "").strip()
     return key or _credentials_key(_resolve_credentials_data(extra))
 
 
-def _resolve_auth_tag(extra: Optional[dict] = None) -> str:
+def _resolve_auth_tag(extra: dict | None = None) -> str:
     """Resolve and validate the optional NIP-OA owner-attestation tag."""
     raw: Any = str(_get_scoped_secret("BUZZ_AUTH_TAG", "") or "").strip()
     if not raw:
@@ -388,9 +404,9 @@ def _resolve_auth_tag(extra: Optional[dict] = None) -> str:
 
 
 async def _exec_buzz(
-    cli_path: str, args: List[str], *, relay_url: str, private_key: str, auth_tag: str = "",
-    input_text: Optional[str] = None, timeout: float = _CLI_TIMEOUT,
-) -> Tuple[int, str, str]:
+    cli_path: str, args: list[str], *, relay_url: str, private_key: str, auth_tag: str = "",
+    input_text: str | None = None, timeout: float = _CLI_TIMEOUT,
+) -> tuple[int, str, str]:
     """Run the buzz CLI (argv, never a shell) -> ``(rc, stdout, stderr)``. Key travels via env only."""
     from tools.environments.local import hermes_subprocess_env
     env = hermes_subprocess_env()  # a third-party CLI: its own key only, never Hermes' credentials
@@ -407,7 +423,7 @@ async def _exec_buzz(
     try:
         stdin_bytes = input_text.encode("utf-8") if input_text is not None else None
         stdout, stderr = await asyncio.wait_for(proc.communicate(stdin_bytes), timeout=timeout)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         proc.kill()
         await proc.wait()
         detail = {"error": "timeout", "message": f"buzz {args[0] if args else ''} timed out after {timeout}s"}
@@ -419,14 +435,14 @@ async def _exec_buzz(
 _MAX_CLI_MESSAGE_CHARS = 900
 
 
-def _bounded_cli_message(message: str, redact_path: Optional[Path] = None) -> str:
+def _bounded_cli_message(message: str, redact_path: Path | None = None) -> str:
     """Keep untrusted CLI detail useful without exposing unbounded output."""
     if redact_path is not None:
         message = message.replace(str(redact_path), redact_path.name)
     return message if len(message) <= _MAX_CLI_MESSAGE_CHARS else f"{message[: _MAX_CLI_MESSAGE_CHARS - 3]}..."
 
 
-def _cli_error_message(stderr: str, returncode: int, *, redact_path: Optional[Path] = None) -> str:
+def _cli_error_message(stderr: str, returncode: int, *, redact_path: Path | None = None) -> str:
     """Extract a bounded human-readable message from the CLI error contract."""
     text = (stderr or "").strip()
     data = _json_or(text, None)
@@ -438,7 +454,7 @@ def _cli_error_message(stderr: str, returncode: int, *, redact_path: Optional[Pa
     return _bounded_cli_message(text or f"buzz CLI failed with exit code {returncode}", redact_path)
 
 
-def _parse_send_receipt(stdout: str) -> Tuple[Optional[str], Optional[str]]:
+def _parse_send_receipt(stdout: str) -> tuple[str | None, str | None]:
     """Validate the buzz-cli success receipt and return ``(event_id, error)``."""
     data = _json_or(stdout, None)
     if not isinstance(data, dict):
@@ -462,7 +478,7 @@ def _json_or(text: str, default):
         return default
 
 
-def _parse_json_list(stdout: str) -> List[dict]:
+def _parse_json_list(stdout: str) -> list[dict]:
     """Parse CLI stdout expected to be a JSON array of objects."""
     data = _json_or(stdout, [])
     return [item for item in data if isinstance(item, dict)] if isinstance(data, list) else []
@@ -477,7 +493,7 @@ def _e_tags(event: dict):
                 yield tag[1], (str(tag[3]) if len(tag) > 3 else "")
 
 
-def _event_reply_parent_id(event: dict) -> Optional[str]:
+def _event_reply_parent_id(event: dict) -> str | None:
     """Direct parent id from NIP-10 ``e`` tags: ``reply`` marker, then ``root``, else last positional."""
     reply_id = root_id = last_e = None
     for raw_target, marker in _e_tags(event):
@@ -523,7 +539,7 @@ class BuzzAdapter(BasePlatformAdapter):
         self.cli_path = _configured_cli_path(extra)
         # Channels to watch: env csv > extra list/csv; empty = all joined channels
         raw_channels = _split_csv(_setting_or("BUZZ_CHANNELS", extra, "channels", []))
-        self.channels: List[str] = [c.strip() for c in raw_channels if isinstance(c, str) and c.strip()]
+        self.channels: list[str] = [c.strip() for c in raw_channels if isinstance(c, str) and c.strip()]
         self.home_channel = _configured_home_channel(extra)
         _pi_raw = _scoped_platform_setting("BUZZ_POLL_INTERVAL", extra, "poll_interval")
         try:
@@ -546,9 +562,9 @@ class BuzzAdapter(BasePlatformAdapter):
         self._private_key = self._auth_tag = ""
         # Identity — filled in by connect() from ``buzz users get``
         self._self_pubkey = self._self_npub = self._display_name = ""
-        self._poll_task: Optional[asyncio.Task] = None
-        self._ws_task: Optional[asyncio.Task] = None
-        self._ws_ready: Optional[asyncio.Event] = None
+        self._poll_task: asyncio.Task | None = None
+        self._ws_task: asyncio.Task | None = None
+        self._ws_ready: asyncio.Event | None = None
         self._membership_since = self._poll_count = 0
         # Channels the relay permanently rejected ("restricted"); persists across reconnects so we never re-subscribe.
         # channel_id -> { "chat_type", "last_ts", "seen": OrderedDict[event_id, None], "event_meta":
@@ -558,26 +574,26 @@ class BuzzAdapter(BasePlatformAdapter):
         self._restricted_channels: set = set()
         # channel_id -> {"chat_type", "last_ts", "seen": OrderedDict[event_id, None], "event_meta":
         #   OrderedDict[event_id, (author_pubkey, snippet)]}; event_meta backs NIP-10 reply-parent resolution.
-        self._channel_state: Dict[str, dict] = {}
+        self._channel_state: dict[str, dict] = {}
         # Cursors read from disk at connect(), consumed by each channel's first seed.
-        self._restored_cursors: Dict[str, dict] = {}
+        self._restored_cursors: dict[str, dict] = {}
         # Orders off-loop cursor writes: each snapshot is taken under it, so an older one never lands last.
         self._cursor_write_lock = asyncio.Lock()
-        self._channel_names: Dict[str, str] = {}
+        self._channel_names: dict[str, str] = {}
         # channel_id -> raw ``channels list`` entry; drives DM-vs-channel classification.
-        self._channel_meta: Dict[str, dict] = {}
-        self._user_names: Dict[str, str] = {}
-        self._member_cache: Dict[str, Tuple[float, List[str]]] = {}  # (monotonic, pubkeys)
-        self._profile_name_cache: Dict[str, Tuple[float, str]] = {}
+        self._channel_meta: dict[str, dict] = {}
+        self._user_names: dict[str, str] = {}
+        self._member_cache: dict[str, tuple[float, list[str]]] = {}  # (monotonic, pubkeys)
+        self._profile_name_cache: dict[str, tuple[float, str]] = {}
         # inbound event_id -> thread root (None when top-level), so send() joins the user's thread instead of nesting.
-        self._thread_roots: "OrderedDict[str, Optional[str]]" = OrderedDict()
+        self._thread_roots: OrderedDict[str, str | None] = OrderedDict()
 
     @property
     def name(self) -> str:
         return "Buzz"
 
     @staticmethod
-    def normalize_user_id(user_id: str) -> Optional[str]:
+    def normalize_user_id(user_id: str) -> str | None:
         """Normalize a user reference (hex or npub) to hex — authz_mixin allowlist hook.
 
         Optional hook consumed by ``gateway/authz_mixin`` when matching the profile allowlist carried in
@@ -588,14 +604,14 @@ class BuzzAdapter(BasePlatformAdapter):
 
     # ── buzz-cli plumbing ─────────────────────────────────────────────────
 
-    async def _run_cli(self, args: List[str], *, input_text: Optional[str] = None) -> Tuple[int, str, str]:
+    async def _run_cli(self, args: list[str], *, input_text: str | None = None) -> tuple[int, str, str]:
         if not self._private_key:
             self._private_key = _resolve_private_key(self._extra)
             self._auth_tag = _resolve_auth_tag(self._extra)
         return await _exec_buzz(self.cli_path, args, relay_url=self.relay_url, private_key=self._private_key,
                                 auth_tag=self._auth_tag, input_text=input_text)
 
-    async def _cli_json(self, args: List[str], default):
+    async def _cli_json(self, args: list[str], default):
         """``_run_cli`` -> parsed stdout on rc 0, else *default*."""
         code, out, _err = await self._run_cli(args)
         return _json_or(out, default) if code == 0 else default
@@ -711,19 +727,19 @@ class BuzzAdapter(BasePlatformAdapter):
 
     # ── Sending ───────────────────────────────────────────────────────────
 
-    async def _channel_member_pubkeys(self, chat_id: str) -> List[str]:
+    async def _channel_member_pubkeys(self, chat_id: str) -> list[str]:
         """Mention candidates: ``channels members`` (a non-member ``--mention`` is rejected by the CLI), else
         recent traffic, which over-approximates — ``send()`` recovers by retrying without mentions."""
         cache = self._member_cache
         if (cached := _ttl_get(cache, str(chat_id), _MEMBER_CACHE_TTL)) is not None:
             return list(cached)
-        pks: List[str] = []
+        pks: list[str] = []
         for row in await self._cli_json(["channels", "members", "--channel", str(chat_id)], []):
             _add_pubkey(pks, row.get("pubkey") if isinstance(row, dict) else row)
         if pks:
             cache[str(chat_id)] = (time.monotonic(), list(pks))
             return pks
-        candidates: List[str] = []
+        candidates: list[str] = []
         for msg in await self._cli_json(["messages", "get", "--channel", str(chat_id), "--limit", "50"], []):
             _add_pubkey(candidates, msg.get("pubkey"))
             for t in msg.get("tags") or []:
@@ -748,14 +764,14 @@ class BuzzAdapter(BasePlatformAdapter):
         cache[pubkey] = (time.monotonic(), name)
         return name
 
-    async def _mention_pubkeys_for(self, chat_id: str, content: str) -> List[str]:
+    async def _mention_pubkeys_for(self, chat_id: str, content: str) -> list[str]:
         """Resolve ``@Name`` tokens to member pubkeys so genuine mentions notify while @-prose stays text.
         Word-bounded ("email@Fizz", "@@Fizz", "@FizzBuzz" don't wake Fizz; "@Riley!!" does); longer names
         match first and consume their span; ambiguous names tag nobody."""
         if "@" not in content:
             return []
-        by_name: Dict[str, List[str]] = {}
-        display: Dict[str, str] = {}
+        by_name: dict[str, list[str]] = {}
+        display: dict[str, str] = {}
         self_pk = getattr(self, "_self_pubkey", None)
         for pk in await self._channel_member_pubkeys(chat_id):
             if pk == self_pk:
@@ -768,7 +784,7 @@ class BuzzAdapter(BasePlatformAdapter):
             if pk not in pks:
                 pks.append(pk)
             display.setdefault(key, name)
-        found: List[str] = []
+        found: list[str] = []
         text = content
         for key in sorted(by_name, key=len, reverse=True):
             pattern = re.compile(r"(?<![\w@])@" + re.escape(display[key]) + r"(?!\w)", re.IGNORECASE)
@@ -781,7 +797,7 @@ class BuzzAdapter(BasePlatformAdapter):
                 text = pattern.sub("\x00", text)
         return found
 
-    async def _run_message_send(self, args: List[str], content: str, mention_pubkeys: Optional[List[str]] = None):
+    async def _run_message_send(self, args: list[str], content: str, mention_pubkeys: list[str] | None = None):
         """Send with bounded recovery (each rung once): explicit ``--mention``s; on "not channel members" retry
         without; escape an unresolvable ``@token`` and retry; finally ``--mention <self>`` (downgrades @names to text).
 
@@ -794,7 +810,7 @@ class BuzzAdapter(BasePlatformAdapter):
         <self>`` — supplying any explicit identity downgrades unresolvable @names to presentation-only text
         (#83414); the echo de-dupe already suppresses self-notification.
         """
-        mention_args: List[str] = []
+        mention_args: list[str] = []
         for pk in mention_pubkeys or []:
             mention_args += ["--mention", pk]
         code, out, err = await self._run_cli(args + mention_args, input_text=content)
@@ -814,7 +830,7 @@ class BuzzAdapter(BasePlatformAdapter):
             code, out, err = await self._run_cli(args + ["--mention", self._self_pubkey], input_text=content)
         return code, out, err
 
-    async def send(self, chat_id: str, content: str, reply_to: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None) -> SendResult:
+    async def send(self, chat_id: str, content: str, reply_to: str | None = None, metadata: dict[str, Any] | None = None) -> SendResult:
         if not content:
             return SendResult(success=False, error="Empty message")
         # Anchor: metadata.thread_id, then metadata.reply_to_message_id (stream/progress sends), then reply_to.
@@ -829,12 +845,12 @@ class BuzzAdapter(BasePlatformAdapter):
             self._remember_event_meta(str(chat_id), result.message_id, self._self_pubkey, content)
         return result
 
-    def _reply_args(self, anchor: Optional[str]) -> List[str]:
+    def _reply_args(self, anchor: str | None) -> list[str]:
         """``--reply-to`` CLI args for *anchor*, honoring ``reply_to_mode``."""
         reply_target = self._resolve_reply_anchor(anchor)
         return ["--reply-to", str(reply_target)] if reply_target and self._reply_to_mode != "off" else []
 
-    def _send_result(self, chat_id: str, code: int, out: str, err: str, *, redact_path: Optional[Path] = None) -> SendResult:
+    def _send_result(self, chat_id: str, code: int, out: str, err: str, *, redact_path: Path | None = None) -> SendResult:
         """``messages send`` result -> SendResult; marks the verified id seen (echo suppression belt-and-braces)."""
         if code != 0:
             return SendResult(success=False, error=_cli_error_message(err, code, redact_path=redact_path), retryable=code == 2)
@@ -896,8 +912,8 @@ class BuzzAdapter(BasePlatformAdapter):
         return bool(data.get("accepted", True))
 
     async def send_image(
-        self, chat_id: str, image_url: str, caption: Optional[str] = None, reply_to: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None) -> SendResult:
+        self, chat_id: str, image_url: str, caption: str | None = None, reply_to: str | None = None,
+        metadata: dict[str, Any] | None = None) -> SendResult:
         """Send an image: local files upload via --file, URLs go as a link."""
         local = Path(image_url).expanduser() if not image_url.startswith(("http://", "https://")) else None
         if local is not None and local.is_file():
@@ -907,8 +923,8 @@ class BuzzAdapter(BasePlatformAdapter):
         return await self.send(chat_id, text, reply_to=reply_to, metadata=metadata)
 
     async def _send_file_attachment(
-        self, chat_id: str, file_path: Path, *, caption: Optional[str] = None, reply_to: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None, probe: bool = True,
+        self, chat_id: str, file_path: Path, *, caption: str | None = None, reply_to: str | None = None,
+        metadata: dict[str, Any] | None = None, probe: bool = True,
     ) -> SendResult:
         """Upload a local file as a native attachment; ``probe=False`` when the caller already verified it (a re-probe could race).
 
@@ -924,8 +940,8 @@ class BuzzAdapter(BasePlatformAdapter):
         return self._send_result(chat_id, code, out, err, redact_path=local)
 
     async def send_image_file(
-        self, chat_id: str, image_path: str, caption: Optional[str] = None, reply_to: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None, **kwargs) -> SendResult:
+        self, chat_id: str, image_path: str, caption: str | None = None, reply_to: str | None = None,
+        metadata: dict[str, Any] | None = None, **kwargs) -> SendResult:
         """Upload a local image via ``--file``; missing paths keep the Base fallback so host paths never reach chat.
 
         See #74999.
@@ -936,24 +952,24 @@ class BuzzAdapter(BasePlatformAdapter):
         return await super().send_image_file(chat_id=chat_id, image_path=image_path, caption=caption, reply_to=reply_to, metadata=metadata, **kwargs)
 
     async def send_document(
-        self, chat_id: str, file_path: str, caption: Optional[str] = None, file_name: Optional[str] = None,
-        reply_to: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None, **kwargs) -> SendResult:
+        self, chat_id: str, file_path: str, caption: str | None = None, file_name: str | None = None,
+        reply_to: str | None = None, metadata: dict[str, Any] | None = None, **kwargs) -> SendResult:
         """Upload a local document through Buzz's native ``--file`` path."""
         return await self._send_file_attachment(chat_id, Path(file_path), caption=caption, reply_to=reply_to, metadata=metadata)
 
     async def send_video(
-        self, chat_id: str, video_path: str, caption: Optional[str] = None, reply_to: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None, **kwargs) -> SendResult:
+        self, chat_id: str, video_path: str, caption: str | None = None, reply_to: str | None = None,
+        metadata: dict[str, Any] | None = None, **kwargs) -> SendResult:
         """Upload a local video through Buzz's native ``--file`` path."""
         return await self._send_file_attachment(chat_id, Path(video_path), caption=caption, reply_to=reply_to, metadata=metadata)
 
     async def send_voice(
-        self, chat_id: str, audio_path: str, caption: Optional[str] = None, reply_to: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None, **kwargs) -> SendResult:
+        self, chat_id: str, audio_path: str, caption: str | None = None, reply_to: str | None = None,
+        metadata: dict[str, Any] | None = None, **kwargs) -> SendResult:
         """Upload a local audio file through Buzz's native ``--file`` path."""
         return await self._send_file_attachment(chat_id, Path(audio_path), caption=caption, reply_to=reply_to, metadata=metadata)
 
-    async def get_chat_info(self, chat_id: str) -> Dict[str, Any]:
+    async def get_chat_info(self, chat_id: str) -> dict[str, Any]:
         chat_id = str(chat_id)
         state = self._channel_state.get(chat_id)
         if (name := self._channel_names.get(chat_id)) is None and self.cli_path:
@@ -989,7 +1005,7 @@ class BuzzAdapter(BasePlatformAdapter):
         try:
             await asyncio.wait_for(self._ws_ready.wait(), timeout=_WS_AUTH_TIMEOUT + 5)
             return True
-        except (asyncio.TimeoutError, TimeoutError):
+        except TimeoutError:
             logger.warning("Buzz: WebSocket did not authenticate in time")
             await cancel_task(self._ws_task)
             self._ws_task = None
@@ -1049,9 +1065,9 @@ class BuzzAdapter(BasePlatformAdapter):
             request_filter["limit"] = _FETCH_LIMIT
         await self._send_req(websocket, subscription_id, request_filter)
 
-    async def _subscribe_websocket(self, websocket) -> Dict[str, Optional[str]]:
+    async def _subscribe_websocket(self, websocket) -> dict[str, str | None]:
         """Subscribe to every watched conversation plus membership events (kind 44100 p-tagged to us) for DM discovery."""
-        subscriptions: Dict[str, Optional[str]] = {}
+        subscriptions: dict[str, str | None] = {}
         for index, channel_id in enumerate(list(self._channel_state)):
             if channel_id in self._restricted_channels:
                 continue
@@ -1063,7 +1079,7 @@ class BuzzAdapter(BasePlatformAdapter):
             subscriptions[_WS_MEMBERSHIP_SUB_ID] = None
         return subscriptions
 
-    async def _rediscover_and_subscribe(self, websocket, subscriptions: Dict[str, Optional[str]]) -> None:
+    async def _rediscover_and_subscribe(self, websocket, subscriptions: dict[str, str | None]) -> None:
         """Rediscover conversations and subscribe to any adopted since (fresh DMs dispatch from their start)."""
         before = set(self._channel_state)
         await self._discover_dms(seed=False)
@@ -1075,7 +1091,7 @@ class BuzzAdapter(BasePlatformAdapter):
             await self._send_channel_subscription(websocket, subscription_id, channel_id)
             logger.info("Buzz: subscribed to new conversation %s", channel_id)
 
-    async def _ws_discovery_loop(self, websocket, subscriptions: Dict[str, Optional[str]]) -> None:
+    async def _ws_discovery_loop(self, websocket, subscriptions: dict[str, str | None]) -> None:
         """Periodic discovery on the poll cadence: relays don't guarantee a kind-44100 event for every new
         conversation. Failures retry next tick, except a closed socket: that is the same dead connection the
         read loop may still be parked on, so it propagates and tears the connection down (#112049).
@@ -1144,7 +1160,7 @@ class BuzzAdapter(BasePlatformAdapter):
                 await asyncio.sleep(backoff)
                 backoff = min(backoff * 2, 30.0)
 
-    async def _ws_read_loop(self, websocket, subscriptions: Dict[str, Optional[str]]) -> None:
+    async def _ws_read_loop(self, websocket, subscriptions: dict[str, str | None]) -> None:
         """Read frames until the relay closes; a close or an idle read raises ConnectionError to reconnect."""
         frame_iter = websocket.__aiter__()
         while True:
@@ -1177,7 +1193,7 @@ class BuzzAdapter(BasePlatformAdapter):
             if isinstance(message, list) and message:
                 await self._handle_ws_message(websocket, subscriptions, message)
 
-    async def _handle_ws_message(self, websocket, subscriptions: Dict[str, Optional[str]], message: list) -> None:
+    async def _handle_ws_message(self, websocket, subscriptions: dict[str, str | None], message: list) -> None:
         """Route one parsed relay frame (EVENT / CLOSED / NOTICE)."""
         if message[0] == "EVENT" and len(message) >= 3:
             subscription_id, event = str(message[1]), message[2]
@@ -1386,7 +1402,7 @@ class BuzzAdapter(BasePlatformAdapter):
             return
         await self._handle_events(channel_id, state, _parse_json_list(out))
 
-    async def _handle_events(self, channel_id: str, state: dict, events: List[dict]) -> None:
+    async def _handle_events(self, channel_id: str, state: dict, events: list[dict]) -> None:
         """Handle a batch, trim, and persist only when the cursor moved (idle channels don't rewrite the file)."""
         before = self._cursor_mark(state)
         for event in events:
@@ -1398,12 +1414,12 @@ class BuzzAdapter(BasePlatformAdapter):
                 await asyncio.to_thread(self._write_cursors, self._cursor_path(), self._cursor_payload())
 
     @staticmethod
-    def _parse_imeta_attachments(event: dict) -> Tuple[List[dict], int]:
+    def _parse_imeta_attachments(event: dict) -> tuple[list[dict], int]:
         """Return accepted NIP-94 metadata and the rejected ``imeta`` count."""
         tags = event.get("tags")
         if not isinstance(tags, list):
             return [], 0
-        attachments: List[dict] = []
+        attachments: list[dict] = []
         rejected = total_declared_bytes = 0
         for tag in tags:
             if not isinstance(tag, (list, tuple)) or not tag or tag[0] != "imeta":
@@ -1411,7 +1427,7 @@ class BuzzAdapter(BasePlatformAdapter):
             if len(attachments) >= _MAX_INBOUND_ATTACHMENTS:
                 rejected += 1
                 continue
-            fields: Dict[str, str] = {}
+            fields: dict[str, str] = {}
             for key, separator, value in (f.partition(" ") for f in tag[1:] if isinstance(f, str)):
                 if separator and key not in fields:
                     fields[key] = value.strip()
@@ -1437,7 +1453,7 @@ class BuzzAdapter(BasePlatformAdapter):
         return attachments, rejected
 
     @staticmethod
-    def _imeta_attachments(event: dict) -> List[dict]:
+    def _imeta_attachments(event: dict) -> list[dict]:
         """Return bounded, structurally valid NIP-94 attachment metadata."""
         return BuzzAdapter._parse_imeta_attachments(event)[0]
 
@@ -1446,7 +1462,7 @@ class BuzzAdapter(BasePlatformAdapter):
         """Return a fixed-width diagnostic for malformed or excess metadata."""
         return f"[{rejected if rejected <= 999 else '999+'} Buzz attachment(s) rejected as malformed or over limits.]"
 
-    async def _download_attachment(self, metadata: dict) -> Optional[CachedMedia]:
+    async def _download_attachment(self, metadata: dict) -> CachedMedia | None:
         """Download, integrity-check, and cache one authorized Buzz attachment."""
         url = metadata["url"]
         try:
@@ -1495,7 +1511,7 @@ class BuzzAdapter(BasePlatformAdapter):
             logger.warning("Buzz: attachment cache write failed: %s", exc)
             return None
 
-    async def _cache_inbound_attachments(self, metadata_items: List[dict]) -> List[CachedMedia]:
+    async def _cache_inbound_attachments(self, metadata_items: list[dict]) -> list[CachedMedia]:
         return [a for m in metadata_items if (a := await self._download_attachment(m)) is not None]
 
     async def _handle_event(self, channel_id: str, state: dict, event: dict) -> None:
@@ -1664,7 +1680,7 @@ class BuzzAdapter(BasePlatformAdapter):
     _THREAD_ROOT_CACHE = 512
 
     @staticmethod
-    def _extract_thread_root(event: dict) -> Optional[str]:
+    def _extract_thread_root(event: dict) -> str | None:
         """Return the NIP-10 thread root of ``event``, or None if top-level."""
         root = reply = None
         for target, marker in _e_tags(event):
@@ -1688,7 +1704,7 @@ class BuzzAdapter(BasePlatformAdapter):
         while len(roots) > self._THREAD_ROOT_CACHE:
             roots.popitem(last=False)
 
-    def _resolve_reply_anchor(self, anchor: Optional[str]) -> Optional[str]:
+    def _resolve_reply_anchor(self, anchor: str | None) -> str | None:
         """Thread root when the trigger was inside a thread (reply joins it), else the anchor unchanged."""
         return (self._thread_roots.get(str(anchor)) or anchor) if anchor else anchor
 
@@ -1716,15 +1732,15 @@ class BuzzAdapter(BasePlatformAdapter):
             cache.popitem(last=False)
 
     @staticmethod
-    def _lookup_event_meta(state: dict, event_id: Optional[str]) -> Optional[Tuple[str, str]]:
+    def _lookup_event_meta(state: dict, event_id: str | None) -> tuple[str, str] | None:
         entry = (state.get("event_meta") or {}).get(event_id) if event_id else None
         if not entry or not isinstance(entry, tuple) or len(entry) < 2:
             return None
         return str(entry[0] or ""), str(entry[1] or "")
 
     async def _localize_inbound_media(
-        self, text: str, message_id: str, *, user_id: str = "", chat_type: Optional[str] = None, chat_id: Optional[str] = None,
-    ) -> Tuple[str, List[str], List[str], MessageType]:
+        self, text: str, message_id: str, *, user_id: str = "", chat_type: str | None = None, chat_id: str | None = None,
+    ) -> tuple[str, list[str], list[str], MessageType]:
         """Authenticate and cache same-relay media refs in *text* (failures skipped per object). Spends our
         credentials on a sender-chosen URL, so it runs only on the gateway's explicit ``True``."""
         urls, replacements = _find_relay_media_refs(text, self.relay_url)
@@ -1735,10 +1751,13 @@ class BuzzAdapter(BasePlatformAdapter):
                            len(urls), message_id[:12], (user_id or "?")[:8])
             return text, [], [], MessageType.TEXT
         cleaned_text = _replace_media_refs(text, replacements)
-        media_urls: List[str] = []
-        media_types: List[str] = []
-        media_kinds: List[str] = []
-        from gateway.platforms.base import cache_media_bytes_async, validate_inbound_media_size
+        media_urls: list[str] = []
+        media_types: list[str] = []
+        media_kinds: list[str] = []
+        from gateway.platforms.base import (
+            cache_media_bytes_async,
+            validate_inbound_media_size,
+        )
         for url in urls:
             path_match = _MEDIA_PATH_RE.fullmatch(urlsplit(url).path)
             if path_match is None:
@@ -1775,10 +1794,10 @@ class BuzzAdapter(BasePlatformAdapter):
 
     async def _dispatch_message(
         self, text: str, chat_id: str, chat_type: str, user_id: str, user_name: str,
-        message_id: str, created_at: int, thread_id: Optional[str] = None,
-        reply_to_message_id: Optional[str] = None, reply_to_text: Optional[str] = None,
-        reply_to_author_id: Optional[str] = None, reply_to_is_own_message: bool = False,
-        media_urls: Optional[List[str]] = None, media_types: Optional[List[str]] = None,
+        message_id: str, created_at: int, thread_id: str | None = None,
+        reply_to_message_id: str | None = None, reply_to_text: str | None = None,
+        reply_to_author_id: str | None = None, reply_to_is_own_message: bool = False,
+        media_urls: list[str] | None = None, media_types: list[str] | None = None,
         message_type: MessageType = MessageType.TEXT, raw_message: Any = None,
     ) -> None:
         """Build a MessageEvent and hand it to the base class handler."""
@@ -1825,8 +1844,8 @@ def _profile_buzz_extra() -> dict:
         return {}
     try:
         from gateway.config_loader import platform_section
-        from hermes_constants import get_hermes_home
         from hermes_cli.config import read_user_config_raw
+        from hermes_constants import get_hermes_home
         cfg = read_user_config_raw(Path(get_hermes_home()) / "config.yaml")
     except Exception:
         return {}
@@ -1880,7 +1899,7 @@ _YAML_BRIDGE = (  # (extra key, env var, kind) for apply_yaml_bridge
 )
 
 
-def _apply_yaml_config(yaml_cfg: dict, buzz_cfg: dict) -> Optional[dict]:
+def _apply_yaml_config(yaml_cfg: dict, buzz_cfg: dict) -> dict | None:
     """``apply_yaml_config_fn``: bridge ``buzz.extra`` into ``BUZZ_*`` env (env wins; skipped under a
     secondary profile's scope, #98738) and seed the same keys into the returned ``extra`` so each profile's
     adapter reads its own. ``BUZZ_PRIVATE_KEY`` is never sourced from config.yaml."""
@@ -1891,7 +1910,7 @@ def _apply_yaml_config(yaml_cfg: dict, buzz_cfg: dict) -> Optional[dict]:
 
 
 
-def _env_enablement() -> Optional[dict]:
+def _env_enablement() -> dict | None:
     """``env_enablement_fn``: seed ``PlatformConfig.extra`` from the owning profile's env so env-only setups
     show in gateway status; None if unconfigured. Reads go through the profile scope: a served secondary sees
     only its own ``.env`` (#98738 — the process env is the DEFAULT profile's and must not fabricate Buzz here).
@@ -1909,9 +1928,9 @@ def _env_enablement() -> Optional[dict]:
 
 
 async def _standalone_send(
-    pconfig, chat_id: str, message: str, *, thread_id: Optional[str] = None,
-    media_files: Optional[List[Any]] = None, force_document: bool = False,
-) -> Dict[str, Any]:
+    pconfig, chat_id: str, message: str, *, thread_id: str | None = None,
+    media_files: list[Any] | None = None, force_document: bool = False,
+) -> dict[str, Any]:
     """One-shot send without a live adapter (out-of-process ``deliver=buzz`` cron)."""
     extra = getattr(pconfig, "extra", {}) or {}
     relay = _configured_relay(extra)
@@ -1958,7 +1977,14 @@ async def _standalone_send(
 def interactive_setup() -> None:
     """Interactive ``hermes gateway setup`` flow (lazy CLI imports keep the plugin importable elsewhere)."""
     from hermes_cli.setup import (
-        prompt, prompt_yes_no, save_env_value, get_env_value, print_header, print_info, print_warning, print_success,
+        get_env_value,
+        print_header,
+        print_info,
+        print_success,
+        print_warning,
+        prompt,
+        prompt_yes_no,
+        save_env_value,
     )
     from hermes_cli.setup_platforms import declines_reconfigure
     def ask(label: str, env: str) -> str:

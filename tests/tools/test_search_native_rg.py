@@ -9,7 +9,6 @@ shared, so the two transports must agree on results.
 import json
 
 import pytest
-
 from tools.environments.local import LocalEnvironment
 from tools.file_operations import ShellFileOperations
 

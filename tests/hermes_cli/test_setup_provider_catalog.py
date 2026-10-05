@@ -7,8 +7,9 @@ import pytest
 @pytest.mark.parametrize("live", [True, False])
 def test_setup_offers_registered_provider_catalog(monkeypatch, live):
     import providers
+    from hermes_cli import auth, config, models
+    from hermes_cli import model_setup_flows as flows
     from providers.base import ProviderProfile
-    from hermes_cli import auth, config, model_setup_flows as flows, models
 
     class SetupProfile(ProviderProfile):
         def fetch_models(self, *, api_key=None, base_url=None):
@@ -35,7 +36,7 @@ def test_setup_offers_registered_provider_catalog(monkeypatch, live):
     monkeypatch.setattr(flows, "_env_base_url", lambda *_: "")
     monkeypatch.setattr(flows, "_prompt_base_url_override", lambda value, *_args, **_kwargs: value)
     monkeypatch.setattr(flows, "_models_dev_merged", lambda *_: [])
-    monkeypatch.setattr(config, "load_config", lambda: {})
+    monkeypatch.setattr(config, "load_config", dict)
     monkeypatch.setattr(models, "fetch_api_models", lambda *_args, **_kwargs: [])
     from hermes_cli import models_pricing
     monkeypatch.setattr(models_pricing, "get_pricing_for_provider", lambda *_: {})
@@ -55,8 +56,8 @@ def test_setup_uses_profile_endpoint_and_headers(tmp_path, monkeypatch):
     from types import SimpleNamespace
 
     import providers
-    from providers.base import ProviderProfile
     from hermes_cli import model_setup_flows as flows
+    from providers.base import ProviderProfile
 
     requests = []
 
@@ -102,8 +103,9 @@ def test_setup_matches_picker_when_catalog_fetch_fails(monkeypatch):
     from types import SimpleNamespace
 
     import providers
+    from hermes_cli import model_setup_flows as flows
+    from hermes_cli import models
     from providers.base import ProviderProfile
-    from hermes_cli import model_setup_flows as flows, models
 
     class DownProfile(ProviderProfile):
         def fetch_models(self, *, api_key=None, base_url=None, timeout=8.0):
@@ -128,8 +130,8 @@ def test_switch_validation_trusts_profile_owned_catalog(monkeypatch):
     accepted even when the generic ``/v1/models`` 200s with a different product catalog; a model in
     neither is still rejected."""
     import providers
-    from providers.base import ProviderProfile
     from hermes_cli import models, models_validate
+    from providers.base import ProviderProfile
 
     class PlanProfile(ProviderProfile):
         def fetch_models(self, *, api_key=None, base_url=None, timeout=8.0):
@@ -153,8 +155,9 @@ def test_setup_keeps_curated_list_when_profile_catalog_is_down_and_declares_no_f
     from types import SimpleNamespace
 
     import providers
+    from hermes_cli import model_setup_flows as flows
+    from hermes_cli import models
     from providers.base import ProviderProfile
-    from hermes_cli import model_setup_flows as flows, models
 
     class DownProfile(ProviderProfile):
         def fetch_models(self, *, api_key=None, base_url=None, timeout=8.0):

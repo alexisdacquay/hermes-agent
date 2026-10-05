@@ -17,12 +17,10 @@ from deep inside ``_init_schema`` — naming no file and no fix.
 import os
 import sqlite3
 import stat
-import sys
 from pathlib import Path
 
-import pytest
-
 import hermes_state
+import pytest
 from hermes_state import SessionDB, preflight_db_writability
 
 pytestmark = [

@@ -2,17 +2,14 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 import subprocess
 import sys
 import textwrap
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-
-from hermes_cli import resource_limits
-from hermes_cli import dashboard_procs
-from hermes_cli import main_dashboard
+from hermes_cli import dashboard_procs, main_dashboard, resource_limits
 
 
 class _FakeResource:
@@ -204,10 +201,10 @@ async def test_gateway_startup_applies_limit_before_gateway_initialization(monke
 
 
 def test_serve_startup_applies_limit_before_web_server(monkeypatch):
-    from hermes_cli import main as cli_main
-    import hermes_cli.main_web_build as main_web_build
     import hermes_cli.plugins
     import hermes_cli.web_server
+    from hermes_cli import main as cli_main
+    from hermes_cli import main_web_build
 
     # cmd_dashboard(headless_backend=True) exports HERMES_SERVE_HEADLESS=1 into
     # this process's environment (main.py serve path). Touch the key through
@@ -261,9 +258,9 @@ def test_serve_startup_applies_limit_before_web_server(monkeypatch):
 @pytest.mark.platforms("linux")
 def test_named_profile_reroute_defers_limit_to_final_process(monkeypatch, tmp_path):
     """The launcher profile must not leak its limit across machine re-exec."""
-    from hermes_cli import main as cli_main
     import hermes_cli.profiles
     import hermes_constants
+    from hermes_cli import main as cli_main
     from tools.environments import local as local_environment
 
     calls: list[str] = []
@@ -327,8 +324,8 @@ def test_named_profile_reroute_defers_limit_to_final_process(monkeypatch, tmp_pa
 @pytest.mark.parametrize("lifecycle_flag", ["status", "stop"])
 def test_dashboard_lifecycle_flags_skip_limit_adjustment(monkeypatch, lifecycle_flag):
     """Informational/stop-only commands must not mutate process limits."""
-    from hermes_cli import main as cli_main
     import hermes_cli.main_dashboard as hermes_cli_main_dashboard
+    from hermes_cli import main as cli_main
 
     calls: list[str] = []
     monkeypatch.setattr(
@@ -336,7 +333,7 @@ def test_dashboard_lifecycle_flags_skip_limit_adjustment(monkeypatch, lifecycle_
         "apply_nofile_soft_limit",
         lambda: calls.append("limit"),
     )
-    monkeypatch.setattr(dashboard_procs, "_scan_dashboard_processes", lambda: [])
+    monkeypatch.setattr(dashboard_procs, "_scan_dashboard_processes", list)
     monkeypatch.setattr(cli_main, "_find_stale_dashboard_pids", lambda **_: [])
     monkeypatch.setattr(hermes_cli_main_dashboard, "_find_stale_dashboard_pids", lambda **_: [])
 

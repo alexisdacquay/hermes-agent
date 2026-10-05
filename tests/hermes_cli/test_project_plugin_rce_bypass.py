@@ -35,10 +35,9 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
-from hermes_cli import web_server
 import hermes_cli.web_server_dashboard as _web_server_dashboard
+import pytest
+from hermes_cli import web_server
 
 
 @pytest.fixture(autouse=True)

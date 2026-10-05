@@ -33,14 +33,19 @@ import sqlite3
 import sys
 import time
 import uuid
+from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import pytest
 
-from tests.e2e.core.chaos._gateway_harness import SHUTDOWN_DEADLINE_S, Event, GatewayProc
+from tests.e2e.core.chaos._gateway_harness import (
+    SHUTDOWN_DEADLINE_S,
+    Event,
+    GatewayProc,
+)
 from tests.e2e.core.chaos._helpers import (
     INTERRUPT_DEADLINE_S,
     LONG_TIMEOUT_S,

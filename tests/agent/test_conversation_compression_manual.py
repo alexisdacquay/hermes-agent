@@ -8,7 +8,6 @@ import threading
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from agent.conversation_compression_manual import compress_now, parse_compress_args
 
 
@@ -62,6 +61,7 @@ def test_every_surface_honours_preview_without_compressing(surface, monkeypatch)
         assert cli.conversation_history == frozen
     elif surface == "gateway":
         import asyncio
+
         from gateway.run import GatewayRunner
         gw = GatewayRunner.__new__(GatewayRunner)
         gw.session_store = MagicMock()

@@ -7,11 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-
-import hermes_cli.gateway as gateway
-import hermes_cli.gateway_windows as gateway_windows
-import hermes_cli.setup as setup
-
+from hermes_cli import gateway, gateway_windows, setup
 
 _BREAKAWAY_MARKER = "_HERMES_GATEWAY_BREAKAWAY"
 
@@ -134,7 +130,7 @@ def test_build_gateway_argv_keeps_venv_console_python_for_uv_venv(monkeypatch, t
         encoding="utf-8",
     )
 
-    import hermes_cli.gateway as gateway
+    from hermes_cli import gateway
 
     monkeypatch.setattr(gateway, "PROJECT_ROOT", project)
     monkeypatch.setattr(gateway, "get_python_path", lambda: str(venv_python))
@@ -477,6 +473,7 @@ def test_reconcile_warns_when_legacy_entry_cannot_be_removed(monkeypatch, tmp_pa
     """#80569: no task, legacy .cmd locked. The .vbs gets written but the .cmd survives, so both fire
     at logon; reconcile must warn instead of reporting a migration, and doctor --fix must not count it."""
     import sys
+
     from hermes_cli import doctor_platform
     from hermes_cli.doctor_report import Finding
 
@@ -693,7 +690,7 @@ def _arrange_uninstalled_start(monkeypatch):
     monkeypatch.delenv("HERMES_NONINTERACTIVE", raising=False)
     monkeypatch.setattr(gateway_windows, "_assert_windows", lambda: None)
     monkeypatch.setattr(gateway_windows, "_print_start_attestation_warning", lambda: None)
-    monkeypatch.setattr(gateway_windows, "_gateway_pids", lambda: [])
+    monkeypatch.setattr(gateway_windows, "_gateway_pids", list)
     monkeypatch.setattr(gateway_windows, "is_task_registered", lambda: False)
     monkeypatch.setattr(gateway_windows, "is_startup_entry_installed", lambda: False)
     monkeypatch.setattr(gateway_windows, "install", lambda **kwargs: installs.append(kwargs))

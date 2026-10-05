@@ -9,7 +9,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
 from hermes_cli import main_desktop as cli_desktop
 from hermes_cli.desktop_build_lock import DesktopBuildLock
 
@@ -201,7 +200,6 @@ def test_gui_releases_lock_after_build_failure(tmp_path, monkeypatch, capsys):
 def test_update_path_waits_for_a_held_lock(tmp_path, monkeypatch, capsys):
     """`hermes update`'s desktop rebuild queues behind a holder instead of failing the update."""
     from hermes_cli import source_build as source_build_mod
-    from hermes_cli.main_desktop import _refresh_installed_desktop_apps
 
     root = _checkout(tmp_path)
 
@@ -221,7 +219,6 @@ def test_update_path_waits_for_a_held_lock(tmp_path, monkeypatch, capsys):
 
     def fake_build_prepared_desktop(desktop_dir, *, source_mode, npm, env, icons=None):
         built.append(True)
-        return None
 
     monkeypatch.setattr(source_build_mod, "_install_configured_features_missing_deps", lambda *_: None, raising=False)
     monkeypatch.setattr(source_build_mod, "source_frontends", lambda _root: ("ui-tui", "web"), raising=False)

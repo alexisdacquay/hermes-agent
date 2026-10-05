@@ -10,7 +10,6 @@ import threading
 import time
 
 import pytest
-
 from tools import async_delegation as ad
 from tools.process_registry import process_registry
 

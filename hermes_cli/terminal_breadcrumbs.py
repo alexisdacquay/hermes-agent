@@ -10,7 +10,7 @@ import re
 import sys
 import time
 from pathlib import Path
-from typing import Optional
+
 from utils import atomic_json_write
 
 # Multiplexer / terminal-emulator identity env vars, checked in order when no real tty path is
@@ -34,7 +34,7 @@ def _sanitize(raw: str) -> str:
     return _SANITIZE_RE.sub("-", raw.strip().strip("/"))[:120]
 
 
-def get_terminal_id() -> Optional[str]:
+def get_terminal_id() -> str | None:
     """Stable identity for this terminal: the tty device path (stdin, then stdout), else the first
     present multiplexer/emulator env var; ``None`` when neither exists (callers skip breadcrumbs)."""
     for fd in (sys.stdin, sys.stdout):
@@ -74,7 +74,7 @@ def _prune_stale(directory: Path, now: float) -> None:
         pass
 
 
-def write_breadcrumb(session_id: str, cwd: Optional[str] = None) -> None:
+def write_breadcrumb(session_id: str, cwd: str | None = None) -> None:
     """Record that this terminal's live session is ``session_id``. Never raises; no-op when the
     feature is disabled, the session id is empty, or no terminal identity exists."""
     try:
@@ -94,7 +94,7 @@ def write_breadcrumb(session_id: str, cwd: Optional[str] = None) -> None:
         pass
 
 
-def read_breadcrumb() -> Optional[dict]:
+def read_breadcrumb() -> dict | None:
     """This terminal's breadcrumb payload, or ``None`` (missing, corrupt, or stale). Never raises."""
     try:
         terminal_id = get_terminal_id()
@@ -112,7 +112,7 @@ def read_breadcrumb() -> Optional[dict]:
         return None
 
 
-def resolve_breadcrumb_session() -> Optional[str]:
+def resolve_breadcrumb_session() -> str | None:
     """Resolve a bare ``-c`` for this terminal, or ``None`` to fall back. The breadcrumb's session
     id counts only if it still exists in the DB, projected through the compression chain so the
     resume lands on the live tip (same projection as ``main._resolve_session_by_name_or_id``)."""

@@ -6,8 +6,8 @@ fresh-process semantics via HERMES_HOME env — mirrors the Linux live E2E.
 import sys
 from pathlib import Path
 
-import pytest
 import hermes_yaml as yaml
+import pytest
 
 WORKTREE = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(WORKTREE))
@@ -31,7 +31,7 @@ def test_fleet_config_migration_live_windows(tmp_path, monkeypatch):
     )
     monkeypatch.setenv("HERMES_HOME", str(active))
 
-    import hermes_cli.update_cmd as update_cmd
+    from hermes_cli import update_cmd
     from hermes_cli.config import DEFAULT_CONFIG
 
     latest = int(DEFAULT_CONFIG["_config_version"])

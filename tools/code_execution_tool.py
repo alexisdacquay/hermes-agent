@@ -13,7 +13,6 @@ scrubbing, interpreter/cwd), tools/code_execution_rpc.py (RPC servers).
 
 import json
 import logging
-import os
 import re
 import secrets
 import shlex
@@ -22,16 +21,20 @@ import tempfile
 import threading
 import time
 import uuid
-from typing import Any, Dict, List, Optional, Tuple
-
-from tools.thread_context import propagate_context_to_thread
-from tools.registry import registry, tool_error
+from typing import Any
 
 from hermes_time import get_timezone_name
+
 from tools.code_execution_env import _resolve_child_cwd, _resolve_child_python
 from tools.code_execution_rpc import (
-    _execute_checked, _private_dirs_cmd, _remote_write, _rpc_poll_loop, tool_errors_since,
+    _execute_checked,
+    _private_dirs_cmd,
+    _remote_write,
+    _rpc_poll_loop,
+    tool_errors_since,
 )
+from tools.registry import registry, tool_error
+from tools.thread_context import propagate_context_to_thread
 from tools.tool_output_truncate import head_tail_split, truncation_notice
 
 logger = logging.getLogger(__name__)
@@ -53,14 +56,14 @@ MAX_STDERR_BYTES = 10_000    # 10 KB
 MAX_SPILLED_STDOUT_BYTES = 5_000_000
 
 
-def _truncate_stdout_text(stdout_text: str) -> Tuple[str, Dict[str, Any]]:
+def _truncate_stdout_text(stdout_text: str) -> tuple[str, dict[str, Any]]:
     """Cap stdout by bytes (40% head / 60% tail) with explicit truncation metadata: byte counts
     ride alongside the textual marker because a client layer can miss or re-truncate it. The
     omitted middle is spilled to cache/exec and the result carries the path (recover-don't-rerun)."""
     stdout_bytes = stdout_text.encode("utf-8", errors="replace")
     total = len(stdout_bytes)
     captured = min(total, MAX_STDOUT_BYTES)
-    metadata: Dict[str, Any] = {"stdout_truncated": total > captured, "stdout_bytes_captured": captured,
+    metadata: dict[str, Any] = {"stdout_truncated": total > captured, "stdout_bytes_captured": captured,
                                 "stdout_bytes_total": total, "stdout_bytes_omitted": total - captured}
     if total <= MAX_STDOUT_BYTES:
         return stdout_bytes.decode("utf-8", errors="replace"), metadata
@@ -80,13 +83,15 @@ def _truncate_stdout_text(stdout_text: str) -> Tuple[str, Dict[str, Any]]:
     return text, metadata
 
 
-def _spill_full_stdout(stdout_text: str) -> Optional[str]:
+def _spill_full_stdout(stdout_text: str) -> str | None:
     """Write full stdout to cache/exec; return its path (None on failure — best-effort,
     the truncated inline output is still returned). Keyed by content digest so identical
     reruns coalesce; the dir rides the cache/web remote bind-mount list (credential_files)."""
     try:
         import hashlib
+
         from hermes_constants import get_hermes_dir
+
         from tools.spill_safety import write_text_exclusive
         if len(stdout_text) > MAX_SPILLED_STDOUT_BYTES:
             stdout_text = (stdout_text[:MAX_SPILLED_STDOUT_BYTES]
@@ -175,7 +180,7 @@ _FAILURE_HINT_RULES = (
 )
 
 
-def _sandbox_failure_hint(stderr_text: str, enabled_tools=None) -> Optional[str]:
+def _sandbox_failure_hint(stderr_text: str, enabled_tools=None) -> str | None:
     """Map well-known sandbox script failures to one actionable recovery hint
     (bounded scan, first match wins, never raises)."""
     if not stderr_text:
@@ -191,7 +196,7 @@ def _sandbox_failure_hint(stderr_text: str, enabled_tools=None) -> Optional[str]
     return None
 
 
-def generate_hermes_tools_module(enabled_tools: List[str],
+def generate_hermes_tools_module(enabled_tools: list[str],
                                  transport: str = "uds") -> str:
     """Source of the hermes_tools.py stub module for SANDBOX_ALLOWED_TOOLS ∩ *enabled_tools*.
     ``transport``: ``"uds"`` (local socket client) or ``"file"`` (file RPC, remote backends)."""
@@ -405,11 +410,24 @@ def _call(tool_name, args):
 def _get_or_create_env(task_id: str):
     """``(env, env_type)`` — the environment the terminal/file tools share for *task_id*, created on
     first use (same double-checked per-task lock pattern as file_tools._get_file_ops)."""
-    from tools.terminal_tool_backends import _container_config_from_config, _create_environment, _ssh_config_from_config
     from tools.terminal_tool import (
-        _active_environments, _env_lock, _get_env_config, _last_activity,
-        _start_cleanup_thread, _creation_locks, _creation_locks_lock, _task_env_overrides,
-        _resolve_container_task_id, _resolve_task_host_cwd, _is_container_backend, _select_image,
+        _active_environments,
+        _creation_locks,
+        _creation_locks_lock,
+        _env_lock,
+        _get_env_config,
+        _is_container_backend,
+        _last_activity,
+        _resolve_container_task_id,
+        _resolve_task_host_cwd,
+        _select_image,
+        _start_cleanup_thread,
+        _task_env_overrides,
+    )
+    from tools.terminal_tool_backends import (
+        _container_config_from_config,
+        _create_environment,
+        _ssh_config_from_config,
     )
     effective_task_id = _resolve_container_task_id(task_id)
     def _cached():
@@ -511,11 +529,12 @@ def _format_interrupted_output(stdout_text: str) -> str:
     return f"{stdout_text}\n{marker}" if stdout_text else marker
 
 
-def _clean_output(stdout_text: str) -> Tuple[str, Dict[str, Any]]:
+def _clean_output(stdout_text: str) -> tuple[str, dict[str, Any]]:
     """Shared output pipeline: byte-cap (with spill), ANSI strip, secret redaction. code_file=True:
     output often echoes source/config — skip ENV/JSON/f-string false positives, still mask credentials."""
-    from tools.ansi_strip import strip_ansi
     from agent.redact import redact_sensitive_text
+
+    from tools.ansi_strip import strip_ansi
     stdout_text, metadata = _truncate_stdout_text(stdout_text)
     return redact_sensitive_text(strip_ansi(stdout_text), code_file=True), metadata
 
@@ -527,7 +546,7 @@ def _with_timeout_notice(stdout_text: str, timeout_msg: str) -> str:
 
 
 def _error_result(error: str, *, tool_calls_made: int = 0, duration: float = 0,
-                  user_summary: Optional[str] = None) -> str:
+                  user_summary: str | None = None) -> str:
     body = {"status": "error", "error": error, "tool_calls_made": tool_calls_made, "duration_seconds": duration}
     if user_summary:
         body["user_summary"] = user_summary  # one human sentence; surfaces show it before the model text
@@ -544,12 +563,12 @@ def _remote_failure(exc: BaseException, exec_start: float, tool_calls_made: int)
 _REMOTE_EXIT_STATUS = {124: "timeout", 130: "interrupted"}
 
 
-def _remote_result(status: str, raw_stdout: str, exec_start: float, fields: Dict[str, Any],
-                   kernel: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+def _remote_result(status: str, raw_stdout: str, exec_start: float, fields: dict[str, Any],
+                   kernel: dict[str, Any] | None = None) -> dict[str, Any]:
     """Common remote reply shape: status, cleaned output, *fields*, duration, optional kernel
     info, then truncation metadata (key order is part of the result contract)."""
     stdout_text, stdout_metadata = _clean_output(raw_stdout)
-    result: Dict[str, Any] = {"status": status, "output": stdout_text, **fields,
+    result: dict[str, Any] = {"status": status, "output": stdout_text, **fields,
                               "duration_seconds": round(time.monotonic() - exec_start, 2)}
     if kernel is not None:
         result["kernel"] = kernel
@@ -557,12 +576,12 @@ def _remote_result(status: str, raw_stdout: str, exec_start: float, fields: Dict
     return result
 
 
-def _apply_timeout(result: Dict[str, Any], timeout_msg: str) -> None:
+def _apply_timeout(result: dict[str, Any], timeout_msg: str) -> None:
     result["error"] = timeout_msg
     result["output"] = _with_timeout_notice(result["output"], timeout_msg)
 
 
-def _finish_remote_kernel_result(kernel_result: Dict[str, Any], *,
+def _finish_remote_kernel_result(kernel_result: dict[str, Any], *,
                                  timeout: int, exec_start: float) -> str:
     """Post-process a remote-kernel cell result into the tool's JSON reply. Timeout messaging
     mirrors the local kernel contract (kernel killed, state lost, next call fresh)."""
@@ -586,7 +605,7 @@ def _finish_remote_kernel_result(kernel_result: Dict[str, Any], *,
     return json.dumps(result, ensure_ascii=False)
 
 
-def _sandbox_tools_for(enabled_tools: Optional[List[str]]) -> frozenset:
+def _sandbox_tools_for(enabled_tools: list[str] | None) -> frozenset:
     """Enabled ∩ SANDBOX_ALLOWED_TOOLS, or every sandbox tool when the intersection is empty."""
     return frozenset(SANDBOX_ALLOWED_TOOLS & set(enabled_tools or ())) or SANDBOX_ALLOWED_TOOLS
 
@@ -656,7 +675,7 @@ def _run_remote_per_call(env, env_type: str, code: str, effective_task_id: str,
     return json.dumps(result, ensure_ascii=False)
 
 
-def _execute_remote(code: str, task_id: Optional[str], enabled_tools: Optional[List[str]],
+def _execute_remote(code: str, task_id: str | None, enabled_tools: list[str] | None,
                     reset: bool = False) -> str:
     """Run code on the remote terminal backend: the owner's persistent remote session kernel
     (tools/code_kernel_remote.py) first, else the per-call script ship — the fail-open route when
@@ -702,8 +721,8 @@ def _execute_remote(code: str, task_id: Optional[str], enabled_tools: Optional[L
 
 def execute_code(
     code: str,
-    task_id: Optional[str] = None,
-    enabled_tools: Optional[List[str]] = None,
+    task_id: str | None = None,
+    enabled_tools: list[str] | None = None,
     reset: bool = False,
 ) -> str:
     """Run Python in the session's persistent kernel (local) or on the remote terminal backend,
@@ -736,6 +755,7 @@ def execute_code(
     # The identity probe ends in a kernel process query that has wedged on macOS
     # (#111922); share the cell's own deadline and fail CLOSED when it renders no verdict.
     from agent.deadline import run_bounded_sync
+
     from tools.process_registry import _is_supervised_gateway_process
     from tools.terminal_tool import _PRE_EXEC_GUARD_MIN_TIMEOUT_S
     _probe_timeout = max(_load_config().get("timeout", DEFAULT_TIMEOUT), _PRE_EXEC_GUARD_MIN_TIMEOUT_S)
@@ -762,7 +782,7 @@ def execute_code(
                 "it could complete (SIGTERM propagates to child processes). "
                 "Run the lifecycle command from a shell outside the gateway."
             )
-    from tools.terminal_tool import _get_env_config, _docker_has_host_access
+    from tools.terminal_tool import _docker_has_host_access, _get_env_config
     _env_config = _get_env_config()
     env_type = _env_config["env_type"]
     # Arbitrary Python never passes through terminal()/DANGEROUS_PATTERNS, so guard the whole
@@ -782,10 +802,10 @@ def execute_code(
     from hermes_cli.observability.shared_metrics_loop import record_execution_backend
     if env_type != "local":
         return record_execution_backend("code", "remote", _execute_remote(code, task_id, enabled_tools, reset=bool(reset)))
-    from tools.interrupt import is_interrupted as _is_interrupted
     # Session kernels are always on locally (one interpreter per conversation); the guards above
     # already ran for this cell, and the kernel path shares env builder, RPC server and redaction.
     from tools.code_kernel import execute_in_session_kernel
+    from tools.interrupt import is_interrupted as _is_interrupted
     _cfg = _load_config()
     _mode = _get_execution_mode()
     return record_execution_backend("code", "local", execute_in_session_kernel(

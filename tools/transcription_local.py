@@ -8,27 +8,39 @@ stay in ``transcription_tools`` (module state) and are read from it lazily.
 
 from __future__ import annotations
 
+import importlib.util as _ilu
 import logging
 import os
 import platform
 import shlex
 import subprocess
 import tempfile
-import importlib.util as _ilu
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
-from tools.transcription_audio import _find_whisper_binary, _prepare_local_audio, _run_quiet
+from tools.transcription_audio import (
+    _find_whisper_binary,
+    _prepare_local_audio,
+    _run_quiet,
+)
 from tools.transcription_common import (
-    DEFAULT_LOCAL_MODEL, DEFAULT_LOCAL_STT_LANGUAGE, GROQ_MODELS, LOCAL_STT_COMMAND_ENV,
-    OPENAI_MODELS, _config_number, _error_result, _log_prompt_unsupported, _ok_result,
-    _process_error_detail)
+    DEFAULT_LOCAL_MODEL,
+    DEFAULT_LOCAL_STT_LANGUAGE,
+    GROQ_MODELS,
+    LOCAL_STT_COMMAND_ENV,
+    OPENAI_MODELS,
+    _config_number,
+    _error_result,
+    _log_prompt_unsupported,
+    _ok_result,
+    _process_error_detail,
+)
 
 # Log-record parity with the origin module.
 logger = logging.getLogger("tools.transcription_tools")
 
 
-def _get_local_command_template() -> Optional[str]:
+def _get_local_command_template() -> str | None:
     configured = os.getenv(LOCAL_STT_COMMAND_ENV, "").strip()
     if configured:
         return configured
@@ -45,7 +57,7 @@ def _has_local_command() -> bool:
     return _get_local_command_template() is not None
 
 
-def _normalize_local_model(model_name: Optional[str]) -> str:
+def _normalize_local_model(model_name: str | None) -> str:
     """Return a valid faster-whisper size; cloud-only names (``whisper-1`` …) fall back to the default with a warning."""
     if not model_name:
         return DEFAULT_LOCAL_MODEL
@@ -121,7 +133,7 @@ def _should_force_faster_whisper_cpu() -> bool:
     return _sysctl_value("sysctl.proc_translated") == "1" or _sysctl_value("hw.optional.arm64") == "1"
 
 
-def _get_idle_unload_seconds(local_cfg: Dict[str, Any]) -> int:
+def _get_idle_unload_seconds(local_cfg: dict[str, Any]) -> int:
     """Resolve the idle unload timeout from config; 0 = never (default), negatives clamp to 0."""
     return max(_config_number(local_cfg, "unload_after_idle_seconds", 0, int), 0)
 
@@ -204,14 +216,14 @@ _NO_SPEECH_PROB_THRESHOLD_DEFAULT = 0.6
 _LOGPROB_THRESHOLD_DEFAULT = -1.0
 
 
-def build_local_transcribe_kwargs(stt_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+def build_local_transcribe_kwargs(stt_config: dict[str, Any] | None = None) -> dict[str, Any]:
     """Kwargs for EVERY local faster-whisper ``model.transcribe`` call — single owner of the anti-hallucination hardening."""
     from tools.transcription_tools import _load_stt_config, _resolve_stt_language
     stt_config = stt_config if isinstance(stt_config, dict) else _load_stt_config()
     local_cfg = stt_config.get("local") or {}
     # ``vad: null`` in YAML means "default on".
     vad_enabled = local_cfg.get("vad", True)
-    kwargs: Dict[str, Any] = {
+    kwargs: dict[str, Any] = {
         "beam_size": 5,
         "condition_on_previous_text": False,
         "vad_filter": vad_enabled is None or bool(vad_enabled)}
@@ -233,7 +245,7 @@ def build_local_transcribe_kwargs(stt_config: Optional[Dict[str, Any]] = None) -
     return kwargs
 
 
-def _confidence_thresholds(local_cfg: Dict[str, Any]) -> tuple[float, float]:
+def _confidence_thresholds(local_cfg: dict[str, Any]) -> tuple[float, float]:
     """Resolve (no_speech_prob, avg_logprob) gate thresholds from config."""
     return (_config_number(local_cfg, "no_speech_prob_threshold", _NO_SPEECH_PROB_THRESHOLD_DEFAULT),
             _config_number(local_cfg, "logprob_threshold", _LOGPROB_THRESHOLD_DEFAULT))
@@ -250,7 +262,7 @@ def _is_hallucinated_segment(segment: Any, no_speech_threshold: float, logprob_t
         return False
 
 
-def _join_confident_segments(segments: Any, local_cfg: Dict[str, Any]) -> str:
+def _join_confident_segments(segments: Any, local_cfg: dict[str, Any]) -> str:
     """Join segment texts, dropping probable silence hallucinations."""
     no_speech_threshold, logprob_threshold = _confidence_thresholds(local_cfg)
     kept: list[str] = []
@@ -265,8 +277,8 @@ def _join_confident_segments(segments: Any, local_cfg: Dict[str, Any]) -> str:
 
 
 def _transcribe_local_command(
-    file_path: str, model_name: str, *, language: Optional[str] = None, prompt: Optional[str] = None
-) -> Dict[str, Any]:
+    file_path: str, model_name: str, *, language: str | None = None, prompt: str | None = None
+) -> dict[str, Any]:
     """Run the configured local STT command template and read back a .txt transcript."""
     from tools.transcription_tools import _resolve_stt_language
     if prompt:
@@ -279,7 +291,10 @@ def _transcribe_local_command(
     normalized_model = _normalize_local_model(model_name)
     try:
         if not os.getenv(LOCAL_STT_COMMAND_ENV, "").strip():
-            from tools.transcription_whisper_cpp import ensure_whisper_cpp_models, whisper_cpp_command
+            from tools.transcription_whisper_cpp import (
+                ensure_whisper_cpp_models,
+                whisper_cpp_command,
+            )
             if command_template == whisper_cpp_command():
                 ensure_whisper_cpp_models(normalized_model)
         with tempfile.TemporaryDirectory(prefix="hermes-local-stt-") as output_dir:

@@ -8,10 +8,9 @@ unchanged. Disabled by 0 (driver default), tuned by config, and read through the
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import pytest
-
 from tools.computer_use import cua_backend
 from tools.computer_use.cua_backend_capture import _CaptureMixin
 
@@ -20,17 +19,17 @@ class _StubCapture(_CaptureMixin):
     """Capture-lane shell: enough state for ``_gws_args``, no driver, no session."""
 
     def __init__(self) -> None:
-        self._active_pid: Optional[int] = 607
-        self._active_window_id: Optional[int] = 382
-        self._session_id: Optional[str] = None
+        self._active_pid: int | None = 607
+        self._active_window_id: int | None = 382
+        self._session_id: str | None = None
         self._last_app = ""
 
-    def _resolve_capture_windows(self, mode: str, app: Optional[str], pid: Optional[int],
-                                 window_id: Optional[int]) -> List[Dict[str, Any]]:
+    def _resolve_capture_windows(self, mode: str, app: str | None, pid: int | None,
+                                 window_id: int | None) -> list[dict[str, Any]]:
         return [{"app_name": "Finder", "pid": 607, "window_id": 382, "title": "", "z_index": 1,
                  "off_screen": False}]
 
-    def _set_active_target(self, target: Dict[str, Any]) -> None:
+    def _set_active_target(self, target: dict[str, Any]) -> None:
         self._active_pid, self._active_window_id = target["pid"], target["window_id"]
 
 

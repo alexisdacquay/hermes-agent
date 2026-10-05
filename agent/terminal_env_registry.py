@@ -13,7 +13,6 @@ never shadow the in-tree docker/modal/... implementations. Scope semantics mirro
 from __future__ import annotations
 
 import logging
-from typing import List, Optional
 
 from agent.provider_registry import ProviderRegistry, lower_key
 from agent.terminal_env_provider import TerminalEnvironmentProvider
@@ -45,7 +44,7 @@ _registry: ProviderRegistry[TerminalEnvironmentProvider] = ProviderRegistry(
 _registry.export(globals())
 
 
-def plugin_backend_names(*, scope: Optional[str] = None) -> List[str]:
+def plugin_backend_names(*, scope: str | None = None) -> list[str]:
     """Names of all registered plugin backends (sorted)."""
     return [p.name.strip().lower() for p in _registry.list_providers(scope=scope)]
 

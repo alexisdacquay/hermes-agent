@@ -7,13 +7,9 @@ without depending on a downloaded pet.
 
 from __future__ import annotations
 
-import io
-
 import pytest
-
 from agent.pet import constants, render, state, store
 from agent.pet.constants import FRAME_H, FRAME_W, PetState
-
 
 # ─────────────────────────────────────────────────────────────────────────
 # state mapping — priority invariants

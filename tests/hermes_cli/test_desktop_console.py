@@ -5,7 +5,6 @@ import subprocess
 import sys
 
 import pytest
-
 from hermes_cli.desktop_console import desktop_console_output, desktop_launch_notice
 
 

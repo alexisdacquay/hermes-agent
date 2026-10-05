@@ -15,8 +15,8 @@ import re
 import shlex
 import stat
 import sys
+from collections.abc import Callable, Iterator
 from pathlib import Path
-from typing import Callable, Iterator, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -129,8 +129,7 @@ def _pattern_reaches_host_interpreter(pattern: str, *, full_cmdline: bool, exact
     that names the interpreter and then only wildcards or a `hermes` token reaches it, while
     `python mt_add.py` (a specific script) does not."""
     core = pattern.strip().strip("\"'").lstrip("^")
-    if core.endswith("$"):
-        core = core[:-1]
+    core = core.removesuffix("$")
     head, _, rest = core.partition(" ") if full_cmdline else (core, "", "")
     # A literal interpreter name first (`python3.12`: the dot is a version separator, not an ERE
     # wildcard); only then read the head as an ERE with a metacharacter tail (`python3?`, `python.*`).
@@ -302,7 +301,7 @@ _PIPE_TO_INTERPRETER = re.compile(
 # Bytes sniffed before reading a referenced file in full (see _BINARY_MAGICS).
 _BINARY_SNIFF_BYTES = 4096
 
-_ReadRemoteScriptFn = Callable[[str], Optional[str]]
+_ReadRemoteScriptFn = Callable[[str], str | None]
 
 # Wrappers that hand execution to their argument tail: the real command sits further right, so a
 # first-token-only guard would let `sudo bash ~/restart.sh` / `sudo launchctl submit ...` walk past.
@@ -369,7 +368,7 @@ _BINARY_MAGICS = (
 
 # --- profile identity -------------------------------------------------------------------------
 
-def _current_profile_name() -> Optional[str]:
+def _current_profile_name() -> str | None:
     """Profile running the guard (``hermes_cli.profiles.current_profile_name``); ``None`` if none."""
     from hermes_cli.profiles import current_profile_name
 
@@ -478,8 +477,13 @@ class _LifecycleScanBudget:
     failed closed for a reason other than a lifecycle command (budget, size, device, live SQLite,
     cloud placeholder) so the caller can tell the model the real reason (#113944)."""
 
-    __slots__ = ("bytes_remaining", "lines_remaining", "paths_remaining", "remote_reads_remaining",
-                 "refusal")
+    __slots__ = (
+        "bytes_remaining",
+        "lines_remaining",
+        "paths_remaining",
+        "refusal",
+        "remote_reads_remaining",
+    )
 
     def __init__(self) -> None:
         # Read the module constants at construction so tests/operators can lower them at runtime.
@@ -487,7 +491,7 @@ class _LifecycleScanBudget:
         self.lines_remaining = _MAX_LIFECYCLE_SCAN_LINES
         self.paths_remaining = _MAX_LIFECYCLE_SCAN_PATHS
         self.remote_reads_remaining = _MAX_LIFECYCLE_SCAN_REMOTE_READS
-        self.refusal: Optional[str] = None
+        self.refusal: str | None = None
 
     def charge_text(self, text: str) -> bool:
         """Charge *text* before tokenization; False when it does not fit."""
@@ -524,7 +528,7 @@ class _LifecycleScanBudget:
         return True
 
 
-def _capped_read_limit(max_bytes: Optional[int]) -> int:
+def _capped_read_limit(max_bytes: int | None) -> int:
     """Per-read byte cap: never above the per-file cap, never negative. One definition so local and
     remote reads cannot diverge.
 
@@ -683,12 +687,12 @@ def _peel_transparent_prefixes(segment: list[str], index: int) -> int:
     return index
 
 
-def _command_token_index(segment: list[str]) -> Optional[int]:
+def _command_token_index(segment: list[str]) -> int | None:
     """Return the executable token index after simple env assignments."""
     return next((i for i, token in enumerate(segment) if not _ENV_ASSIGNMENT.match(token)), None)
 
 
-def _executed_command_index(segment: list[str]) -> Optional[int]:
+def _executed_command_index(segment: list[str]) -> int | None:
     """Index of the command a segment actually executes (env assignments and wrappers peeled)."""
     index = _command_token_index(segment)
     if index is None:
@@ -799,7 +803,7 @@ def _on_cloud_path(path: Path) -> bool:
     return _is_cloud_placeholder_path(path) or _is_cloud_placeholder_path(_resolve_lenient(path))
 
 
-def _expand_candidate_path(candidate: str) -> Optional[Path]:
+def _expand_candidate_path(candidate: str) -> Path | None:
     """Sanitize a tokenized path candidate at the ingestion boundary. Tokens from shlex-splitting
     arbitrary (possibly binary-decoded) text can carry NUL or junk that each downstream ``Path`` op
     rejects differently (ValueError, RuntimeError when HOME is unset under launchd, OSError); reject
@@ -819,7 +823,7 @@ def _expand_candidate_path(candidate: str) -> Optional[Path]:
         return None
 
 
-def _resolved_or_nothing(candidate: str, cwd: Optional[str]) -> Iterator[Path]:
+def _resolved_or_nothing(candidate: str, cwd: str | None) -> Iterator[Path]:
     """Yield *candidate* anchored on *cwd* (or the process cwd) when it is a real path."""
     path = _expand_candidate_path(candidate)
     if path is None:
@@ -833,7 +837,7 @@ def _resolved_or_nothing(candidate: str, cwd: Optional[str]) -> Iterator[Path]:
     yield path
 
 
-def _resolve_script_path(script_path: str) -> Optional[Path]:
+def _resolve_script_path(script_path: str) -> Path | None:
     """Resolve a cron ``script`` value the way ``cron.scheduler`` does (relative paths live under
     ``<HERMES_HOME>/scripts/``) so the guard scans the file that will actually run."""
     from hermes_constants import get_hermes_home
@@ -851,7 +855,7 @@ def _resolve_script_path(script_path: str) -> Optional[Path]:
         return None
 
 
-def _resolve_script_directory(script_path: str) -> Optional[str]:
+def _resolve_script_directory(script_path: str) -> str | None:
     """Return the directory *script_path* resolves to, handling relative names."""
     try:
         path = _resolve_script_path(script_path)
@@ -875,7 +879,7 @@ def _iter_option_values(segment: list[str], start: int, option: str) -> Iterator
             yield token[len(prefix):]
 
 
-def _references_at(segment: list[str], index: int, cwd: Optional[str]) -> Iterator[Path]:
+def _references_at(segment: list[str], index: int, cwd: str | None) -> Iterator[Path]:
     """Yield the scripts the token at *index* executes, if any."""
     if index >= len(segment):
         return
@@ -914,7 +918,7 @@ def _references_at(segment: list[str], index: int, cwd: Optional[str]) -> Iterat
         yield from _resolved_or_nothing(executable, cwd)
 
 
-def _iter_referenced_shell_scripts(command: str, *, cwd: Optional[str] = None) -> Iterator[Path]:
+def _iter_referenced_shell_scripts(command: str, *, cwd: str | None = None) -> Iterator[Path]:
     """Yield scripts executed directly or through a POSIX shell. Each segment is read at the
     original token AND at the peeled wrapper target — additive on purpose: peeling must never REMOVE
     a reference (a local ``./timeout`` is a script, not the coreutils wrapper)."""
@@ -961,8 +965,8 @@ def _has_binary_magic(data: bytes) -> bool:
 
 
 def _read_referenced_script(
-    path: Path, *, max_bytes: Optional[int] = None
-) -> tuple[Optional[str], bool]:
+    path: Path, *, max_bytes: int | None = None
+) -> tuple[str | None, bool]:
     """Read a referenced script without racing SQLite connection lifecycle.
 
     The registry check must cover the complete ``open``/``read``/``close``
@@ -983,8 +987,8 @@ def _read_referenced_script(
 
 
 def _read_referenced_script_unlocked(
-    path: Path, *, max_bytes: Optional[int] = None
-) -> tuple[Optional[str], bool]:
+    path: Path, *, max_bytes: int | None = None
+) -> tuple[str | None, bool]:
     """Return ``(text, unsafe)`` using bounded, regular-file-only reads.
 
     Shared choke point for every local script read, so the cloud-placeholder refusal lives here: a
@@ -1049,8 +1053,8 @@ def _read_referenced_script_unlocked(
 
 
 def _sanitize_remote_script_text(
-    text: Optional[str], *, max_bytes: Optional[int] = None
-) -> tuple[Optional[str], bool]:
+    text: str | None, *, max_bytes: int | None = None
+) -> tuple[str | None, bool]:
     """Apply the local-read contract to text from an untrusted ``read_remote_script`` callback: NUL
     means binary (nothing to scan, checked first); oversized fails closed. Size compares re-encoded
     *bytes* (matching the ``head -c`` wire bound): a >1 MiB multibyte file truncated at the byte cap
@@ -1071,7 +1075,7 @@ def _sanitize_remote_script_text(
     return text, False
 
 
-def _read_script_for_scanning(script_path: str) -> tuple[str, Optional[str]]:
+def _read_script_for_scanning(script_path: str) -> tuple[str, str | None]:
     """``(text, refusal)``: read a cron script with the bounded scanner. Non-regular/oversized/live
     SQLite inputs fail closed with a NAMED *refusal* (never a lifecycle-shaped verdict); missing or
     unreadable paths stay empty so scheduler validation reports them."""
@@ -1087,8 +1091,8 @@ def _read_script_for_scanning(script_path: str) -> tuple[str, Optional[str]]:
 # --- recursive walk ---------------------------------------------------------------------------
 
 def _contains_unsafe_gateway_action(
-    command: str, *, cwd: Optional[str], depth: int, visited: set[Path], budget: _LifecycleScanBudget,
-    read_remote_script: Optional[_ReadRemoteScriptFn] = None, executed: bool = True,
+    command: str, *, cwd: str | None, depth: int, visited: set[Path], budget: _LifecycleScanBudget,
+    read_remote_script: _ReadRemoteScriptFn | None = None, executed: bool = True,
 ) -> bool:
     """``executed=False`` means *command* is the content of a file that is only MENTIONED in inert
     (masked) text: it is still scanned for a literal lifecycle command, but "could not scan" (budget,
@@ -1101,7 +1105,7 @@ def _contains_unsafe_gateway_action(
     if depth >= _MAX_REFERENCED_SCRIPT_DEPTH:
         return executed
 
-    def recurse(text: str, cwd: Optional[str], executed: bool) -> bool:
+    def recurse(text: str, cwd: str | None, executed: bool) -> bool:
         return _contains_unsafe_gateway_action(
             text, cwd=cwd, depth=depth + 1, visited=visited, budget=budget,
             read_remote_script=read_remote_script, executed=executed,
@@ -1178,9 +1182,9 @@ def _contains_unsafe_gateway_action(
 
 
 def scan_gateway_lifecycle(
-    command: str, *, cwd: Optional[str] = None,
-    read_remote_script: Optional[_ReadRemoteScriptFn] = None,
-) -> tuple[bool, Optional[str]]:
+    command: str, *, cwd: str | None = None,
+    read_remote_script: _ReadRemoteScriptFn | None = None,
+) -> tuple[bool, str | None]:
     """``(unsafe, refusal)``: *refusal* names a non-lifecycle reason the walk failed closed (budget,
     size, device, live SQLite, cloud) so callers can tell the model; ``None`` when the verdict is a
     real lifecycle command or the command is allowed.
@@ -1216,22 +1220,22 @@ def scan_gateway_lifecycle(
 
 
 def contains_gateway_lifecycle_command_or_referenced_script(
-    command: str, *, cwd: Optional[str] = None,
-    read_remote_script: Optional[_ReadRemoteScriptFn] = None,
+    command: str, *, cwd: str | None = None,
+    read_remote_script: _ReadRemoteScriptFn | None = None,
 ) -> bool:
     """Detect lifecycle/submit commands, including bounded nested scripts (see
     ``scan_gateway_lifecycle`` for the contract)."""
     return scan_gateway_lifecycle(command, cwd=cwd, read_remote_script=read_remote_script)[0]
 
 
-def check_gateway_lifecycle(prompt: Optional[str], script: Optional[str] = None) -> None:
+def check_gateway_lifecycle(prompt: str | None, script: str | None = None) -> None:
     """Raise ``GatewayLifecycleBlocked`` if *prompt* or *script* contains a gateway-lifecycle
     command. The script is read from disk and concatenated with the prompt so a command cannot slip
     through by being split across the two. Callers let the ``ValueError``-shaped exception
     propagate."""
     combined = prompt or ""
     python_script = False
-    refusal: Optional[str] = None
+    refusal: str | None = None
     if script:
         resolved_script = _resolve_script_path(script)
         # Attribute the refusal correctly: not a lifecycle command, but a cloud path never opened.

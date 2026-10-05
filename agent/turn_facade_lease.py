@@ -12,7 +12,7 @@ import os
 import threading
 from contextlib import nullcontext
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from hermes_state_pidns import holder_namespace_token
 
@@ -43,7 +43,7 @@ class DurableTurnLease:
         self.refresh_interval = float(getattr(agent, "_session_turn_lease_refresh_interval", 60.0))
         self._lock = threading.Lock()
         self.turn_active = False
-        self.interrupt_message: Optional[str] = None
+        self.interrupt_message: str | None = None
         self.watchdog = None  # TurnLivenessWatchdog when configured
         self.timer_handles: list = []  # periodic_scheduler handles, cancelled in join_threads
 
@@ -217,12 +217,12 @@ class DurableTurnLease:
 class TurnLeaseAdmission:
     """Outcome of ``admit_durable_turn_lease``: exactly one of ``lease`` / ``early_result`` may be set."""
 
-    lease: Optional[DurableTurnLease] = None
-    early_result: Optional[Dict[str, Any]] = None
-    conversation_history: Optional[List[Dict[str, Any]]] = None
+    lease: DurableTurnLease | None = None
+    early_result: dict[str, Any] | None = None
+    conversation_history: list[dict[str, Any]] | None = None
 
 
-def _durable_session_exists(db, session_id: str) -> Optional[bool]:
+def _durable_session_exists(db, session_id: str) -> bool | None:
     """True / False when the row read answered; None when it failed and the state is unknown."""
     try:
         return db.get_session(session_id) is not None
@@ -237,8 +237,8 @@ def _durable_session_exists(db, session_id: str) -> Optional[bool]:
 
 
 def admit_durable_turn_lease(
-    agent, *, session_id: str, relay_turn_id: str, task_context: Dict[str, Any],
-    conversation_history: Optional[List[Dict[str, Any]]],
+    agent, *, session_id: str, relay_turn_id: str, task_context: dict[str, Any],
+    conversation_history: list[dict[str, Any]] | None,
 ) -> TurnLeaseAdmission:
     """Acquire the session turn lease (the row need not exist yet); build (not start) its threads.
 
@@ -343,9 +343,9 @@ def admit_durable_turn_lease(
 
 
 def carry_unadmitted_user_message(
-    early_result: Dict[str, Any], user_message: Any, persist_user_message: Any, *,
-    timestamp: Optional[float], display_kind: Optional[str], display_metadata: Optional[Dict[str, Any]],
-    platform_id: Optional[str],
+    early_result: dict[str, Any], user_message: Any, persist_user_message: Any, *,
+    timestamp: float | None, display_kind: str | None, display_metadata: dict[str, Any] | None,
+    platform_id: str | None,
 ) -> None:
     """A follow-up that interrupted the lease wait must not consume the accepted input: append it to
     the early result's history so the follow-up turn sees it and persists it (the flush honours
@@ -362,7 +362,7 @@ def carry_unadmitted_user_message(
         not isinstance(user_message, list) or isinstance(persist_user_message, list)
     ):
         durable_content = persist_user_message
-    deferred_user: Dict[str, Any] = {
+    deferred_user: dict[str, Any] = {
         "role": "user", "content": durable_content, _PERSIST_AFTER_ADMISSION_INTERRUPT: True,
     }
     if isinstance(user_message, str) and user_message != durable_content:
@@ -376,7 +376,7 @@ def carry_unadmitted_user_message(
     append_message(early_result["messages"], deferred_user, timestamp=timestamp)
 
 
-def _lease_not_acquired_result(agent, session_id: str, conversation_history) -> Dict[str, Any]:
+def _lease_not_acquired_result(agent, session_id: str, conversation_history) -> dict[str, Any]:
     base = {"messages": list(conversation_history or []), "api_calls": 0, "completed": False}
     if getattr(agent, "_interrupt_requested", False):
         logger.info("session turn lease wait aborted by interrupt: %s", session_id)

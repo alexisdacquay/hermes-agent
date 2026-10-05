@@ -19,11 +19,12 @@ import platform
 import queue
 import tempfile
 import threading
+from collections.abc import Callable, Iterable, Iterator
 from concurrent.futures import Future, ThreadPoolExecutor
-from typing import Callable, Iterable, Iterator, List, Optional
 
 from tools.tts_text_normalize import _strip_markdown_for_tts
-from tools.tts_tool_delivery import _origin, _remove_quietly as _unlink_quietly
+from tools.tts_tool_delivery import _origin
+from tools.tts_tool_delivery import _remove_quietly as _unlink_quietly
 
 logger = logging.getLogger("tools.tts_tool")
 
@@ -69,7 +70,7 @@ def _play_via_tempfile(audio_iter: Iterable[bytes], stop_evt: threading.Event, s
         _unlink_quietly(tmp_path)
 
 
-def _drain_chunks(chunk_queue: "queue.Queue[Optional[bytes]]") -> List[bytes]:
+def _drain_chunks(chunk_queue: queue.Queue[bytes | None]) -> list[bytes]:
     """Collect one sentence's PCM chunks up to the ``None`` sentinel."""
     return list(iter(chunk_queue.get, None))
 
@@ -82,7 +83,7 @@ def _first_written_artifact(raw: object, requested: str) -> str:
     declared ``format`` rewrites the suffix, and voice-compatible delivery ffmpeg-converts to
     ``.ogg``. Gating playback on the requested path alone drops every such sentence silently,
     so prefer the first reported artifact that actually exists and is non-empty."""
-    candidates: List[str] = []
+    candidates: list[str] = []
     try:
         payload = json.loads(raw) if isinstance(raw, str) else (raw or {})
         if isinstance(payload, dict):
@@ -107,7 +108,7 @@ class _SyncSentencePipeline:
 
     def __init__(self, stop_event: threading.Event, *, lookahead: int = 2):
         self._stop = stop_event
-        self._queue: "queue.Queue[Optional[tuple[str, Future]]]" = queue.Queue(maxsize=max(1, lookahead))
+        self._queue: queue.Queue[tuple[str, Future] | None] = queue.Queue(maxsize=max(1, lookahead))
         self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="tts-sync-synth")
         self._player = threading.Thread(target=self._drain, name="tts-sync-play", daemon=True)
         self._player.start()
@@ -123,7 +124,7 @@ class _SyncSentencePipeline:
         self._player.join()
         self._executor.shutdown(wait=True)
 
-    def _synthesize_to_tmp(self, cleaned: str) -> Optional[str]:
+    def _synthesize_to_tmp(self, cleaned: str) -> str | None:
         if self._stop.is_set():
             return None
         tmp_path = None
@@ -172,8 +173,8 @@ class _StreamerPlayback:
         # ``streamer.sample_rate`` is only trustworthy after the request answered (#76466).
         self.output_stream = None
         self._use_device = self._device_usable()
-        self._audio_queue: "queue.Queue[Optional[queue.Queue[Optional[bytes]]]]" = queue.Queue()
-        self._prefetch_threads: List[threading.Thread] = []
+        self._audio_queue: queue.Queue[queue.Queue[bytes | None] | None] = queue.Queue()
+        self._prefetch_threads: list[threading.Thread] = []
         self._prefetch_sem = threading.Semaphore(3)
         self._worker = threading.Thread(target=self._playback_worker, daemon=True)
         self._worker.start()
@@ -230,13 +231,13 @@ class _StreamerPlayback:
             logger.warning("Streaming TTS synthesis failed: %s", exc)
             return
         self._prefetch_sem.acquire()
-        chunk_queue: "queue.Queue[Optional[bytes]]" = queue.Queue(maxsize=self._CHUNK_QUEUE_MAX)
+        chunk_queue: queue.Queue[bytes | None] = queue.Queue(maxsize=self._CHUNK_QUEUE_MAX)
         self._audio_queue.put(chunk_queue)
         self._prefetch_threads.append(threading.Thread(
             target=self._consume_to_queue, args=(audio_iter, chunk_queue), daemon=True))
         self._prefetch_threads[-1].start()
 
-    def _consume_to_queue(self, audio_iter: Iterator[bytes], chunk_queue: "queue.Queue[Optional[bytes]]") -> None:
+    def _consume_to_queue(self, audio_iter: Iterator[bytes], chunk_queue: queue.Queue[bytes | None]) -> None:
         try:
             for chunk in audio_iter:
                 if self.stop_event.is_set():
@@ -311,7 +312,7 @@ class _StreamerPlayback:
         try:
             from tools.voice_mode import mark_audio_output_active
         except Exception:
-            mark_audio_output_active = lambda _active: None  # noqa: E731
+            mark_audio_output_active = lambda _active: None
         self._np, self._reinit_count, self._current_stream, self._current_rate = _np, 0, None, None
         mark_audio_output_active(True)
         try:
@@ -330,7 +331,7 @@ class _StreamerPlayback:
 
 def stream_tts_to_speaker(
     text_queue: queue.Queue, stop_event: threading.Event, tts_done_event: threading.Event,
-    display_callback: Optional[Callable[[str], None]] = None, provider: Optional[str] = None):
+    display_callback: Callable[[str], None] | None = None, provider: str | None = None):
     """Consume text deltas from *text_queue*, cut into sentences, speak each the moment it's ready.
 
     A registered streaming provider plays chunked PCM; every other provider is spoken
@@ -339,8 +340,8 @@ def stream_tts_to_speaker(
     *tts_done_event* is **set** in ``finally`` so continuous voice mode knows playback finished."""
     tts_done_event.clear()
     origin = _origin()
-    sync_pipeline: Optional[_SyncSentencePipeline] = None
-    playback: Optional[_StreamerPlayback] = None
+    sync_pipeline: _SyncSentencePipeline | None = None
+    playback: _StreamerPlayback | None = None
     try:
         tts_config = origin._load_tts_config()
         # Prefer a chunked streamer for low time-to-first-audio; otherwise per-sentence sync

@@ -9,8 +9,8 @@ fixtures.py — forgiving about phrasing, strict about facts.
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable
 
 from fixtures import (
     AGENTS_BUILD_CMD,

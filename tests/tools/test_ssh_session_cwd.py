@@ -5,12 +5,10 @@ These regressions exercise an existing environment and a later command reading
 the raw session record, neither of which creates a new environment.
 """
 
-import pytest
-
 import hermes_constants
-import tools.terminal_tool as terminal_tool
+import pytest
+from tools import terminal_tool
 from tools.file_operations import ShellFileOperations
-
 
 HOST_HOME = "/srv/hermes-host/home"
 

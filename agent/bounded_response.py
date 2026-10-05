@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import List
 
 import httpx
 
@@ -37,7 +36,7 @@ def read_streaming_error_body(
     stalls and oversize bodies yield best-effort partial text (or ""), so a read error can't mask the
     original failure.
     """
-    chunks: List[bytes] = []
+    chunks: list[bytes] = []
     state = {"truncated": False}
     done = threading.Event()
 

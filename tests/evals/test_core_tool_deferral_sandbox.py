@@ -11,7 +11,6 @@ import subprocess
 from pathlib import Path
 
 import pytest
-
 from evals.core_tool_deferral.sandbox import isolate_host
 
 

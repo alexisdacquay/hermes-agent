@@ -3,7 +3,6 @@
 import json
 
 import pytest
-
 from gateway.config import GatewayConfig, Platform
 from gateway.platforms.event import MessageEvent
 from gateway.run import GatewayRunner
@@ -16,6 +15,7 @@ from gateway.session import SessionSource
 @pytest.mark.parametrize("redact_pii", [False, True])
 async def test_busy_injection_preserves_original_routing_fields(route, platform, redact_pii, tmp_path, monkeypatch):
     from dataclasses import asdict
+
     from gateway.session import _hash_chat_id, _hash_id, _hash_sender_id
 
     monkeypatch.setattr("gateway.run._hermes_home", tmp_path)

@@ -8,9 +8,8 @@ import threading
 import time
 import urllib.request
 from dataclasses import dataclass, field, fields
-from datetime import datetime, timezone
-from typing import Any, Literal, Optional
-
+from datetime import UTC, datetime
+from typing import Any, Literal
 
 NousAccountInfoSource = Literal["jwt", "account_api", "inference_key", "none", "error"]
 
@@ -20,39 +19,39 @@ NousAccountInfoSource = Literal["jwt", "account_api", "inference_key", "none", "
 TOOL_COVERAGE_CATEGORIES = ("firecrawl", "fal", "fal-video", "openai-audio", "browser-use", "modal")
 
 _ACCOUNT_INFO_CACHE_TTL = 60
-_account_info_cache: tuple[str, float, "NousPortalAccountInfo"] | None = None
+_account_info_cache: tuple[str, float, NousPortalAccountInfo] | None = None
 _ACCOUNT_INFO_CACHE_LOCK = threading.Lock()
 
 
 @dataclass(frozen=True)
 class NousPortalSubscriptionInfo:
-    plan: Optional[str] = None
-    tier: Optional[int] = None
-    monthly_charge: Optional[float] = None
-    monthly_credits: Optional[float] = None
-    current_period_end: Optional[str] = None
-    credits_remaining: Optional[float] = None
-    rollover_credits: Optional[float] = None
+    plan: str | None = None
+    tier: int | None = None
+    monthly_charge: float | None = None
+    monthly_credits: float | None = None
+    current_period_end: str | None = None
+    credits_remaining: float | None = None
+    rollover_credits: float | None = None
 
 
 @dataclass(frozen=True)
 class NousPaidServiceAccessInfo:
-    allowed: Optional[bool] = None
-    paid_access: Optional[bool] = None
-    reason: Optional[str] = None
-    organisation_id: Optional[str] = None
-    effective_at_ms: Optional[int] = None
-    has_active_subscription: Optional[bool] = None
-    active_subscription_is_paid: Optional[bool] = None
-    subscription_tier: Optional[int] = None
-    subscription_monthly_charge: Optional[float] = None
-    subscription_credits_remaining: Optional[float] = None
-    purchased_credits_remaining: Optional[float] = None
-    total_usable_credits: Optional[float] = None
-    member_spend_cap_exceeded: Optional[bool] = None
-    member_spend_cap_usd: Optional[float] = None
-    member_spend_usd: Optional[float] = None
-    member_spend_cap_remaining_usd: Optional[float] = None
+    allowed: bool | None = None
+    paid_access: bool | None = None
+    reason: str | None = None
+    organisation_id: str | None = None
+    effective_at_ms: int | None = None
+    has_active_subscription: bool | None = None
+    active_subscription_is_paid: bool | None = None
+    subscription_tier: int | None = None
+    subscription_monthly_charge: float | None = None
+    subscription_credits_remaining: float | None = None
+    purchased_credits_remaining: float | None = None
+    total_usable_credits: float | None = None
+    member_spend_cap_exceeded: bool | None = None
+    member_spend_cap_usd: float | None = None
+    member_spend_usd: float | None = None
+    member_spend_cap_remaining_usd: float | None = None
 
 
 @dataclass(frozen=True)
@@ -73,7 +72,7 @@ FREE_TIER_NEEDS_ACCOUNT = "This needs a Nous account. Run `hermes auth upgrade`.
 FREE_TIER_NEEDS_ACCOUNT_CHAT = "This needs a Nous account. Use /login to sign in."
 
 
-def _is_anonymous_tier(account_info: Optional["NousPortalAccountInfo"]) -> bool:
+def _is_anonymous_tier(account_info: NousPortalAccountInfo | None) -> bool:
     return account_info is not None and account_info.is_anonymous_tier
 
 
@@ -89,32 +88,32 @@ class NousPortalAccountInfo:
     logged_in: bool
     source: NousAccountInfoSource
     fresh: bool
-    user_id: Optional[str] = None
-    org_id: Optional[str] = None
-    org_slug: Optional[str] = None
-    org_name: Optional[str] = None
-    client_id: Optional[str] = None
-    product_id: Optional[str] = None
-    nous_client: Optional[str] = None
-    portal_base_url: Optional[str] = None
-    inference_base_url: Optional[str] = None
+    user_id: str | None = None
+    org_id: str | None = None
+    org_slug: str | None = None
+    org_name: str | None = None
+    client_id: str | None = None
+    product_id: str | None = None
+    nous_client: str | None = None
+    portal_base_url: str | None = None
+    inference_base_url: str | None = None
     inference_credential_present: bool = False
-    credential_source: Optional[str] = None
-    expires_at: Optional[datetime] = None
-    email: Optional[str] = None
-    privy_did: Optional[str] = None
-    subscription: Optional[NousPortalSubscriptionInfo] = None
-    paid_service_access: Optional[bool] = None
-    paid_service_access_info: Optional[NousPaidServiceAccessInfo] = None
-    tool_access: Optional[NousToolAccessInfo] = None
-    raw_claims: Optional[dict[str, Any]] = None
-    raw_account: Optional[dict[str, Any]] = None
-    error: Optional[str] = None
+    credential_source: str | None = None
+    expires_at: datetime | None = None
+    email: str | None = None
+    privy_did: str | None = None
+    subscription: NousPortalSubscriptionInfo | None = None
+    paid_service_access: bool | None = None
+    paid_service_access_info: NousPaidServiceAccessInfo | None = None
+    tool_access: NousToolAccessInfo | None = None
+    raw_claims: dict[str, Any] | None = None
+    raw_account: dict[str, Any] | None = None
+    error: str | None = None
     # NAS account tier claim; ``"anonymous"`` is the free tier (no Nous account behind it).
-    account_tier: Optional[str] = None
+    account_tier: str | None = None
     # Portal ``managed_tools`` (JWT claim and account API): the portal has enabled connectors for
     # this account. ``None`` = the portal did not say (a token minted before the claim shipped).
-    managed_tools: Optional[bool] = None
+    managed_tools: bool | None = None
 
     @property
     def is_paid(self) -> bool:
@@ -146,7 +145,7 @@ class NousPortalAccountInfo:
         return self.managed_tools is True
 
 
-def nous_portal_billing_url(account_info: Optional[NousPortalAccountInfo] = None) -> str:
+def nous_portal_billing_url(account_info: NousPortalAccountInfo | None = None) -> str:
     """Return the billing URL for a normalized Nous account snapshot."""
     try:
         from hermes_cli.auth import DEFAULT_NOUS_PORTAL_URL
@@ -159,7 +158,7 @@ def nous_portal_billing_url(account_info: Optional[NousPortalAccountInfo] = None
     return f"{base.rstrip('/')}/billing"
 
 
-def nous_portal_topup_url(account_info: Optional[NousPortalAccountInfo] = None) -> str:
+def nous_portal_topup_url(account_info: NousPortalAccountInfo | None = None) -> str:
     """Portal top-up URL (``?topup=open`` auto-opens the top-up modal).
 
     Prefers the org-pinned ``{base}/orgs/{slug}/billing`` (skips the legacy shim's multi-org
@@ -176,10 +175,10 @@ def nous_portal_topup_url(account_info: Optional[NousPortalAccountInfo] = None) 
 
 
 def format_nous_portal_entitlement_message(
-    account_info: Optional[NousPortalAccountInfo], *, capability: str = "this feature",
-    include_refresh_hint: bool = True, coverage_category: Optional[str] = None,
+    account_info: NousPortalAccountInfo | None, *, capability: str = "this feature",
+    include_refresh_hint: bool = True, coverage_category: str | None = None,
     in_chat: bool = False,
-) -> Optional[str]:
+) -> str | None:
     """User-facing guidance for a missing Nous tool-gateway entitlement; ``None`` when entitled.
 
     Entitled = paid access OR a live free pool that covers it (normalized fields, not price:
@@ -325,13 +324,13 @@ def get_nous_portal_account_info(*, force_fresh: bool = False, min_jwt_ttl_secon
     return _fresh_account_info(state, force_fresh, portal_base_url)
 
 
-def nous_policy_present() -> Optional[bool]:
+def nous_policy_present() -> bool | None:
     """Whether the caller's org carries a restrictive model/provider policy.
 
     ``None`` is unknown (older mint / unreadable claim) and must not be reported as "no policy".
     """
     try:
-        from hermes_cli.auth import get_provider_auth_state, _decode_jwt_claims
+        from hermes_cli.auth import _decode_jwt_claims, get_provider_auth_state
 
         access_token = (get_provider_auth_state("nous") or {}).get("access_token")
         if not _nonblank(access_token):
@@ -357,7 +356,7 @@ def nous_policy_notice(*, removed: bool) -> str:
     )
 
 
-def _fresh_account_info(state: dict[str, Any], force_fresh: bool, portal_base_url: Optional[str]) -> NousPortalAccountInfo:
+def _fresh_account_info(state: dict[str, Any], force_fresh: bool, portal_base_url: str | None) -> NousPortalAccountInfo:
     global _account_info_cache
 
     try:
@@ -385,7 +384,7 @@ def _fresh_account_info(state: dict[str, Any], force_fresh: bool, portal_base_ur
                            portal_base_url=portal_base_url, account_tier=_coerce_str(state.get("account_tier")))
 
 
-def _info_from_inference_key_pool(portal_base_url: Optional[str]) -> Optional[NousPortalAccountInfo]:
+def _info_from_inference_key_pool(portal_base_url: str | None) -> NousPortalAccountInfo | None:
     """Return an explicit unknown-entitlement snapshot for opaque Nous keys."""
     try:
         entry = _select_nous_pool_entry()
@@ -406,8 +405,8 @@ def _info_from_inference_key_pool(portal_base_url: Optional[str]) -> Optional[No
 
 
 def _info_from_oauth_pool(
-    force_fresh: bool, min_jwt_ttl_seconds: int, portal_base_url: Optional[str]
-) -> Optional[NousPortalAccountInfo]:
+    force_fresh: bool, min_jwt_ttl_seconds: int, portal_base_url: str | None
+) -> NousPortalAccountInfo | None:
     try:
         entry = _select_nous_pool_entry()
     except Exception:
@@ -434,7 +433,7 @@ def _info_from_oauth_pool(
 
 
 def _info_from_fetched_account(
-    access_token: str, state: dict[str, Any], portal_base_url: Optional[str]
+    access_token: str, state: dict[str, Any], portal_base_url: str | None
 ) -> NousPortalAccountInfo:
     """Call ``/api/oauth/account`` and normalize; empty or ``error`` payloads become error infos."""
     payload = _fetch_nous_account_info(access_token, portal_base_url)
@@ -450,11 +449,11 @@ def _info_from_fetched_account(
     return _info_from_account_payload(payload, state=state, portal_base_url=portal_base_url)
 
 
-def _pool_entry_inference_url(entry: Any) -> Optional[str]:
+def _pool_entry_inference_url(entry: Any) -> str | None:
     return getattr(entry, "inference_base_url", None) or getattr(entry, "runtime_base_url", None) or getattr(entry, "base_url", None)
 
 
-def _select_nous_pool_entry() -> Optional[Any]:
+def _select_nous_pool_entry() -> Any | None:
     """Pool entry with the latest agent-key expiry, then access expiry, then lowest priority."""
     from agent.credential_pool import load_pool
 
@@ -480,7 +479,7 @@ def _pool_entry_is_portal_oauth(entry: Any) -> bool:
     return auth_type.startswith("oauth") or bool(getattr(entry, "refresh_token", None))
 
 
-def _fetch_nous_account_info(access_token: str, portal_base_url: Optional[str] = None) -> dict[str, Any]:
+def _fetch_nous_account_info(access_token: str, portal_base_url: str | None = None) -> dict[str, Any]:
     base = (portal_base_url or "https://portal.nousresearch.com").rstrip("/")
     headers = {"Authorization": f"Bearer {access_token}", "Accept": "application/json"}
     req = urllib.request.Request(f"{base}/api/oauth/account", headers=headers)
@@ -490,8 +489,8 @@ def _fetch_nous_account_info(access_token: str, portal_base_url: Optional[str] =
 
 
 def _info_from_valid_jwt(
-    token: str, state: dict[str, Any], portal_base_url: Optional[str], min_jwt_ttl_seconds: int
-) -> Optional[NousPortalAccountInfo]:
+    token: str, state: dict[str, Any], portal_base_url: str | None, min_jwt_ttl_seconds: int
+) -> NousPortalAccountInfo | None:
     try:
         from hermes_cli.auth import _decode_jwt_claims
     except Exception:
@@ -518,7 +517,7 @@ def _info_from_valid_jwt(
         inference_base_url=_coerce_str(state.get("inference_base_url")),
         inference_credential_present=True,
         credential_source=_coerce_str(state.get("credential_source")) or "auth_store",
-        expires_at=datetime.fromtimestamp(exp, tz=timezone.utc),
+        expires_at=datetime.fromtimestamp(exp, tz=UTC),
         paid_service_access=paid_access, paid_service_access_info=access_info,
         tool_access=_tool_access_from_value(claims.get("tool_access")),
         raw_claims=dict(claims),
@@ -528,7 +527,7 @@ def _info_from_valid_jwt(
 
 
 def _info_from_account_payload(
-    payload: dict[str, Any], *, state: dict[str, Any], portal_base_url: Optional[str]
+    payload: dict[str, Any], *, state: dict[str, Any], portal_base_url: str | None
 ) -> NousPortalAccountInfo:
     user = _dict_or_empty(payload.get("user"))
     organisation = _dict_or_empty(payload.get("organisation"))
@@ -558,7 +557,7 @@ def _info_from_account_payload(
     )
 
 
-def _tool_access_from_value(value: Any) -> Optional[NousToolAccessInfo]:
+def _tool_access_from_value(value: Any) -> NousToolAccessInfo | None:
     """Parse a Portal ``tool_access`` object (JWT claim or account API).
 
     Fails closed: a non-object yields ``None``; only literal ``true`` counts for ``enabled`` and
@@ -575,13 +574,13 @@ def _coerced_dataclass(cls, value: Any):
     return cls(**{f.name: _COERCERS[f.type](value.get(f.name)) for f in fields(cls)}) if isinstance(value, dict) else None
 
 
-def _subscription_from_payload(value: Any) -> Optional[NousPortalSubscriptionInfo]:
+def _subscription_from_payload(value: Any) -> NousPortalSubscriptionInfo | None:
     return _coerced_dataclass(NousPortalSubscriptionInfo, value)
 
 
 def _error_info(
-    *, error: object, logged_in: bool, portal_base_url: Optional[str] = None,
-    raw_account: Optional[dict[str, Any]] = None, account_tier: Optional[str] = None,
+    *, error: object, logged_in: bool, portal_base_url: str | None = None,
+    raw_account: dict[str, Any] | None = None, account_tier: str | None = None,
 ) -> NousPortalAccountInfo:
     """A failed-lookup snapshot. ``account_tier`` is carried through when the caller still holds the
     stored state, so a guest whose lookup failed still gets the "needs a Nous account" copy rather
@@ -606,12 +605,12 @@ def resolve_nous_portal_base_url() -> str:
     return _nous_portal_base_url(get_provider_auth_state("nous") or {})
 
 
-def _portal_base_url(state: dict[str, Any]) -> Optional[str]:
+def _portal_base_url(state: dict[str, Any]) -> str | None:
     value = state.get("portal_base_url")
     return value.strip().rstrip("/") if _nonblank(value) else None
 
 
-def _parse_iso_timestamp(value: Any) -> Optional[float]:
+def _parse_iso_timestamp(value: Any) -> float | None:
     if not isinstance(value, str) or not value:
         return None
     text = value.strip()
@@ -623,11 +622,11 @@ def _parse_iso_timestamp(value: Any) -> Optional[float]:
         return None
 
 
-def _coerce_str(value: Any) -> Optional[str]:
+def _coerce_str(value: Any) -> str | None:
     return value if isinstance(value, str) and value else None
 
 
-def _coerce_bool(value: Any) -> Optional[bool]:
+def _coerce_bool(value: Any) -> bool | None:
     return value if isinstance(value, bool) else None
 
 

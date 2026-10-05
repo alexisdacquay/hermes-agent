@@ -10,8 +10,8 @@ fail if the deterministic ``close()`` is ever removed again.
 import sqlite3
 
 import pytest
-
 from agent import verification_evidence as ve
+
 
 @pytest.fixture(autouse=True)
 def _ledger_on(monkeypatch):
@@ -96,10 +96,9 @@ def test_exception_during_operation_still_closes_connection(monkeypatch, tmp_pat
     _point_ledger(monkeypatch, tmp_path)
     opened, closed = _track_connections(monkeypatch)
 
-    with pytest.raises(sqlite3.IntegrityError):
-        with ve._transaction() as conn:
-            # Missing NOT NULL columns -> constraint failure inside the block.
-            conn.execute("INSERT INTO verification_events (id) VALUES (1)")
+    with pytest.raises(sqlite3.IntegrityError), ve._transaction() as conn:
+        # Missing NOT NULL columns -> constraint failure inside the block.
+        conn.execute("INSERT INTO verification_events (id) VALUES (1)")
 
     assert len(opened) == 1
     assert len(closed) == 1
@@ -124,9 +123,8 @@ def test_schema_init_failure_still_closes_connection(monkeypatch, tmp_path):
 
     monkeypatch.setattr(ve.sqlite3, "connect", tracking_connect)
 
-    with pytest.raises(sqlite3.OperationalError):
-        with ve._transaction():
-            pass
+    with pytest.raises(sqlite3.OperationalError), ve._transaction():
+        pass
 
     assert len(opened) == 1
     assert len(closed) == 1

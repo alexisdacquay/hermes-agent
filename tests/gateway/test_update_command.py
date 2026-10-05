@@ -7,10 +7,9 @@ the _send_update_notification startup hook (sends results after restart).
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
-from unittest.mock import patch, MagicMock, AsyncMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from gateway.config import Platform
 from gateway.platforms.event import MessageEvent
 from gateway.session import SessionSource
@@ -61,7 +60,6 @@ class TestHandleUpdateCommand:
             MockPath.return_value = MagicMock()
             MockPath.__truediv__ = Path.__truediv__
             # Easier: just patch the __file__ resolution in the method
-            pass
 
         # Simpler approach — mock at method level using a wrapper
         runner = _make_runner()
@@ -97,6 +95,7 @@ class TestHandleUpdateCommand:
         importable, even when PATH also offers a ``hermes`` binary (#111569: a PATH-first
         lookup would re-exec an attacker-planted executable on /update and /restart)."""
         import sys
+
         from gateway.run import _resolve_hermes_bin
 
         fake_spec = MagicMock()

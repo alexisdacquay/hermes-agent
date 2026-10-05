@@ -3,8 +3,8 @@ import subprocess
 from pathlib import Path
 
 import pytest
-
 from hermes_cli import update_cmd
+
 from tests.hermes_cli.test_update_target_identity import git, update_tree  # noqa: F401
 
 

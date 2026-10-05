@@ -36,8 +36,8 @@ REPO_ROOT = EVAL_DIR.parent.parent
 sys.path.insert(0, str(EVAL_DIR))
 sys.path.insert(0, str(REPO_ROOT))
 
-from agent.compression_marker import elide  # noqa: E402
-from tasks import SYSTEM, TASKS  # noqa: E402
+from agent.compression_marker import elide
+from tasks import SYSTEM, TASKS
 
 ALLOWED_KEYS = {
     "query", "role_filter", "limit", "session_id", "around_message_id",

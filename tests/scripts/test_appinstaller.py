@@ -1,11 +1,7 @@
 """App Installer descriptors bind explicit package facts to explicit feed URLs."""
-import subprocess
-import sys
 import xml.etree.ElementTree as ET
-from pathlib import Path
 
 import pytest
-
 from scripts.bundles import release_artifacts as artifacts
 from tests.scripts.test_release_r2 import r2_server  # noqa: F401
 

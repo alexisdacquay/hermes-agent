@@ -20,11 +20,9 @@ Covers:
 from __future__ import annotations
 
 import asyncio
-import time
-from typing import Any, Dict, Optional
+from typing import Any
 
 import pytest
-
 from gateway.config import Platform, PlatformConfig
 from gateway.platforms.event import MessageEvent, MessageType, ProcessingOutcome
 from gateway.relay.adapter import RelayAdapter
@@ -69,7 +67,7 @@ def _adapter(**desc_kw) -> tuple[RelayAdapter, StubConnector]:
 
 
 def _event(
-    prompt_response: Optional[Dict[str, Any]] = None,
+    prompt_response: dict[str, Any] | None = None,
     text: str = "/once",
     chat_id: str = "c1",
 ) -> MessageEvent:
@@ -253,9 +251,7 @@ def _reactable_event(platform=Platform.DISCORD) -> MessageEvent:
 # this check, so any future edit to the ack emoji is verified against the real
 # vocabulary instead of someone's recollection of it.
 TELEGRAM_ALLOWED_REACTIONS = frozenset(
-    "❤ 👍 👎 🔥 🥰 👏 😁 🤔 🤯 😱 🤬 😢 🎉 🤩 🤮 💩 🙏 👌 🕊 🤡 🥱 🥴 😍 🐳"
-    " 🌚 🌭 💯 🤣 ⚡ 🍌 🏆 💔 🤨 😐 🍓 🍾 💋 🖕 😈 😴 😭 🤓 👻 👀 🎃 🙈 😇 😨"
-    " 🤝 ✍ 🤗 🫡 🎅 🎄 ☃ 💅 🤪 🗿 🆒 💘 🙉 🦄 😘 💊 🙊 😎 👾 🤷 😡".split()
+    ["❤", "👍", "👎", "🔥", "🥰", "👏", "😁", "🤔", "🤯", "😱", "🤬", "😢", "🎉", "🤩", "🤮", "💩", "🙏", "👌", "🕊", "🤡", "🥱", "🥴", "😍", "🐳", "🌚", "🌭", "💯", "🤣", "⚡", "🍌", "🏆", "💔", "🤨", "😐", "🍓", "🍾", "💋", "🖕", "😈", "😴", "😭", "🤓", "👻", "👀", "🎃", "🙈", "😇", "😨", "🤝", "✍", "🤗", "🫡", "🎅", "🎄", "☃", "💅", "🤪", "🗿", "🆒", "💘", "🙉", "🦄", "😘", "💊", "🙊", "😎", "👾", "🤷", "😡"]
 ) | {"❤‍🔥", "👨‍💻", "🤷‍♂", "🤷‍♀"}
 
 

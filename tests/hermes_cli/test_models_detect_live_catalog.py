@@ -8,7 +8,6 @@ fell through to the OpenRouter lookup and silently rebuilt the session on a mete
 from __future__ import annotations
 
 import pytest
-
 from hermes_cli import models
 
 

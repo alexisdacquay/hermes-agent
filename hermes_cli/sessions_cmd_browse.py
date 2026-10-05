@@ -1,13 +1,13 @@
 """Interactive picker for ``hermes sessions browse``: curses UI with live search filtering and ``d``
 delete-with-confirmation; numbered-list fallback when curses is unavailable (Windows, etc.)."""
 
-from typing import Optional
 
-from hermes_cli.timefmt import relative_time as _relative_time
 from hermes_state_errors import SessionActiveWriteGuardError
 
+from hermes_cli.timefmt import relative_time as _relative_time
 
-def _session_status_tag(status: Optional[str]) -> str:
+
+def _session_status_tag(status: str | None) -> str:
     """Short fixed-width tag for a session lifecycle status."""
     return {"complete": "done", "interrupted": "intr", "error": "err", "empty": "empty"}.get(status or "", "-")
 
@@ -218,7 +218,7 @@ class _CursesBrowser:
                 return
 
 
-def _fallback_picker(sessions: list) -> Optional[str]:
+def _fallback_picker(sessions: list) -> str | None:
     """Numbered list (Windows without curses, etc.). Same columns, no delete."""
     print("\n  Browse sessions  (enter number to resume, q to cancel)\n")
     for i, s in enumerate(sessions):
@@ -242,7 +242,7 @@ def _fallback_picker(sessions: list) -> Optional[str]:
             return None
 
 
-def _session_browse_picker(sessions: list, session_db=None) -> Optional[str]:
+def _session_browse_picker(sessions: list, session_db=None) -> str | None:
     """Curses session browser with live search; returns the selected session ID, or None if cancelled.
 
     With *session_db*: shows lifecycle status / message count per row, and ``d`` (while the filter is

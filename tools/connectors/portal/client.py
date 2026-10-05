@@ -1,22 +1,30 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import re
-from typing import Any, Callable, Mapping, Protocol
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass
+from typing import Any, Protocol
 from urllib.parse import quote
 
 import requests
+from hermes_cli.nous_account import resolve_nous_portal_base_url
 from pydantic import ValidationError
 
-from hermes_cli.nous_account import resolve_nous_portal_base_url
 from tools.connectors.gateway.errors import (
     GatewayAuthError,
     GatewayUnavailable,
     ToolGatewayError,
     parse_gateway_error,
 )
-from tools.connectors.gateway.wire import ConnectorAccountsResponse, RemovedConnectorAccount
-from tools.connectors.portal.errors import InvalidConnectorSlug, PortalConnectorUnavailable, PortalToolsUnavailable
+from tools.connectors.gateway.wire import (
+    ConnectorAccountsResponse,
+    RemovedConnectorAccount,
+)
+from tools.connectors.portal.errors import (
+    InvalidConnectorSlug,
+    PortalConnectorUnavailable,
+    PortalToolsUnavailable,
+)
 from tools.connectors.portal.wire import (
     ConnectorCatalogResponse,
     ConnectorPolicyResponse,
@@ -24,7 +32,6 @@ from tools.connectors.portal.wire import (
     ConnectorToolsListing,
 )
 from tools.managed_gateway_auth import read_nous_access_token
-
 
 DEFAULT_TIMEOUT_SECONDS = 30.0
 _SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")

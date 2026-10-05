@@ -1,7 +1,6 @@
 """Regression tests for startup model/provider routing (#87189)."""
 
 import pytest
-
 from hermes_cli import model_switch
 
 
@@ -193,7 +192,9 @@ def test_oneshot_and_tui_qualified_model_never_reaches_default_provider(tmp_path
     from hermes_cli.oneshot import _resolve_model_and_provider
 
     cfg = _write_named_provider(tmp_path, monkeypatch)
-    from tui_gateway import server as tui_server  # binds the config path at import: after HERMES_HOME
+    from tui_gateway import (
+        server as tui_server,  # binds the config path at import: after HERMES_HOME
+    )
     monkeypatch.delenv("HERMES_INFERENCE_PROVIDER", raising=False)
     monkeypatch.delenv("HERMES_TUI_PROVIDER", raising=False)
     monkeypatch.setattr(

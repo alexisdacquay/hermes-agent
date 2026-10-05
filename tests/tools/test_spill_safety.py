@@ -9,10 +9,8 @@ writes byte-identical.
 
 import os
 import stat
-import sys
 
 import pytest
-
 from tools.spill_safety import (
     ensure_spill_dir,
     open_exclusive,

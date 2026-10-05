@@ -4,7 +4,6 @@ from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
-
 from cron import bot_chat_delivery as queue
 from cron import scheduler_delivery as delivery
 from hermes_cli.active_sessions import try_acquire_active_session

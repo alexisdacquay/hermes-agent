@@ -5,8 +5,8 @@ import types
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
 import hermes_yaml as yaml
+import pytest
 
 # ---------------------------------------------------------------------------
 # Shared fixture — isolate HERMES_HOME so save_config writes to tmp_path

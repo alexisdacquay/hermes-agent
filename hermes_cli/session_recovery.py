@@ -12,15 +12,16 @@ import os
 import shutil
 import sqlite3
 import tempfile
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Callable, Iterator, Optional
+from typing import Any
 
-from hermes_cli.timefmt import EPOCH_MAX, EPOCH_MIN
 from hermes_state import SessionDB
 from hermes_state_common import FTS_STORAGE_VERSION, SCHEMA_VERSION
 from hermes_state_repair import _db_opens_cleanly
 
+from hermes_cli.timefmt import EPOCH_MAX, EPOCH_MIN
 
 ProgressCallback = Callable[[dict[str, Any]], None]
 _CANONICAL_TABLES = (
@@ -80,12 +81,12 @@ def _resolved_output_path(path: Path) -> Path:
 
 
 def _validate_paths(
-    source_path: Path, output_path: Optional[Path] = None, work_dir: Optional[Path] = None,
-) -> tuple[Path, Optional[Path], Path]:
+    source_path: Path, output_path: Path | None = None, work_dir: Path | None = None,
+) -> tuple[Path, Path | None, Path]:
     source = source_path.expanduser().resolve(strict=True)
     if not source.is_file():
         raise SessionRecoverySafetyError(f"Source is not a file: {source}")
-    output: Optional[Path] = None
+    output: Path | None = None
     if output_path is not None:
         output = _resolved_output_path(output_path)
         protected = {_sidecar_path(source, suffix).resolve(strict=False) for suffix in _SIDECAR_SUFFIXES}
@@ -134,7 +135,7 @@ def _same_filesystem(left: Path, right: Path) -> bool:
         return left.anchor.casefold() == right.anchor.casefold()
 
 
-def _disk_space_preflight(source: Path, work_root: Path, output_parent: Optional[Path]) -> dict[str, Any]:
+def _disk_space_preflight(source: Path, work_root: Path, output_parent: Path | None) -> dict[str, Any]:
     """Require space for the disposable bundle, output, and safety headroom."""
     bundle_bytes = sum(info["size"] for info in _source_fingerprint(source).values())
     # The v23 external-content rebuild is usually much smaller than a legacy database, but estimating
@@ -234,7 +235,7 @@ def _immediate_transaction(conn: sqlite3.Connection) -> Iterator[None]:
 
 def _compatible_columns(
     source: sqlite3.Connection, destination: sqlite3.Connection, table: str, result: dict[str, Any],
-) -> Optional[list[str]]:
+) -> list[str] | None:
     """Columns shared by source and destination; sets a terminal status and returns None otherwise."""
     source_columns = _table_columns(source, table)
     columns = [column for column in _table_columns(destination, table) if column in source_columns]
@@ -256,8 +257,8 @@ def _quoted_columns(columns: list[str]) -> tuple[str, str]:
 
 def _copy_rows(
     source: sqlite3.Connection, destination: sqlite3.Connection, select_sql: str, params: tuple[Any, ...],
-    insert_sql: str, *, table: str, chunk_size: int, progress_cb: Optional[ProgressCallback],
-    expected_rows: Optional[int], result: dict[str, Any],
+    insert_sql: str, *, table: str, chunk_size: int, progress_cb: ProgressCallback | None,
+    expected_rows: int | None, result: dict[str, Any],
 ) -> dict[str, Any]:
     """Chunked straight copy; fills ``status``/``error`` on ``result``."""
     try:
@@ -296,7 +297,7 @@ def _table_inventory(conn: sqlite3.Connection, table: str) -> dict[str, Any]:
     return result
 
 
-def _journal_mode(conn: sqlite3.Connection) -> Optional[str]:
+def _journal_mode(conn: sqlite3.Connection) -> str | None:
     row = conn.execute("PRAGMA journal_mode").fetchone()
     return str(row[0]).lower() if row else None
 
@@ -347,7 +348,7 @@ def _snapshot_and_inspect(
         raise
 
 
-def inspect_session_database(source_path: Path, *, work_dir: Optional[Path] = None) -> dict[str, Any]:
+def inspect_session_database(source_path: Path, *, work_dir: Path | None = None) -> dict[str, Any]:
     """Inspect canonical table readability without opening the source itself."""
     source, _, work_root = _validate_paths(source_path, work_dir=work_dir)
     disk_space = _disk_space_preflight(source, work_root, None)
@@ -373,7 +374,7 @@ def _fresh_destination(output: Path, *, topic_tables: bool = False) -> sqlite3.C
 
 def _copy_table(
     source: sqlite3.Connection, destination: sqlite3.Connection, table: str, *, salvage: bool, chunk_size: int,
-    progress_cb: Optional[ProgressCallback], source_rows: Optional[int],
+    progress_cb: ProgressCallback | None, source_rows: int | None,
 ) -> dict[str, Any]:
     """Copy one canonical table: straight chunked copy, or rowid-range salvage when ``salvage``."""
     copy_kwargs = dict(chunk_size=chunk_size, progress_cb=progress_cb, source_rows=source_rows)
@@ -404,7 +405,7 @@ def _append_skipped_range(ranges: list[dict[str, Any]], low: int, high: int, err
 def _salvage_rowid_bounds(source: sqlite3.Connection, table: str) -> dict[str, Any]:
     """Find the readable rowid edges without scanning the complete table."""
     result: dict[str, Any] = {"errors": [], "fallback_edges": []}
-    rows: dict[str, Optional[int]] = {"low": None, "high": None}
+    rows: dict[str, int | None] = {"low": None, "high": None}
     for edge, direction in (("low", "ASC"), ("high", "DESC")):
         try:
             row = source.execute(f'SELECT rowid FROM "{table}" ORDER BY rowid {direction} LIMIT 1').fetchone()
@@ -491,8 +492,8 @@ class _RowidRangeSalvage:
 
     def __init__(
         self, source: sqlite3.Connection, destination: sqlite3.Connection, table: str, columns: list[str], *,
-        chunk_size: int, progress_cb: Optional[ProgressCallback], source_rows: Optional[int], insert_prefix: str,
-        row_filter: Optional[Callable[[tuple[Any, ...], tuple[str, ...]], bool]], result: dict[str, Any],
+        chunk_size: int, progress_cb: ProgressCallback | None, source_rows: int | None, insert_prefix: str,
+        row_filter: Callable[[tuple[Any, ...], tuple[str, ...]], bool] | None, result: dict[str, Any],
     ) -> None:
         self.source, self.destination, self.table = source, destination, table
         self.chunk_size, self.progress_cb, self.source_rows = chunk_size, progress_cb, source_rows
@@ -552,7 +553,7 @@ class _RowidRangeSalvage:
             self._skip(low, high, "salvage range query limit reached")
             return
         result["range_queries"] += 1
-        last_committed_rowid: Optional[int] = None
+        last_committed_rowid: int | None = None
         try:
             cursor = self.source.execute(self.select_sql, (low, high))
             while True:
@@ -587,8 +588,8 @@ class _RowidRangeSalvage:
 
 def _copy_table_salvage(
     source: sqlite3.Connection, destination: sqlite3.Connection, table: str, *, chunk_size: int,
-    progress_cb: Optional[ProgressCallback], source_rows: Optional[int], insert_prefix: str = "INSERT",
-    row_filter: Optional[Callable[[tuple[Any, ...], tuple[str, ...]], bool]] = None,
+    progress_cb: ProgressCallback | None, source_rows: int | None, insert_prefix: str = "INSERT",
+    row_filter: Callable[[tuple[Any, ...], tuple[str, ...]], bool] | None = None,
 ) -> dict[str, Any]:
     """Best-effort rowid-range copy that continues past damaged source pages."""
     result: dict[str, Any] = {
@@ -629,7 +630,7 @@ def _copy_table_salvage(
     return result
 
 
-def _state_meta_result(source_rows: Optional[int], **extra: Any) -> dict[str, Any]:
+def _state_meta_result(source_rows: int | None, **extra: Any) -> dict[str, Any]:
     return {
         "source_meta_rows": source_rows, "copied_rows": 0, "columns": ["key", "value"],
         "excluded_keys": sorted(_GENERATED_META_KEYS), **extra,
@@ -637,8 +638,8 @@ def _state_meta_result(source_rows: Optional[int], **extra: Any) -> dict[str, An
 
 
 def _state_meta_precheck(
-    source: sqlite3.Connection, destination: sqlite3.Connection, source_rows: Optional[int], *, salvage: bool,
-) -> Optional[dict[str, Any]]:
+    source: sqlite3.Connection, destination: sqlite3.Connection, source_rows: int | None, *, salvage: bool,
+) -> dict[str, Any] | None:
     """Terminal ``state_meta`` result when the key/value schema is unusable, else ``None``.
 
     In salvage mode an unusable-but-PRESENT table reports ``failed``, not ``missing``: verification
@@ -661,7 +662,7 @@ def _state_meta_precheck(
 
 def _copy_state_meta(
     source: sqlite3.Connection, destination: sqlite3.Connection, *, salvage: bool, chunk_size: int,
-    progress_cb: Optional[ProgressCallback], source_rows: Optional[int],
+    progress_cb: ProgressCallback | None, source_rows: int | None,
 ) -> dict[str, Any]:
     """Copy user metadata rows; derived FTS/topic keys (``_GENERATED_META_KEYS``) are regenerated, not copied."""
     problem = _state_meta_precheck(source, destination, source_rows, salvage=salvage)
@@ -679,7 +680,7 @@ def _copy_state_meta(
         return result
     placeholders = ", ".join("?" for _ in _GENERATED_META_KEYS)
     params = tuple(_GENERATED_META_KEYS)
-    filtered_source_rows: Optional[int] = None
+    filtered_source_rows: int | None = None
     try:
         filtered_source_rows = int(
             source.execute(f"SELECT COUNT(*) FROM state_meta WHERE key NOT IN ({placeholders})", params).fetchone()[0]
@@ -843,8 +844,8 @@ def _verify_fts_indexes(conn: sqlite3.Connection, verification: dict[str, Any]) 
 
 
 def _verify_row_counts(
-    conn: sqlite3.Connection, verification: dict[str, Any], *, expected_counts: dict[str, Optional[int]],
-    copy_report: dict[str, dict[str, Any]], allow_partial: bool, orphan_cleanup: Optional[dict[str, Any]],
+    conn: sqlite3.Connection, verification: dict[str, Any], *, expected_counts: dict[str, int | None],
+    copy_report: dict[str, dict[str, Any]], allow_partial: bool, orphan_cleanup: dict[str, Any] | None,
 ) -> None:
     """Compare recovered counts and copy statuses against the source; classify shortfalls as loss."""
 
@@ -894,8 +895,8 @@ def _verify_row_counts(
 
 
 def _verify_recovered_database(
-    output: Path, *, expected_counts: dict[str, Optional[int]], copy_report: dict[str, dict[str, Any]],
-    allow_partial: bool = False, orphan_cleanup: Optional[dict[str, Any]] = None,
+    output: Path, *, expected_counts: dict[str, int | None], copy_report: dict[str, dict[str, Any]],
+    allow_partial: bool = False, orphan_cleanup: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     verification: dict[str, Any] = {"errors": [], "warnings": [], "loss_detected": False}
     open_error = _db_opens_cleanly(output)
@@ -1058,8 +1059,14 @@ def _recover_via_lost_and_found(
     (shell-only, not in Python's ``sqlite3``) rebuilds rows into a scratch lost_and_found database which
     is then heuristically mapped into a fresh current-schema database."""
     from hermes_cli.session_lost_and_found import (
-        SQLITE3_CLI_GUIDANCE, LostAndFoundError, find_sqlite3_cli, find_sqlite3_cli_refusal, map_lost_and_found_rows,
-        rebuild_fts_indexes, run_cli_lost_and_found_recover, stub_missing_parent_sessions,
+        SQLITE3_CLI_GUIDANCE,
+        LostAndFoundError,
+        find_sqlite3_cli,
+        find_sqlite3_cli_refusal,
+        map_lost_and_found_rows,
+        rebuild_fts_indexes,
+        run_cli_lost_and_found_recover,
+        stub_missing_parent_sessions,
     )
     missing = ", ".join(missing_required)
     sqlite3_bin = find_sqlite3_cli()
@@ -1186,8 +1193,8 @@ def _recovery_report(
 
 
 def recover_session_database(
-    source_path: Path, output_path: Path, *, work_dir: Optional[Path] = None, chunk_size: int = 1_000,
-    progress_cb: Optional[ProgressCallback] = None, allow_partial: bool = False,
+    source_path: Path, output_path: Path, *, work_dir: Path | None = None, chunk_size: int = 1_000,
+    progress_cb: ProgressCallback | None = None, allow_partial: bool = False,
 ) -> dict[str, Any]:
     """Recover canonical rows into a separate current-schema database. The source and its sidecars are
     copied before SQLite opens anything; ``output_path`` must not exist and is never swapped into place."""
@@ -1213,7 +1220,7 @@ def recover_session_database(
             )
         source_conn = _connect(snapshot_source)
         source_conn.execute("PRAGMA writable_schema=ON")
-        destination_conn: Optional[sqlite3.Connection] = None
+        destination_conn: sqlite3.Connection | None = None
         try:
             destination_conn = _fresh_destination(
                 output, topic_tables=any(inspection["tables"][table].get("available") for table in _TOPIC_TABLES),

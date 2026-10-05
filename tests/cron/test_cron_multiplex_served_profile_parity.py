@@ -6,12 +6,13 @@ in its secret scope / home override. Every knob cron reads from ``.env`` and eve
 builds must resolve exactly as it would under a standalone ``hermes -p <name> gateway run``.
 """
 
-from pathlib import Path
 
 import pytest
-
 from agent.secret_scope import (
-    build_profile_secret_scope, reset_secret_scope, set_multiplex_active, set_secret_scope,
+    build_profile_secret_scope,
+    reset_secret_scope,
+    set_multiplex_active,
+    set_secret_scope,
 )
 from hermes_constants import reset_hermes_home_override, set_hermes_home_override
 

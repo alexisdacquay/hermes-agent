@@ -22,11 +22,9 @@ from __future__ import annotations
 import json
 import types
 
-import pytest
-
 import agent.auxiliary_client as aux
+import pytest
 from hermes_cli.local_runtime.supervisor import LlamaServerSupervisor
-
 
 MANAGED_URL = "http://127.0.0.1:18434/v1"
 

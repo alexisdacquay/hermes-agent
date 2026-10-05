@@ -8,10 +8,9 @@ path already handled it; the reconfigure path forgot to mirror it.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import pytest
-
 from agent import video_gen_registry
 from agent.video_gen_provider import VideoGenProvider
 
@@ -21,8 +20,8 @@ class _FakeVideoProvider(VideoGenProvider):
         self,
         name: str,
         available: bool = True,
-        schema: Optional[Dict[str, Any]] = None,
-        models: Optional[List[Dict[str, Any]]] = None,
+        schema: dict[str, Any] | None = None,
+        models: list[dict[str, Any]] | None = None,
     ):
         self._name = name
         self._available = available

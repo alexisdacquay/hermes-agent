@@ -19,8 +19,8 @@ import subprocess
 import sys
 import threading
 import time
+from collections.abc import Callable, Mapping
 from pathlib import Path
-from typing import Callable, Mapping, Optional
 
 # Identity the packaged app claims for its window: electron-builder bakes product-identity.cjs's
 # `appId` into extraMetadata.desktopName, and Electron hands that string to the compositor
@@ -81,7 +81,7 @@ def _running_interpreter() -> str:
     return str(path.resolve())
 
 
-_probe_cache: "dict[str, bool]" = {}
+_probe_cache: dict[str, bool] = {}
 
 
 def _can_import_hermes_cli(interpreter: Path) -> bool:
@@ -112,7 +112,7 @@ def _running_interpreter_fallback() -> str:
     return os.path.abspath(sys.executable)
 
 
-def resolve_exec_command(project_root: Optional[Path] = None) -> str:
+def resolve_exec_command(project_root: Path | None = None) -> str:
     """Build the absolute ``Exec=`` command line for ``hermes desktop``.
 
     Prefer the real ``hermes`` launcher; fall back to ``<python> -m hermes_cli.main desktop``.
@@ -143,7 +143,7 @@ def resolve_exec_command(project_root: Optional[Path] = None) -> str:
     return " ".join(_quote_exec_arg(a) for a in argv)
 
 
-def _desktop_argv_tail(project_root: Optional[Path]) -> list[str]:
+def _desktop_argv_tail(project_root: Path | None) -> list[str]:
     """The ``desktop`` subcommand arguments a persisted launcher should carry.
 
     A menu/taskbar click is a launch, not a build request: when a packaged
@@ -227,8 +227,8 @@ def _is_this_checkout_managed_cli(candidate: str, checkout_root: Path) -> bool:
 
 def _resolve_hermes_bin_for_desktop_entry(
     resolve_fn=None,
-    checkout_root: Optional[Path] = None,
-) -> Optional[str]:
+    checkout_root: Path | None = None,
+) -> str | None:
     """Resolve the launcher binary for the persisted ``.desktop`` entry.
 
     Wraps :func:`hermes_cli.relaunch.resolve_hermes_bin` with one rule: an ``argv[0]`` inside this
@@ -328,7 +328,7 @@ def _resolve_hermes_bin_for_desktop_entry(
     return None
 
 
-def _shebang_tokens(shebang: str) -> "list[str]":
+def _shebang_tokens(shebang: str) -> list[str]:
     return shebang[2:].strip().split()
 
 
@@ -336,7 +336,7 @@ def _is_native_binary(head: bytes) -> bool:
     return head[:4] == b"\x7fELF" or head.startswith(b"MZ")
 
 
-def _read_head(path: Path, size: int = 4096) -> Optional[bytes]:
+def _read_head(path: Path, size: int = 4096) -> bytes | None:
     try:
         with open(path, "rb") as fh:
             return fh.read(size)
@@ -420,7 +420,7 @@ def _launcher_tree(path: Path) -> Path:
     return tree.parent if tree.name in ("venv", ".venv", "env") else tree
 
 
-def _tree_desktop_state(tree: Path) -> Optional[bool]:
+def _tree_desktop_state(tree: Path) -> bool | None:
     """``True`` when *tree* can serve ``hermes desktop``, ``False`` when it provably cannot, else ``None``.
 
     ``False`` is reserved for a tree that IS a hermes code tree (carries ``hermes_cli``) yet has no
@@ -439,7 +439,7 @@ def _tree_desktop_state(tree: Path) -> Optional[bool]:
     return None
 
 
-def _embedded_launcher_target(wrapper: Path) -> Optional[Path]:
+def _embedded_launcher_target(wrapper: Path) -> Path | None:
     """First absolute path to an existing ``bin`` launcher embedded in a shell wrapper script."""
     head = _read_head(wrapper)
     if head is None:
@@ -450,7 +450,7 @@ def _embedded_launcher_target(wrapper: Path) -> Optional[Path]:
     return None
 
 
-def _can_serve_desktop(candidate: str, _depth: int = 2) -> Optional[bool]:
+def _can_serve_desktop(candidate: str, _depth: int = 2) -> bool | None:
     """Desktop-capability of a launcher path; shell wrappers followed to their target.
 
     Native binaries, unreadable files, interpreters, and shapes without markers stay ``None``;
@@ -476,7 +476,7 @@ def _can_serve_desktop(candidate: str, _depth: int = 2) -> Optional[bool]:
     return _tree_desktop_state(_launcher_tree(path))
 
 
-def _persisted_exec_serves_desktop(exec_command: str) -> Optional[bool]:
+def _persisted_exec_serves_desktop(exec_command: str) -> bool | None:
     """Desktop-capability of a rendered ``Exec`` line, ignoring an interpreter prefix.
 
     ``[<interpreter>, <launcher>, desktop]`` is judged by the launcher. The module fallback
@@ -599,7 +599,7 @@ def _render_legacy_alias_entry(exec_command: str, icon: str) -> str:
     return render_desktop_entry(exec_command, icon) + "NoDisplay=true\n"
 
 
-def refresh_desktop_databases(applications_dir: Path) -> "list[str]":
+def refresh_desktop_databases(applications_dir: Path) -> list[str]:
     """Reindex the menu caches. Run each tool only when it exists."""
     ran: list[str] = []
 
@@ -618,7 +618,7 @@ def refresh_desktop_databases(applications_dir: Path) -> "list[str]":
     return ran
 
 
-def _run_quiet(cmd: "list[str]", *, timeout: int = 60, on_error: Optional[bool] = False, **kwargs) -> Optional[bool]:
+def _run_quiet(cmd: list[str], *, timeout: int = 60, on_error: bool | None = False, **kwargs) -> bool | None:
     """Exit-status success of a silenced subprocess; ``on_error`` when it could not be run at all."""
     try:
         result = subprocess.run(
@@ -642,14 +642,14 @@ _HICOLOR_INDEXED_SIZES = (16, 22, 24, 32, 36, 48, 64, 72, 96, 128, 192, 256, 512
 _HICOLOR_INSTALL_SIZES = (24, 32, 48, 256)
 
 
-def _png_dimensions(raw: bytes) -> Optional[tuple[int, int]]:
+def _png_dimensions(raw: bytes) -> tuple[int, int] | None:
     """``(width, height)`` from a PNG IHDR, or ``None`` if unreadable."""
     if len(raw) >= 24 and raw[:8] == b"\x89PNG\r\n\x1a\n" and raw[12:16] == b"IHDR":
         return struct.unpack(">II", raw[16:24])
     return None
 
 
-def _hicolor_subdir(dimensions: Optional[tuple[int, int]]) -> str:
+def _hicolor_subdir(dimensions: tuple[int, int] | None) -> str:
     """Pick a fixed-size hicolor dir the theme indexes. Never ``scalable``."""
     if dimensions is None:
         return "256x256"
@@ -688,7 +688,7 @@ def _refresh_hicolor_cache() -> None:
             return
 
 
-def _resized_hicolor_pngs(raw: bytes) -> Optional[dict[str, bytes]]:
+def _resized_hicolor_pngs(raw: bytes) -> dict[str, bytes] | None:
     """Lanczos-resize *raw* to each panel size; ``None`` when it will not decode (truncated/fake
     PNG) so the caller falls back to a copy. Pillow is imported lazily to keep the uninstaller
     import-light."""
@@ -796,7 +796,7 @@ def _alias_legacy_desktop_entry(applications_dir: Path, exec_command: str, icon:
     return True
 
 
-def install_desktop_entry(project_root: Path) -> Optional[Path]:
+def install_desktop_entry(project_root: Path) -> Path | None:
     """Create or refresh the app-id entry, respecting the opt-out for existing entries.
 
     Only the app-id entry is written; a pre-rename ``hermes.desktop`` beside it is converted
@@ -859,7 +859,7 @@ def install_desktop_entry(project_root: Path) -> Optional[Path]:
     return entry_path
 
 
-def launched_from_shell(environ: Optional[Mapping[str, str]] = None) -> bool:
+def launched_from_shell(environ: Mapping[str, str] | None = None) -> bool:
     """True when this process was started from the app grid / menu (XDG startup notification).
 
     A grid launch has a gnome-shell ShellApp in STARTING until our window maps; unpatched
@@ -887,7 +887,7 @@ class DeferredDesktopEntryInstall:
     def __init__(
         self,
         project_root: Path,
-        install: Optional[Callable[[Path], Optional[Path]]] = None,
+        install: Callable[[Path], Path | None] | None = None,
         settle_seconds: float = 2.0,
     ) -> None:
         self._project_root = project_root

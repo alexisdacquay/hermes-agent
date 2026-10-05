@@ -18,13 +18,9 @@ import subprocess
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from pathlib import Path
-from typing import Optional
 
 import pytest
-
 from agent.proxy_sources import iron_proxy as ip
-
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("HERMES_RUN_E2E", "0") != "1",
@@ -49,7 +45,7 @@ def _free_port() -> int:
 class _CaptureHandler(BaseHTTPRequestHandler):
     """Records the Authorization header of every incoming request."""
 
-    captured_auth: Optional[str] = None  # class-level so tests can read it
+    captured_auth: str | None = None  # class-level so tests can read it
 
     def do_GET(self):
         type(self).captured_auth = self.headers.get("Authorization")
@@ -172,7 +168,7 @@ def test_iron_proxy_swaps_authorization_header_end_to_end(hermes_home, monkeypat
 class _CaptureXApiKeyHandler(BaseHTTPRequestHandler):
     """Records the x-api-key header of every incoming request."""
 
-    captured_key: Optional[str] = None
+    captured_key: str | None = None
 
     def do_GET(self):
         type(self).captured_key = self.headers.get("x-api-key")

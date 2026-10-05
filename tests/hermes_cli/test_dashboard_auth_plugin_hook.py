@@ -8,13 +8,14 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from hermes_cli.dashboard_auth import clear_providers, get_provider
+from hermes_cli.dashboard_auth import registry as _auth_registry
 from hermes_cli.dashboard_auth.base import (
-    DashboardAuthProvider, LoginStart, Session,
+    DashboardAuthProvider,
+    LoginStart,
+    Session,
 )
 from hermes_cli.plugins import PluginContext, PluginManager, PluginManifest
-from hermes_cli.dashboard_auth import registry as _auth_registry
 from hermes_constants import get_process_hermes_home, hermes_home_key
 
 

@@ -8,7 +8,6 @@ import logging
 from types import SimpleNamespace
 
 import pytest
-
 from gateway.run_turn import GatewayTurnMixin
 
 _HISTORY = [{"role": "user", "content": "x" * 400}, {"role": "assistant", "content": "y" * 400}] * 4

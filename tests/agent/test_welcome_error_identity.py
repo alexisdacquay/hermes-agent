@@ -3,11 +3,14 @@
 from types import SimpleNamespace
 
 import pytest
-
 from agent.error_classifier import classify_api_error
-from tests.hermes_cli.anon_portal import make_jwt
 from agent.error_surface import build_error_surface_from_result
-from agent.turn_recovery import max_retries_exhausted_result, nonretryable_client_error_result
+from agent.turn_recovery import (
+    max_retries_exhausted_result,
+    nonretryable_client_error_result,
+)
+
+from tests.hermes_cli.anon_portal import make_jwt
 
 WELCOME = "https://welcome-api.nousresearch.com/v1"
 NAMED = "https://inference-api.nousresearch.com/v1"
@@ -65,7 +68,11 @@ def guard_for(agent):
 
 def test_signing_in_does_not_inherit_anonymous_cooldown(tmp_path, monkeypatch):
     from agent.agent_runtime_helpers import extract_api_error_context
-    from agent.nous_rate_guard import clear_nous_rate_limit, nous_rate_limit_remaining, record_nous_rate_limit
+    from agent.nous_rate_guard import (
+        clear_nous_rate_limit,
+        nous_rate_limit_remaining,
+        record_nous_rate_limit,
+    )
     from agent.turn_recovery import _is_genuine_nous_rate_limit
 
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
@@ -100,7 +107,7 @@ def test_auxiliary_anonymous_cooldown_does_not_outlive_signing_in(tmp_path, monk
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
     record_nous_rate_limit(headers={"retry-after": "600"}, anonymous=True)
     runtime = [make_jwt(), WELCOME]
-    monkeypatch.setattr(aux, "_read_nous_auth", lambda: {})
+    monkeypatch.setattr(aux, "_read_nous_auth", dict)
     monkeypatch.setattr(aux, "_resolve_nous_runtime_api", lambda **kw: tuple(runtime))
     unhealthy = []
     monkeypatch.setattr(aux, "_mark_provider_unhealthy", lambda *a, **kw: unhealthy.append(kw.get("ttl")))

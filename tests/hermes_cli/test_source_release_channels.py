@@ -1,14 +1,13 @@
 """Release-channel checks and updates against actual repositories and HTTP feeds."""
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
-from threading import Thread
-from types import SimpleNamespace
 import subprocess
 import urllib.request
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from threading import Thread
+from types import SimpleNamespace
 from urllib.parse import urlsplit
 
 import pytest
-
 from hermes_cli import main, update_cmd
 from hermes_cli.source_releases import resolve_source_release
 from hermes_cli.update_channel import set_install_channel

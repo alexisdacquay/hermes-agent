@@ -9,13 +9,19 @@ import shlex
 import tarfile
 import threading
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from hermes_constants import get_hermes_home
+
 from tools.environments.base import BaseEnvironment, _load_json_store, _save_json_store
 from tools.environments.base_output import _ThreadedProcessHandle
 from tools.environments.file_sync import (
-    FileSyncManager, iter_sync_files, quoted_mkdir_command, quoted_rm_command, unique_parent_dirs)
+    FileSyncManager,
+    iter_sync_files,
+    quoted_mkdir_command,
+    quoted_rm_command,
+    unique_parent_dirs,
+)
 from tools.environments.remote_common import bash_argv, ensure_lazy_dep
 
 logger = logging.getLogger(__name__)
@@ -98,8 +104,8 @@ class _AsyncWorker:
     """Background thread with its own event loop for async-safe Modal calls."""
 
     def __init__(self):
-        self._loop: Optional[asyncio.AbstractEventLoop] = None
-        self._thread: Optional[threading.Thread] = None
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._thread: threading.Thread | None = None
         self._started = threading.Event()
 
     def start(self):
@@ -138,7 +144,7 @@ class ModalEnvironment(BaseEnvironment):
     _STDIN_CHUNK_SIZE = 1 * 1024 * 1024
 
     def __init__(self, image: str, cwd: str = "/root", timeout: int = 60,
-                 modal_sandbox_kwargs: Optional[dict[str, Any]] = None,
+                 modal_sandbox_kwargs: dict[str, Any] | None = None,
                  persistent_filesystem: bool = True, task_id: str = "default"):
         super().__init__(cwd=cwd, timeout=timeout)
         self._persistent, self._task_id = persistent_filesystem, task_id

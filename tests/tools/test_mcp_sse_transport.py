@@ -21,6 +21,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+
 async def _noop_initialize():
     return None
 
@@ -97,7 +98,7 @@ class TestSSEReadTimeout:
                         }),
                         timeout=2.0,
                     )
-                except (asyncio.TimeoutError, StopAsyncIteration, Exception):
+                except (TimeoutError, StopAsyncIteration, Exception):
                     pass
 
         asyncio.run(drive())
@@ -134,7 +135,7 @@ class TestSSEOAuthForwarding:
                         }),
                         timeout=2.0,
                     )
-                except (asyncio.TimeoutError, StopAsyncIteration, Exception):
+                except (TimeoutError, StopAsyncIteration, Exception):
                     pass
 
         asyncio.run(drive())

@@ -5,16 +5,16 @@ import hashlib
 import io
 import json
 import os
-from pathlib import Path
 import subprocess
 import sys
 import tarfile
 import zipfile
-
-import pytest
+from pathlib import Path
 
 import pm
+import pytest
 from pm import paths
+
 from tests.pm._range_server import RangeHandler, url
 from tests.pm._range_server import dl_server as dl_server
 
@@ -165,8 +165,9 @@ def test_signature_rejection_preserves_previous_selection(consumer_store, tmp_pa
 
 @pytest.mark.platforms("posix")
 def test_tirith_opt_in_background_and_explicit_override(consumer_store, tmp_path, monkeypatch):
-    from tools import tirith_security as tirith
     import threading
+
+    from tools import tirith_security as tirith
 
     monkeypatch.setenv("PATH", "")
     monkeypatch.setenv("TIRITH_ENABLED", "false")
@@ -213,8 +214,8 @@ def test_tirith_opt_in_background_and_explicit_override(consumer_store, tmp_path
 
 @pytest.mark.platforms("posix")
 def test_managed_consumers_run_their_business_protocol(consumer_store, monkeypatch):
-    from agent.secret_sources.bitwarden import fetch_bitwarden_secrets, install_bws
     from agent.proxy_sources.iron_proxy import install_iron_proxy, iron_proxy_version
+    from agent.secret_sources.bitwarden import fetch_bitwarden_secrets, install_bws
     from tools.tirith_security import check_command_security, ensure_installed
 
     monkeypatch.setenv("PATH", "")

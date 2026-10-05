@@ -24,7 +24,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
 from hermes_cli.session_lost_and_found import (
     _parse_sqlite3_cli_version,
     _wal_reset_vulnerable,
@@ -244,7 +243,7 @@ class TestEmittedCommandsSatisfyCliContract:
     """
 
     @staticmethod
-    def _namespace(source: Path, **overrides) -> "argparse.Namespace":
+    def _namespace(source: Path, **overrides) -> argparse.Namespace:
         """The namespace hermes main() produces for `sessions recover`.
 
         Mirrors the registrations in hermes_cli/main.py (sessions_recover

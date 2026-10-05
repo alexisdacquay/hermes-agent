@@ -20,7 +20,6 @@ import threading
 import time
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Optional
 
 from hermes_cli.browser_runtime import chromium_executable
 from utils import atomic_json_write
@@ -218,7 +217,7 @@ def _pcm_tail_loop(proc, pcm_path: Path, stop_flag: dict, poll_interval: float =
         _quiet(proc.stdin.close)
 
 
-def _start_pcm_pump(rt: dict, bridge_info: dict, pcm_path: Path, state: "_BotState",
+def _start_pcm_pump(rt: dict, bridge_info: dict, pcm_path: Path, state: _BotState,
                     stop_flag: dict) -> None:
     """Stream the growing ``speaker.pcm`` (24kHz s16le mono) into the device Chrome's fake mic reads.
     The pump reads raw PCM from stdin (``-``) so audio appended after start-up is still played —
@@ -257,14 +256,17 @@ def _start_pcm_pump(rt: dict, bridge_info: dict, pcm_path: Path, state: "_BotSta
     rt["pcm_tail_thread"].start()
 
 
-def _start_realtime_speaker(rt: dict, cfg: "_BotConfig", stop_flag: dict, state: "_BotState") -> None:
+def _start_realtime_speaker(rt: dict, cfg: _BotConfig, stop_flag: dict, state: _BotState) -> None:
     """Wire up the OpenAI Realtime session, the say-queue speaker thread and the PCM pump."""
     pcm_path, queue_path = cfg.out_dir / "speaker.pcm", cfg.out_dir / "say_queue.jsonl"
     pcm_path.write_bytes(b"")  # clean sink file per session
     queue_path.touch()  # so the speaker poller doesn't error on first iteration
     phase = "import"
     try:
-        from plugins.google_meet.realtime.openai_client import RealtimeSession, RealtimeSpeaker
+        from plugins.google_meet.realtime.openai_client import (
+            RealtimeSession,
+            RealtimeSpeaker,
+        )
         phase = "connect"
         session = RealtimeSession(
             api_key=cfg.realtime_api_key, model=cfg.realtime_model, voice=cfg.realtime_voice,
@@ -517,7 +519,7 @@ def _looks_like_human_speaker(speaker: str, bot_guest_name: str) -> bool:
 _DURATION_UNITS = {"h": 3600.0, "m": 60.0, "s": 1.0}
 
 
-def _parse_duration(raw: str) -> Optional[float]:
+def _parse_duration(raw: str) -> float | None:
     """Parse ``30m`` / ``2h`` / ``90`` (seconds) → float seconds, or None."""
     if not raw:
         return None

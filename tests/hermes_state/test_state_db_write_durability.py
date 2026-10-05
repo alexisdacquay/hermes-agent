@@ -33,7 +33,6 @@ import sqlite3
 from pathlib import Path
 
 import pytest
-
 from hermes_state import repair_state_db_schema
 from hermes_state_repair import _connect_repair_durable
 

@@ -13,22 +13,28 @@ import logging
 import re
 import time
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
+
+from utils import base_url_host_matches
 
 from agent.conversation_compression import (
-    COMPRESSION_RETRY_MESSAGES_STATUS_TEMPLATE, COMPRESSION_RETRY_TOKENS_STATUS_TEMPLATE,
-    COMPRESSION_RETRY_TOO_LARGE_STATUS_TEMPLATE, compression_blocked_transiently,
-    compression_skipped_due_to_lock, context_compression_timed_out,
+    COMPRESSION_RETRY_MESSAGES_STATUS_TEMPLATE,
+    COMPRESSION_RETRY_TOKENS_STATUS_TEMPLATE,
+    COMPRESSION_RETRY_TOO_LARGE_STATUS_TEMPLATE,
+    compression_blocked_transiently,
+    compression_skipped_due_to_lock,
+    context_compression_timed_out,
 )
 from agent.error_classifier import FailoverReason
 from agent.message_sanitization import serialized_messages_bytes
 from agent.model_metadata import (
-    get_context_length_from_provider_error, is_local_endpoint, is_output_cap_error,
+    get_context_length_from_provider_error,
+    is_local_endpoint,
+    is_output_cap_error,
     parse_available_output_tokens_from_error,
 )
 from agent.turn_failure_copy import site_copy, stamp_failure
 from agent.turn_retry_state import TurnRetryState
-from utils import base_url_host_matches
 
 logger = logging.getLogger("agent.conversation_loop")
 
@@ -61,8 +67,8 @@ class OverflowVerdict:
     fields are the loop locals the handler may have rebound."""
 
     action: str
-    result: Optional[Dict[str, Any]]
-    messages: List[Dict[str, Any]]
+    result: dict[str, Any] | None
+    messages: list[dict[str, Any]]
     active_system_prompt: Any
     conversation_history: Any
     approx_tokens: int
@@ -84,16 +90,16 @@ class _Recovery(OverflowVerdict):
     api_call_count: int
     max_compression_attempts: int
     action: str = "fallthrough"
-    result: Optional[Dict[str, Any]] = None
+    result: dict[str, Any] | None = None
     provider_overflow_recovery_pending: bool = False
     is_context_length_error: bool = False
 
-    def done(self, action: str, result: Optional[Dict[str, Any]] = None) -> OverflowVerdict:
+    def done(self, action: str, result: dict[str, Any] | None = None) -> OverflowVerdict:
         self.action, self.result = action, result
         return self
 
     def fail_turn(
-        self, final_response: str, *, notices: tuple = (), log: Optional[tuple] = None,
+        self, final_response: str, *, notices: tuple = (), log: tuple | None = None,
         compression_exhausted: bool = True, reason: str = "context_overflow",
         retryable: bool = False, **extra: Any,
     ) -> OverflowVerdict:
@@ -124,7 +130,7 @@ class _Recovery(OverflowVerdict):
         result.update(extra)
         return self.done("return", result)
 
-    def count_attempt(self, *, payload_too_large: bool = False) -> Optional[OverflowVerdict]:
+    def count_attempt(self, *, payload_too_large: bool = False) -> OverflowVerdict | None:
         """Bump ``compression_attempts``; the terminal verdict once the cap is exceeded."""
         self.compression_attempts += 1
         cap = self.max_compression_attempts
@@ -145,7 +151,7 @@ class _Recovery(OverflowVerdict):
             log=("%sContext compression failed after %d attempts.", self.agent.log_prefix, cap),
         )
 
-    def compress(self, request_tokens: int, *, fail_on_timeout: bool = False) -> Optional[OverflowVerdict]:
+    def compress(self, request_tokens: int, *, fail_on_timeout: bool = False) -> OverflowVerdict | None:
         """One compression pass with the summary-failure cooldown bypassed (the
         provider proved the request doesn't fit). Returns ``None`` when history was
         compressed, or a soft-defer verdict when another path holds the compression
@@ -154,8 +160,13 @@ class _Recovery(OverflowVerdict):
         ``fail_on_timeout`` a host timeout (recovery spent its wait budget with no
         committed summary) ends the turn via the typed contract, since re-sending would
         hit the same overflow."""
-        from agent.conversation_compression import conversation_history_after_compression
-        from agent.conversation_loop import _COMPRESSION_TIMEOUT_FINAL_RESPONSE, _compression_deferred_result
+        from agent.conversation_compression import (
+            conversation_history_after_compression,
+        )
+        from agent.conversation_loop import (
+            _COMPRESSION_TIMEOUT_FINAL_RESPONSE,
+            _compression_deferred_result,
+        )
 
         agent = self.agent
         before = self.messages
@@ -186,7 +197,7 @@ class _Recovery(OverflowVerdict):
 
     def compress_scored_by_tokens(
         self, request_tokens: int, *, fail_on_timeout: bool = False,
-    ) -> Tuple[Optional[OverflowVerdict], bool, int]:
+    ) -> tuple[OverflowVerdict | None, bool, int]:
         """``compress`` scored in message count / tokens (context-overflow errors ARE
         token-budget errors). Same-message-count compression (tool-result pruning,
         in-place summarization) can shrink the request, so re-estimate rather than trust
@@ -319,7 +330,7 @@ def _clamp_output_cap(st: _Recovery, _retry: TurnRetryState, available_out: int,
     return st.done("break")
 
 
-def _adopt_provider_context_limit(st: _Recovery, error_msg: str, old_ctx: int) -> Optional[int]:
+def _adopt_provider_context_limit(st: _Recovery, error_msg: str, old_ctx: int) -> int | None:
     """Shrink context_length only when the provider reports the real limit; else keep
     the window and compress. Guessed probe tiers can turn a configured 1M window into
     256K/128K/64K. Returns the provider-reported limit, or ``None``."""
@@ -460,8 +471,8 @@ def _recover_context_length(st: _Recovery, _retry: TurnRetryState, error_msg: st
 
 def recover_from_overflow(
     agent: Any, api_error: Exception, classified: Any, _retry: TurnRetryState, *,
-    status_code: Optional[int], error_msg: str, wrapped_output_cap_budget: Optional[int],
-    messages: List[Dict[str, Any]], api_messages: Any, system_message: Any,
+    status_code: int | None, error_msg: str, wrapped_output_cap_budget: int | None,
+    messages: list[dict[str, Any]], api_messages: Any, system_message: Any,
     active_system_prompt: Any, conversation_history: Any, approx_tokens: int,
     compression_attempts: int, max_compression_attempts: int, api_call_count: int,
     effective_task_id: Any,

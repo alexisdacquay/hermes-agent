@@ -2,16 +2,13 @@
 import concurrent.futures
 import json
 import os
-from pathlib import Path
 import subprocess
 import threading
 import time
 
 import pytest
-
-from tools.code_execution_tool import generate_hermes_tools_module
 from tools.code_execution_rpc import _rpc_poll_loop
-
+from tools.code_execution_tool import generate_hermes_tools_module
 
 CALLS = {
     "web_search": {"query": "fixture", "limit": 3},
@@ -28,11 +25,11 @@ CALLS = {
 
 @pytest.mark.platforms("posix")
 def test_generated_file_rpc_kwargs_correlation_and_authority(tmp_path, monkeypatch):
+    import tools.file_tools
+    import tools.terminal_tool
+    import tools.web_tools  # noqa: F401
     from pm.shell import bash
     from tools.registry import registry
-    import tools.file_tools  # noqa: F401 - populate schemas
-    import tools.web_tools  # noqa: F401
-    import tools.terminal_tool  # noqa: F401
 
     shell = bash()
     assert shell

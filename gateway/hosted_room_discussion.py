@@ -16,11 +16,11 @@ from functools import partial
 from typing import Any, Literal
 
 from agent.prompt_builder import CONTROL_FRAME_OPENERS
+
 from gateway import hosted_room_driver as driver
 from gateway import hosted_rooms
 from gateway import hosted_rooms_common as common
 from gateway.hosted_rooms_common import compact_json
-
 
 MAX_DISCUSSION_MEMBERS = 6
 MIN_DISCUSSION_MEMBERS = 2

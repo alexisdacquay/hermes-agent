@@ -10,8 +10,8 @@ import asyncio
 import threading
 import time
 from unittest.mock import AsyncMock, MagicMock, patch
-from gateway.platforms.api_server import ThreadSafeAsyncQueue
 
+from gateway.platforms.api_server import ThreadSafeAsyncQueue
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -19,8 +19,8 @@ from gateway.platforms.api_server import ThreadSafeAsyncQueue
 
 def _make_adapter():
     """Build a minimal APIServerAdapter with mocked internals."""
-    from gateway.platforms.api_server import APIServerAdapter
     from gateway.config import PlatformConfig
+    from gateway.platforms.api_server import APIServerAdapter
 
     config = PlatformConfig(enabled=True, token="test-key")
     adapter = APIServerAdapter(config)

@@ -13,16 +13,33 @@ import subprocess
 import tempfile
 from functools import partial
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 from agent.model_metadata import CHARS_PER_TOKEN
-from tools.tts_command_provider import (
-    _command_output_format, _command_timeout, _is_command_provider_config as _is_command_stt_provider_config,
-    _named_provider_config, _resolve_command_config, command_env_passthrough as _command_stt_env_passthrough,
-    command_failure_detail, render_command_template as _render_command_stt_template,
-    run_command_provider as _run_command_stt)
+
 from tools.transcription_common import (
-    BUILTIN_STT_PROVIDERS, _error_result, _log_prompt_unsupported, _ok_result)
+    BUILTIN_STT_PROVIDERS,
+    _error_result,
+    _log_prompt_unsupported,
+    _ok_result,
+)
+from tools.tts_command_provider import (
+    _command_output_format,
+    _command_timeout,
+    _named_provider_config,
+    _resolve_command_config,
+    command_failure_detail,
+)
+from tools.tts_command_provider import (
+    _is_command_provider_config as _is_command_stt_provider_config,
+)
+from tools.tts_command_provider import (
+    command_env_passthrough as _command_stt_env_passthrough,
+)
+from tools.tts_command_provider import (
+    render_command_template as _render_command_stt_template,
+)
+from tools.tts_command_provider import run_command_provider as _run_command_stt
 
 # Log-record parity with the origin module.
 logger = logging.getLogger("tools.transcription_tools")
@@ -66,9 +83,9 @@ def _read_command_stt_output(output_path: Path, stdout: str, fmt: str) -> str:
 
 
 def _transcribe_command_stt(
-    file_path: str, provider_name: str, config: Dict[str, Any], stt_config: Dict[str, Any],
-    model_override: Optional[str] = None, language_override: Optional[str] = None,
-    prompt: Optional[str] = None) -> Dict[str, Any]:
+    file_path: str, provider_name: str, config: dict[str, Any], stt_config: dict[str, Any],
+    model_override: str | None = None, language_override: str | None = None,
+    prompt: str | None = None) -> dict[str, Any]:
     """Transcribe via a user-declared ``stt.providers.<name>: type: command``. Placeholders
     (shell-quote-aware; ``{{``/``}}`` stay literal): ``{input_path}``, ``{output_path}`` (transcript
     file), ``{output_dir}``, ``{format}`` txt/json/srt/vtt, ``{language}`` (default ``en``),
@@ -77,7 +94,7 @@ def _transcribe_command_stt(
     if prompt:
         _log_prompt_unsupported(f"Command STT provider '{provider_name}'")
 
-    def fail(error: str) -> Dict[str, Any]:
+    def fail(error: str) -> dict[str, Any]:
         return _error_result(error, provider=provider_name)
     command_template = str(config.get("command") or "").strip()
     if not command_template:
@@ -114,7 +131,7 @@ def _transcribe_command_stt(
     return _ok_result(transcript_text, provider_name)
 
 
-def _unregistered_stt_provider_error(provider: str) -> Dict[str, Any]:
+def _unregistered_stt_provider_error(provider: str) -> dict[str, Any]:
     key = str(provider or "").strip()
     return _error_result(
         f"stt.provider='{key}' is set but no built-in, command, or plugin "
@@ -129,9 +146,9 @@ def _unregistered_stt_provider_error(provider: str) -> Dict[str, Any]:
 # (issue follow-up to #30398 — STT pluggability)
 # ---------------------------------------------------------------------------
 def _dispatch_to_plugin_provider(
-    file_path: str, provider: str, stt_config: Optional[Dict[str, Any]] = None, *,
-    model: Optional[str] = None, language: Optional[str] = None, prompt: Optional[str] = None,
-) -> Optional[Dict[str, Any]]:
+    file_path: str, provider: str, stt_config: dict[str, Any] | None = None, *,
+    model: str | None = None, language: str | None = None, prompt: str | None = None,
+) -> dict[str, Any] | None:
     """Route to a plugin-registered transcription provider; None when no plugin claims the name.
     Invariants re-verified here so a caller refactor can't break them: built-in names never reach
     the registry; a same-name command provider wins over a plugin. A matched plugin with
@@ -161,7 +178,7 @@ def _dispatch_to_plugin_provider(
     # a buggy plugin can't break dispatch for everyone.
     try:
         available = plugin_provider.is_available()
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.warning(
             "STT plugin provider '%s' is_available() raised: %s — treating as unavailable", key, exc, exc_info=True,
         )
@@ -174,10 +191,10 @@ def _dispatch_to_plugin_provider(
     logger.info("Transcribing with plugin STT provider '%s'...", key)
     # The prompt travels via the ABC's ``**extra`` kwargs and is only sent when
     # set, so pre-prompt providers see byte-identical calls on the no-prompt path.
-    extra_kwargs: Dict[str, Any] = {} if prompt is None else {"prompt": prompt}
+    extra_kwargs: dict[str, Any] = {} if prompt is None else {"prompt": prompt}
     try:
         result = plugin_provider.transcribe(file_path, model=model, language=language, **extra_kwargs)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.warning("STT plugin provider '%s' raised: %s", key, exc, exc_info=True)
         return _error_result(f"STT plugin '{key}' raised: {exc}", provider=key)
     if not isinstance(result, dict):
@@ -200,7 +217,7 @@ _PROMPT_CHARS_PER_TOKEN = CHARS_PER_TOKEN
 _WHISPER_PROMPT_CAPPED_PROVIDERS = frozenset({"local", "openai", "groq", "deepinfra"})
 
 
-def _enforce_prompt_length_limit(prompt: Optional[str], provider: str) -> Optional[str]:
+def _enforce_prompt_length_limit(prompt: str | None, provider: str) -> str | None:
     """Truncate *prompt* to the whisper-family token cap, keeping the TAIL (whisper conditions
     on the final context window, so the newest hints survive). Other providers self-validate."""
     max_chars = _WHISPER_PROMPT_TOKEN_CAP * _PROMPT_CHARS_PER_TOKEN
@@ -214,9 +231,9 @@ def _enforce_prompt_length_limit(prompt: Optional[str], provider: str) -> Option
 
 
 def _apply_pre_transcription_hook(
-    *, file_path: str, provider: str, model: Optional[str], language: Optional[str],
-    prompt: Optional[str], source: Optional[str],
-) -> tuple[Optional[str], Optional[str], Optional[str]]:
+    *, file_path: str, provider: str, model: str | None, language: str | None,
+    prompt: str | None, source: str | None,
+) -> tuple[str | None, str | None, str | None]:
     """Fire the ``pre_transcription`` plugin hook; returns ``(model, language_override, prompt)``.
     Gated on ``has_hook`` (the no-hook path never builds kwargs) and fail-open: any plumbing error
     leaves the dispatch untouched. Results apply field-by-field in registration order (last hook
@@ -229,7 +246,7 @@ def _apply_pre_transcription_hook(
         hook_results = invoke_hook(
             "pre_transcription", file_path=file_path, provider=provider,
             model=model, language=language, prompt=prompt, source=source)
-        overrides: Dict[str, Any] = {}
+        overrides: dict[str, Any] = {}
         for hook_result in hook_results:
             for key, value in (hook_result.items() if isinstance(hook_result, dict) else ()):
                 if key == "file_path":

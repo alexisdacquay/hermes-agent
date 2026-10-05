@@ -13,10 +13,11 @@ import json
 import os
 import threading
 import time
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Any
 
-from tui_gateway._env import env_float as _env_float, env_int as _env_int
-
+from tui_gateway._env import env_float as _env_float
+from tui_gateway._env import env_int as _env_int
 
 # Per-turn intensity spec: (key, caster, default source). ``chunk`` = pure-Python ops per interrupt
 # check (ms-level interrupt latency, still hot on the GIL); ``delta_interval_s`` = streamed-delta
@@ -78,8 +79,8 @@ class SyntheticHeavyAgent:
         return {key: cast(spec.get(key, default())) for key, cast, default in _SPEC_FIELDS}
 
     def run_conversation(
-        self, message: Any, *, conversation_history: Optional[list[dict[str, str]]] = None,
-        stream_callback: Optional[Callable[[str], None]] = None, task_id: Optional[str] = None, **_kwargs: Any,
+        self, message: Any, *, conversation_history: list[dict[str, str]] | None = None,
+        stream_callback: Callable[[str], None] | None = None, task_id: str | None = None, **_kwargs: Any,
     ) -> dict[str, Any]:
         spec = self._parse_spec(message)
         duration, chunk = max(0.0, spec["duration_s"]), max(1, spec["chunk"])

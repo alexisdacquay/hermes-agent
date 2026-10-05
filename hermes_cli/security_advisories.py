@@ -9,9 +9,9 @@ from __future__ import annotations
 import logging
 import os
 import sys
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Optional
 
 from hermes_constants import display_hermes_home
 
@@ -87,7 +87,7 @@ class AdvisoryHit:
     installed_version: str
 
 
-def _installed_version(pkg_name: str) -> Optional[str]:
+def _installed_version(pkg_name: str) -> str | None:
     """Installed version of ``pkg_name`` via ``importlib.metadata`` (uv venvs may lack pip), or
     None if not installed or metadata is corrupt — never crash the CLI startup path.
     """
@@ -203,7 +203,7 @@ _BANNER_CACHE_FILE = "advisory_banner_seen"
 _BANNER_REPEAT_HOURS = 24
 
 
-def _banner_cache_path() -> Optional[Path]:
+def _banner_cache_path() -> Path | None:
     try:
         from hermes_constants import get_hermes_home
         cache_dir = Path(get_hermes_home()) / "cache"
@@ -257,7 +257,7 @@ def hits_due_for_banner(hits: list[AdvisoryHit], *, repeat_hours: int = _BANNER_
     return due
 
 
-def startup_banner(hits: list[AdvisoryHit]) -> Optional[str]:
+def startup_banner(hits: list[AdvisoryHit]) -> str | None:
     """Printable startup banner, or None if nothing is due (updates the banner cache)."""
     due = hits_due_for_banner(hits)
     if not due:
@@ -266,7 +266,7 @@ def startup_banner(hits: list[AdvisoryHit]) -> Optional[str]:
     return f"\x1b[1;31m{text}\x1b[0m" if _term_supports_color() else text
 
 
-def gateway_log_message(hits: list[AdvisoryHit]) -> Optional[str]:
+def gateway_log_message(hits: list[AdvisoryHit]) -> str | None:
     """One-line log message for gateway operators, or None."""
     fresh = filter_unacked(hits)
     if not fresh:

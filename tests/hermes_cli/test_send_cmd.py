@@ -10,7 +10,6 @@ from __future__ import annotations
 import json
 
 import pytest
-
 from hermes_cli import send_cmd
 
 # ---------------------------------------------------------------------------
@@ -65,7 +64,6 @@ def whatsapp_bridge(monkeypatch):
     from types import SimpleNamespace
 
     import aiohttp
-
     from gateway.config import Platform
     from hermes_cli.plugins import discover_plugins
 
@@ -180,8 +178,8 @@ def test_list_includes_configured_platform_without_discovered_channels(
 ):
     """A configured platform absent from the channel directory must still be
     listed (with a no-channels hint) instead of silently omitted."""
-    import types
     import sys
+    import types
 
     class _FakePlatform:
         def __init__(self, value):
@@ -216,8 +214,8 @@ def test_list_includes_configured_platform_without_discovered_channels(
     assert "no channels discovered yet" in out
 
 def test_list_json_includes_configured_platform(monkeypatch, capsys):
-    import types
     import sys
+    import types
 
     class _FakePlatform:
         def __init__(self, value):
@@ -308,6 +306,7 @@ def test_load_hermes_env_utf8_bom_preserves_first_key(tmp_path, monkeypatch):
     monkeypatch.delenv("SEND_BOM_SECOND", raising=False)
 
     from importlib import reload
+
     import hermes_cli.config as _hc_config
     reload(_hc_config)
 
@@ -329,6 +328,7 @@ def test_load_hermes_env_bomless_utf8_still_loads(tmp_path, monkeypatch):
     monkeypatch.delenv("SEND_PLAIN_TOKEN", raising=False)
 
     from importlib import reload
+
     import hermes_cli.config as _hc_config
     reload(_hc_config)
 
@@ -355,6 +355,7 @@ def test_load_hermes_env_latin1_fallback_still_loads(tmp_path, monkeypatch):
     monkeypatch.delenv("SEND_L1_NOTE", raising=False)
 
     from importlib import reload
+
     import hermes_cli.config as _hc_config
     reload(_hc_config)
 
@@ -379,6 +380,7 @@ def test_load_hermes_env_latin1_fallback_overrides_shell(tmp_path, monkeypatch):
     monkeypatch.setenv("SEND_OVR_LABEL", "stale-shell-value")
 
     from importlib import reload
+
     import hermes_cli.config as _hc_config
     reload(_hc_config)
 
@@ -404,6 +406,7 @@ def test_load_hermes_env_fallback_read_error_is_swallowed(tmp_path, monkeypatch)
     monkeypatch.setattr(Path, "read_bytes", _boom)
 
     from importlib import reload
+
     import hermes_cli.config as _hc_config
     reload(_hc_config)
 
@@ -421,6 +424,7 @@ def test_load_hermes_env_bom_only_env_is_noop(tmp_path, monkeypatch):
     monkeypatch.setenv("HERMES_HOME", str(hermes_home))
 
     from importlib import reload
+
     import hermes_cli.config as _hc_config
     reload(_hc_config)
 
@@ -448,7 +452,7 @@ def test_help_and_empty_list_hint_name_the_resolved_home(tmp_path, monkeypatch, 
     assert "~/.hermes" not in help_text
 
     fake_gw_config = types.ModuleType("gateway.config")
-    fake_gw_config.load_gateway_config = lambda: types.SimpleNamespace(get_connected_platforms=lambda: [])
+    fake_gw_config.load_gateway_config = lambda: types.SimpleNamespace(get_connected_platforms=list)
     monkeypatch.setitem(sys.modules, "gateway.config", fake_gw_config)
     fake_dir = types.ModuleType("gateway.channel_directory")
     fake_dir.load_directory = lambda: {"updated_at": None, "platforms": {}}

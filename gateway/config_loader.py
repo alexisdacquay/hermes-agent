@@ -11,9 +11,16 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
-from gateway.config import UNAUTHORIZED_DM_BEHAVIORS, Platform, PlatformConfig, _coerce_dict, _dict_slot, _normalize_choice
+from gateway.config import (
+    UNAUTHORIZED_DM_BEHAVIORS,
+    Platform,
+    PlatformConfig,
+    _coerce_dict,
+    _dict_slot,
+    _normalize_choice,
+)
 
 # Logger name parity with the origin module: records stay under "gateway.config".
 logger = logging.getLogger("gateway.config")
@@ -54,7 +61,7 @@ def load_legacy_gateway_json(home: Path) -> Any:
 _BRIDGED_ALLOW_ALL_USERS = False
 
 
-def bridged_allow_all_users() -> Optional[str]:
+def bridged_allow_all_users() -> str | None:
     """``os.environ['GATEWAY_ALLOW_ALL_USERS']`` when it is the bridge's own write, else None."""
     return os.environ.get("GATEWAY_ALLOW_ALL_USERS") if _BRIDGED_ALLOW_ALL_USERS else None
 
@@ -296,7 +303,7 @@ def _apply_managed_extra(authored: dict, managed: dict, platforms_data: dict) ->
     return hook_pins
 
 
-def _authored_wins(extra: dict, block: dict, plat_name: str, *, toplevel: bool, warned: Optional[set] = None) -> dict:
+def _authored_wins(extra: dict, block: dict, plat_name: str, *, toplevel: bool, warned: set | None = None) -> dict:
     """Effective ``<plat>:`` block for YAML→extra/env bridging: *block* (top-level or
     nested) overlaid with the keys the user authored in ``platforms.<plat>.extra``.
 
@@ -334,7 +341,7 @@ def _authored_wins(extra: dict, block: dict, plat_name: str, *, toplevel: bool, 
 
 def bridge_platform_shared_keys(
     yaml_cfg: dict, gateway_platforms: Any, gw_data: dict, platforms_data: dict, targets: list,
-    warned: Optional[set] = None, authored: Optional[dict] = None,
+    warned: set | None = None, authored: dict | None = None,
 ) -> None:
     """Copy shared keys (allow_from, require_mention, …) from each platform's YAML section into ``extra``.
 
@@ -378,7 +385,7 @@ def bridge_platform_shared_keys(
 
 def apply_plugin_yaml_hooks(
     yaml_cfg: dict, gateway_platforms: Any, platforms_data: dict, registry,
-    warned: Optional[set] = None, authored: Optional[dict] = None, managed_extra: Optional[dict] = None,
+    warned: set | None = None, authored: dict | None = None, managed_extra: dict | None = None,
 ) -> None:
     """Plugin-owned YAML→env config bridges (``PlatformEntry.apply_yaml_config_fn``). Order: shared-key
     loop → this dispatch → core-only bridges (require_mention/signal) → ``_apply_env_overrides()``."""

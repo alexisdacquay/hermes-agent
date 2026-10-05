@@ -34,8 +34,8 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-import pytest
 import hermes_yaml as yaml
+import pytest
 
 from . import _helpers as H
 

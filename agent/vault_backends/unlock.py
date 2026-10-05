@@ -17,26 +17,26 @@ from __future__ import annotations
 
 import threading
 import time
-from typing import Callable, Dict, Optional
+from collections.abc import Callable
 
 _IDLE_TTL_S = 30 * 60
 
 _lock = threading.Lock()
-_sessions: Dict[tuple[str, str], tuple[str, float]] = {}   # (profile home, backend) → (token, last_used)
+_sessions: dict[tuple[str, str], tuple[str, float]] = {}   # (profile home, backend) → (token, last_used)
 _callback_tls = threading.local()
 
 UnlockPrompt = Callable[[str, str], str]  # (backend_name, display_name) -> master password ("" = cancelled)
 # (origin, site label) -> {"identifier": str, "password": str} or None when the user declines. The
 # surface owns the masked fields; the tool stores the answer in the local vault and fills at once.
-SaveLoginPrompt = Callable[[str, str], Optional[Dict[str, str]]]
+SaveLoginPrompt = Callable[[str, str], dict[str, str] | None]
 
 
-def set_unlock_prompt_callback(cb: Optional[UnlockPrompt]) -> None:
+def set_unlock_prompt_callback(cb: UnlockPrompt | None) -> None:
     """Register the current surface's masked master-password prompt (per-thread slot)."""
     _callback_tls.prompt = cb
 
 
-def get_unlock_prompt_callback() -> Optional[UnlockPrompt]:
+def get_unlock_prompt_callback() -> UnlockPrompt | None:
     return getattr(_callback_tls, "prompt", None)
 
 
@@ -44,21 +44,21 @@ def get_unlock_prompt_callback() -> Optional[UnlockPrompt]:
 CodePrompt = Callable[[str, str], str]
 
 
-def set_code_prompt_callback(cb: Optional[CodePrompt]) -> None:
+def set_code_prompt_callback(cb: CodePrompt | None) -> None:
     """Register the surface's "enter the code {site} sent you" prompt, per thread."""
     _callback_tls.code = cb
 
 
-def get_code_prompt_callback() -> Optional[CodePrompt]:
+def get_code_prompt_callback() -> CodePrompt | None:
     return getattr(_callback_tls, "code", None)
 
 
-def set_save_login_prompt_callback(cb: Optional[SaveLoginPrompt]) -> None:
+def set_save_login_prompt_callback(cb: SaveLoginPrompt | None) -> None:
     """Register the surface's "save this login" prompt (identifier + masked password), per thread."""
     _callback_tls.save_login = cb
 
 
-def get_save_login_prompt_callback() -> Optional[SaveLoginPrompt]:
+def get_save_login_prompt_callback() -> SaveLoginPrompt | None:
     return getattr(_callback_tls, "save_login", None)
 
 
@@ -72,19 +72,19 @@ def _key(backend: str) -> tuple[str, str]:
 # Lock generation per key: ``lock()`` bumps it, and an unlock that started before the bump must
 # not commit its token afterwards (a slow `bw unlock` child would otherwise silently undo an
 # acknowledged Lock).
-_generation: Dict[tuple[str, str], int] = {}
+_generation: dict[tuple[str, str], int] = {}
 # Which gateway session performed the unlock; the token is released when THAT session ends,
 # not when any sibling session in the profile is torn down.
-_owner_session: Dict[tuple[str, str], Optional[str]] = {}
+_owner_session: dict[tuple[str, str], str | None] = {}
 _current_session_tls = threading.local()
 
 
-def set_current_session_id(session_id: Optional[str]) -> None:
+def set_current_session_id(session_id: str | None) -> None:
     """Gateway surfaces bind the session running on this thread so an unlock records its owner."""
     _current_session_tls.sid = session_id
 
 
-def _live(backend: str, *, touch: bool) -> Optional[str]:
+def _live(backend: str, *, touch: bool) -> str | None:
     key = _key(backend)
     with _lock:
         entry = _sessions.get(key)
@@ -99,7 +99,7 @@ def _live(backend: str, *, touch: bool) -> Optional[str]:
         return token
 
 
-def get_session_token(backend: str) -> Optional[str]:
+def get_session_token(backend: str) -> str | None:
     """Token for a real manager call; refreshes the idle timer."""
     return _live(backend, touch=True)
 
@@ -110,7 +110,7 @@ def begin_unlock(backend: str) -> int:
         return _generation.get(_key(backend), 0)
 
 
-def store_session_token(backend: str, token: str, generation: Optional[int] = None) -> bool:
+def store_session_token(backend: str, token: str, generation: int | None = None) -> bool:
     """Commit an unlock. Returns False (and drops the token) when a Lock happened since ``begin_unlock``."""
     key = _key(backend)
     with _lock:
@@ -121,7 +121,7 @@ def store_session_token(backend: str, token: str, generation: Optional[int] = No
         return True
 
 
-def lock(backend: Optional[str] = None) -> None:
+def lock(backend: str | None = None) -> None:
     """Forget the current profile's session for one backend (or all of them when None)."""
     home = _key("")[0]
     with _lock:

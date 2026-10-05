@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import hermes_yaml as yaml
-
 from agent.onboarding import (
     BUSY_INPUT_FLAG,
     TOOL_PROGRESS_FLAG,
@@ -11,6 +10,7 @@ from agent.onboarding import (
     is_seen,
     mark_seen,
 )
+
 
 class TestIsSeen:
     def test_empty_config_unseen(self):

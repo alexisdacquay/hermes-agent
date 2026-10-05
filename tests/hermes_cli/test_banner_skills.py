@@ -1,7 +1,8 @@
 """Tests for banner get_available_skills() — disabled and platform filtering."""
 
-import pytest
 from unittest.mock import patch
+
+import pytest
 
 _MOCK_SKILLS = [
     {"name": "skill-a", "description": "A skill", "category": "tools"},
@@ -14,7 +15,7 @@ def _reset_skills_cache():
     """get_available_skills is memoized per-process (startup perf) — reset
     the cache around each test so patched _find_all_skills results are
     actually observed."""
-    import hermes_cli.banner as banner
+    from hermes_cli import banner
     banner._available_skills_cache = None
     yield
     banner._available_skills_cache = None

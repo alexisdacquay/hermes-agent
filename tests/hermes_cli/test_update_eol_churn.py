@@ -15,11 +15,9 @@ from __future__ import annotations
 
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 
 import pytest
-
 from hermes_cli.update_cmd import _normalize_managed_eol
 
 pytestmark = pytest.mark.skipif(shutil.which("git") is None, reason="needs git")

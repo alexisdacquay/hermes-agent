@@ -7,9 +7,6 @@ the generic stream-drop guidance in conversation_loop is wrong for that case.
 
 from __future__ import annotations
 
-from typing import Optional
-
-
 # Transport-layer failure signatures: the classifier's server-disconnect set plus the OS-level
 # ``broken pipe`` / ``errno 32`` the upstream kill surfaces through the OpenAI SDK wrapper.
 _THINKING_TIMEOUT_SUBSTRINGS: tuple[str, ...] = (
@@ -35,7 +32,7 @@ def is_thinking_timeout(classified: object, model: str, error_msg: str) -> bool:
     return any(p in (error_msg or "").lower() for p in _THINKING_TIMEOUT_SUBSTRINGS)
 
 
-def build_thinking_timeout_guidance(provider: str, model: str, model_label: Optional[str] = None) -> str:
+def build_thinking_timeout_guidance(provider: str, model: str, model_label: str | None = None) -> str:
     """User-facing guidance appended to the final response: easiest fix first (``/reasoning
     low``), the config knob last. ``model`` is used verbatim in the config path so it is
     copy-pasteable; ``model_label`` is the optional prose name."""

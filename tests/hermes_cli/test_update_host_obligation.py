@@ -18,12 +18,10 @@ import json
 import os
 from types import SimpleNamespace
 
-import pytest
-
 import hermes_cli.update_cmd_fleet as fleet
 import hermes_cli.update_host_obligation as host_obligation
 import hermes_cli.update_restart_recovery as recovery
-from hermes_cli import update_cmd
+import pytest
 
 SHA = "a" * 40
 
@@ -61,7 +59,7 @@ def _arm(profile_runtime: str) -> None:
 def no_live_fleet(monkeypatch):
     """No fleet matrix rows: the obligation can never be discharged by evidence in these tests."""
     monkeypatch.setattr(fleet, "_current_checkout_sha", lambda: SHA)
-    monkeypatch.setattr("hermes_cli.update_receipt.collect_fleet_versions", lambda: [])
+    monkeypatch.setattr("hermes_cli.update_receipt.collect_fleet_versions", list)
 
 
 def test_obligation_armed_by_one_profile_is_owed_by_every_other(two_profiles, no_live_fleet, monkeypatch):

@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import sqlite3
 
-import pytest
-
 import hermes_state_wal
 import hermes_yaml as yaml
+import pytest
 
 
 def _write_config(monkeypatch: pytest.MonkeyPatch, tmp_path, config: object) -> None:
@@ -282,8 +281,8 @@ def test_real_db_openers_honor_configured_delete(monkeypatch, tmp_path):
     from cron import executions
     from gateway import delivery_ledger
     from gateway.platforms.api_server import ResponseStore
-    from hermes_cli import projects_db
     from hermes_cli import kanban_db_connect as kbc
+    from hermes_cli import projects_db
     from hermes_state import SessionDB
     from plugins.memory.holographic.store import MemoryStore
     from plugins.platforms.discord.recovery import DiscordRecoveryStore

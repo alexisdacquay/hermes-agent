@@ -8,10 +8,8 @@ Live-QA findings (Aug 2026, locked KDE desktop):
 """
 
 import pytest
-
 from tools.computer_use import cua_backend as cb
 from tools.computer_use import cua_backend_driver as cb_driver
-
 
 # ── _empty_discovery_reason ─────────────────────────────────────────────
 
@@ -31,7 +29,7 @@ def test_empty_capture_carries_reason(monkeypatch):
     backend._last_app = None
     backend._last_target = None
     backend._snapshot_tokens = {}
-    monkeypatch.setattr(backend, "list_windows", lambda: [], raising=False)
+    monkeypatch.setattr(backend, "list_windows", list, raising=False)
     monkeypatch.setattr(cb, "_empty_discovery_reason",
                         lambda: "the desktop session is LOCKED (test)")
     cap = backend.capture(mode="ax")

@@ -9,7 +9,6 @@ data dir.
 from __future__ import annotations
 
 import pytest
-
 from hermes_constants import reset_hermes_home_override, set_hermes_home_override
 from plugins.plugin_storage import plugin_data_dir, plugin_db
 

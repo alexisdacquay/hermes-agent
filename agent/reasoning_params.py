@@ -6,9 +6,11 @@ Extracted from ``run_agent.py``; every method resolves through ``AIAgent``'s MRO
 """
 import time
 
-from agent.lazy_forward import forward as _forward, forward_static as _forward_static
-from agent.message_sanitization import matches_reasoning_echo_family
 from utils import base_url_host_matches
+
+from agent.lazy_forward import forward as _forward
+from agent.lazy_forward import forward_static as _forward_static
+from agent.message_sanitization import matches_reasoning_echo_family
 
 # Static OpenRouter fallback when the live /v1/models capability cache is cold.
 _OPENROUTER_REASONING_PREFIXES = (
@@ -109,7 +111,10 @@ class ReasoningParamsMixin:
         # Live-catalog metadata first (OpenRouter /v1/models supported_parameters) — the static prefix
         # allowlist repeatedly went stale one vendor at a time. Unknown falls back to the static list.
         try:
-            from hermes_cli.models_reasoning_caps import openrouter_model_reasoning_capabilities, warm_openrouter_reasoning_caps_async
+            from hermes_cli.models_reasoning_caps import (
+                openrouter_model_reasoning_capabilities,
+                warm_openrouter_reasoning_caps_async,
+            )
             caps = openrouter_model_reasoning_capabilities(self.model)
             if caps is None:
                 warm_openrouter_reasoning_caps_async()  # cache cold — warm in the background, never block
@@ -139,7 +144,10 @@ class ReasoningParamsMixin:
     def _github_models_reasoning_extra_body(self) -> dict | None:
         """Format reasoning payload for GitHub Models/OpenAI-compatible routes."""
         try:
-            from hermes_cli.models import clamp_github_reasoning_effort, github_model_reasoning_efforts
+            from hermes_cli.models import (
+                clamp_github_reasoning_effort,
+                github_model_reasoning_efforts,
+            )
         except Exception:
             return None
 
@@ -210,7 +218,7 @@ class ReasoningParamsMixin:
     _reapply_reasoning_echo_for_provider = _forward("agent.agent_runtime_helpers", "reapply_reasoning_echo_for_provider")
 
     @staticmethod
-    def _sanitize_tool_calls_for_strict_api(api_msg: dict, model: "str | None" = None) -> dict:
+    def _sanitize_tool_calls_for_strict_api(api_msg: dict, model: str | None = None) -> dict:
         """Strip Codex Responses fields from tool_calls for strict Chat Completions APIs (Mistral, Fireworks
         400/422 on unknown fields). ``extra_content`` (Gemini thought_signature) is kept only for Gemini-family
         models. Builds new dicts so the internal history keeps the Codex fields for a later fallback."""

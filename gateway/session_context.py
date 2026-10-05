@@ -6,9 +6,10 @@ other's routing ids.  ``get_session_env`` is a drop-in for ``os.getenv``.
 """
 
 import os
+from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
-from typing import Any, Iterator
+from typing import Any
 
 # "Never set here" (falls back to os.environ for CLI/cron) vs "" = explicitly cleared (no fallback).
 _UNSET: Any = object()

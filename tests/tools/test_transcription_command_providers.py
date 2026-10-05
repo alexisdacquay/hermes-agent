@@ -23,8 +23,6 @@ import wave
 from pathlib import Path
 from unittest.mock import patch
 
-
-from tools.transcription_common import BUILTIN_STT_PROVIDERS
 from tools.transcription_command import (
     DEFAULT_COMMAND_STT_LANGUAGE,
     DEFAULT_COMMAND_STT_OUTPUT_FORMAT,
@@ -36,10 +34,10 @@ from tools.transcription_command import (
     _resolve_command_stt_provider_config,
     _transcribe_command_stt,
 )
+from tools.transcription_common import BUILTIN_STT_PROVIDERS
 from tools.transcription_tools import (
     transcribe_audio,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers

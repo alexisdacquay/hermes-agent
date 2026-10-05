@@ -13,7 +13,7 @@ rejects a level fix its declared set, never a predicate.
 from __future__ import annotations
 
 import re
-from typing import Optional, Sequence
+from collections.abc import Sequence
 
 #: Matches ``k3`` as a delimited token (``k3``, ``k3-256k``, ``kimi-k3-cot``), never K2-era names (``kimi-k2.6``).
 # From #76427 by @ruizanthony.
@@ -90,14 +90,14 @@ OLLAMA_CLOUD_OVERRIDES: dict[str, str] = {"xhigh": "max"}
 META_AI_EFFORTS: tuple[str, ...] = ("minimal", "low", "medium", "high", "xhigh")
 
 
-def is_astra_model(model: Optional[str]) -> bool:
+def is_astra_model(model: str | None) -> bool:
     """``gpt-6-astra`` or its Hermes-side ``-900k`` picker alias, with or without a ``vendor/`` prefix.
     The single home for the slug set: picker gating, effort vocabulary and the request sanitizer all
     key off it, so a new Astra alias is one edit."""
     return (model or "").strip().lower().rsplit("/", 1)[-1] in ASTRA_MODEL_IDS
 
 
-def codex_supported_efforts(model: Optional[str]) -> tuple[str, ...]:
+def codex_supported_efforts(model: str | None) -> tuple[str, ...]:
     """Supported effort set for an OpenAI/Codex Responses model."""
     bare = (model or "").strip().lower().rsplit("/", 1)[-1]
     if is_astra_model(model) or bare.startswith(NO_DISABLE_TIER_PREFIXES):
@@ -109,7 +109,7 @@ def codex_supported_efforts(model: Optional[str]) -> tuple[str, ...]:
     )
 
 
-def kimi_supported_efforts(model: Optional[str]) -> tuple[str, ...]:
+def kimi_supported_efforts(model: str | None) -> tuple[str, ...]:
     """Supported effort set for a Moonshot/Kimi slug (bare ``k3``, ``k3-256k``, ``kimi-k3*`` → K3).
 
     K3 is served as the bare slug ``k3``, plan variants like ``k3-256k``, and the ``kimi-k3*`` aliases; its
@@ -121,8 +121,8 @@ def kimi_supported_efforts(model: Optional[str]) -> tuple[str, ...]:
 
 
 def clamp_effort(
-    effort: Optional[str], supported: Optional[Sequence[str]], overrides: Optional[dict[str, str]] = None,
-) -> Optional[str]:
+    effort: str | None, supported: Sequence[str] | None, overrides: dict[str, str] | None = None,
+) -> str | None:
     """Clamp a requested reasoning effort onto a wire's supported levels.
 
     ``overrides`` (a declared vendor mapping, e.g. Kimi K3 ``medium → high``) is consulted
@@ -154,7 +154,7 @@ def clamp_effort(
 
 
 def route_supported_efforts(
-    provider: Optional[str], model: Optional[str], api_mode: Optional[str] = None,
+    provider: str | None, model: str | None, api_mode: str | None = None,
 ) -> tuple[str, ...]:
     """Levels the (provider, model) route's ENTRY clamp accepts: the Codex/OpenAI Responses set per
     model generation, else the widest OpenAI-compatible vocabulary (narrower providers clamp again
@@ -168,8 +168,8 @@ def route_supported_efforts(
 
 
 def effort_display_label(
-    effort: Optional[str], provider: Optional[str] = None, model: Optional[str] = None,
-    api_mode: Optional[str] = None,
+    effort: str | None, provider: str | None = None, model: str | None = None,
+    api_mode: str | None = None,
 ) -> str:
     """Picker / ``/reasoning`` status label for a ladder level: the level itself when the route sends
     it verbatim, else ``"<level> (sends <clamped> on this route)"`` so a Hermes-internal step such as
@@ -179,7 +179,7 @@ def effort_display_label(
     return requested if not requested or clamped == requested else f"{requested} (sends {clamped} on this route)"
 
 
-def requested_effort(reasoning_config: Optional[dict]) -> Optional[str]:
+def requested_effort(reasoning_config: dict | None) -> str | None:
     """The user's explicit effort, or None (absent/malformed config, no effort, or reasoning
     disabled) — callers then omit the wire field."""
     if not isinstance(reasoning_config, dict) or reasoning_config.get("enabled") is False:
@@ -187,7 +187,7 @@ def requested_effort(reasoning_config: Optional[dict]) -> Optional[str]:
     return str(reasoning_config.get("effort") or "").strip().lower() or None
 
 
-def clamp_reasoning_config(reasoning_config: Optional[dict], supported: Sequence[str] = OPENAI_COMPAT_WIRE_EFFORTS) -> Optional[dict]:
+def clamp_reasoning_config(reasoning_config: dict | None, supported: Sequence[str] = OPENAI_COMPAT_WIRE_EFFORTS) -> dict | None:
     """Return ``reasoning_config`` with its ``effort`` clamped onto ``supported`` (non-dicts and
     configs without an effort pass through untouched).
 
@@ -203,9 +203,9 @@ def clamp_reasoning_config(reasoning_config: Optional[dict], supported: Sequence
 
 
 def thinking_toggle_extras(
-    reasoning_config: Optional[dict],
+    reasoning_config: dict | None,
     efforts: Sequence[str],
-    overrides: Optional[dict[str, str]] = None,
+    overrides: dict[str, str] | None = None,
     *,
     always_emit_toggle: bool = False,
 ) -> tuple[dict, dict]:
@@ -227,7 +227,7 @@ def thinking_toggle_extras(
     return {"thinking": {"type": "enabled"}}, {}
 
 
-def ox_alpha_reasoning_extras(reasoning_config: Optional[dict], model: Optional[str]) -> tuple[dict, dict]:
+def ox_alpha_reasoning_extras(reasoning_config: dict | None, model: str | None) -> tuple[dict, dict]:
     """Ox Alpha (``x-preview-f-free``) ``reasoning_effort`` translation for the
     opencode-zen profile (low/high/max only; anything else 400s)."""
     if (model or "").strip().rsplit("/", 1)[-1].lower() != "x-preview-f-free":

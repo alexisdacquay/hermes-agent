@@ -2,7 +2,6 @@
 from pathlib import Path
 
 import pytest
-
 from hermes_cli.linux_desktop_entry import DESKTOP_ENTRY_NAME, install_desktop_entry
 
 

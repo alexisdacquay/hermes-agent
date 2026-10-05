@@ -10,7 +10,6 @@ import stat
 import tarfile
 
 import pytest
-
 from pm import Store, get_package
 
 

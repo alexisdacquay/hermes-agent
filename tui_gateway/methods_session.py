@@ -1175,7 +1175,9 @@ def _(rid, params: dict, session: dict) -> dict:
 @method("session.delete")
 def _(rid, params: dict) -> dict:
     """Delete a stored session + transcripts; refused while live here (FK trips on the agent's next flush)."""
-    from hermes_state_errors import SessionActiveWriteGuardError  # body runs on server.py globals
+    from hermes_state_errors import (
+        SessionActiveWriteGuardError,  # body runs on server.py globals
+    )
 
     if not (target := params.get("session_id", "")):
         return _err(rid, 4006, "session_id required")
@@ -1710,7 +1712,11 @@ def _(rid, params: dict) -> dict:
 @_pet_method("pet.generate.status", scoped=False, fail_open={"available": False, "providers": []})
 def _(rid, params: dict) -> dict:
     """Whether pet generation is possible: a reference-capable image backend is configured."""
-    from agent.pet.generate.imagegen import GenerationError, list_sprite_providers, resolve_provider
+    from agent.pet.generate.imagegen import (
+        GenerationError,
+        list_sprite_providers,
+        resolve_provider,
+    )
     available, providers = True, []
     try:
         resolve_provider(require_references=True)
@@ -1740,6 +1746,7 @@ def _(rid, params: dict) -> dict:
         return _err(rid, 4004, "missing prompt")
     count = max(1, min(4, _int_param(params, "count", 4) or 4))
     import shutil
+
     from agent.pet.generate import generate_base_drafts
     from agent.pet.generate.imagegen import GenerationError
     root = _pet_gen_root()
@@ -2096,7 +2103,9 @@ def _compress_via_compute_host(rid, params: dict, session: dict) -> dict:
 
 def _compress_live(rid, sid: str, session: dict, focus_topic: str) -> dict:
     """In-process ``session.compress``: status pinned "compressing", then the before/after summary + messages."""
-    from agent.conversation_compression import finalize_context_engine_compression_notification
+    from agent.conversation_compression import (
+        finalize_context_engine_compression_notification,
+    )
     from agent.manual_compression_feedback import summarize_manual_compression
     from agent.model_metadata import estimate_request_tokens_rough
     with session["history_lock"]:
@@ -2162,7 +2171,9 @@ def _(rid, params: dict) -> dict:
         from agent.manual_compression_feedback import describe_compression_lock_skip
         return _ok(rid, {"compressed": False, "lock_held": True, "message": describe_compression_lock_skip(e.holder)})
     except Exception as e:
-        from agent.conversation_compression import finalize_context_engine_compression_notification
+        from agent.conversation_compression import (
+            finalize_context_engine_compression_notification,
+        )
         finalize_context_engine_compression_notification(session["agent"], committed=False)
         return _err(rid, 5005, str(e))
 
@@ -2345,10 +2356,9 @@ def _branch_idempotent_hit(existing_sid: str, session: dict, omit_messages: bool
 
 def _branch_title_for(session: dict) -> str:
     """The child's persisted title from its stored row, best-effort."""
-    with contextlib.suppress(Exception):
-        with _session_db(session) as db:
-            if db is not None:
-                return db.get_session_title(session.get("session_key") or "") or ""
+    with contextlib.suppress(Exception), _session_db(session) as db:
+        if db is not None:
+            return db.get_session_title(session.get("session_key") or "") or ""
     return ""
 
 

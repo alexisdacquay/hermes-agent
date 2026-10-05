@@ -1,30 +1,24 @@
 """Tests for hermes_cli.doctor."""
 
+import contextlib
 import importlib.util
-import os
+import io
+import shutil
 import subprocess
 import sys
 import types
-import io
-import contextlib
 from argparse import Namespace
-from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
-
-import hermes_cli.doctor as doctor
-import hermes_constants
 from hermes_cli import config as config_mod
-import hermes_cli.gateway as gateway_cli
 from hermes_cli import doctor as doctor_mod
+from hermes_cli import (
+    doctor_config,
+    doctor_platform,
+    doctor_state,
+    doctor_tools,
+)
 from hermes_cli.doctor_config import _has_provider_env_config
-from hermes_cli.doctor_report import Finding
-import shutil
-from hermes_cli import doctor_tools
-from hermes_cli import doctor_state
-from hermes_cli import doctor_platform
-from hermes_cli import doctor_config
 from tools import browser_tool_install as bt_install
 
 
@@ -145,7 +139,7 @@ class TestDoctorToolAvailabilitySummary:
                        {"name": "homeassistant", "env_vars": [], "tools": []}]
         monkeypatch.setattr(doctor_tools, "_enabled_cli_toolsets_for_doctor", lambda: {"image_gen"})
         monkeypatch.setattr(doctor_tools, "_apply_doctor_tool_availability_overrides", lambda a, u: (a, u))
-        monkeypatch.setattr(doctor_tools, "_doctor_web_capability_rows", lambda: [])
+        monkeypatch.setattr(doctor_tools, "_doctor_web_capability_rows", list)
         fake_model_tools = types.SimpleNamespace(
             check_tool_availability=lambda: ([], unavailable),
             TOOLSET_REQUIREMENTS={"image_gen": {"name": "image_gen"}, "homeassistant": {"name": "homeassistant"}},
@@ -383,9 +377,9 @@ class TestDoctorMemoryProviderSection:
         # Stub auth checks to avoid real API calls
         try:
             from hermes_cli import auth as _auth_mod
-            monkeypatch.setattr(_auth_mod, "get_nous_auth_status_local", lambda: {})
-            monkeypatch.setattr(_auth_mod, "get_codex_auth_status", lambda: {})
-            monkeypatch.setattr(_auth_mod, "get_xai_oauth_auth_status", lambda: {})
+            monkeypatch.setattr(_auth_mod, "get_nous_auth_status_local", dict)
+            monkeypatch.setattr(_auth_mod, "get_codex_auth_status", dict)
+            monkeypatch.setattr(_auth_mod, "get_xai_oauth_auth_status", dict)
         except Exception:
             pass
 
@@ -403,7 +397,8 @@ class TestDoctorMemoryProviderSection:
             lambda cmd: None if cmd == "gh" else real_which(cmd),
         )
 
-        import io, contextlib
+        import contextlib
+        import io
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
             doctor_mod.run_doctor(Namespace(fix=False))
@@ -486,9 +481,9 @@ def test_run_doctor_accepts_named_provider_from_providers_section(monkeypatch, t
 
     try:
         from hermes_cli import auth as _auth_mod
-        monkeypatch.setattr(_auth_mod, "get_nous_auth_status_local", lambda: {})
-        monkeypatch.setattr(_auth_mod, "get_codex_auth_status", lambda: {})
-        monkeypatch.setattr(_auth_mod, "get_xai_oauth_auth_status", lambda: {})
+        monkeypatch.setattr(_auth_mod, "get_nous_auth_status_local", dict)
+        monkeypatch.setattr(_auth_mod, "get_codex_auth_status", dict)
+        monkeypatch.setattr(_auth_mod, "get_xai_oauth_auth_status", dict)
     except Exception:
         pass
 
@@ -530,9 +525,9 @@ def test_run_doctor_accepts_stable_key_when_provider_name_differs(
 
     try:
         from hermes_cli import auth as _auth_mod
-        monkeypatch.setattr(_auth_mod, "get_nous_auth_status_local", lambda: {})
-        monkeypatch.setattr(_auth_mod, "get_codex_auth_status", lambda: {})
-        monkeypatch.setattr(_auth_mod, "get_xai_oauth_auth_status", lambda: {})
+        monkeypatch.setattr(_auth_mod, "get_nous_auth_status_local", dict)
+        monkeypatch.setattr(_auth_mod, "get_codex_auth_status", dict)
+        monkeypatch.setattr(_auth_mod, "get_xai_oauth_auth_status", dict)
     except Exception:
         pass
 
@@ -572,9 +567,9 @@ def test_run_doctor_accepts_bare_custom_provider(monkeypatch, tmp_path):
 
     try:
         from hermes_cli import auth as _auth_mod
-        monkeypatch.setattr(_auth_mod, "get_nous_auth_status_local", lambda: {})
-        monkeypatch.setattr(_auth_mod, "get_codex_auth_status", lambda: {})
-        monkeypatch.setattr(_auth_mod, "get_xai_oauth_auth_status", lambda: {})
+        monkeypatch.setattr(_auth_mod, "get_nous_auth_status_local", dict)
+        monkeypatch.setattr(_auth_mod, "get_codex_auth_status", dict)
+        monkeypatch.setattr(_auth_mod, "get_xai_oauth_auth_status", dict)
     except Exception:
         pass
 
@@ -612,10 +607,10 @@ def test_run_doctor_flags_missing_credentials_for_active_openrouter_provider(mon
     try:
         from hermes_cli import auth as _auth_mod
 
-        monkeypatch.setattr(_auth_mod, "get_nous_auth_status_local", lambda: {})
-        monkeypatch.setattr(_auth_mod, "get_codex_auth_status", lambda: {})
-        monkeypatch.setattr(_auth_mod, "get_minimax_oauth_auth_status", lambda: {})
-        monkeypatch.setattr(_auth_mod, "get_gemini_oauth_auth_status", lambda: {})
+        monkeypatch.setattr(_auth_mod, "get_nous_auth_status_local", dict)
+        monkeypatch.setattr(_auth_mod, "get_codex_auth_status", dict)
+        monkeypatch.setattr(_auth_mod, "get_minimax_oauth_auth_status", dict)
+        monkeypatch.setattr(_auth_mod, "get_gemini_oauth_auth_status", dict)
     except Exception:
         pass
 
@@ -663,9 +658,9 @@ def test_run_doctor_accepts_hermes_provider_ids_that_catalog_aliases(
 
     try:
         from hermes_cli import auth as _auth_mod
-        monkeypatch.setattr(_auth_mod, "get_nous_auth_status_local", lambda: {})
-        monkeypatch.setattr(_auth_mod, "get_codex_auth_status", lambda: {})
-        monkeypatch.setattr(_auth_mod, "get_xai_oauth_auth_status", lambda: {})
+        monkeypatch.setattr(_auth_mod, "get_nous_auth_status_local", dict)
+        monkeypatch.setattr(_auth_mod, "get_codex_auth_status", dict)
+        monkeypatch.setattr(_auth_mod, "get_xai_oauth_auth_status", dict)
     except Exception:
         pass
 
@@ -710,9 +705,9 @@ def test_run_doctor_accepts_vendor_slugs_for_named_custom_provider(monkeypatch, 
 
     try:
         from hermes_cli import auth as _auth_mod
-        monkeypatch.setattr(_auth_mod, "get_nous_auth_status_local", lambda: {})
-        monkeypatch.setattr(_auth_mod, "get_codex_auth_status", lambda: {})
-        monkeypatch.setattr(_auth_mod, "get_xai_oauth_auth_status", lambda: {})
+        monkeypatch.setattr(_auth_mod, "get_nous_auth_status_local", dict)
+        monkeypatch.setattr(_auth_mod, "get_codex_auth_status", dict)
+        monkeypatch.setattr(_auth_mod, "get_xai_oauth_auth_status", dict)
     except Exception:
         pass
 
@@ -766,9 +761,9 @@ def test_run_doctor_vendor_slug_policy_for_openai_api_endpoint(
 
     try:
         from hermes_cli import auth as _auth_mod
-        monkeypatch.setattr(_auth_mod, "get_nous_auth_status_local", lambda: {})
-        monkeypatch.setattr(_auth_mod, "get_codex_auth_status", lambda: {})
-        monkeypatch.setattr(_auth_mod, "get_xai_oauth_auth_status", lambda: {})
+        monkeypatch.setattr(_auth_mod, "get_nous_auth_status_local", dict)
+        monkeypatch.setattr(_auth_mod, "get_codex_auth_status", dict)
+        monkeypatch.setattr(_auth_mod, "get_xai_oauth_auth_status", dict)
     except Exception:
         pass
 
@@ -809,10 +804,10 @@ def test_run_doctor_accepts_kimi_coding_cn_provider(monkeypatch, tmp_path):
 
     try:
         from hermes_cli import auth as _auth_mod
-        monkeypatch.setattr(_auth_mod, "get_nous_auth_status_local", lambda: {})
-        monkeypatch.setattr(_auth_mod, "get_codex_auth_status", lambda: {})
+        monkeypatch.setattr(_auth_mod, "get_nous_auth_status_local", dict)
+        monkeypatch.setattr(_auth_mod, "get_codex_auth_status", dict)
         monkeypatch.setattr(_auth_mod, "get_auth_status", lambda provider: {"logged_in": True})
-        monkeypatch.setattr(_auth_mod, "get_xai_oauth_auth_status", lambda: {})
+        monkeypatch.setattr(_auth_mod, "get_xai_oauth_auth_status", dict)
     except Exception:
         pass
 
@@ -851,9 +846,9 @@ def _doctor_env_for_agent_browser(monkeypatch, tmp_path):
 
     try:
         from hermes_cli import auth as _auth_mod
-        monkeypatch.setattr(_auth_mod, "get_nous_auth_status", lambda: {})
-        monkeypatch.setattr(_auth_mod, "get_codex_auth_status", lambda: {})
-        monkeypatch.setattr(_auth_mod, "get_xai_oauth_auth_status", lambda: {})
+        monkeypatch.setattr(_auth_mod, "get_nous_auth_status", dict)
+        monkeypatch.setattr(_auth_mod, "get_codex_auth_status", dict)
+        monkeypatch.setattr(_auth_mod, "get_xai_oauth_auth_status", dict)
     except Exception:
         pass
 
@@ -893,8 +888,8 @@ def test_doctor_fix_does_not_claim_success_without_published_binary(monkeypatch,
 
 
 def test_doctor_fix_reports_pm_install_failure(monkeypatch, tmp_path):
-    from hermes_cli import doctor_tools
     import pm
+    from hermes_cli import doctor_tools
     _doctor_env_for_agent_browser(monkeypatch, tmp_path)
 
     def missing(**kwargs):
@@ -936,9 +931,9 @@ def test_run_doctor_kimi_cn_env_is_detected_and_probe_is_null_safe(monkeypatch, 
 
     try:
         from hermes_cli import auth as _auth_mod
-        monkeypatch.setattr(_auth_mod, "get_nous_auth_status", lambda: {})
-        monkeypatch.setattr(_auth_mod, "get_codex_auth_status", lambda: {})
-        monkeypatch.setattr(_auth_mod, "get_xai_oauth_auth_status", lambda: {})
+        monkeypatch.setattr(_auth_mod, "get_nous_auth_status", dict)
+        monkeypatch.setattr(_auth_mod, "get_codex_auth_status", dict)
+        monkeypatch.setattr(_auth_mod, "get_xai_oauth_auth_status", dict)
     except Exception:
         pass
 
@@ -951,7 +946,8 @@ def test_run_doctor_kimi_cn_env_is_detected_and_probe_is_null_safe(monkeypatch, 
     import httpx
     monkeypatch.setattr(httpx, "get", fake_get)
 
-    import io, contextlib
+    import contextlib
+    import io
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
         doctor_mod.run_doctor(Namespace(fix=False))
@@ -985,9 +981,9 @@ def test_run_doctor_dashscope_retries_china_endpoint_after_intl_unauthorized(mon
 
     try:
         from hermes_cli import auth as _auth_mod
-        monkeypatch.setattr(_auth_mod, "get_nous_auth_status", lambda: {})
-        monkeypatch.setattr(_auth_mod, "get_codex_auth_status", lambda: {})
-        monkeypatch.setattr(_auth_mod, "get_xai_oauth_auth_status", lambda: {})
+        monkeypatch.setattr(_auth_mod, "get_nous_auth_status", dict)
+        monkeypatch.setattr(_auth_mod, "get_codex_auth_status", dict)
+        monkeypatch.setattr(_auth_mod, "get_xai_oauth_auth_status", dict)
     except ImportError:
         pass
 
@@ -1044,9 +1040,9 @@ def test_run_doctor_opencode_go_skips_invalid_models_probe(monkeypatch, tmp_path
 
     try:
         from hermes_cli import auth as _auth_mod
-        monkeypatch.setattr(_auth_mod, "get_nous_auth_status", lambda: {})
-        monkeypatch.setattr(_auth_mod, "get_codex_auth_status", lambda: {})
-        monkeypatch.setattr(_auth_mod, "get_xai_oauth_auth_status", lambda: {})
+        monkeypatch.setattr(_auth_mod, "get_nous_auth_status", dict)
+        monkeypatch.setattr(_auth_mod, "get_codex_auth_status", dict)
+        monkeypatch.setattr(_auth_mod, "get_xai_oauth_auth_status", dict)
     except ImportError:
         pass
 
@@ -1059,7 +1055,8 @@ def test_run_doctor_opencode_go_skips_invalid_models_probe(monkeypatch, tmp_path
     import httpx
     monkeypatch.setattr(httpx, "get", fake_get)
 
-    import io, contextlib
+    import contextlib
+    import io
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
         doctor_mod.run_doctor(Namespace(fix=False))
@@ -1085,7 +1082,6 @@ class TestGitHubTokenCheck:
         """gh 2.98+ dropped the `authenticated` field from `gh auth status --json`,
         so that invocation exits 1 even for a logged-in user. A logged-in user on
         such a gh must still be reported as authenticated."""
-        from hermes_cli import doctor_state
 
         def gh_2_98(cmd, **kwargs):
             assert cmd[:3] == ["gh", "auth", "status"], cmd
@@ -1139,7 +1135,7 @@ def _run_doctor_with_healthy_oauth_fallback(
     from hermes_cli import auth as _auth_mod
 
     monkeypatch.setattr(_auth_mod, "get_nous_auth_status_local", lambda: {"logged_in": True})
-    monkeypatch.setattr(_auth_mod, "get_codex_auth_status", lambda: {})
+    monkeypatch.setattr(_auth_mod, "get_codex_auth_status", dict)
     monkeypatch.setattr(_auth_mod, "get_minimax_oauth_auth_status", lambda: minimax_oauth_status)
     _xai_status = xai_oauth_status if xai_oauth_status is not None else {}
     monkeypatch.setattr(_auth_mod, "get_xai_oauth_auth_status", lambda: _xai_status)

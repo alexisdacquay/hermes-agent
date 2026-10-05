@@ -8,7 +8,6 @@ logged a WARNING each time — ~1700 lines an hour in the report that motivated 
 import logging
 
 import pytest
-
 from hermes_cli.plugins import PluginManager
 
 

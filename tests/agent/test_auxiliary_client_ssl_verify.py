@@ -13,7 +13,6 @@ import ssl
 import certifi
 import httpx
 import pytest
-
 from agent.process_bootstrap import build_keepalive_http_client
 
 _CA_ENV_VARS = ("HERMES_CA_BUNDLE", "SSL_CERT_FILE", "REQUESTS_CA_BUNDLE", "HTTPS_PROXY")
@@ -40,8 +39,8 @@ def test_build_keepalive_http_client_forwards_verify_context(clean_tls_env):
 
 def test_resolve_aux_verify_ssl_verify_false(clean_tls_env, monkeypatch):
     import hermes_cli.config as cfg
-    import hermes_cli.config_providers as config_providers
     from agent import auxiliary_client
+    from hermes_cli import config_providers
 
     monkeypatch.setattr(
         cfg,

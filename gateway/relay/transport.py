@@ -9,7 +9,8 @@ until >=2 Class-1 platforms validate it. See website/docs/developer-guide/relay-
 
 from __future__ import annotations
 
-from typing import Any, Awaitable, Callable, Dict, Optional, Protocol, runtime_checkable
+from collections.abc import Awaitable, Callable
+from typing import Any, Protocol, runtime_checkable
 
 from gateway.platforms.event import MessageEvent
 from gateway.relay.descriptor import CapabilityDescriptor
@@ -21,7 +22,7 @@ InboundHandler = Callable[[MessageEvent], Awaitable[None]]
 # ``forward`` is a ws_transport.PassthroughForward, typed Any here because
 # ws_transport imports FROM this module; ``buffer_id`` (§5.3 buffered flip) is
 # acked by the handler after durable handoff.
-PassthroughHandler = Callable[[Any, Optional[str]], Awaitable[None]]
+PassthroughHandler = Callable[[Any, str | None], Awaitable[None]]
 
 
 @runtime_checkable
@@ -42,7 +43,7 @@ class RelayTransport(Protocol):
     def set_inbound_handler(self, handler: InboundHandler) -> None:
         ...
 
-    def set_passthrough_handler(self, handler: "PassthroughHandler") -> None:
+    def set_passthrough_handler(self, handler: PassthroughHandler) -> None:
         """Register the callback for each forwarded passthrough request (§5.1).
 
         The connector answers the provider's edge ACK itself, then forwards the real
@@ -52,8 +53,8 @@ class RelayTransport(Protocol):
         ...
 
     async def send_outbound(
-        self, action: Dict[str, Any], *, platform: Optional[str] = None
-    ) -> Dict[str, Any]:
+        self, action: dict[str, Any], *, platform: str | None = None
+    ) -> dict[str, Any]:
         """Carry an outbound action (send/edit/typing) to the connector.
 
         Returns a result dict; for ``op == "send"`` it carries ``success`` and
@@ -63,11 +64,11 @@ class RelayTransport(Protocol):
         """
         ...
 
-    async def get_chat_info(self, chat_id: str) -> Dict[str, Any]:
+    async def get_chat_info(self, chat_id: str) -> dict[str, Any]:
         """Proxy a chat-info lookup to the connector."""
         ...
 
-    async def send_interrupt(self, session_key: str, reason: Optional[str] = None) -> None:
+    async def send_interrupt(self, session_key: str, reason: str | None = None) -> None:
         """Route a mid-turn /stop to the connector for ``session_key`` (OUTBOUND
         direction; the actual cancellation happens when the connector echoes an
         interrupt inbound down the socket owning that session)."""
@@ -84,8 +85,8 @@ class RelayTransport(Protocol):
         ...
 
     async def send_follow_up(
-        self, action: Dict[str, Any], *, platform: Optional[str] = None
-    ) -> Dict[str, Any]:
+        self, action: dict[str, Any], *, platform: str | None = None
+    ) -> dict[str, Any]:
         """Act on a shared-identity capability bound to a session (A2 outbound).
 
         A credential acting on the SHARED bot identity (e.g. a Discord interaction

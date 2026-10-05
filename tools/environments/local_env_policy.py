@@ -4,7 +4,6 @@ names are Hermes-managed credentials. The env *builders* applying it (``_make_ru
 
 import functools
 import os
-from typing import Optional
 
 # Prefix a caller uses in ``extra_env`` to force a blocklisted var through.
 _HERMES_PROVIDER_ENV_FORCE_PREFIX = "_HERMES_FORCE_"
@@ -107,7 +106,11 @@ def _build_adapter_secret_env() -> frozenset:
     Nothing here fails soft: an unreadable bundled manifest or env table fails the import rather
     than dropping its secrets from the policy."""
     from hermes_cli.config import (
-        CORE_DECLARED_ENV_NAMES, OPTIONAL_ENV_VARS, PLATFORM_SECRET_ENV_SUFFIXES, platform_manifest_secret_envs)
+        CORE_DECLARED_ENV_NAMES,
+        OPTIONAL_ENV_VARS,
+        PLATFORM_SECRET_ENV_SUFFIXES,
+        platform_manifest_secret_envs,
+    )
     from hermes_cli.profile_channels import config_env_table_keys
     # Read in code only, declared nowhere else: the Microsoft Graph app secret and webhook
     # clientState, and the QQ bot's speech-to-text key.
@@ -170,7 +173,7 @@ def _registered_adapter_secret_env() -> frozenset:
     return _registry_adapter_secret_env() | _home_adapter_secret_env()
 
 
-def _is_provider_env_blocklisted(name: str, _registered: "frozenset | None" = None) -> bool:
+def _is_provider_env_blocklisted(name: str, _registered: frozenset | None = None) -> bool:
     """``name`` is a blocklisted provider/tool credential or adapter secret, matched the way the
     platform's environment resolves names: exact plus case-folded. On Windows the environment
     block is case-insensitive, so ``openai_api_key`` IS ``OPENAI_API_KEY``; consistent with
@@ -334,7 +337,7 @@ def _platform_gate_env_prefixes() -> frozenset:
     return frozenset(names)
 
 
-def is_profile_gate_env(name: str, _prefixes: Optional[frozenset] = None) -> bool:
+def is_profile_gate_env(name: str, _prefixes: frozenset | None = None) -> bool:
     """True for a platform authorization gate (``DISCORD_ALLOWED_CHANNELS``, ``TELEGRAM_ALLOW_ALL_USERS``,
     ``GATEWAY_ALLOWED_USERS``, ``WHATSAPP_GROUP_ALLOW_FROM`` ...) — profile-scoped policy a child acting
     for ANOTHER profile must never inherit. A gate is a platform prefix AND a gate-shaped suffix;

@@ -16,10 +16,11 @@ import logging
 import mimetypes
 import os
 import re
+from collections.abc import Callable, Iterable
 from contextlib import suppress
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +55,7 @@ def _matches_outside_code(pattern: re.Pattern, text: str) -> Iterable[str]:
     return (m.group(0) for m in pattern.finditer(text) if not any(s <= m.start() < e for s, e in spans))
 
 
-def _existing_file(candidate: str) -> Optional[str]:
+def _existing_file(candidate: str) -> str | None:
     """Normalized path when it is a regular file; None otherwise (incl. OSError on pathological input).
     The return value is the OS-canonical spelling of the real file (same norm class as
     ``str(Path(...))``), so callers can compare it against actual paths — ``~`` expansion
@@ -66,7 +67,7 @@ def _existing_file(candidate: str) -> Optional[str]:
         return None
 
 
-def extract_image_refs(text: str) -> Tuple[List[str], List[str]]:
+def extract_image_refs(text: str) -> tuple[list[str], list[str]]:
     """Scan free-form text for image references → ``(local_paths, urls)``, each
     ordered and deduplicated. Local paths must exist as files; URLs are not
     validated (the provider fetches them). Code spans are skipped so pasted
@@ -87,7 +88,7 @@ _BOOL_TOKENS = {
 }
 
 
-def _coerce_capability_bool(raw: Any) -> Optional[bool]:
+def _coerce_capability_bool(raw: Any) -> bool | None:
     """Strict boolean coercion for capability overrides: real bools, 0/1 and YAML
     boolean tokens only; anything else is None so the caller falls through to
     models.dev. ``bool("false")`` is True, so a quoted ``supports_vision: "false"``
@@ -99,7 +100,7 @@ def _coerce_capability_bool(raw: Any) -> Optional[bool]:
     return _BOOL_TOKENS.get(raw.strip().lower()) if isinstance(raw, str) else None
 
 
-def _dict_or_empty(raw: Any) -> Dict[str, Any]:
+def _dict_or_empty(raw: Any) -> dict[str, Any]:
     return raw if isinstance(raw, dict) else {}
 
 
@@ -118,13 +119,13 @@ def _runtime_main(key: str) -> Any:
         return ""
 
 
-def _model_supports_vision_override(models_cfg: Any, model: str) -> Optional[bool]:
+def _model_supports_vision_override(models_cfg: Any, model: str) -> bool | None:
     """Per-model ``supports_vision`` (or ``vision`` alias) from a ``models`` mapping."""
     per_model = _dict_or_empty(_dict_or_empty(models_cfg).get(model))
     return _coerce_capability_bool(per_model.get("supports_vision", per_model.get("vision")))
 
 
-def _custom_provider_entries(cfg: Dict[str, Any], names: Iterable[str]) -> Iterable[Dict[str, Any]]:
+def _custom_provider_entries(cfg: dict[str, Any], names: Iterable[str]) -> Iterable[dict[str, Any]]:
     """Yield legacy ``custom_providers`` entries matching ``names`` (case-insensitive);
     ``names`` is the outer loop so list order cannot let a persisted default shadow the live route."""
     entries = _custom_provider_list(cfg)
@@ -132,19 +133,19 @@ def _custom_provider_entries(cfg: Dict[str, Any], names: Iterable[str]) -> Itera
         yield from (e for e in entries if _clean_str(e.get("name")).lower() == wanted)
 
 
-def _custom_provider_list(cfg: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _custom_provider_list(cfg: dict[str, Any]) -> list[dict[str, Any]]:
     """Dict entries of the legacy ``custom_providers`` list (empty when absent/malformed)."""
     raw = cfg.get("custom_providers")
     return [e for e in raw if isinstance(e, dict)] if isinstance(raw, list) else []
 
 
 def _supports_vision_override(
-    cfg: Optional[Dict[str, Any]],
+    cfg: dict[str, Any] | None,
     provider: str,
     model: str,
     *,
     requested_provider: str = "",
-) -> Optional[bool]:
+) -> bool | None:
     """Resolve user-declared vision capability from config.yaml; None when unset.
 
     First hit wins: ``model.supports_vision`` → ``providers.<p>.models.<model>``
@@ -160,7 +161,7 @@ def _supports_vision_override(
     if top is not None:
         return top
 
-    candidates: List[str] = []
+    candidates: list[str] = []
     for candidate in filter(None, (requested_provider, provider, _clean_str(model_cfg.get("provider")))):
         candidates.append(candidate)
         if candidate.startswith("custom:") and candidate[len("custom:"):]:
@@ -174,7 +175,7 @@ def _supports_vision_override(
 
 
 def _resolve_inference_value(
-    cfg: Optional[Dict[str, Any]],
+    cfg: dict[str, Any] | None,
     provider: str,
     key: str,
     *,
@@ -214,7 +215,7 @@ def _resolve_inference_value(
     return next((v for v in (_clean_str(e.get(key)) for e in entries) if v), "")
 
 
-def _resolve_inference_base_url(cfg: Optional[Dict[str, Any]], provider: str) -> str:
+def _resolve_inference_base_url(cfg: dict[str, Any] | None, provider: str) -> str:
     """Best-effort base URL for the active inference provider; the runtime value is
     only trusted when it belongs to the requested provider (or none was requested)."""
     requested = _clean_str(provider).lower()
@@ -224,7 +225,7 @@ def _resolve_inference_base_url(cfg: Optional[Dict[str, Any]], provider: str) ->
     )
 
 
-def _resolve_inference_api_key(cfg: Optional[Dict[str, Any]], provider: str) -> str:
+def _resolve_inference_api_key(cfg: dict[str, Any] | None, provider: str) -> str:
     """Best-effort API key, resolved like :func:`_resolve_inference_base_url` so it
     matches the base URL actually probed; otherwise the local server-type probe hits
     a keyed remote endpoint without Authorization and sprays 401s on every image turn.
@@ -259,7 +260,7 @@ def _coerce_mode(raw: Any) -> str:
     return mode if mode in _VALID_MODES else "auto"
 
 
-def _explicit_aux_vision_override(cfg: Optional[Dict[str, Any]]) -> bool:
+def _explicit_aux_vision_override(cfg: dict[str, Any] | None) -> bool:
     """True when the user configured a specific ``auxiliary.vision`` backend — the
     de-facto image route in ``auto`` mode even when the main model has native vision.
     ``auto``/empty provider with no model and no base_url is not explicit."""
@@ -271,18 +272,21 @@ def _explicit_aux_vision_override(cfg: Optional[Dict[str, Any]]) -> bool:
     )
 
 
-def _probe_managed_runtime(provider: str, model: str, cfg: Optional[Dict[str, Any]]) -> Optional[bool]:
+def _probe_managed_runtime(provider: str, model: str, cfg: dict[str, Any] | None) -> bool | None:
     """Managed local runtime verdict: the server receiving the image is the authority
     on whether it can see (its /props reports modalities). Cloud catalogs have never
     heard of a local GGUF, so without this every local model reads as text-only and
     screenshots detour to a cloud auxiliary."""
-    from hermes_cli.local_runtime.capabilities import is_managed_provider, managed_model_supports_vision
+    from hermes_cli.local_runtime.capabilities import (
+        is_managed_provider,
+        managed_model_supports_vision,
+    )
 
     managed = is_managed_provider(provider, _resolve_inference_base_url(cfg, provider) or "")
     return managed_model_supports_vision(model) if managed else None
 
 
-def _probe_models_dev(provider: str, model: str, cfg: Optional[Dict[str, Any]]) -> Optional[bool]:
+def _probe_models_dev(provider: str, model: str, cfg: dict[str, Any] | None) -> bool | None:
     """models.dev catalog verdict. ``allow_network=True`` on purpose: this runs only
     when an image needs routing, and the text-only-main guard depends on catalog
     data — a cold cache returning "unknown" would reintroduce attempting the call.
@@ -305,7 +309,7 @@ def _probe_models_dev(provider: str, model: str, cfg: Optional[Dict[str, Any]]) 
     return None if caps is None else caps.supports_vision
 
 
-def _probe_ollama(provider: str, model: str, cfg: Optional[Dict[str, Any]]) -> Optional[bool]:
+def _probe_ollama(provider: str, model: str, cfg: dict[str, Any] | None) -> bool | None:
     """Ollama ``/api/show`` verdict for local endpoints (see :func:`_should_probe_ollama_vision`)."""
     base_url = _resolve_inference_base_url(cfg, provider)
     if not base_url and _clean_str(provider).lower() == "ollama":
@@ -320,7 +324,7 @@ def _probe_ollama(provider: str, model: str, cfg: Optional[Dict[str, Any]]) -> O
 
 # Capability probes after the config override, in priority order; each returns
 # True/False or None (unknown → next probe). Exceptions are logged and treated as None.
-_VISION_PROBES: Tuple[Tuple[str, Callable[..., Optional[bool]]], ...] = (
+_VISION_PROBES: tuple[tuple[str, Callable[..., bool | None]], ...] = (
     ("managed-runtime caps lookup", _probe_managed_runtime),
     ("caps lookup", _probe_models_dev),
     ("ollama vision probe", _probe_ollama),
@@ -330,10 +334,10 @@ _VISION_PROBES: Tuple[Tuple[str, Callable[..., Optional[bool]]], ...] = (
 def _lookup_supports_vision(
     provider: str,
     model: str,
-    cfg: Optional[Dict[str, Any]] = None,
+    cfg: dict[str, Any] | None = None,
     *,
     requested_provider: str = "",
-) -> Optional[bool]:
+) -> bool | None:
     """Return True/False if vision capability can be resolved, None if unknown.
 
     Order: config ``supports_vision`` override → :data:`_VISION_PROBES`
@@ -375,7 +379,7 @@ def _lookup_supports_vision(
 def decide_image_input_mode(
     provider: str,
     model: str,
-    cfg: Optional[Dict[str, Any]],
+    cfg: dict[str, Any] | None,
     *,
     requested_provider: str = "",
 ) -> str:
@@ -404,7 +408,7 @@ _FTYP_BRANDS = {
     **dict.fromkeys((b"avif", b"avis"), "image/avif"),
     **dict.fromkeys((b"heic", b"heix", b"hevc", b"hevx", b"mif1", b"msf1", b"heim", b"heis"), "image/heic"),
 }
-_MAGIC: Tuple[Tuple[Tuple[Tuple[int, bytes], ...], str], ...] = (
+_MAGIC: tuple[tuple[tuple[tuple[int, bytes], ...], str], ...] = (
     (((0, b"\x89PNG\r\n\x1a\n"),), "image/png"),
     (((0, b"\xff\xd8\xff"),), "image/jpeg"),
     (((0, b"GIF87a"),), "image/gif"), (((0, b"GIF89a"),), "image/gif"),
@@ -416,7 +420,7 @@ _MAGIC: Tuple[Tuple[Tuple[Tuple[int, bytes], ...], str], ...] = (
 )
 
 
-def _sniff_mime_from_bytes(raw: bytes) -> Optional[str]:
+def _sniff_mime_from_bytes(raw: bytes) -> str | None:
     """Detect image MIME from magic bytes; None if unrecognised."""
     if not raw:
         return None
@@ -435,7 +439,7 @@ def _sniff_mime_from_bytes(raw: bytes) -> Optional[str]:
 _UNIVERSALLY_SUPPORTED_MIMES = frozenset({"image/png", "image/jpeg", "image/gif", "image/webp"})
 
 
-def _transcode_to_png(raw: bytes) -> Optional[bytes]:
+def _transcode_to_png(raw: bytes) -> bytes | None:
     """Decode with Pillow and re-encode as PNG; None when impossible. HEIC/HEIF and
     AVIF need optional Pillow plugins, registered on demand; a missing plugin just
     looks like "can't decode" so the caller skips the image and the turn proceeds."""
@@ -473,7 +477,7 @@ _SUFFIX_MIMES = {
 }
 
 
-def _guess_mime(path: Path, raw: Optional[bytes] = None) -> str:
+def _guess_mime(path: Path, raw: bytes | None = None) -> str:
     """Image MIME for *path*: magic bytes (authoritative) → ``mimetypes`` → suffix → jpeg."""
     sniffed = _sniff_mime_from_bytes(raw) if raw is not None else None
     mime = sniffed or mimetypes.guess_type(str(path))[0]
@@ -488,8 +492,12 @@ def _accepted_mimes() -> frozenset:
     server decodes fewer formats (no WebP — and a WebP part fails SILENTLY: the model
     confabulates a description), so its narrower set transcodes those here."""
     try:
+        from hermes_cli.local_runtime.capabilities import (
+            ACCEPTED_IMAGE_MIMES,
+            is_managed_provider,
+        )
+
         from agent.auxiliary_client import _runtime_main_value
-        from hermes_cli.local_runtime.capabilities import ACCEPTED_IMAGE_MIMES, is_managed_provider
 
         if is_managed_provider(str(_runtime_main_value("provider") or ""), str(_runtime_main_value("base_url") or "")):
             return ACCEPTED_IMAGE_MIMES
@@ -498,7 +506,7 @@ def _accepted_mimes() -> frozenset:
     return _UNIVERSALLY_SUPPORTED_MIMES
 
 
-def _file_to_data_url(path: Path) -> Optional[str]:
+def _file_to_data_url(path: Path) -> str | None:
     """Encode a local image as a base64 data URL at native size (the agent retry
     loop shrinks on rejection, so lenient providers pay no silent quality tax);
     MIMEs outside the accepted set are transcoded to PNG. None when unreadable,
@@ -532,9 +540,9 @@ def _file_to_data_url(path: Path) -> Optional[str]:
 
 def build_native_content_parts(
     user_text: str,
-    image_paths: List[str],
-    image_urls: Optional[List[str]] = None,
-) -> Tuple[List[Dict[str, Any]], List[str]]:
+    image_paths: list[str],
+    image_urls: list[str] | None = None,
+) -> tuple[list[dict[str, Any]], list[str]]:
     """Build an OpenAI-style ``content`` list for a user turn.
 
     Local paths become base64 ``data:`` URLs; remote URLs pass through verbatim.
@@ -544,8 +552,8 @@ def build_native_content_parts(
     ``Runner._enrich_message_with_vision``. Returns ``(content_parts, skipped)``;
     ``skipped`` holds unreadable local paths (URLs are never skipped).
     """
-    skipped: List[str] = []
-    attached: List[Tuple[str, str]] = []  # (url, hint)
+    skipped: list[str] = []
+    attached: list[tuple[str, str]] = []  # (url, hint)
     for raw_path in image_paths:
         p = Path(raw_path)
         data_url = _file_to_data_url(p) if p.exists() and p.is_file() else None
@@ -563,4 +571,4 @@ def build_native_content_parts(
     return [{"type": "text", "text": combined_text}, *image_parts], skipped
 
 
-__all__ = ["decide_image_input_mode", "build_native_content_parts", "extract_image_refs"]
+__all__ = ["build_native_content_parts", "decide_image_input_mode", "extract_image_refs"]

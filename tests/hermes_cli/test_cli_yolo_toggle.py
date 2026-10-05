@@ -27,11 +27,9 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
-
 import tools.approval as approval_module
-from tools import approval_context
 from cli import HermesCLI
-
+from tools import approval_context
 
 SESSION_KEY = "test-cli-yolo-session"
 

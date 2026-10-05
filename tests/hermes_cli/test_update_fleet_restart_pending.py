@@ -19,17 +19,13 @@ from __future__ import annotations
 import json
 from types import SimpleNamespace
 
+import hermes_cli.update_host_obligation as host_obligation
 import pytest
-
+from gateway import host_rendezvous
 from hermes_cli import main as hermes_main
-import hermes_cli.main_web_build as main_web_build
-import hermes_cli.main_install_repair as main_install_repair
-from hermes_cli import update_cmd
-import hermes_cli.update_cmd_fleet as update_cmd_fleet
+from hermes_cli import main_install_repair, main_web_build, update_cmd, update_cmd_fleet
 from hermes_cli.update_receipt import COMMAND_BOUNDARY_STOP_REASON
 from hermes_constants import get_hermes_home
-import hermes_cli.update_host_obligation as host_obligation
-from gateway import host_rendezvous
 
 pytestmark = pytest.mark.usefixtures("isolated_source_completion")
 
@@ -168,7 +164,7 @@ def _patch_update_deps(monkeypatch, tmp_path, run_side_effect):
     )
     monkeypatch.setattr(
         "hermes_cli.update_inventory.collect_runtime_inventory",
-        lambda: SimpleNamespace(runtimes=[], to_dict=lambda: {}),
+        lambda: SimpleNamespace(runtimes=[], to_dict=dict),
     )
     # The restart phase imports discovery fns fresh after
     # _purge_stale_hermes_modules (the update reloads code in-place), so
@@ -414,10 +410,12 @@ def test_clean_update_escalates_surviving_serve_as_unaccounted(
     the update must (1) warn, (2) reconcile it as ``unaccounted`` instead of
     borrowing the gateway's restart, and (3) exit 1 with a ``partial``
     receipt — not print a clean success."""
-    from hermes_cli.update_inventory import (
-        RuntimeRecord, UpdatePlan, _restart_mechanism,
-    )
     import hermes_cli.update_inventory as ui
+    from hermes_cli.update_inventory import (
+        RuntimeRecord,
+        UpdatePlan,
+        _restart_mechanism,
+    )
 
     args = _update_args()
     _patch_update_deps(monkeypatch, tmp_path, _make_head_moved_side_effect())
@@ -485,11 +483,13 @@ def test_clean_update_defers_desktop_owned_serve_and_clears_marker(
     Desktop open ends ``partial``/exit 1 and re-arms ``fleet_restart_pending``
     with nothing that could ever discharge it. It is surfaced (``deferred``,
     relaunch hint) rather than dropped."""
-    from hermes_cli.update_inventory import (
-        RuntimeRecord, UpdatePlan, _restart_mechanism,
-    )
-    import hermes_cli.update_inventory as ui
     import hermes_cli.process_identity as pi
+    import hermes_cli.update_inventory as ui
+    from hermes_cli.update_inventory import (
+        RuntimeRecord,
+        UpdatePlan,
+        _restart_mechanism,
+    )
 
     args = _update_args()
     _patch_update_deps(monkeypatch, tmp_path, _make_head_moved_side_effect())

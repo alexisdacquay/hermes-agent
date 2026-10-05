@@ -13,20 +13,22 @@ import sqlite3
 import threading
 import time
 import uuid
+from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Any
 
+from hermes_cli.observability.shared_metrics_gateway import record_cron_finish
 from hermes_constants import get_hermes_home
 from hermes_time import now as _hermes_now
+
 from cron.constants import CLAIM_TTL_INACTIVITY_HEADROOM
-from hermes_cli.observability.shared_metrics_gateway import record_cron_finish
 
 # Optional test override. Production resolves the path at transaction time so dashboard operations
 # that temporarily enter another profile cannot leak that profile's records into the import-time
 # home.
-EXECUTIONS_FILE: Optional[Path] = None
+EXECUTIONS_FILE: Path | None = None
 MAX_TERMINAL_EXECUTIONS = 1000
 HANDOFF_ADOPTION_GRACE_SECONDS = 30.0
 # Floor for the live-owner stale-claim bound (#115692); see _live_owner_stale_after_seconds.
@@ -42,8 +44,9 @@ def _connect() -> sqlite3.Connection:
     # Late imports: a scheduler daemon that outlives an on-disk upgrade already has the OLD
     # ``hermes_cli.sqlite_util`` / ``cron.jobs`` cached, so new names must be resolved at call time,
     # not at import time (the guarantee cron/ledger.py used to carry, see e24c8499).
-    from cron.jobs import _ensure_cron_dir
     from hermes_cli.sqlite_util import open_db
+
+    from cron.jobs import _ensure_cron_dir
 
     path = EXECUTIONS_FILE or (get_hermes_home().resolve() / "cron" / "executions.db")
     _ensure_cron_dir(path.parent)
@@ -102,13 +105,13 @@ def _transaction() -> Iterator[sqlite3.Connection]:
         yield conn
 
 
-def _fetch(conn: sqlite3.Connection, execution_id: str) -> Optional[Dict[str, Any]]:
+def _fetch(conn: sqlite3.Connection, execution_id: str) -> dict[str, Any] | None:
     row = conn.execute("SELECT * FROM executions WHERE id=?", (execution_id,)).fetchone()
     return dict(row) if row is not None else None
 
 
 def _emit_execution_state(
-    record: Optional[Dict[str, Any]], *, delivery_outcome: Optional[str] = None
+    record: dict[str, Any] | None, *, delivery_outcome: str | None = None
 ) -> None:
     """Project durable state to monitoring without affecting ledger behavior."""
     try:
@@ -119,7 +122,7 @@ def _emit_execution_state(
         pass
 
 
-def _process_start_time(pid: int) -> Optional[int]:
+def _process_start_time(pid: int) -> int | None:
     try:
         from gateway.status import get_process_start_time
         return get_process_start_time(pid)
@@ -127,7 +130,7 @@ def _process_start_time(pid: int) -> Optional[int]:
         return None
 
 
-def _owner_is_live(pid: int, started_at: Optional[int]) -> bool:
+def _owner_is_live(pid: int, started_at: int | None) -> bool:
     try:
         from gateway.status import _pid_exists
         if not _pid_exists(pid):
@@ -145,7 +148,7 @@ def _owner_is_live(pid: int, started_at: Optional[int]) -> bool:
     return start_time_fingerprints_match(started_at, current)
 
 
-def _live_owner_stale_after_seconds() -> Optional[float]:
+def _live_owner_stale_after_seconds() -> float | None:
     """Age past which a claimed/running row with a LIVE owner is treated as wedged.
 
     Derived from the existing knobs, never a bare wall-clock constant:
@@ -184,8 +187,8 @@ def _prune_unlocked(conn: sqlite3.Connection) -> None:
 
 
 def create_execution(
-    job_id: str, *, source: str, scheduled_instant: Optional[str] = None,
-) -> Dict[str, Any]:
+    job_id: str, *, source: str, scheduled_instant: str | None = None,
+) -> dict[str, Any]:
     """Persist a claimed attempt before executor/provider dispatch."""
     from cron.occurrences import scheduled_instant as canonical_instant
 
@@ -206,7 +209,7 @@ def create_execution(
     return record  # type: ignore[return-value]
 
 
-def set_execution_occurrence(execution_id: str, instant: Optional[str]) -> None:
+def set_execution_occurrence(execution_id: str, instant: str | None) -> None:
     """Bind the store-claimed snapshot before a provider hands it to a worker."""
     from cron.occurrences import scheduled_instant
 
@@ -220,7 +223,7 @@ def set_execution_occurrence(execution_id: str, instant: Optional[str]) -> None:
             raise RuntimeError("Cron occurrence could not be bound before dispatch")
 
 
-def mark_execution_handoff_pending(execution_id: str) -> Optional[Dict[str, Any]]:
+def mark_execution_handoff_pending(execution_id: str) -> dict[str, Any] | None:
     """Fence restart recovery while an external worker is adopting a claim."""
     with _transaction() as conn:
         cur = conn.execute(
@@ -237,7 +240,7 @@ def mark_execution_handoff_pending(execution_id: str) -> Optional[Dict[str, Any]
     return record
 
 
-def adopt_claimed_execution(execution_id: str) -> Optional[Dict[str, Any]]:
+def adopt_claimed_execution(execution_id: str) -> dict[str, Any] | None:
     """Atomically transfer and start an attempt in its worker process.
 
     The dispatching gateway creates the row before spawning a restart-safe
@@ -263,7 +266,7 @@ def adopt_claimed_execution(execution_id: str) -> Optional[Dict[str, Any]]:
     return record
 
 
-def mark_execution_running(execution_id: str) -> Optional[Dict[str, Any]]:
+def mark_execution_running(execution_id: str) -> dict[str, Any] | None:
     """Transition one claimed attempt to running exactly once."""
     now = _hermes_now().isoformat()
     with _transaction() as conn:
@@ -283,9 +286,9 @@ def mark_execution_running(execution_id: str) -> Optional[Dict[str, Any]]:
 
 
 def finish_execution(
-    execution_id: str, *, success: bool, error: Optional[str] = None,
-    delivery_outcome: Optional[str] = None,
-) -> Optional[Dict[str, Any]]:
+    execution_id: str, *, success: bool, error: str | None = None,
+    delivery_outcome: str | None = None,
+) -> dict[str, Any] | None:
     """Write a terminal result once; terminal attempts cannot be rewritten."""
     now = _hermes_now().isoformat()
     status = "completed" if success else "failed"
@@ -325,10 +328,10 @@ def recover_interrupted_executions() -> int:
     process is not killed)."""
     now = _hermes_now().isoformat()
     changed = 0
-    recovered: List[Dict[str, Any]] = []
+    recovered: list[dict[str, Any]] = []
     # Derived on the first live-owned row only: the bound reads config, and the idle gateway
     # tick must stay config-free (tests/cron/test_idle_tick_config_skip.py).
-    stale_after: Optional[float] = None
+    stale_after: float | None = None
     stale_after_resolved = False
     with _transaction() as conn:
         rows = conn.execute(
@@ -442,11 +445,11 @@ def terminalize_dead_owner(execution_id: str, *, reason: str) -> bool:
 
 
 def list_executions(
-    *, job_id: Optional[str] = None, limit: int = 50, before_claimed_at: Optional[str] = None,
-) -> List[Dict[str, Any]]:
+    *, job_id: str | None = None, limit: int = 50, before_claimed_at: str | None = None,
+) -> list[dict[str, Any]]:
     """Return indexed, newest-first execution history with cursor pagination."""
-    clauses: List[str] = []
-    params: List[Any] = []
+    clauses: list[str] = []
+    params: list[Any] = []
     if job_id is not None:
         clauses.append("job_id=?")
         params.append(str(job_id))
@@ -467,7 +470,7 @@ def list_executions(
     return [dict(row) for row in rows]
 
 
-def get_execution(execution_id: str) -> Optional[Dict[str, Any]]:
+def get_execution(execution_id: str) -> dict[str, Any] | None:
     """Return one exact execution attempt, or ``None`` when it is absent."""
     with _transaction() as conn:
         row = conn.execute(
@@ -477,12 +480,12 @@ def get_execution(execution_id: str) -> Optional[Dict[str, Any]]:
     return dict(row) if row is not None else None
 
 
-def latest_execution(job_id: str) -> Optional[Dict[str, Any]]:
+def latest_execution(job_id: str) -> dict[str, Any] | None:
     rows = list_executions(job_id=job_id, limit=1)
     return rows[0] if rows else None
 
 
-def live_inflight_execution(job_id: str) -> Optional[Dict[str, Any]]:
+def live_inflight_execution(job_id: str) -> dict[str, Any] | None:
     """The job's latest attempt while it is still claimed/running under a LIVE owner, else ``None``.
 
     This is scheduler OWNERSHIP, not recent activity: a run inside a long tool call writes no
@@ -497,7 +500,7 @@ def live_inflight_execution(job_id: str) -> Optional[Dict[str, Any]]:
     return record
 
 
-def latest_executions(job_ids: List[str]) -> Dict[str, Dict[str, Any]]:
+def latest_executions(job_ids: list[str]) -> dict[str, dict[str, Any]]:
     """Load latest execution for many jobs in one query."""
     clean = [str(job_id) for job_id in dict.fromkeys(job_ids) if job_id]
     if not clean:

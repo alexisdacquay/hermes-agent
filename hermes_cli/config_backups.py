@@ -15,7 +15,6 @@ import logging
 import shutil
 import time
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +31,7 @@ def backups_dir(config_path: Path) -> Path:
     return config_path.parent / BACKUPS_SUBDIR
 
 
-def list_config_backups(config_path: Path, reason: Optional[str] = None) -> list[Path]:
+def list_config_backups(config_path: Path, reason: str | None = None) -> list[Path]:
     """Existing backups, newest first; filtered to one *reason* when given."""
     root = backups_dir(config_path)
     if not root.is_dir():
@@ -42,7 +41,7 @@ def list_config_backups(config_path: Path, reason: Optional[str] = None) -> list
                   key=lambda p: p.name, reverse=True)
 
 
-def backup_config(config_path: Path, reason: str, *, keep: int = DEFAULT_KEEP) -> Optional[Path]:
+def backup_config(config_path: Path, reason: str, *, keep: int = DEFAULT_KEEP) -> Path | None:
     """Copy *config_path* to the backups dir; return the new path, or None when skipped/failed.
 
     Skips when the file is missing/empty, or when the newest backup for *reason* already holds
@@ -69,7 +68,7 @@ def backup_config(config_path: Path, reason: str, *, keep: int = DEFAULT_KEEP) -
         return None
 
 
-def load_newest_good_backup(config_path: Path) -> Optional[dict]:
+def load_newest_good_backup(config_path: Path) -> dict | None:
     """Parse the newest ``good`` backup (the file as it was at the last successful load).
 
     Returns the raw mapping, or None when there is no usable copy. Older ``good`` copies are not

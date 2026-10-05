@@ -10,8 +10,9 @@ from __future__ import annotations
 
 import json
 import time
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional, Sequence
+from typing import Any
 
 from tools.connectors import live
 from tools.connectors.contract import SettleReason
@@ -28,7 +29,7 @@ WATCH_INTERVAL_SECONDS = 5.0
 # The interrupt flag has no wake hook, so the tick sleep is sliced and the flag read each slice.
 _WAKE_SLICE_SECONDS = 0.25
 
-Callback = Callable[[Dict[str, Any]], Optional[str]]
+Callback = Callable[[dict[str, Any]], str | None]
 
 
 @dataclass
@@ -41,7 +42,7 @@ class Kind:
     note: str
 
 
-def reissue(operation: ConnectionOperation, names: Sequence[str]) -> Optional[str]:
+def reissue(operation: ConnectionOperation, names: Sequence[str]) -> str | None:
     from tools.connectors.contract import Actor, TargetState, allowed
 
     targets = [operation.target(name) for name in names]
@@ -77,13 +78,13 @@ def apply_answer(operation: ConnectionOperation, raw: str) -> None:
 
 
 def run_operation(
-    targets: List[Target],
+    targets: list[Target],
     kind: Kind,
     *,
     session_key: str,
-    tool_call_id: Optional[str],
-    connection_callback: Optional[Callback],
-    tick_seconds: Optional[float] = None,
+    tool_call_id: str | None,
+    connection_callback: Callback | None,
+    tick_seconds: float | None = None,
     with_urls_in_result: bool,
 ) -> str:
     """Block the tool thread until the operation settles; return the tool's JSON string."""
@@ -110,8 +111,8 @@ def drive_operation(
     operation: ConnectionOperation,
     kind: Kind,
     *,
-    connection_callback: Optional[Callback],
-    tick_seconds: Optional[float] = None,
+    connection_callback: Callback | None,
+    tick_seconds: float | None = None,
     with_urls_in_result: bool,
 ) -> str:
     try:
@@ -128,7 +129,7 @@ def drive_operation(
     return json.dumps(payload, ensure_ascii=False)
 
 
-def _watch(operation: ConnectionOperation, kind: Kind, tick_seconds: Optional[float]) -> None:
+def _watch(operation: ConnectionOperation, kind: Kind, tick_seconds: float | None) -> None:
     from tools.interrupt import is_interrupted
 
     tick = WATCH_INTERVAL_SECONDS if tick_seconds is None else tick_seconds

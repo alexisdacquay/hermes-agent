@@ -17,8 +17,8 @@ from __future__ import annotations
 import sys
 
 import pytest
-
 from tui_gateway import server
+
 
 @pytest.fixture()
 def bad_bytes_cmd(tmp_path):

@@ -2,7 +2,16 @@
 
 First-party Python only (excludes tests/, node_modules, apps/, website, build, .venv, skills md).
 """
-import ast, collections, io, json, os, shutil, subprocess, sys, time, tokenize
+import ast
+import collections
+import io
+import json
+import os
+import shutil
+import subprocess
+import sys
+import time
+import tokenize
 
 TREE, LABEL = sys.argv[1], sys.argv[2]
 SKIP = {".git", "node_modules", "apps", "website", "build", ".venv", "venv", "MagicMock", "__pycache__", ".worktrees", "dist", "evals", "skills", "optional-skills", "docs"}
@@ -57,7 +66,7 @@ def analyse(files):
         try: tree = ast.parse(src)
         except Exception: m["unparsable"] = m.get("unparsable", 0) + 1; continue
         rel = os.path.relpath(p, TREE)[:-3].replace(os.sep, ".")
-        if rel.endswith(".__init__"): rel = rel[:-9]
+        rel = rel.removesuffix(".__init__")
         mods[rel] = p
         for n in ast.walk(tree):
             if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -127,7 +136,6 @@ def analyse(files):
 def radon(files):
     """radon cc + mi over the file list (JSON), aggregated."""
     R = shutil.which("radon") or os.path.join(os.path.dirname(sys.executable), "radon")
-    import tempfile
     out = {}
     lst = "\n".join(files)
     # radon can't take a list file; run per-directory roots instead

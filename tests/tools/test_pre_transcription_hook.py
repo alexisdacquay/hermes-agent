@@ -29,11 +29,9 @@ import sys
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 import hermes_cli.plugins as plugins_mod
+import pytest
 from tools import transcription_tools
-
 
 PROMPT = "Hermes, Teknium, Nous Research, kanban"
 

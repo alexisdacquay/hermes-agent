@@ -7,7 +7,6 @@ from argparse import Namespace
 from contextlib import closing
 
 import pytest
-
 from hermes_cli import backup
 
 # Unescaped in a file: URI, '#' truncates the path and '%23' decodes to a different one.
@@ -29,7 +28,7 @@ def _assert_no_decoy(tmp_path, home_name):
 
 @pytest.fixture(params=HOME_NAMES)
 def home(tmp_path, monkeypatch, request):
-    import hermes_cli.gateway as gateway
+    from hermes_cli import gateway
 
     home = tmp_path / request.param
     home.mkdir()

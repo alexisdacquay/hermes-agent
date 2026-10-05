@@ -1,9 +1,9 @@
 """Publish plugin code and its dependency selection through one recoverable handoff."""
 from __future__ import annotations
 
+import shutil
 from collections.abc import Callable
 from pathlib import Path
-import shutil
 
 
 def recover_plugin_publication(project: Path, row: dict, journal: Path) -> None:
@@ -26,8 +26,9 @@ def publish_plugin(staged: Path, target: Path, old_metadata: dict, new_metadata:
     from pm.store import tree_digest
 
     if require_consent and not assume_consent:
-        from hermes_cli import plugins_cmd
         from pm.workspace import enabled_plugin_dirs
+
+        from hermes_cli import plugins_cmd
 
         if target.resolve() in enabled_plugin_dirs(installing=target):
             consented, reason = plugins_cmd._install_plugin_python_deps(
@@ -54,10 +55,11 @@ def _refresh_declared_dependencies(target: Path, staged: Path, manifest: dict, *
     rebuilt in the staged copy when its package.json/lock moved (custom pulls copy a stale
     node_modules; catalog re-pins clone without one).
     """
-    from hermes_cli import plugins_cmd as pc
-    from hermes_cli.runtime_state import _bytes
     from pm.plugin_declarations import read_python_declaration
     from pm.workspace import enabled_plugin_dirs, install_node_sidecar
+
+    from hermes_cli import plugins_cmd as pc
+    from hermes_cli.runtime_state import _bytes
 
     if (target / "node_modules").is_dir() and (staged / "package.json").is_file() and (
             not (staged / "node_modules").is_dir()
@@ -99,9 +101,10 @@ def update_plugin(
     returns the carried paths so a scan block can attribute findings to them."""
     import tempfile
 
+    from pm.store import tree_digest
+
     from hermes_cli import plugins_cmd as pc
     from hermes_cli.plugins_cmd_catalog import refuse_if_installed_removed
-    from pm.store import tree_digest
 
     target = target.resolve()
     metadata = pc._read_install_metadata()
@@ -114,7 +117,11 @@ def update_plugin(
     feed_revision = None
     if catalog_entry is None:
         from hermes_cli.plugins_provenance import Provenance, ProvenanceClass
-        from hermes_cli.plugins_updates import check_local_provenance, default_fetch, parse_feed_yml
+        from hermes_cli.plugins_updates import (
+            check_local_provenance,
+            default_fetch,
+            parse_feed_yml,
+        )
 
         checked = check_local_provenance(Provenance(target.name, ProvenanceClass.GIT, target, record))
         if checked.needs_fixing:

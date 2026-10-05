@@ -10,12 +10,11 @@ Covers:
 """
 
 import os
-import sys
-import pytest
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from unittest.mock import patch
 
 import hermes_time
+import pytest
 
 
 def _reset_hermes_time_cache():
@@ -113,7 +112,10 @@ class TestGetTimezone:
         """Under the multiplexed gateway HERMES_TIMEZONE holds only the DEFAULT profile's value
         (bridged at startup), so a routed profile must resolve from its own config.yaml."""
         from agent.secret_scope import set_multiplex_active
-        from hermes_constants import reset_hermes_home_override, set_hermes_home_override
+        from hermes_constants import (
+            reset_hermes_home_override,
+            set_hermes_home_override,
+        )
 
         default_home, routed_home = tmp_path / "default", tmp_path / "routed"
         default_home.mkdir()
@@ -300,8 +302,8 @@ class TestCronTimezone:
         # The UTC equivalent must match what we'd get by correctly interpreting
         # the naive dt as system-local time first, then converting
         system_tz = datetime.now().astimezone().tzinfo
-        expected_utc = naive_dt.replace(tzinfo=system_tz).astimezone(timezone.utc)
-        actual_utc = result.astimezone(timezone.utc)
+        expected_utc = naive_dt.replace(tzinfo=system_tz).astimezone(UTC)
+        actual_utc = result.astimezone(UTC)
         assert actual_utc == expected_utc, (
             f"Absolute time shifted: expected {expected_utc}, got {actual_utc}"
         )
@@ -322,7 +324,7 @@ class TestCronTimezone:
         os.environ["HERMES_TIMEZONE"] = "Pacific/Midway"  # UTC-11
         _reset_hermes_time_cache()
 
-        from cron.jobs import create_job, load_jobs, save_jobs, get_due_jobs
+        from cron.jobs import create_job, get_due_jobs, load_jobs, save_jobs
         create_job(prompt="Cross-tz job", schedule="every 1h")
         jobs = load_jobs()
 

@@ -4,7 +4,6 @@ import os
 import sys
 
 import pytest
-
 from tui_gateway import entry
 
 

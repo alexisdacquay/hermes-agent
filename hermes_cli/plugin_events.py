@@ -31,7 +31,7 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +63,7 @@ def plugin_event_name(plugin_id: str, event: str) -> str:
     return f"{PLUGIN_EVENT_PREFIX}{plugin_id}.{event}"
 
 
-def broadcast_plugin_event(plugin_id: str, event: str, payload: Optional[dict[str, Any]] = None) -> None:
+def broadcast_plugin_event(plugin_id: str, event: str, payload: dict[str, Any] | None = None) -> None:
     """Emit ``plugin.<plugin_id>.<event>`` to every connected client.
 
     Fire-and-forget and safe to call from any request handler: delivery fans out

@@ -10,7 +10,6 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
-
 from agent.turn_iteration_prep import apply_retry_restarts, begin_iteration
 from agent.turn_retry_state import TurnRetryState
 

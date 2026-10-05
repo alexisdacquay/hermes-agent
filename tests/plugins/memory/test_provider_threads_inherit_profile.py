@@ -11,8 +11,11 @@ import threading
 from unittest.mock import MagicMock
 
 import pytest
-
-from hermes_constants import get_hermes_home, reset_hermes_home_override, set_hermes_home_override
+from hermes_constants import (
+    get_hermes_home,
+    reset_hermes_home_override,
+    set_hermes_home_override,
+)
 
 
 def _probe_home(seen: dict, key: str = "home"):
@@ -33,7 +36,7 @@ def _mem0(seen, tmp_path):
 
 
 def _retaindb(seen, tmp_path):
-    import plugins.memory.retaindb as retaindb
+    from plugins.memory import retaindb
 
     p = retaindb.RetainDBMemoryProvider()
     p._client = MagicMock()
@@ -45,7 +48,7 @@ def _retaindb(seen, tmp_path):
 
 
 def _byterover(seen, tmp_path):
-    import plugins.memory.byterover as byterover
+    from plugins.memory import byterover
 
     p = byterover.ByteRoverMemoryProvider()
     p._curate = _probe_home(seen)
@@ -53,7 +56,7 @@ def _byterover(seen, tmp_path):
 
 
 def _openviking(seen, tmp_path):
-    import plugins.memory.openviking as openviking
+    from plugins.memory import openviking
 
     p = openviking.OpenVikingMemoryProvider()
     workers: set = set()

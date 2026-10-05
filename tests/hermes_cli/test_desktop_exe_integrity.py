@@ -17,13 +17,11 @@ from __future__ import annotations
 import argparse
 import struct
 import subprocess
-import sys
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
-
 from hermes_cli import main as cli_main
 from hermes_cli import main_desktop
 from hermes_platform.host import facts

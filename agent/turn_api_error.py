@@ -8,21 +8,32 @@ fallback → terminal result) and the interruptible backoff. Nothing here import
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import json
 import logging
 import ssl
 import time
-from typing import Any, Dict, Optional
+from dataclasses import dataclass
+from typing import Any
 
 from agent.api_error_summary import is_provider_stream_parse_error
-from agent.error_classifier import RETRYABLE_CLIENT_REASONS, FailoverReason, classify_api_error
+from agent.error_classifier import (
+    RETRYABLE_CLIENT_REASONS,
+    FailoverReason,
+    classify_api_error,
+)
 from agent.turn_overflow import recover_from_overflow
 from agent.turn_recovery import (
-    _NONRETRYABLE_LABELS, abort_turn_on_interrupt, compute_error_backoff, interruptible_backoff_sleep,
+    _NONRETRYABLE_LABELS,
+    abort_turn_on_interrupt,
+    compute_error_backoff,
+    interruptible_backoff_sleep,
     log_api_error_attempt,
-    max_retries_exhausted_result, nonretryable_client_error_result, recover_after_classification,
-    recover_before_classification, route_classified_error, settle_delivered_partial,
+    max_retries_exhausted_result,
+    nonretryable_client_error_result,
+    recover_after_classification,
+    recover_before_classification,
+    route_classified_error,
+    settle_delivered_partial,
 )
 
 logger = logging.getLogger("agent.conversation_loop")
@@ -46,7 +57,7 @@ class ApiErrorVerdict:
     max_retries: Any
     compression_attempts: Any
     _provider_overflow_recovery_pending: Any
-    result: Optional[Dict[str, Any]] = None
+    result: dict[str, Any] | None = None
 
 
 def handle_api_error(
@@ -62,7 +73,7 @@ def handle_api_error(
     preflight re-runs against the fallback's context window (#84733)."""
     _provider_overflow_recovery_pending = False
 
-    def _verdict(action: str, result: Optional[Dict[str, Any]] = None) -> ApiErrorVerdict:
+    def _verdict(action: str, result: dict[str, Any] | None = None) -> ApiErrorVerdict:
         return ApiErrorVerdict(
             action=action, thinking_spinner=thinking_spinner, messages=messages,
             active_system_prompt=active_system_prompt, conversation_history=conversation_history,
@@ -247,7 +258,7 @@ class UnrecoveredErrorVerdict:
     active_system_prompt: Any
     retry_count: Any
     compression_attempts: Any
-    result: Optional[Dict[str, Any]] = None
+    result: dict[str, Any] | None = None
 
 
 def settle_unrecovered_error(
@@ -264,10 +275,12 @@ def settle_unrecovered_error(
     result), else the interruptible error backoff. ``FailoverReason.billing`` (402) is deliberately
     treated as non-retryable (#31273)."""
     from agent.conversation_loop import (
-        _arm_fallback_restart, _is_copilot_provider, _is_stale_copilot_credential_error
+        _arm_fallback_restart,
+        _is_copilot_provider,
+        _is_stale_copilot_credential_error,
     )
 
-    def _verdict(action: str, result: Optional[Dict[str, Any]] = None) -> UnrecoveredErrorVerdict:
+    def _verdict(action: str, result: dict[str, Any] | None = None) -> UnrecoveredErrorVerdict:
         return UnrecoveredErrorVerdict(
             action=action, active_system_prompt=active_system_prompt, retry_count=retry_count,
             compression_attempts=compression_attempts, result=result,

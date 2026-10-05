@@ -9,14 +9,14 @@ from __future__ import annotations
 
 import asyncio
 import json
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeoutError
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Dict, Optional
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 
 FIXTURE = Path(__file__).parents[1] / "fixtures" / "cua_driver_0_9_tools_list.json"
 
@@ -33,10 +33,10 @@ def _reset_computer_use_state():
 class _FakeSession:
     def __init__(
         self,
-        out: Optional[Dict[str, Any]] = None,
+        out: dict[str, Any] | None = None,
         *,
-        input_properties: Optional[Dict[str, set[str]]] = None,
-        tools: Optional[set[str]] = None,
+        input_properties: dict[str, set[str]] | None = None,
+        tools: set[str] | None = None,
     ) -> None:
         self.out = out or {
             "isError": False,
@@ -45,13 +45,13 @@ class _FakeSession:
         }
         self.input_properties = input_properties or {}
         self.tools = tools or {"bring_to_front", *self.input_properties}
-        self.calls: list[tuple[str, Dict[str, Any]]] = []
+        self.calls: list[tuple[str, dict[str, Any]]] = []
 
-    def call_tool(self, name: str, args: Dict[str, Any], timeout: float = 30.0):
+    def call_tool(self, name: str, args: dict[str, Any], timeout: float = 30.0):
         self.calls.append((name, dict(args)))
         return self.out
 
-    def supports_capability(self, capability: str, tool: Optional[str] = None) -> bool:
+    def supports_capability(self, capability: str, tool: str | None = None) -> bool:
         return False
 
     def supports_input_property(self, tool: str, prop: str) -> bool:

@@ -14,7 +14,7 @@ overload backoff path.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 
 from agent.error_classifier import FailoverReason
 
@@ -46,7 +46,7 @@ def auto_recovery_cycles(agent: Any) -> int:
     return max(int(getattr(agent, "_auto_recovery_cycles", 0) or 0), 0)
 
 
-def _retry_after_seconds(api_error: Any) -> Optional[float]:
+def _retry_after_seconds(api_error: Any) -> float | None:
     """Provider-declared cooldown from the ``Retry-After`` header or a ``retry_after`` body field."""
     from agent.retry_utils import parse_retry_after_seconds
     value = parse_retry_after_seconds(getattr(getattr(api_error, "response", None), "headers", None))
@@ -86,7 +86,7 @@ def ladder_notice(agent: Any, *, wait_s: float, cycle: int, total: int) -> str:
 def auto_recover_after_exhaustion(
     agent: Any, api_error: Any, classified: Any, _retry: Any, *, messages: Any,
     conversation_history: Any, api_call_count: int,
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     """Run one recovery cycle after retries + fallback exhausted. Returns ``{"action": "continue"}``
     when the wait completed (caller zeroes ``retry_count`` and re-enters the retry loop),
     ``{"action": "break"}`` when a steering correction arrived mid-wait, ``{"action": "return",

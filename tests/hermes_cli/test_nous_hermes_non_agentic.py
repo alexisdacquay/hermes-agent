@@ -12,7 +12,6 @@ Hermes-3 / Hermes-4 chat family.
 from __future__ import annotations
 
 import pytest
-
 from hermes_cli.model_switch import (
     _HERMES_MODEL_WARNING,
     _check_hermes_model_warning,

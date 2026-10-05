@@ -14,7 +14,6 @@ from argparse import Namespace
 from pathlib import Path
 
 import pytest
-
 from hermes_state import SessionDB
 
 ROOT_KEY = "agent:main:telegram:dm:100"
@@ -111,8 +110,8 @@ def _run(**kw) -> int:
 
 
 def _report() -> dict:
-    import io
     import contextlib
+    import io
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
         assert _run(json=True) == 0

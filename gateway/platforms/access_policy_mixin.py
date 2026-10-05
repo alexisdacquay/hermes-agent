@@ -14,7 +14,7 @@ DEFAULT profile's opt-in, which must never open a secondary bot's DMs (#93522).
 
 from __future__ import annotations
 
-from typing import Iterable
+from collections.abc import Iterable
 
 from gateway.platforms._shared import get_scoped_secret
 

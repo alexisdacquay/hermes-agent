@@ -6,10 +6,8 @@ from __future__ import annotations
 import json
 import os
 
-import pytest
-
 import hermes_yaml as yaml
-
+import pytest
 from hermes_cli import plugin_catalog as pc
 
 SHA = "38fe0fb53eff98d477f807432e965429e665ca33"

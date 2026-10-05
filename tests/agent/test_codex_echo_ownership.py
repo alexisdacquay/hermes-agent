@@ -3,7 +3,6 @@ import threading
 from types import SimpleNamespace
 
 import pytest
-
 from agent.codex_runtime import _persist_projected_messages
 from agent.message_metadata import append_message
 from agent.session_persistence import SessionPersistenceMixin

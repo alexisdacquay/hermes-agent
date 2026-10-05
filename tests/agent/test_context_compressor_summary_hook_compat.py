@@ -1,7 +1,6 @@
 """Compatibility coverage for third-party summary hook overrides."""
 
 import pytest
-
 from agent.context_compressor import ContextCompressor
 
 

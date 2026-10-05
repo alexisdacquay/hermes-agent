@@ -9,21 +9,21 @@ Desktop selection shared by concurrent chats."""
 
 import json
 import os
-from typing import Callable, Optional
+from collections.abc import Callable
 
 from tools.registry import registry
 
 # Set by the GUI gateway: ``(task_id, primary_path, project_name)`` re-anchors that session's
 # workspace. ``None`` in CLI/messaging — the DB write still happens, nothing to move.
-_workspace_callback: Optional[Callable[[str, str, str], None]] = None
+_workspace_callback: Callable[[str, str, str], None] | None = None
 
 
-def set_project_workspace_callback(fn: Optional[Callable[[str, str, str], None]]) -> None:
+def set_project_workspace_callback(fn: Callable[[str, str, str], None] | None) -> None:
     global _workspace_callback
     _workspace_callback = fn
 
 
-def _primary_path(proj) -> Optional[str]:
+def _primary_path(proj) -> str | None:
     if getattr(proj, "primary_path", None):
         return proj.primary_path
     for folder in proj.folders:
@@ -32,12 +32,12 @@ def _primary_path(proj) -> Optional[str]:
     return proj.folders[0].path if proj.folders else None
 
 
-def _moves_session(task_id: Optional[str], path: Optional[str]) -> bool:
+def _moves_session(task_id: str | None, path: str | None) -> bool:
     """True when a live GUI session's workspace will follow the project — ``_apply_workspace``'s gate."""
     return bool(_workspace_callback and task_id and path)
 
 
-def _apply_workspace(task_id: Optional[str], path: Optional[str], name: str) -> None:
+def _apply_workspace(task_id: str | None, path: str | None, name: str) -> None:
     cb = _workspace_callback
     if cb and task_id and path:
         try:
@@ -63,7 +63,7 @@ def _resolve(conn, token: str):
     return None
 
 
-def _activated(proj, task_id: Optional[str]) -> str:
+def _activated(proj, task_id: str | None) -> str:
     primary = _primary_path(proj)
     _apply_workspace(task_id, primary, proj.name)
     return json.dumps({
@@ -71,11 +71,12 @@ def _activated(proj, task_id: Optional[str]) -> str:
         "primary_path": primary})
 
 
-def _calling_session_project_id(conn, task_id: Optional[str]) -> tuple[bool, Optional[str]]:
+def _calling_session_project_id(conn, task_id: str | None) -> tuple[bool, str | None]:
     """``(scoped, project_id)`` for the calling session. The GUI gateway registers each session's
     workspace (``cwd_source``) in the terminal override table; a caller it never registered (CLI,
     scripts) is unscoped and falls back to the profile-global pointer."""
     from hermes_cli import projects_db as pdb
+
     from tools.terminal_tool import resolve_task_overrides
     overrides = resolve_task_overrides(task_id) if task_id else {}
     if "cwd_source" not in overrides:
@@ -85,7 +86,7 @@ def _calling_session_project_id(conn, task_id: Optional[str]) -> tuple[bool, Opt
     return True, project.id if project else None
 
 
-def project_list(task_id: Optional[str] = None) -> str:
+def project_list(task_id: str | None = None) -> str:
     from hermes_cli import projects_db as pdb
     with pdb.connect_closing() as conn:
         # Another tab's switch moves the profile-global pointer; this chat's project is its own cwd.
@@ -102,7 +103,7 @@ def project_list(task_id: Optional[str] = None) -> str:
             for p in projects]})
 
 
-def project_create(name: str, path: Optional[str] = None, task_id: Optional[str] = None) -> str:
+def project_create(name: str, path: str | None = None, task_id: str | None = None) -> str:
     name = (name or "").strip()
     if not name:
         return json.dumps({"success": False, "error": "name is required"})
@@ -132,7 +133,7 @@ def project_create(name: str, path: Optional[str] = None, task_id: Optional[str]
     return _activated(proj, task_id)
 
 
-def project_switch(project: str, task_id: Optional[str] = None) -> str:
+def project_switch(project: str, task_id: str | None = None) -> str:
     from hermes_cli import projects_db as pdb
     with pdb.connect_closing() as conn:
         proj = _resolve(conn, project)

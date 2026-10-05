@@ -9,7 +9,6 @@ import os
 import sys
 
 import pytest
-
 from tools.environments.local import LocalEnvironment
 from tools.file_operations import ShellFileOperations
 

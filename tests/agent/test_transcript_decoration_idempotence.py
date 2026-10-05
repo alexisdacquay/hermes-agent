@@ -23,7 +23,6 @@ import copy
 import json
 
 import pytest
-
 from agent.prompt_caching import (
     _count_cache_markers,
     apply_anthropic_cache_control,

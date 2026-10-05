@@ -21,10 +21,9 @@ reconciliation runs (mirrored here directly, since driving the full
 
 from unittest.mock import patch
 
-import pytest
-
-import hermes_cli.gateway_windows as gateway_windows
 import hermes_cli.main as hm
+import pytest
+from hermes_cli import gateway_windows
 
 
 @pytest.fixture(autouse=True)

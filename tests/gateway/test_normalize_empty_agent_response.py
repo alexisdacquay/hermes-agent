@@ -9,7 +9,6 @@ dict carries an explicit ``error: None``.
 """
 
 import pytest
-
 from gateway.run import _normalize_empty_agent_response
 
 

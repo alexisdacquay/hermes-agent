@@ -12,7 +12,6 @@ import urllib.error
 from http.server import BaseHTTPRequestHandler, HTTPServer, ThreadingHTTPServer
 
 import pytest
-
 from tui_gateway.hosted_room_peer_http import (
     MAX_PEER_ERROR_RESPONSE_BYTES,
     MAX_PEER_RESPONSE_BYTES,

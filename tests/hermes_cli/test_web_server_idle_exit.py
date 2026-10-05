@@ -2,12 +2,15 @@
 connected for the grace window and no turn is running (#101626): it is detached from any parent on
 purpose, so the client count IS its liveness signal."""
 
-from fastapi import FastAPI, WebSocket
-from starlette.testclient import TestClient
-
 import hermes_cli.web_server as ws_mod
+from fastapi import FastAPI, WebSocket
 from hermes_cli.web_server_idle_exit import (
-    IdleClientTracker, should_exit_idle, start_idle_watchdog, wrap_asgi_with_ws_tracking)
+    IdleClientTracker,
+    should_exit_idle,
+    start_idle_watchdog,
+    wrap_asgi_with_ws_tracking,
+)
+from starlette.testclient import TestClient
 
 
 def test_ws_sessions_are_counted_at_the_asgi_boundary_for_any_route():
@@ -83,7 +86,7 @@ def test_watchdog_sets_should_exit_and_only_arms_for_ssh_isolated_backends(monke
 def test_turn_probe_counts_in_flight_cron_execution():
     """#107485: a cron job mid-run must keep the SSH-isolated backend alive; the run lives outside
     the dashboard session table, in the scheduler's running-job ledger."""
-    import cron.scheduler as scheduler
+    from cron import scheduler
     from hermes_cli.web_server_idle_exit import turn_in_flight
 
     assert turn_in_flight() is False

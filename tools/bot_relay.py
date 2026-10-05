@@ -23,11 +23,13 @@ import shutil
 import sys
 import time
 import uuid
+from collections.abc import Iterator, Mapping
 from pathlib import Path
-from typing import Any, Iterator, Mapping, Optional
+from typing import Any
+
+from utils import atomic_json_write
 
 from tools.bot_mode_probe import _default_home, _hermes_root, alias_forms
-from utils import atomic_json_write
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +96,7 @@ BOT_CHAT_TURN_ARGS = ("chat", "--in", "~", "-c", "Bot Chat", "--create-if-missin
 RESUME_UNANSWERED_TURN_ENV = "HERMES_RESUME_UNANSWERED_TURN"
 
 
-def retry_turn_env(env: Optional[Mapping[str, str]]) -> dict[str, str]:
+def retry_turn_env(env: Mapping[str, str] | None) -> dict[str, str]:
     """The re-run's child env: the first attempt's env plus the resume marker."""
     return {**(os.environ if env is None else env), RESUME_UNANSWERED_TURN_ENV: "1"}
 
@@ -128,7 +130,7 @@ def _bot_mode_cfg(key: str, *, loader: str) -> Any:
         return None
 
 
-def _normalize_roster_row(row: Any) -> Optional[dict]:
+def _normalize_roster_row(row: Any) -> dict | None:
     """Validated, minimal roster row or None. Rows come from the Desktop over
     RPC — treat as untrusted input."""
     if not isinstance(row, dict):
@@ -211,7 +213,7 @@ def _title_slug(row: dict) -> str:
     return slug if slug in alias_forms(title) else ""
 
 
-def remote_target_forms(roster: list[dict], local_taken: "set[str] | frozenset[str]" = frozenset()) -> list[str]:
+def remote_target_forms(roster: list[dict], local_taken: set[str] | frozenset[str] = frozenset()) -> list[str]:
     """One unambiguous target string per row, shortest first: the bare handle when no other remote
     row and no LOCAL profile (``local_taken``: this gateway's handles and friendly-name slugs) answers
     to it; else the title slug under the same test (a remote ``default`` titled "CoS Bot" is
@@ -241,7 +243,7 @@ _SENDER_STAMP_RE = re.compile(r"^(Message from 🤖 .+? \(@)([A-Za-z0-9_-]+)(\):
 
 
 def qualify_sender_stamp(message: str, from_handle: Any, from_connection: Any, roster: list[dict],
-                         local_taken: "set[str] | frozenset[str]" = frozenset()) -> str:
+                         local_taken: set[str] | frozenset[str] = frozenset()) -> str:
     """Rewrite a relayed DM's ``Message from 🤖 <name> (@<handle>):`` stamp so the handle is the
     form THIS gateway can reply to: the sender's row in the local relay roster as
     ``remote_target_forms`` renders it, else ``handle@connection``. A relayed ``@hermes`` is another
@@ -268,7 +270,7 @@ def _envelope_ttl_seconds() -> int:
         return DEFAULT_ENVELOPE_TTL_SECONDS
 
 
-def _target_liveness(root: Path | str, target: dict) -> Optional[bool]:
+def _target_liveness(root: Path | str, target: dict) -> bool | None:
     """Tri-state liveness: True / False / None (unknown → callers fail open). Offline =
     explicit ``online: false`` or ABSENT from a *fresh* roster; a missing, unreadable,
     empty or stale roster proves nothing → None. Never raises."""
@@ -539,7 +541,7 @@ class DeliveryAuthor:
         return f"DeliveryAuthor({self.author!r})"
 
 
-def delivery_turn_author(from_profile: Any, from_handle: Any, from_connection: Any = None) -> Optional[dict]:
+def delivery_turn_author(from_profile: Any, from_handle: Any, from_connection: Any = None) -> dict | None:
     """The author of a relayed DM's recipient turn, built from the sender fields as the relaying client reports
     them. A relayed DM always comes from another gateway, so the id carries the Desktop's id for the sender's
     connection (``local`` included) and only the recipient's own profiles are bare ``bot:<profile>``. None when
@@ -553,7 +555,7 @@ def delivery_turn_author(from_profile: Any, from_handle: Any, from_connection: A
             "is_bot": True}
 
 
-def _delivery_child_session_env_names() -> "tuple[str, ...]":
+def _delivery_child_session_env_names() -> tuple[str, ...]:
     """Session-bound env names to strip from a delivery child, from ``gateway.session_context``.
 
     Synced with the session binding surface as vars are added; deliberately NOT a
@@ -577,7 +579,7 @@ def relaying_principal_author(principal: str) -> dict:
     return {"id": bot_author_id("relay", str(principal or "").strip()), "name": "relayed teammate", "is_bot": True}
 
 
-def delivery_env(author: Optional[dict], profile_home: "str | Path | None" = None) -> dict[str, str]:
+def delivery_env(author: dict | None, profile_home: str | Path | None = None) -> dict[str, str]:
     """Environment for one delivery turn's ``hermes -p <profile>`` child. The dispatcher's own
     HERMES_TURN_AUTHOR is dropped first so a delivery without an author never inherits the author of the turn
     that sent it. Dispatcher session identity (the canonical ``gateway.session_context`` session env names) is
@@ -590,7 +592,11 @@ def delivery_env(author: Optional[dict], profile_home: "str | Path | None" = Non
     home."""
     from agent.secret_scope import current_secret_scope, is_multiplex_active
     from agent.turn_author import TURN_AUTHOR_ENV, turn_author_env
-    from hermes_constants import get_hermes_home_override, get_routing_process_hermes_home
+    from hermes_constants import (
+        get_hermes_home_override,
+        get_routing_process_hermes_home,
+    )
+
     from tools.environments.local import served_profile_child_env
 
     # ``_profile_home`` answers None for the launch profile by design and a relay RPC binds no scope,

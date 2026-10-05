@@ -19,7 +19,6 @@ Pinned here, in both directions:
 from __future__ import annotations
 
 import pytest
-
 from tui_gateway import server
 
 

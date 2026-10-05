@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import shutil
 from pathlib import Path
-from typing import NamedTuple, Optional
+from typing import NamedTuple
 
 from hermes_cli import profiles as profiles_mod
 
@@ -42,7 +42,7 @@ class SetupProfile(NamedTuple):
     created: bool
 
 
-def find_setup_profile() -> Optional[tuple[str, Path]]:
+def find_setup_profile() -> tuple[str, Path] | None:
     found = [(p.name, Path(p.path)) for p in profiles_mod.list_profiles(lazy_skill_count=True)
              if p.role == profiles_mod.SETUP_ROLE]
     if len(found) > 1:

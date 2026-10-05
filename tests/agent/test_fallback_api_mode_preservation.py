@@ -15,7 +15,6 @@ Three behaviors salvaged from PR #79787:
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from run_agent import AIAgent
 
 

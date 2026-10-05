@@ -13,7 +13,6 @@ import contextlib
 import threading
 
 import pytest
-
 from tools import approval, code_kernel
 from tui_gateway import server
 
@@ -33,7 +32,7 @@ def live_kernel(monkeypatch):
     approval.enable_session_yolo(SESSION_KEY)
     monkeypatch.setattr(server, "_notify_session_boundary", lambda *a, **k: None)
     monkeypatch.setattr(server, "_get_db", lambda: None)
-    monkeypatch.setattr(server, "_load_cfg", lambda: {})
+    monkeypatch.setattr(server, "_load_cfg", dict)
     yield kernel
     approval.clear_session(SESSION_KEY)
 

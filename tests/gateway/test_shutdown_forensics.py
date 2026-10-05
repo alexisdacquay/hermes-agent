@@ -10,7 +10,6 @@ import sys
 import time
 
 import pytest
-
 from gateway import shutdown_forensics as sf
 
 # ---------------------------------------------------------------------------

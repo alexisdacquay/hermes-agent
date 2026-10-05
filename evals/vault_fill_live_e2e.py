@@ -42,7 +42,7 @@ class _Handler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def log_message(self, *args):  # noqa: ARG002 — quiet
+    def log_message(self, *args):
         pass
 
 
@@ -70,11 +70,11 @@ def main() -> int:
         assert sup is not None, "browser_exec did not attach a supervisor for its task (problem 1 regressed)"
         print("supervisor attached by browser_exec; its page before fill:", sup.evaluate_runtime("location.href")["result"])
 
+        import tools.approval_prompt as ap
+        from agent import redact
+        from agent.vault_store import get_vault_store
         from tools import browser_vault_tool as bvt
         from tools.browser_cdp_tool import _redact_cdp_output
-        from agent.vault_store import get_vault_store
-        from agent import redact
-        import tools.approval_prompt as ap
 
         store = get_vault_store()
         login = store.add_item("login", "site", {"identifier_type": "email", "identifier": "a@b.c", "password": "pw-E2E-8842"}, origin=origin)

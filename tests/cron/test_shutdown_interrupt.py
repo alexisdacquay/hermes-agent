@@ -130,8 +130,8 @@ class TestMarkRunningJobsInterrupted:
         assert marked == ["job-2"]
 
     def test_stale_shutdown_cannot_clear_replacement_owner(self, tmp_path):
-        import cron.jobs as jobs
         import cron.scheduler as sched
+        from cron import jobs
 
         profile_home = tmp_path / "profile"
         profile_home.mkdir()
@@ -504,7 +504,7 @@ class TestCallerLossAfterClaimAcquisition:
     and block retries while that ownership is live."""
 
     def test_second_fire_cannot_claim_while_first_ownership_live(self, tmp_path):
-        import cron.jobs as jobs
+        from cron import jobs
 
         with jobs.use_cron_store(tmp_path):
             job = jobs.create_job(prompt="x", schedule="every 5m", name="owned")

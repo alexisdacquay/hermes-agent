@@ -1,7 +1,6 @@
 """Gateway noise/secret filtering across chat surfaces (Telegram + siblings)."""
 
 import pytest
-
 from agent.conversation_compression import (
     CONTEXT_OVERFLOW_BLOCKED_WARNING_TEMPLATE,
     ROUTINE_COMPRESSION_STATUS_SAMPLES,

@@ -11,8 +11,9 @@ from __future__ import annotations
 import logging
 import os
 import shutil
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Optional
 
 from agent.lsp.workspace import nearest_root
 
@@ -20,7 +21,7 @@ logger = logging.getLogger("agent.lsp.servers")
 
 # LSP languageId for ``textDocument/didOpen``, as language → extensions.  A few
 # servers (typescript-language-server, vue-language-server) refuse wrong IDs.
-_EXTS_BY_LANGUAGE: Dict[str, Sequence[str]] = {
+_EXTS_BY_LANGUAGE: dict[str, Sequence[str]] = {
     "python": (".py", ".pyi"),
     "typescript": (".ts", ".mts", ".cts"),
     "typescriptreact": (".tsx",),
@@ -45,20 +46,20 @@ _EXTS_BY_LANGUAGE: Dict[str, Sequence[str]] = {
     "dockerfile": (".dockerfile",),
     "powershell": (".ps1", ".psm1", ".psd1"),
 }
-LANGUAGE_BY_EXT: Dict[str, str] = {ext: lang for lang, exts in _EXTS_BY_LANGUAGE.items() for ext in exts}
+LANGUAGE_BY_EXT: dict[str, str] = {ext: lang for lang, exts in _EXTS_BY_LANGUAGE.items() for ext in exts}
 
 _SpawnFn = Callable[[str, "ServerContext"], Optional["SpawnSpec"]]
-_RootFn = Callable[[str, str], Optional[str]]
+_RootFn = Callable[[str, str], str | None]
 
 
 @dataclass
 class SpawnSpec:
     """Result of resolving a server for a file (``None`` means skip)."""
-    command: List[str]
+    command: list[str]
     workspace_root: str
     cwd: str
-    env: Dict[str, str] = field(default_factory=dict)
-    initialization_options: Dict[str, Any] = field(default_factory=dict)
+    env: dict[str, str] = field(default_factory=dict)
+    initialization_options: dict[str, Any] = field(default_factory=dict)
     seed_diagnostics_on_first_push: bool = False
 
 
@@ -67,7 +68,7 @@ class ServerDef:
     """One language server: ``resolve_root(file, ws)`` → per-server root or ``None`` to skip;
     ``build_spawn(root, ctx)`` → :class:`SpawnSpec` or ``None`` when the binary can't be found."""
     server_id: str
-    extensions: Tuple[str, ...]
+    extensions: tuple[str, ...]
     resolve_root: _RootFn
     build_spawn: _SpawnFn
     seed_first_push: bool = False
@@ -87,9 +88,9 @@ class ServerContext:
     """User policy passed into :meth:`ServerDef.build_spawn` (install strategy, overrides)."""
     workspace_root: str
     install_strategy: str = "auto"  # "auto" | "manual" | "off"
-    binary_overrides: Dict[str, List[str]] = field(default_factory=dict)
-    env_overrides: Dict[str, Dict[str, str]] = field(default_factory=dict)
-    init_overrides: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    binary_overrides: dict[str, list[str]] = field(default_factory=dict)
+    env_overrides: dict[str, dict[str, str]] = field(default_factory=dict)
+    init_overrides: dict[str, dict[str, Any]] = field(default_factory=dict)
     # Whether the server may load code the project ships (see workspace.is_trusted_workspace).
     # Defaults closed: a context built without a trust decision must never run the repo's code.
     trusted: bool = False
@@ -109,12 +110,12 @@ def _file_ext_or_basename(path: str) -> str:
     return next((c for c in _COMPOUND_EXTS if lower.endswith(c)), None) or os.path.splitext(base)[1].lower() or base
 
 
-def _which(*names: str) -> Optional[str]:
+def _which(*names: str) -> str | None:
     """Return the full path of the first command found on PATH."""
     return next((p for n in names if (p := shutil.which(n))), None)
 
 
-def _root_or_workspace(file_path: str, workspace: str, markers: Sequence[str], excludes: Sequence[str] = ()) -> Optional[str]:
+def _root_or_workspace(file_path: str, workspace: str, markers: Sequence[str], excludes: Sequence[str] = ()) -> str | None:
     """``nearest_root`` with workspace fallback; ``None`` iff an exclude marker hit."""
     ceiling = os.path.dirname(workspace) if workspace else None
     found = nearest_root(file_path, markers, excludes=excludes, ceiling=ceiling)
@@ -125,14 +126,14 @@ def _root_or_workspace(file_path: str, workspace: str, markers: Sequence[str], e
     return found or workspace
 
 
-def _markers_root(markers: Optional[Sequence[str]], excludes: Sequence[str] = ()) -> _RootFn:
+def _markers_root(markers: Sequence[str] | None, excludes: Sequence[str] = ()) -> _RootFn:
     """Root resolver over marker files; ``None`` markers means "always the workspace root"."""
     if markers is None:
         return lambda fp, ws: ws
     return lambda fp, ws: _root_or_workspace(fp, ws, markers, excludes=excludes)
 
 
-def _find_binary(ctx: ServerContext, server_id: str, which: Sequence[str], install_pkg: Optional[str]) -> Optional[str]:
+def _find_binary(ctx: ServerContext, server_id: str, which: Sequence[str], install_pkg: str | None) -> str | None:
     """Config override → PATH → (optional) auto-install; ``None`` when nothing resolves."""
     override = ctx.binary_overrides.get(server_id)
     bin_path = override[0] if override and override[0] and os.path.exists(override[0]) else _which(*which)
@@ -142,8 +143,8 @@ def _find_binary(ctx: ServerContext, server_id: str, which: Sequence[str], insta
     return bin_path
 
 
-def _make_spec(root: str, ctx: ServerContext, server_id: str, command: List[str],
-               base_init: Optional[Dict[str, Any]] = None, seed: bool = False) -> SpawnSpec:
+def _make_spec(root: str, ctx: ServerContext, server_id: str, command: list[str],
+               base_init: dict[str, Any] | None = None, seed: bool = False) -> SpawnSpec:
     from pm import env_for
 
     init = ctx.init_overrides.get(server_id, {}) if base_init is None else {**base_init, **ctx.init_overrides.get(server_id, {})}
@@ -154,11 +155,11 @@ def _make_spec(root: str, ctx: ServerContext, server_id: str, command: List[str]
 
 
 def _simple_spawn(server_id: str, which: Sequence[str], args: Sequence[str] = (),
-                  install_pkg: Optional[str] = None, base_init: Optional[Dict[str, Any]] = None,
-                  seed: bool = False, untrusted_init: Optional[Dict[str, Any]] = None) -> _SpawnFn:
+                  install_pkg: str | None = None, base_init: dict[str, Any] | None = None,
+                  seed: bool = False, untrusted_init: dict[str, Any] | None = None) -> _SpawnFn:
     """Build a spawn function for the common single-binary server shape; ``untrusted_init`` replaces
     ``base_init`` in an untrusted workspace (the server's own switch for not loading project code)."""
-    def build(root: str, ctx: ServerContext) -> Optional[SpawnSpec]:
+    def build(root: str, ctx: ServerContext) -> SpawnSpec | None:
         bin_path = _find_binary(ctx, server_id, which, install_pkg)
         init = base_init if ctx.trusted or untrusted_init is None else untrusted_init
         return None if bin_path is None else _make_spec(root, ctx, server_id, [bin_path, *args], init, seed)
@@ -167,7 +168,7 @@ def _simple_spawn(server_id: str, which: Sequence[str], args: Sequence[str] = ()
 
 # ---- bespoke spawn builders ----
 
-def _spawn_pyright(root: str, ctx: ServerContext) -> Optional[SpawnSpec]:
+def _spawn_pyright(root: str, ctx: ServerContext) -> SpawnSpec | None:
     bin_path = _find_binary(ctx, "pyright", ("pyright-langserver", "pyright"), "pyright")
     if bin_path is None:
         return None
@@ -184,7 +185,7 @@ def _spawn_pyright(root: str, ctx: ServerContext) -> Optional[SpawnSpec]:
     return _make_spec(root, ctx, "pyright", [bin_path, "--stdio"], {"python": {"pythonPath": py}} if py else {})
 
 
-def _detect_python(root: Optional[str]) -> Optional[str]:
+def _detect_python(root: str | None) -> str | None:
     # Pyright needs the project's dependencies, not Hermes's runtime packages.  ``VIRTUAL_ENV`` is the
     # operator's own environment; ``root`` (the project's .venv/venv) is None for an untrusted workspace.
     project = (os.path.join(root, ".venv"), os.path.join(root, "venv")) if root else ()
@@ -209,7 +210,7 @@ def _warn_once(key: str, message: str) -> None:
         logger.warning(message)
 
 
-def _spawn_bash_ls(root: str, ctx: ServerContext) -> Optional[SpawnSpec]:
+def _spawn_bash_ls(root: str, ctx: ServerContext) -> SpawnSpec | None:
     bin_path = _find_binary(ctx, "bash-language-server", ("bash-language-server",), "bash-language-server")
     if bin_path is None:
         return None
@@ -235,7 +236,7 @@ _VUE_TSDK_MSG = (
 )
 
 
-def _node_modules_trees(bin_path: str, root: Optional[str]) -> List[str]:
+def _node_modules_trees(bin_path: str, root: str | None) -> list[str]:
     """``node_modules`` trees that may hold a server and its TypeScript SDK: the launcher's own tree
     (symlinks resolved), Hermes staging, then the project's (``root`` None: Hermes's trees only, for
     TypeScript's SDK pin in an untrusted workspace, whose own JavaScript must not load)."""
@@ -260,13 +261,13 @@ def _vue_server_major(trees: Sequence[str]) -> int:
     return 0
 
 
-def _typescript_sdk_dir(trees: Sequence[str]) -> Optional[str]:
+def _typescript_sdk_dir(trees: Sequence[str]) -> str | None:
     """First ``typescript/lib`` in ``trees`` holding a JS ``typescript.js`` (TypeScript 7+ ships none)."""
     cands = (os.path.join(tree, "typescript", "lib") for tree in trees)
     return next((c for c in cands if os.path.isfile(os.path.join(c, "typescript.js"))), None)
 
 
-def _spawn_vue(root: str, ctx: ServerContext) -> Optional[SpawnSpec]:
+def _spawn_vue(root: str, ctx: ServerContext) -> SpawnSpec | None:
     """Spawn @vue/language-server 2.x self-hosting TypeScript (``hybridMode`` off, explicit ``tsdk``)."""
     bin_path = _find_binary(ctx, "vue-language-server", ("vue-language-server",), "@vue/language-server")
     if bin_path is None:
@@ -290,13 +291,13 @@ _TS_UNTRUSTED_MSG = (
 )
 
 
-def _spawn_typescript(root: str, ctx: ServerContext) -> Optional[SpawnSpec]:
+def _spawn_typescript(root: str, ctx: ServerContext) -> SpawnSpec | None:
     """typescript-language-server loads the workspace's own ``node_modules/typescript`` unless
     ``tsserver.path`` names another, so an untrusted workspace is pinned to Hermes's copy."""
     bin_path = _find_binary(ctx, "typescript", ("typescript-language-server",), "typescript-language-server")
     if bin_path is None:
         return None
-    base: Dict[str, Any] = {}
+    base: dict[str, Any] = {}
     if not ctx.trusted:
         sdk = _typescript_sdk_dir(_node_modules_trees(bin_path, None))
         if sdk is None:
@@ -306,7 +307,7 @@ def _spawn_typescript(root: str, ctx: ServerContext) -> Optional[SpawnSpec]:
     return _make_spec(root, ctx, "typescript", [bin_path, "--stdio"], base, seed=True)
 
 
-def _find_pses_bundle(ctx: ServerContext) -> Optional[str]:
+def _find_pses_bundle(ctx: ServerContext) -> str | None:
     """Locate the PowerShellEditorServices bundle dir (release zip, manual install).  Resolution order:
     ``lsp.servers.powershell.command[0]`` when a directory, ``init_overrides["powershell"]["bundlePath"]``,
     ``PSES_BUNDLE_PATH`` env, then ``<HERMES_HOME>/lsp/PowerShellEditorServices``."""
@@ -335,7 +336,7 @@ _PSES_MISSING_MSG = (
 )
 
 
-def _spawn_powershell_es(root: str, ctx: ServerContext) -> Optional[SpawnSpec]:
+def _spawn_powershell_es(root: str, ctx: ServerContext) -> SpawnSpec | None:
     """Spawn PowerShellEditorServices: needs a ``pwsh``/``powershell`` host plus the module bundle."""
     pwsh = _which("pwsh", "powershell")
     if pwsh is None:
@@ -396,12 +397,12 @@ _DENO_EXCLUDES = ["deno.json", "deno.jsonc"]
 _root_typescript = _markers_root(_JS_MARKERS, _DENO_EXCLUDES)
 
 
-def _server(server_id: str, extensions: Tuple[str, ...], description: str, *,
-            markers: Optional[Sequence[str]] = None, excludes: Sequence[str] = (),
-            resolve_root: Optional[_RootFn] = None, build_spawn: Optional[_SpawnFn] = None,
-            which: Sequence[str] = (), args: Sequence[str] = (), install_pkg: Optional[str] = None,
-            base_init: Optional[Dict[str, Any]] = None, seed: bool = False,
-            untrusted_init: Optional[Dict[str, Any]] = None, multi_root: bool = False) -> ServerDef:
+def _server(server_id: str, extensions: tuple[str, ...], description: str, *,
+            markers: Sequence[str] | None = None, excludes: Sequence[str] = (),
+            resolve_root: _RootFn | None = None, build_spawn: _SpawnFn | None = None,
+            which: Sequence[str] = (), args: Sequence[str] = (), install_pkg: str | None = None,
+            base_init: dict[str, Any] | None = None, seed: bool = False,
+            untrusted_init: dict[str, Any] | None = None, multi_root: bool = False) -> ServerDef:
     """Registry entry factory: defaults to marker-based root + single-binary spawn."""
     return ServerDef(
         server_id, extensions,
@@ -411,7 +412,7 @@ def _server(server_id: str, extensions: Tuple[str, ...], description: str, *,
     )
 
 
-SERVERS: List[ServerDef] = [
+SERVERS: list[ServerDef] = [
     _server("pyright", (".py", ".pyi"), "Python — Microsoft pyright",
             markers=["pyproject.toml", "setup.py", "setup.cfg", "requirements.txt", "Pipfile", "pyrightconfig.json"],
             build_spawn=_spawn_pyright, multi_root=True),
@@ -475,12 +476,12 @@ SERVERS: List[ServerDef] = [
 ]
 
 
-def find_server_for_file(file_path: str, servers: Optional[Sequence[ServerDef]] = None) -> Optional[ServerDef]:
+def find_server_for_file(file_path: str, servers: Sequence[ServerDef] | None = None) -> ServerDef | None:
     """Return the first entry of ``servers`` (default: the built-in registry) that handles ``file_path``."""
     return next((srv for srv in (SERVERS if servers is None else servers) if srv.matches(file_path)), None)
 
 
-def language_id_for(path: str, srv: Optional[ServerDef] = None) -> str:
+def language_id_for(path: str, srv: ServerDef | None = None) -> str:
     """Return the LSP languageId to send in didOpen for ``path`` (a custom server's own id wins)."""
     if srv is not None and srv.language_id:
         return srv.language_id
@@ -489,7 +490,7 @@ def language_id_for(path: str, srv: Optional[ServerDef] = None) -> str:
 
 def _custom_spawn(server_id: str, command: Sequence[str]) -> _SpawnFn:
     """Spawn builder for a config-declared server: ``command[0]`` is a path or a PATH lookup, no auto-install."""
-    def build(root: str, ctx: ServerContext) -> Optional[SpawnSpec]:
+    def build(root: str, ctx: ServerContext) -> SpawnSpec | None:
         bin_path = _which(os.path.expanduser(command[0]))
         if bin_path is None:
             _warn_once(f"custom:{server_id}", f"lsp.servers.{server_id}: command {command[0]!r} not found on PATH — server skipped")
@@ -498,14 +499,14 @@ def _custom_spawn(server_id: str, command: Sequence[str]) -> _SpawnFn:
     return build
 
 
-def custom_servers(servers_cfg: Any) -> List[ServerDef]:
+def custom_servers(servers_cfg: Any) -> list[ServerDef]:
     """``lsp.servers`` entries that declare ``extensions`` and name no built-in server are user-declared
     servers (issue #100257).  They go AHEAD of the built-ins so a custom entry can claim an extension;
     malformed entries are logged and skipped so one typo never disables the rest of the subsystem."""
     if not isinstance(servers_cfg, dict):
         return []
     builtin = {s.server_id for s in SERVERS}
-    out: List[ServerDef] = []
+    out: list[ServerDef] = []
     for server_id, cfg in servers_cfg.items():
         if server_id in builtin or not isinstance(cfg, dict) or "extensions" not in cfg:
             continue
@@ -524,5 +525,14 @@ def custom_servers(servers_cfg: Any) -> List[ServerDef]:
     return out
 
 
-__all__ = ["ServerDef", "ServerContext", "SpawnSpec", "SERVERS", "UNTRUSTED_SAFE_SERVERS", "custom_servers",
-           "find_server_for_file", "language_id_for", "LANGUAGE_BY_EXT"]
+__all__ = [
+    "LANGUAGE_BY_EXT",
+    "SERVERS",
+    "UNTRUSTED_SAFE_SERVERS",
+    "ServerContext",
+    "ServerDef",
+    "SpawnSpec",
+    "custom_servers",
+    "find_server_for_file",
+    "language_id_for",
+]

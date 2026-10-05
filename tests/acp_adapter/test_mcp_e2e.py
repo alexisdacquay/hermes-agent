@@ -9,9 +9,8 @@ Exercises the full flow through the ACP server layer:
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
-
 import acp
+import pytest
 from acp.schema import (
     EnvVariable,
     HttpHeader,
@@ -23,11 +22,9 @@ from acp.schema import (
     ToolCallProgress,
     ToolCallStart,
 )
-
 from acp_adapter.server import HermesACPAgent
 from acp_adapter.session import SessionManager
 from acp_adapter.tools import build_tool_start
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

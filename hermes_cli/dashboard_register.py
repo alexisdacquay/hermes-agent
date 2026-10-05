@@ -14,7 +14,6 @@ import random
 import sys
 import urllib.error
 import urllib.request
-from typing import Optional
 from urllib.parse import urlparse
 
 _DEFAULT_PORTAL = "https://portal.nousresearch.com"
@@ -41,7 +40,7 @@ def _generate_dashboard_name() -> str:
     return f"{random.choice(_NAME_ADJECTIVES)}_{random.choice(_NAME_NOUNS)}"
 
 
-def _resolve_portal_base_url(override: Optional[str] = None) -> str:
+def _resolve_portal_base_url(override: str | None = None) -> str:
     """Portal base URL: explicit *override* (must be the token's issuer), then the login's stored
     ``portal_base_url``, then production."""
     if isinstance(override, str) and override.strip():
@@ -56,8 +55,8 @@ def _resolve_portal_base_url(override: Optional[str] = None) -> str:
 
 
 def _register_self_hosted_client(
-    *, access_token: str, portal_base_url: str, name: Optional[str], custom_redirect_uri: Optional[str],
-    existing_client_id: Optional[str] = None, timeout: float = 15.0) -> dict:
+    *, access_token: str, portal_base_url: str, name: str | None, custom_redirect_uri: str | None,
+    existing_client_id: str | None = None, timeout: float = 15.0) -> dict:
     """POST to the portal's self-hosted-client endpoint and return the JSON body.
 
     ``existing_client_id`` makes the portal update that record in place (idempotent re-runs;
@@ -97,7 +96,7 @@ def _register_self_hosted_client(
 
 
 def _print_post_register_hint(
-    *, client_id: str, portal_base_url: str, custom_redirect_uri: Optional[str],
+    *, client_id: str, portal_base_url: str, custom_redirect_uri: str | None,
     wrote_portal_url: bool, public_url: str = "") -> None:
     """Print the success summary + the gate-engagement caveat."""
     from hermes_cli.config import get_env_path
@@ -129,7 +128,7 @@ def _print_post_register_hint(
         f"  Manage or revoke this dashboard at {portal_base_url}/local-dashboards")
 
 
-def _env_value(key: str) -> Optional[str]:
+def _env_value(key: str) -> str | None:
     """Stored ``.env`` value, or ``None`` on any read failure."""
     from hermes_cli.config import get_env_value
     try:
@@ -148,7 +147,7 @@ def _save_env_quietly(key: str, value: str) -> bool:
         return False
 
 
-def _public_url_from_redirect(redirect_uri: Optional[str]) -> str:
+def _public_url_from_redirect(redirect_uri: str | None) -> str:
     """Origin (``scheme://host[:port]``) of *redirect_uri*, or ``""`` — the runtime appends
     ``/auth/callback`` to HERMES_DASHBOARD_PUBLIC_URL, so the raw URI would double the path."""
     try:

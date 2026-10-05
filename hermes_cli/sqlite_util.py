@@ -11,8 +11,8 @@ from __future__ import annotations
 import contextlib
 import sqlite3
 import time
+from collections.abc import Callable, Iterator
 from pathlib import Path
-from typing import Callable, Iterator
 
 
 def open_db(

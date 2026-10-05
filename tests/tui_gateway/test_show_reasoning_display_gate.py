@@ -12,7 +12,6 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-
 from tui_gateway import server
 
 

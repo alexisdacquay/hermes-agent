@@ -28,8 +28,8 @@ import zipfile
 from pathlib import Path
 
 import pytest
-
 from pm.store import extract
+
 
 def _add_symlink(zf: zipfile.ZipFile, member: str, target: str) -> None:
     """Append a symlink entry the way zip tools actually encode one."""

@@ -16,7 +16,6 @@ specific vendor's membership.
 """
 
 import pytest
-
 import tools.tool_backend_helpers as tbh
 from hermes_cli.config import validate_config_structure
 from tools.tool_backend_helpers import removed_backend_note, selection_error

@@ -5,7 +5,6 @@ import ssl
 import certifi
 import httpx
 import pytest
-
 from agent.ssl_verify import resolve_httpx_verify
 from run_agent import AIAgent
 

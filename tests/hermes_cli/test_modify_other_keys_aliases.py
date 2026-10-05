@@ -16,13 +16,11 @@ the raw byte would.
 from __future__ import annotations
 
 import pytest
-
+from hermes_cli.pt_input_extras import install_modify_other_keys_aliases
 from prompt_toolkit.input.ansi_escape_sequences import ANSI_SEQUENCES
 from prompt_toolkit.input.vt100_parser import Vt100Parser
 from prompt_toolkit.keys import Keys
 from prompt_toolkit.output import DummyOutput
-
-from hermes_cli.pt_input_extras import install_modify_other_keys_aliases
 
 
 @pytest.fixture(autouse=True)
@@ -398,12 +396,11 @@ def test_buffer_level_shift_space_no_raw_csi():
     """
     import asyncio
 
+    from hermes_cli.pt_input_extras import install_keypress_data_normalization
     from prompt_toolkit import Application
     from prompt_toolkit.buffer import Buffer
     from prompt_toolkit.input import create_pipe_input
-    from prompt_toolkit.layout import HSplit, Layout, Window, BufferControl
-
-    from hermes_cli.pt_input_extras import install_keypress_data_normalization
+    from prompt_toolkit.layout import BufferControl, HSplit, Layout, Window
 
     install_keypress_data_normalization()
 
@@ -450,12 +447,11 @@ def test_buffer_level_shift_letter_no_raw_csi():
     """
     import asyncio
 
+    from hermes_cli.pt_input_extras import install_keypress_data_normalization
     from prompt_toolkit import Application
     from prompt_toolkit.buffer import Buffer
     from prompt_toolkit.input import create_pipe_input
-    from prompt_toolkit.layout import HSplit, Layout, Window, BufferControl
-
-    from hermes_cli.pt_input_extras import install_keypress_data_normalization
+    from prompt_toolkit.layout import BufferControl, HSplit, Layout, Window
 
     install_keypress_data_normalization()
 

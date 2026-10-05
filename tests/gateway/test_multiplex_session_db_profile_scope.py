@@ -26,12 +26,11 @@ where they always did.
 
 import asyncio
 import sqlite3
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from gateway.config import GatewayConfig
 from gateway.platforms.base import Platform, SessionSource
 from gateway.platforms.event import MessageEvent
@@ -434,7 +433,7 @@ def test_runner_session_db_follows_the_active_profile_scope(multiplex_homes):
     """
     import threading
 
-    from gateway.run import GatewayRunner, _SESSION_DB_UNPINNED
+    from gateway.run import _SESSION_DB_UNPINNED, GatewayRunner
 
     root, profile = multiplex_homes
     runner = object.__new__(GatewayRunner)
@@ -768,8 +767,8 @@ def test_compression_child_write_stays_in_the_parents_profile_store(multiplex_ho
     entry = SessionEntry(
         session_key=key,
         session_id=parent_id,
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
     )
     store._entries[key] = entry
 

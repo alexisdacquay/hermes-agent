@@ -1,6 +1,5 @@
 """Commit rows bind a literal producer's receipt, not merely object names."""
 import pytest
-
 from tests.scripts.test_render_builds_publication import rbt
 
 SHA = 'a' * 40

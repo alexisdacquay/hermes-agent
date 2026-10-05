@@ -12,7 +12,7 @@ any ``BaseEnvironment`` duck type (``execute()``, ``cleanup()`` …); the factor
 from __future__ import annotations
 
 import abc
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from agent.provider_base import ProviderBase
 
@@ -54,7 +54,7 @@ class TerminalEnvironmentProvider(ProviderBase):
         return self.is_container
 
     @property
-    def cache_path_base(self) -> Optional[str]:
+    def cache_path_base(self) -> str | None:
         return None
 
     @property
@@ -70,22 +70,22 @@ class TerminalEnvironmentProvider(ProviderBase):
     def is_available(self) -> bool:
         """True when this backend can service commands. Cheap, NO network calls: runs during UI paints."""
 
-    def check_requirements(self, config: Dict[str, Any]) -> bool:
+    def check_requirements(self, config: dict[str, Any]) -> bool:
         """Full requirements check with the merged terminal env config; log actionable errors before returning False."""
         return self.is_available()
 
-    def probe(self) -> Tuple[str, str]:
+    def probe(self) -> tuple[str, str]:
         """Dashboard picker health ``(status, detail)``; status ``ready``/``needs_setup``/``unavailable``. Never raise; <~2s."""
         return ("ready", "") if self.is_available() else ("needs_setup", f"{self.display_name} is not configured.")
 
-    def setup_instructions(self) -> List[str]:
+    def setup_instructions(self) -> list[str]:
         """Lines printed by ``hermes setup`` after selection (the wizard persists ``terminal.backend`` itself)."""
         return []
 
     def post_setup(self) -> None:
         """Optional interactive hook run by ``hermes setup`` after selection (prompt for tokens, install SDKs)."""
 
-    def doctor_checks(self) -> List[Tuple[bool, str, str]]:
+    def doctor_checks(self) -> list[tuple[bool, str, str]]:
         """``hermes doctor`` rows ``(ok, label, detail)``; default reflects :meth:`is_available`."""
         try:
             ok = bool(self.is_available())
@@ -95,8 +95,8 @@ class TerminalEnvironmentProvider(ProviderBase):
 
     @abc.abstractmethod
     def create_environment(
-        self, *, cwd: str, timeout: int, task_id: str = "default", image: Optional[str] = None,
-        container_config: Optional[Dict[str, Any]] = None, **kwargs: Any,
+        self, *, cwd: str, timeout: int, task_id: str = "default", image: str | None = None,
+        container_config: dict[str, Any] | None = None, **kwargs: Any,
     ):
         """Create an execution environment (``BaseEnvironment`` duck type). MUST accept ``**kwargs`` and ignore
         unknown keys so the factory can evolve without breaking older plugins. ``task_id`` keys reuse/persistence;

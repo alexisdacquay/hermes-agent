@@ -40,8 +40,9 @@ import subprocess
 import sys
 import threading
 import time as _real_time
+from collections.abc import Callable, Iterable
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Optional
+from typing import Any
 
 REAL_DATETIME = _dt.datetime
 HEARTBEAT_REAL_SECONDS = 0.05
@@ -49,7 +50,7 @@ POLL_SECONDS = 0.005
 DEADLINE_SECONDS = 120.0
 HOLD_DEADLINE_SECONDS = 300.0
 
-_CURRENT_EXECUTION: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
+_CURRENT_EXECUTION: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "c13_current_execution", default=None)
 
 
@@ -82,7 +83,7 @@ def _append_jsonl(path: Path, record: dict) -> None:
         os.close(fd)
 
 
-def read_jsonl(path: Path) -> List[dict]:
+def read_jsonl(path: Path) -> list[dict]:
     if not path.exists():
         return []
     out = []
@@ -106,14 +107,14 @@ class Control:
         self.replica = self.root / "replica"
         self.claims = self.root / "claims.jsonl"
 
-    def ensure(self) -> "Control":
+    def ensure(self) -> Control:
         for d in (self.root, self.gates, self.child, self.replica):
             d.mkdir(parents=True, exist_ok=True)
         if not self.behaviors.exists():
             self.set_behaviors({})
         return self
 
-    def set_behaviors(self, behaviors: Dict[str, dict]) -> None:
+    def set_behaviors(self, behaviors: dict[str, dict]) -> None:
         _atomic_write(self.behaviors, json.dumps(behaviors))
 
     def behavior(self, name: str) -> dict:
@@ -147,7 +148,7 @@ class VirtualClock:
 def _virtual_datetime_class(clock: VirtualClock):
     class VirtualDatetime(REAL_DATETIME):
         @classmethod
-        def now(cls, tz=None):  # noqa: D401 - datetime API
+        def now(cls, tz=None):
             return REAL_DATETIME.fromtimestamp(clock.now_ts(), tz)
 
     return VirtualDatetime
@@ -235,11 +236,9 @@ class FakeSink:
 
 def install(clock: VirtualClock, control: Control, setattr_fn=setattr) -> None:
     """Install the virtual clock + fakes. ``setattr_fn`` is ``monkeypatch.setattr`` in pytest."""
-    import cron.executions as executions
-    import cron.jobs as jobs
-    import cron.scheduler as scheduler
     import hermes_time
-    import tools.send_message_tool as send_message_tool
+    from cron import executions, jobs, scheduler
+    from tools import send_message_tool
 
     setattr_fn(hermes_time, "datetime", _virtual_datetime_class(clock))
     proxy = _TimeProxy(clock)
@@ -251,7 +250,7 @@ def install(clock: VirtualClock, control: Control, setattr_fn=setattr) -> None:
     # Durability is not under test (SIGKILL keeps the page cache); per-write fsync of
     # jobs.json/markers dominates wall time at virtual cadence. Atomic renames stay real.
     setattr_fn(os, "fsync", lambda _fd: None)
-    import hermes_cli.sqlite_util as sqlite_util
+    from hermes_cli import sqlite_util
 
     real_open_db = sqlite_util.open_db
 
@@ -307,9 +306,9 @@ class SchedulerHost:
     label = "inproc"
 
     def __init__(self):
-        self.gate: Optional[_StepGate] = None
-        self.thread: Optional[threading.Thread] = None
-        self.errors: List[BaseException] = []
+        self.gate: _StepGate | None = None
+        self.thread: threading.Thread | None = None
+        self.errors: list[BaseException] = []
 
     @property
     def alive(self) -> bool:
@@ -395,15 +394,15 @@ class ChildHost:
 
     label = "child"
 
-    def __init__(self, control: Control, env: Dict[str, str], repo_root: Path):
+    def __init__(self, control: Control, env: dict[str, str], repo_root: Path):
         self.control = control
         self.env = env
         self.repo_root = repo_root
-        self.proc: Optional[subprocess.Popen] = None
+        self.proc: subprocess.Popen | None = None
         self.go = 0
 
     @property
-    def pid(self) -> Optional[int]:
+    def pid(self) -> int | None:
         return self.proc.pid if self.proc is not None else None
 
     @property
@@ -473,7 +472,7 @@ def tick_together(hosts: Iterable[Any]) -> None:
 
 # --- external-provider replicas contending for one fire ----------------------------------------
 
-_CLAIM_ROUND: List[Optional[int]] = [None]  # one round in flight per process at a time
+_CLAIM_ROUND: list[int | None] = [None]  # one round in flight per process at a time
 
 
 def replica_scheduler():
@@ -496,7 +495,7 @@ def install_claim_barrier(control: Control, setattr_fn=setattr, parties: int = 2
     """Wrap ``cron.jobs.claim_job_for_fire`` (``claim_fire`` imports it at call time): each call
     waits until ``parties`` replicas have entered the claim for the current round, then runs the
     REAL claim and logs who won. It only delays, never changes a decision."""
-    import cron.jobs as jobs
+    from cron import jobs
 
     real = jobs.claim_job_for_fire
 
@@ -522,12 +521,12 @@ class ReplicaHost:
     """A second replica in its own OS process: fires ``req-<n>.json`` requests in order and
     answers ``res-<n>.json`` with whether its ``fire_due`` claimed the fire."""
 
-    def __init__(self, control: Control, env: Dict[str, str], repo_root: Path):
+    def __init__(self, control: Control, env: dict[str, str], repo_root: Path):
         self.control, self.env, self.repo_root = control, env, repo_root
-        self.proc: Optional[subprocess.Popen] = None
+        self.proc: subprocess.Popen | None = None
 
     @property
-    def pid(self) -> Optional[int]:
+    def pid(self) -> int | None:
         return self.proc.pid if self.proc is not None else None
 
     def _check(self) -> None:
@@ -591,7 +590,7 @@ def _replica_main(control: Control) -> None:
 
 # --- ledger / store readers ------------------------------------------------------------------
 
-def ledger_rows(home: Path, where: str = "") -> List[dict]:
+def ledger_rows(home: Path, where: str = "") -> list[dict]:
     path = Path(home) / "cron" / "executions.db"
     if not path.exists():
         return []
@@ -604,13 +603,13 @@ def ledger_rows(home: Path, where: str = "") -> List[dict]:
         conn.close()
 
 
-def non_terminal(home: Path, ignore: Iterable[str] = ()) -> List[dict]:
+def non_terminal(home: Path, ignore: Iterable[str] = ()) -> list[dict]:
     ignore = set(ignore)
     return [r for r in ledger_rows(home, "status IN ('claimed', 'running')")
             if r["id"] not in ignore]
 
 
-def store_jobs(home: Path) -> List[dict]:
+def store_jobs(home: Path) -> list[dict]:
     path = Path(home) / "cron" / "jobs.json"
     if not path.exists():
         return []

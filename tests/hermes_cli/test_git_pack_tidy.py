@@ -8,9 +8,8 @@ import sys
 import time
 from pathlib import Path
 
-import pytest
-
 import hermes_cli.git_pack_tidy as tidy
+import pytest
 
 _GIT_ENV = {**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
 _OFFLINE = {**_GIT_ENV, "GIT_NO_LAZY_FETCH": "1"}

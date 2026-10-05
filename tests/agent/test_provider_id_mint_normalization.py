@@ -5,7 +5,6 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
-
 from agent.chat_completion_helpers import _assistant_tool_call_dict
 from run_agent import AIAgent
 

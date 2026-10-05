@@ -14,7 +14,6 @@ import sys
 from pathlib import Path
 
 import pytest
-
 from hermes_cli import _early_recovery as er
 from hermes_cli import update_cmd
 

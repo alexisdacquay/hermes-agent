@@ -25,15 +25,14 @@ from __future__ import annotations
 import threading
 from types import SimpleNamespace
 
-import pytest
-
 import hermes_bootstrap  # noqa: F401  (process boot before tui_gateway.server)
+import pytest
 
 
 class RecordingAgent:
     """Minimal AIAgent stand-in: records close() and optional run failure."""
 
-    instances: list["RecordingAgent"] = []
+    instances: list[RecordingAgent] = []
 
     def __init__(self, *args, **kwargs):
         self.closed = False
@@ -162,8 +161,9 @@ def _bg_session(server, sid: str) -> dict:
 
 class TestPromptBackgroundClosesAgent:
     def _call(self, monkeypatch, sid, agent_cls):
-        from tui_gateway import server
         import contextlib
+
+        from tui_gateway import server
 
         monkeypatch.setattr(server, "_start_agent_build", lambda sid_, session_: None)
         monkeypatch.setattr(

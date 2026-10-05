@@ -3,7 +3,6 @@
 import json
 
 import pytest
-
 from hermes_cli.oneshot import _write_usage_file
 
 
@@ -58,7 +57,7 @@ class TestAuxiliaryLedger:
     belongs in the pipeline ledger, additively — the main-loop keys stay main-loop-only."""
 
     def test_aux_usage_is_a_separate_breakdown_and_main_keys_unchanged(self, tmp_path):
-        from hermes_cli.oneshot import _auxiliary_usage, _attach_auxiliary_usage
+        from hermes_cli.oneshot import _attach_auxiliary_usage, _auxiliary_usage
         from hermes_state import SessionDB
 
         db = SessionDB(tmp_path / "state.db")

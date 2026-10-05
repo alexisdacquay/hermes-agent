@@ -3,7 +3,6 @@
 import json
 
 import pytest
-
 from agent.verify.recipes import Recipe, detect_package_manager, detect_recipe
 
 

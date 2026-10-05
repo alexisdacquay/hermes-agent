@@ -3,15 +3,12 @@
 from __future__ import annotations
 
 import json
-import time
 from urllib.parse import urlencode
 
-import pytest
-from starlette.testclient import TestClient
-from starlette.websockets import WebSocketDisconnect
-
-from hermes_cli import web_server
 import hermes_cli.web_server_gateway as _web_server_gateway
+import pytest
+from hermes_cli import web_server
+from starlette.testclient import TestClient
 
 
 @pytest.fixture
@@ -52,7 +49,7 @@ class _FakeStreamer:
 
 def _patch_provider(monkeypatch, streamer, cap=4000):
     monkeypatch.setattr("tools.tts_streaming.resolve_streaming_provider", lambda cfg: streamer)
-    monkeypatch.setattr("tools.tts_tool._load_tts_config", lambda: {})
+    monkeypatch.setattr("tools.tts_tool._load_tts_config", dict)
     monkeypatch.setattr("tools.tts_tool._get_provider", lambda cfg: "fake")
     monkeypatch.setattr("tools.tts_tool._resolve_max_text_length", lambda provider, cfg: cap)
 

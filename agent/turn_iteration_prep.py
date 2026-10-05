@@ -14,7 +14,7 @@ import random
 import sys
 from contextlib import suppress
 from dataclasses import dataclass
-from typing import Any, Dict
+from typing import Any
 
 from agent.display import KawaiiSpinner
 from agent.interrupt_control import interrupt_issuer, interrupted_during_api_call_reason
@@ -48,6 +48,7 @@ ITERATION_BUDGET_WARNING_TEMPLATE = (
 def _maybe_inject_iteration_budget_warning(agent: Any, messages: Any) -> bool:
     """Append the opt-in one-shot warning to the newest tool result."""
     import os
+
     from agent.delegation_context import is_dispatcher_owned_worker_context
 
     # Cancellation results still need persistence, but must not urge more work.
@@ -117,7 +118,8 @@ def prepare_iteration(
     cache-safe by construction: steer text is appended as a new (not yet persisted) user row, the ghost-row
     filter only drops hidden scaffold placeholders, and repair runs BEFORE the request build."""
     from agent.conversation_loop import (
-        _INTERRUPT_SCAFFOLD_MARKER, _maybe_inject_run_budget_wrapup
+        _INTERRUPT_SCAFFOLD_MARKER,
+        _maybe_inject_run_budget_wrapup,
     )
 
     # nous.anthropic_wire=auto: a wire switch decided from the previous response lands here,
@@ -185,7 +187,7 @@ def prepare_iteration(
 
     # Drop legacy hidden assistant placeholders carrying the raw interrupt scaffold
     # before repair: replayed, the model echoes/self-replicates.
-    def _is_scaffold_ghost(msg: Dict[str, Any]) -> bool:
+    def _is_scaffold_ghost(msg: dict[str, Any]) -> bool:
         return (
             msg.get("display_kind") == "hidden"
             and msg.get("role") == "assistant"
@@ -338,7 +340,8 @@ def begin_iteration(
     dedup, then the interrupt / review-budget / iteration-budget exits. ``api_call_count`` is
     incremented here (the grace call consumes its flag instead of the budget)."""
     from agent.conversation_loop import (
-        _apply_active_turn_redirect, _review_input_budget_exhausted
+        _apply_active_turn_redirect,
+        _review_input_budget_exhausted,
     )
 
     def _verdict(action: str) -> IterationStart:
@@ -433,7 +436,8 @@ def apply_retry_restarts(
     forever and hold the turn lease indefinitely."""
 
     from agent.conversation_loop import (
-        _HANDOFF_SKIP_FINAL_RESPONSE, _should_skip_model_call_for_reference_handoff
+        _HANDOFF_SKIP_FINAL_RESPONSE,
+        _should_skip_model_call_for_reference_handoff,
     )
 
     def _verdict(action: str) -> RetryRestartVerdict:

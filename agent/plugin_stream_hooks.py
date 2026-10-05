@@ -12,8 +12,9 @@ import contextvars
 import logging
 import queue
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 from hermes_cli.middleware import OBSERVER_SCHEMA_VERSION
 
@@ -27,7 +28,7 @@ _STOP = object()
 class _ConsumerDispatcher:
     hook_name: str
     callback: Callable[..., Any]
-    events: "queue.Queue[tuple[contextvars.Context, dict[str, Any]] | object]"
+    events: queue.Queue[tuple[contextvars.Context, dict[str, Any]] | object]
     thread: threading.Thread | None = None
 
 
@@ -39,7 +40,7 @@ def _callback_name(callback: Callable[..., Any]) -> str:
     return getattr(callback, "__name__", repr(callback))
 
 
-def _put_drop_oldest(events: "queue.Queue[Any]", item: Any) -> bool:
+def _put_drop_oldest(events: queue.Queue[Any], item: Any) -> bool:
     """put_nowait; on a full queue evict the oldest pending event and retry once."""
     try:
         events.put_nowait(item)

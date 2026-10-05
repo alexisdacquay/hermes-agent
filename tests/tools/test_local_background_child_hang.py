@@ -14,7 +14,6 @@ import subprocess
 import time
 
 import pytest
-
 from tools.environments.local import LocalEnvironment
 
 

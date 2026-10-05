@@ -14,9 +14,8 @@ from __future__ import annotations
 import json
 import os
 
-import pytest
-
 import hermes_cli.auth as auth_mod
+import pytest
 
 
 @pytest.fixture(autouse=True)
@@ -33,7 +32,7 @@ def _reset_cache(monkeypatch):
     )
 
 
-def _make_global_store(tmp_path) -> "os.PathLike[str]":
+def _make_global_store(tmp_path) -> os.PathLike[str]:
     """Write a realistic global auth.json and return its path."""
     path = tmp_path / "global-hermes" / "auth.json"
     path.parent.mkdir(parents=True)

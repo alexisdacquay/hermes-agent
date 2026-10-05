@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 
 import pytest
-
 from hermes_cli.config import DEFAULT_CONFIG
 from hermes_cli.observability.shared_metrics_send_config import (
     DEFAULT_ENDPOINT,

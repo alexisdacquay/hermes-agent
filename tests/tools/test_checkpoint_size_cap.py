@@ -4,7 +4,6 @@ from __future__ import annotations
 import os
 
 import pytest
-
 import tools.checkpoint_manager as checkpoints
 from tools import checkpoint_maintenance
 

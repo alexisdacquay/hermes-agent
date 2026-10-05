@@ -7,13 +7,16 @@ lazily.
 
 from __future__ import annotations
 
+import logging
 from contextlib import suppress
 from dataclasses import dataclass
-import logging
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 from agent.message_metadata import append_message
-from agent.message_sanitization import coalesce_tool_call_id, normalize_provider_tool_call_ids
+from agent.message_sanitization import (
+    coalesce_tool_call_id,
+    normalize_provider_tool_call_ids,
+)
 from agent.turn_preflight import compress_after_tool_results
 from agent.turn_tool_validation import validate_tool_calls
 
@@ -40,7 +43,7 @@ class ToolRoundVerdict:
     _turn_exit_reason: Any
     truncated_tool_call_retries: Any
     current_turn_user_idx: Any
-    result: Optional[Dict[str, Any]] = None
+    result: dict[str, Any] | None = None
 
 
 def run_tool_round(
@@ -56,7 +59,7 @@ def run_tool_round(
     process-only state."""
     from agent.conversation_loop import _invalid_tool_name_error_content
 
-    def _verdict(action: str, result: Optional[Dict[str, Any]] = None) -> ToolRoundVerdict:
+    def _verdict(action: str, result: dict[str, Any] | None = None) -> ToolRoundVerdict:
         return ToolRoundVerdict(
             action=action, messages=messages, conversation_history=conversation_history,
             active_system_prompt=active_system_prompt, compression_attempts=compression_attempts,
@@ -232,7 +235,7 @@ def run_tool_round(
 
 def stage_tool_call_message(
     agent: Any, *, assistant_message: Any, finish_reason: Any, messages: Any
-) -> Tuple[Dict[str, Any], bool]:
+) -> tuple[dict[str, Any], bool]:
     """Build the assistant tool-call row and update the per-turn fallback/mute state.
 
     Drops a bare bracketed marker beside a call (#78148), classifies housekeeping-only

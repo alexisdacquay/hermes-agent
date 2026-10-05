@@ -12,7 +12,7 @@ import logging
 import re
 import time
 from dataclasses import asdict, dataclass
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ _STATE_FIELDS = {
 }
 
 
-def parse_interval(text: str) -> Optional[int]:
+def parse_interval(text: str) -> int | None:
     """Parse ``10m`` / ``every 2h`` / ``every 90 minutes`` into seconds.
 
     None when not an interval; below ``MIN_INTERVAL_SECONDS`` returns -1 so callers can tell "too small" apart.
@@ -76,11 +76,11 @@ class HeartbeatState:
         return json.dumps(asdict(self), ensure_ascii=False)
 
     @classmethod
-    def from_json(cls, raw: str) -> "HeartbeatState":
+    def from_json(cls, raw: str) -> HeartbeatState:
         data = json.loads(raw)
         return cls(**{name: coerce(data.get(name) or default) for name, (coerce, default) in _STATE_FIELDS.items()})
 
-    def is_due(self, now: Optional[float] = None) -> bool:
+    def is_due(self, now: float | None = None) -> bool:
         if self.status != "active" or not self.prompt or self.interval_seconds <= 0:
             return False
         return (time.time() if now is None else now) - (self.last_fired_at or self.created_at) >= self.interval_seconds
@@ -89,7 +89,7 @@ class HeartbeatState:
         return HEARTBEAT_PROMPT_TEMPLATE.format(interval=format_interval(self.interval_seconds), prompt=self.prompt)
 
 
-def _get_session_db() -> Optional[Any]:
+def _get_session_db() -> Any | None:
     """Persistence goes through the goals module's per-HERMES_HOME cached SessionDB (one shared connection)."""
     try:
         from hermes_cli.goals import _get_session_db as _goals_db
@@ -102,7 +102,7 @@ def _get_session_db() -> Optional[Any]:
 _META_PREFIX = "heartbeat:"
 
 
-def load_heartbeat(session_id: str) -> Optional[HeartbeatState]:
+def load_heartbeat(session_id: str) -> HeartbeatState | None:
     db = _get_session_db() if session_id else None
     if db is None:
         return None
@@ -155,11 +155,11 @@ class HeartbeatManager:
 
     def __init__(self, session_id: str):
         self.session_id = session_id
-        self._state: Optional[HeartbeatState] = load_heartbeat(session_id)
-        self._last_claim: Optional[tuple[float, int]] = None  # (last_fired_at, fire_count) before the last due_prompt
+        self._state: HeartbeatState | None = load_heartbeat(session_id)
+        self._last_claim: tuple[float, int] | None = None  # (last_fired_at, fire_count) before the last due_prompt
 
     @property
-    def state(self) -> Optional[HeartbeatState]:
+    def state(self) -> HeartbeatState | None:
         return self._state
 
     def has_heartbeat(self) -> bool:
@@ -192,7 +192,7 @@ class HeartbeatManager:
         save_heartbeat(self.session_id, self._state)
         return self._state
 
-    def _set_status(self, status: str, *, reanchor: bool = False) -> Optional[HeartbeatState]:
+    def _set_status(self, status: str, *, reanchor: bool = False) -> HeartbeatState | None:
         if not self._state:
             return None
         self._state.status = status
@@ -201,10 +201,10 @@ class HeartbeatManager:
         save_heartbeat(self.session_id, self._state)
         return self._state
 
-    def pause(self) -> Optional[HeartbeatState]:
+    def pause(self) -> HeartbeatState | None:
         return self._set_status("paused")
 
-    def resume(self) -> Optional[HeartbeatState]:
+    def resume(self) -> HeartbeatState | None:
         # Re-anchor so resuming doesn't instantly fire a stale tick.
         return self._set_status("active", reanchor=True)
 
@@ -213,7 +213,7 @@ class HeartbeatManager:
         self._state = None
         return cleared
 
-    def due_prompt(self, now: Optional[float] = None) -> Optional[str]:
+    def due_prompt(self, now: float | None = None) -> str | None:
         """Return the injection prompt if the heartbeat is due, else None.
 
         The fire is recorded immediately (before the turn runs) so overlapping polls or a long turn can never
@@ -267,6 +267,14 @@ def migrate_heartbeat_to_session(old_session_id: str, new_session_id: str) -> bo
 
 
 __all__ = [
-    "HeartbeatState", "HeartbeatManager", "parse_interval", "format_interval", "load_heartbeat", "save_heartbeat",
-    "migrate_heartbeat_to_session", "HEARTBEAT_PROMPT_TEMPLATE", "MIN_INTERVAL_SECONDS", "POLL_SECONDS",
+    "HEARTBEAT_PROMPT_TEMPLATE",
+    "MIN_INTERVAL_SECONDS",
+    "POLL_SECONDS",
+    "HeartbeatManager",
+    "HeartbeatState",
+    "format_interval",
+    "load_heartbeat",
+    "migrate_heartbeat_to_session",
+    "parse_interval",
+    "save_heartbeat",
 ]

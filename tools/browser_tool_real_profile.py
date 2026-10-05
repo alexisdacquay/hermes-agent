@@ -11,13 +11,14 @@ import re
 import subprocess
 import sys
 import time
-from typing import Optional, Tuple
+
 from agent.proxy_bypass import loopback_request_kwargs
-from tools.browser_tool_origin import origin_module as _origin
+
 from tools import browser_tool_cloud as _cloud
 from tools import browser_tool_install as _install
 from tools import browser_tool_lightpanda_fallback as _lp
 from tools import browser_tool_session as _session
+from tools.browser_tool_origin import origin_module as _origin
 
 _RP = "browser.use_real_profile is on, but "
 
@@ -76,7 +77,7 @@ def _capture_agent_browser_cli(argv: list, timeout: float, tag: str) -> subproce
     return subprocess.CompletedProcess(argv, proc.returncode, stdout=stdout, stderr=stderr)
 
 
-def _agent_browser_session_cmd(session_name: str, *cmd: str, log_label: str) -> Optional[subprocess.CompletedProcess]:
+def _agent_browser_session_cmd(session_name: str, *cmd: str, log_label: str) -> subprocess.CompletedProcess | None:
     """Run ``agent-browser --session <name> <cmd...>``; None when agent-browser is missing or the run fails."""
     _bt = _origin()
     try:
@@ -93,14 +94,14 @@ def _agent_browser_session_cmd(session_name: str, *cmd: str, log_label: str) -> 
         return None
 
 
-def _agent_browser_get_cdp(session_name: str) -> Optional[str]:
+def _agent_browser_get_cdp(session_name: str) -> str | None:
     """HTTP CDP discovery root of an agent-browser session (from its ``ws://`` cdp-url), or None."""
     proc = _agent_browser_session_cmd(session_name, "get", "cdp-url", log_label="get cdp-url")
     m = re.search(r"ws://127\.0\.0\.1:(\d+)/", (proc.stdout or "").strip()) if proc is not None else None
     return f"http://127.0.0.1:{m.group(1)}" if m else None
 
 
-def _read_devtools_port(data_dir: str) -> Optional[str]:
+def _read_devtools_port(data_dir: str) -> str | None:
     """First line of Chrome's ``DevToolsActivePort`` in ``data_dir`` (None when unreadable)."""
     try:
         with open(os.path.join(data_dir, "DevToolsActivePort"), encoding="utf-8-sig") as fh:
@@ -109,7 +110,7 @@ def _read_devtools_port(data_dir: str) -> Optional[str]:
         return None
 
 
-def _surviving_chrome_cdp(data_dir: str) -> Optional[str]:
+def _surviving_chrome_cdp(data_dir: str) -> str | None:
     """HTTP CDP root of a Chrome still running on ``data_dir``, or None. ``DevToolsActivePort``
     outlives a crashed Chrome and its port can be recycled by another local CDP server, so the
     file's browser id (line 2) must match what ``/json/version`` reports before it is trusted."""
@@ -150,7 +151,7 @@ _REAL_PROFILE_CHROME_FLAGS = (
 )
 
 
-def _real_profile_unsupported_reason(browser) -> Optional[str]:
+def _real_profile_unsupported_reason(browser) -> str | None:
     """Fail-closed message when the default browser can't be used, else None.
 
     A pre-release channel lives in a profile dir we don't resolve; normalizing to the stable
@@ -177,7 +178,7 @@ def _real_profile_snapshot_error(err: str) -> str:
     return f"{_RP}{err}"
 
 
-def _launch_real_profile_chrome(real_binary: str, copy_dir: str) -> Tuple[Optional[int], Optional[str]]:
+def _launch_real_profile_chrome(real_binary: str, copy_dir: str) -> tuple[int | None, str | None]:
     """Launch the user's REAL browser binary on the profile COPY; return (debug_port, error).
 
     agent-browser's own launch force-adds --use-mock-keychain / --password-store=basic, which makes
@@ -218,7 +219,7 @@ def _launch_real_profile_chrome(real_binary: str, copy_dir: str) -> Tuple[Option
     return None, _RP + "the real-profile browser did not expose a debug port in time. Retry, or turn the toggle off."
 
 
-def _attach_agent_browser_to_real_profile(port: int, copy_dir: str) -> Tuple[Optional[str], Optional[str]]:
+def _attach_agent_browser_to_real_profile(port: int, copy_dir: str) -> tuple[str | None, str | None]:
     """Make agent-browser ATTACH to the running Chrome (never launch its own); returns ``(http_cdp, error)``.
 
     The daemon may answer with the endpoint of a browser IT spawned (throwaway temp profile);
@@ -277,8 +278,12 @@ def _real_profile_cdp() -> tuple:
         return None, (_RP + "browser.engine is set to 'lightpanda', which cannot load a real Chromium profile. "
                       "Set browser.engine to 'auto' or 'chrome' to use real-profile browsing, or turn the toggle off.")
 
-    from hermes_cli.browser_connect import (chromium_executable, detect_default_chromium,
-                                            real_profile_copy_dir, snapshot_real_profile)
+    from hermes_cli.browser_connect import (
+        chromium_executable,
+        detect_default_chromium,
+        real_profile_copy_dir,
+        snapshot_real_profile,
+    )
 
     if not _bt._real_profile_cdp_lock.acquire(
         timeout=_bt._REAL_PROFILE_CDP_LOCK_TIMEOUT_S

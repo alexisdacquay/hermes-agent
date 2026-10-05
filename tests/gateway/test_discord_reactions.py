@@ -6,10 +6,9 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from gateway.config import Platform, PlatformConfig
 from gateway.platforms.base import SendResult
-from gateway.platforms.event import MessageEvent, MessageType, ProcessingOutcome
+from gateway.platforms.event import MessageEvent, MessageType
 from gateway.session import SessionSource, build_session_key
 
 
@@ -41,7 +40,7 @@ def _ensure_discord_mock():
 
 _ensure_discord_mock()
 
-from plugins.platforms.discord.adapter import DiscordAdapter  # noqa: E402
+from plugins.platforms.discord.adapter import DiscordAdapter
 
 
 class FakeTree:

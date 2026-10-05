@@ -10,7 +10,6 @@ import json
 import unicodedata
 
 import pytest
-
 from tools.file_tools import read_file_tool
 
 HOSTILE = unicodedata.normalize(

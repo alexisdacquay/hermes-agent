@@ -10,17 +10,17 @@ recovery action and auto-clears when the failure mode resolves.
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
-from typing import Any, Callable, Iterable, Optional
 import json
 import time
-
+from collections.abc import Callable, Iterable
+from dataclasses import asdict, dataclass, field
+from typing import Any
 
 # Least → most urgent; sorted outputs put critical first.
 SEVERITY_ORDER = ("warning", "error", "critical")
 
 
-def severity_at_or_above(severity: Optional[str], threshold: Optional[str]) -> bool:
+def severity_at_or_above(severity: str | None, threshold: str | None) -> bool:
     """Return True when ``severity`` meets or exceeds ``threshold``."""
     if threshold is None:
         return True
@@ -57,7 +57,7 @@ class Diagnostic:
     first_seen_at: int = 0
     last_seen_at: int = 0
     count: int = 1
-    run_id: Optional[int] = None  # None = task-wide
+    run_id: int | None = None  # None = task-wide
     data: dict = field(default_factory=dict)  # structured payload for the UI
 
     def to_dict(self) -> dict:
@@ -220,7 +220,7 @@ def _main_model_visible(raw_config: Any) -> bool:
     return bool(str(model_cfg or "").strip())
 
 
-def triage_aux_status(config: Optional[dict]) -> Optional[dict]:
+def triage_aux_status(config: dict | None) -> dict | None:
     """Report whether the triage aux paths look configured: ``{auto_decompose,
     decomposer_explicit, specifier_explicit, main_model_visible}``. ``None``
     when no config context is present (keeps low-level callers/tests silent)."""
@@ -769,7 +769,7 @@ def _has_explicit_threshold(cfg: dict) -> bool:
     return "failure_threshold" in cfg or "spawn_failure_threshold" in cfg
 
 
-def config_from_kanban_config(kanban_cfg: Optional[dict]) -> dict:
+def config_from_kanban_config(kanban_cfg: dict | None) -> dict:
     """Diagnostics config from the ``kanban`` section. ``kanban.diagnostics.
     failure_threshold`` is an explicit override; otherwise the threshold is
     ``kanban.failure_limit`` so diagnostics match the dispatcher's breaker."""
@@ -783,7 +783,7 @@ def config_from_kanban_config(kanban_cfg: Optional[dict]) -> dict:
     return diag_cfg
 
 
-def config_from_runtime_config(raw_config: Optional[dict]) -> dict:
+def config_from_runtime_config(raw_config: dict | None) -> dict:
     """Diagnostics config from the full runtime config: folds ``kanban`` through
     ``config_from_kanban_config`` and carries ``kanban``/``auxiliary``/``model``
     through for the triage-aware rules."""
@@ -807,9 +807,9 @@ def compute_task_diagnostics(
     events: list,
     runs: list,
     *,
-    now: Optional[int] = None,
-    config: Optional[dict] = None,
-    graph: Optional[dict] = None,
+    now: int | None = None,
+    config: dict | None = None,
+    graph: dict | None = None,
 ) -> list[Diagnostic]:
     """Run every rule for one task; critical first, then error, warning; ties
     broken by most-recent ``last_seen_at``."""

@@ -2,7 +2,6 @@
 import subprocess
 
 import pytest
-
 from hermes_cli import update_cmd_fleet as fleet
 
 

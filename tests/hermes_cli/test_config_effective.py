@@ -3,9 +3,8 @@ defaults-free config reader (gateway runtime, TUI gateway, cron, ``hermes send``
 bootstrap modules) goes through."""
 import textwrap
 
-import pytest
-
 import hermes_yaml as yaml
+import pytest
 
 
 @pytest.fixture

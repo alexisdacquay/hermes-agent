@@ -11,9 +11,7 @@ from tests.gateway.feishu_helpers import (
     make_adapter_skeleton,
     make_message,
     make_sender,
-    stub_mention,
 )
-
 
 # --- FeishuAdapterSettings wiring ------------------------------------------
 

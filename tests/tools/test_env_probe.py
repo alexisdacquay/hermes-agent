@@ -3,7 +3,6 @@
 import sys
 
 import pytest
-
 from tools import env_probe
 
 

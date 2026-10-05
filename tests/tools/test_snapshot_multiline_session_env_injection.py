@@ -13,11 +13,9 @@ from __future__ import annotations
 import os
 import shlex
 import subprocess
-import sys
 from pathlib import Path
 
 import pytest
-
 from tools.environments.base_session_env import _export_dump_excluding_session_vars
 
 

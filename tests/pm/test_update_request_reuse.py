@@ -1,19 +1,19 @@
 """An update reads each successful index/artifact once, not once per target."""
 from __future__ import annotations
 
-from argparse import Namespace
-from collections import Counter
 import hashlib
 import json
+from argparse import Namespace
+from collections import Counter
 from urllib.error import HTTPError
 from urllib.parse import urlsplit
 
 import pytest
-
 from pm import cli, downloader, packages, update
 from pm.lock import Lockfile
 from pm.registry import get_package
 from pm.store import ALL_TARGETS
+
 from tests.pm._fixtures import make_tar
 from tests.pm._range_server import RangeHandler, dl_server, url  # noqa: F401
 

@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-
-
 from hermes_cli.codex_runtime_plugin_migration import (
-    MIGRATION_MARKER,
     MIGRATION_END_MARKER,
+    MIGRATION_MARKER,
     _build_hermes_tools_mcp_entry,
     _strip_existing_managed_block,
     _strip_unmanaged_plugin_tables,
@@ -14,7 +12,6 @@ from hermes_cli.codex_runtime_plugin_migration import (
     migrate,
     render_codex_toml_section,
 )
-
 
 # ---- per-server translation ----
 
@@ -459,7 +456,7 @@ class TestSameNameUserMcpTable:
         hermes_cli/main.py stays pinned, and honour ``CODEX_HOME`` like every codex sibling."""
         import json
 
-        import hermes_cli.main as main
+        from hermes_cli import main
 
         codex_home = tmp_path / "alt-codex"
         codex_home.mkdir()

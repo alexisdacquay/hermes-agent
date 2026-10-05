@@ -3,7 +3,7 @@ Schema, validation and a thin dispatcher; the UI lives in a platform-provided
 callback (cli.py, gateway/run.py, tui_gateway)."""
 
 import json
-from typing import Callable, Dict, List, Optional
+from collections.abc import Callable
 
 MAX_CHOICES = 4  # the UI always appends an "Other (type your answer)" row
 MAX_QUESTIONS = 5  # independent questions per call
@@ -16,7 +16,7 @@ _UNAVAILABLE = "Clarify tool is not available in this execution context."
 _SHAPE = "Pass questions=[{question, choices?, multi_select?}]; a single question is a one-entry array."
 
 
-def mark_recommended(choices: List[str]) -> List[str]:
+def mark_recommended(choices: list[str]) -> list[str]:
     """Suffix the first choice (schema says best-first) with RECOMMENDED_LABEL; idempotent,
     and a lone choice is left untouched (nothing to prefer it over)."""
     first = str(choices[0]).strip() if choices else ""
@@ -92,7 +92,7 @@ def _response_status(qid: str, answers: dict, multi: bool) -> tuple:
     return ("skipped" if qid in answers else "unanswered"), None
 
 
-def _result(normalized: List[dict], reply: dict) -> str:
+def _result(normalized: list[dict], reply: dict) -> str:
     """Result JSON from a callback reply ``{"answers": {qid: raw | None}, "outcome", "notice"?}``:
     every response carries ``status`` and ``user_response`` (null unless answered); ``outcome``
     says how the wait ended and ``notice`` (surface-supplied) says why."""
@@ -102,13 +102,13 @@ def _result(normalized: List[dict], reply: dict) -> str:
         status, value = _response_status(entry["qid"], answers, entry["multi_select"])
         responses.append({"question": entry["question"], "choices_offered": entry["choices_offered"],
                           "status": status, "user_response": value})
-    result: Dict[str, object] = {"responses": responses, "outcome": reply["outcome"]}
+    result: dict[str, object] = {"responses": responses, "outcome": reply["outcome"]}
     if reply.get("notice"):
         result["notice"] = str(reply["notice"])
     return json.dumps(result, ensure_ascii=False)
 
 
-def clarify_tool(questions, callback: Optional[Callable] = None) -> str:
+def clarify_tool(questions, callback: Callable | None = None) -> str:
     """Ask 1-5 questions in one call. ``callback(questions) -> {"answers", "outcome", "notice"?}``
     is platform injected (cli.py / gateway / tui_gateway) and receives the normalized list."""
     normalized, error = _normalize_questions(questions)

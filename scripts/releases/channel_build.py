@@ -4,14 +4,14 @@ A channel build is a preview of an exact pushed commit. The local command does
 not touch R2: it resolves the commit, validates the request and dispatches the
 default-branch workflow. The workflow's privileged allocation step creates the
 channel and mints the immutable build request (see channel_disposable.py).
-"""  # noqa: E501
+"""
 
 from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 import subprocess
+from pathlib import Path
 
 from hermes_cli.release_channels import (
     ChannelError,

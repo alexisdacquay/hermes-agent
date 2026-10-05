@@ -11,10 +11,9 @@ Two strategies:
 import asyncio
 
 import pytest
-
 from gateway.config import Platform
 from gateway.session import SessionSource
-from gateway.wake import deliver_wake, adapter_supports_push
+from gateway.wake import adapter_supports_push, deliver_wake
 
 
 class PushAdapter:
@@ -100,9 +99,8 @@ def test_deliver_wake_non_push_self_posts_raw_session_id(monkeypatch):
 
 def test_deliver_wake_retries_429_then_succeeds(monkeypatch):
     """HTTP 429 (max_concurrent_runs cap) is transient — retried with backoff."""
-    from aiohttp import web
-
     import gateway.wake as wake_mod
+    from aiohttp import web
 
     monkeypatch.setattr(wake_mod, "_RETRY_DELAYS_SECONDS", (0.01, 0.01, 0.01))
     calls = {"n": 0}

@@ -6,15 +6,16 @@ Config (``platforms.wecom.extra``): ``bot_id``/``secret`` (or WECOM_BOT_ID / WEC
 
 from __future__ import annotations
 
-from pm import install_hint
 import asyncio
 import json
 import logging
 import re
 import time
 import uuid
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from datetime import UTC, datetime
+from typing import Any
+
+from pm import install_hint
 
 try:
     import aiohttp
@@ -28,21 +29,26 @@ AIOHTTP_AVAILABLE = aiohttp is not None
 HTTPX_AVAILABLE = httpx is not None
 
 from gateway.config import Platform, PlatformConfig
-from gateway.platforms.helpers import MessageDeduplicator, bounded_put, send_chunks
+from gateway.platforms._shared import get_scoped_secret as _get_scoped_secret
+from gateway.platforms._shared import send_error
 from gateway.platforms.access_policy_mixin import OwnAccessPolicyMixin
-from gateway.platforms.base import gateway_trust_env, BasePlatformAdapter, SendResult
+from gateway.platforms.base import BasePlatformAdapter, SendResult, gateway_trust_env
 from gateway.platforms.event import MessageEvent, MessageType
-from utils import env_float
-
-from gateway.platforms._shared import get_scoped_secret as _get_scoped_secret, send_error
+from gateway.platforms.helpers import MessageDeduplicator, bounded_put, send_chunks
+from plugins.platforms.wecom.media import APP_CMD_SEND, WeComMediaMixin
 from plugins.platforms.wecom.send_queue import ChatSendQueueMixin
-from plugins.platforms.wecom.media import WeComMediaMixin, APP_CMD_SEND
 from plugins.platforms.wecom.streaming import (
-    WeComStreamMixin, ReplyQueue, StreamTurn, APP_CMD_RESPONSE,
-    STREAM_NOT_SUBSCRIBED_ERRCODE, MAX_STREAM_CONTENT_LENGTH,
-    STREAM_SAFE_DURATION_SECONDS, STREAM_KEEPALIVE_INTERVAL_SECONDS, STREAM_KEEPALIVE_ENABLED_DEFAULT,
+    APP_CMD_RESPONSE,
+    MAX_STREAM_CONTENT_LENGTH,
+    STREAM_KEEPALIVE_ENABLED_DEFAULT,
+    STREAM_KEEPALIVE_INTERVAL_SECONDS,
+    STREAM_NOT_SUBSCRIBED_ERRCODE,
+    STREAM_SAFE_DURATION_SECONDS,
+    ReplyQueue,
+    StreamTurn,
+    WeComStreamMixin,
 )
-
+from utils import env_float
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +76,7 @@ def check_wecom_requirements() -> bool:
     return AIOHTTP_AVAILABLE and HTTPX_AVAILABLE
 
 
-def _coerce_list(value: Any) -> List[str]:
+def _coerce_list(value: Any) -> list[str]:
     """Coerce config values (None | "a, b" | iterable | scalar) into a trimmed, non-empty string list."""
     if isinstance(value, str):
         value = value.split(",")
@@ -85,17 +91,17 @@ def _normalize_entry(raw: str) -> str:
     return re.sub(r"^(user|group):", "", value, flags=re.IGNORECASE).strip()
 
 
-def _entry_matches(entries: List[str], target: str) -> bool:
+def _entry_matches(entries: list[str], target: str) -> bool:
     """Case-insensitive allowlist match with ``*`` support."""
     normalized_target = str(target).strip().lower()
     return any(_normalize_entry(e).lower() in ("*", normalized_target) for e in entries)
 
 
-def _dict_or_empty(container: Dict[str, Any], key: str) -> Dict[str, Any]:
+def _dict_or_empty(container: dict[str, Any], key: str) -> dict[str, Any]:
     return container.get(key) if isinstance(container.get(key), dict) else {}
 
 
-def _content_of(container: Dict[str, Any], key: str) -> str:
+def _content_of(container: dict[str, Any], key: str) -> str:
     return str(_dict_or_empty(container, key).get("content") or "").strip()
 
 
@@ -133,8 +139,8 @@ class WeComAdapter(WeComStreamMixin, WeComMediaMixin, ChatSendQueueMixin, OwnAcc
         self._group_allow_from = _coerce_list(extra.get("group_allow_from") or extra.get("groupAllowFrom"))
         self._groups = extra.get("groups") if isinstance(extra.get("groups"), dict) else {}
         self._session = self._ws = self._http_client = self._listen_task = self._heartbeat_task = None
-        self._pending_responses: Dict[str, asyncio.Future] = {}
-        self._reply_queues: Dict[str, ReplyQueue] = {}
+        self._pending_responses: dict[str, asyncio.Future] = {}
+        self._reply_queues: dict[str, ReplyQueue] = {}
         self._dedup, self._reply_req_ids = MessageDeduplicator(max_size=DEDUP_MAX_SIZE), {}
         # Text batching (clients split long messages ~4000 chars); attachment-only frames are held
         # for the merge window so the trailing text callback joins the same event (official: 800ms).
@@ -146,9 +152,9 @@ class WeComAdapter(WeComStreamMixin, WeComMediaMixin, ChatSendQueueMixin, OwnAcc
         self._stream_keepalive_enabled = bool(extra.get("stream_keepalive_enabled", STREAM_KEEPALIVE_ENABLED_DEFAULT))
         self._stream_keepalive_interval_seconds = _extra_float("stream_keepalive_interval_seconds", STREAM_KEEPALIVE_INTERVAL_SECONDS)
         self._device_id = uuid.uuid4().hex
-        self._last_chat_req_ids: Dict[str, str] = {}
+        self._last_chat_req_ids: dict[str, str] = {}
         # Turns keyed f"{chat_id}:{req_id|turn_id}"; expired chats clear on the next inbound req_id.
-        self._stream_turns: Dict[str, StreamTurn] = {}
+        self._stream_turns: dict[str, StreamTurn] = {}
         self._stream_expired_chats, self._group_chat_ids = set(), set()  # groups can't receive proactive APP_CMD_SEND
         # Per-chat FIFO send queues (normal + control lanes) + token buckets — see send_queue.py.
         self._chat_queues, self._chat_workers, self._control_queues, self._control_workers, self._chat_token_usage = {}, {}, {}, {}, {}
@@ -242,7 +248,7 @@ class WeComAdapter(WeComStreamMixin, WeComMediaMixin, ChatSendQueueMixin, OwnAcc
         if errcode not in {0, None}:
             raise RuntimeError(f"{auth_payload.get('errmsg', 'authentication failed')} (errcode={errcode})")
 
-    async def _wait_for_handshake(self, req_id: str) -> Dict[str, Any]:
+    async def _wait_for_handshake(self, req_id: str) -> dict[str, Any]:
         if not self._ws:
             raise RuntimeError("WebSocket not initialized")
         loop = asyncio.get_running_loop()
@@ -321,7 +327,7 @@ class WeComAdapter(WeComStreamMixin, WeComMediaMixin, ChatSendQueueMixin, OwnAcc
         except asyncio.CancelledError:
             pass
 
-    async def _dispatch_payload(self, payload: Dict[str, Any]) -> None:
+    async def _dispatch_payload(self, payload: dict[str, Any]) -> None:
         req_id = self._payload_req_id(payload)
         cmd = str(payload.get("cmd") or "")
         body_dict = payload.get("body") if isinstance(payload.get("body"), dict) else None
@@ -361,11 +367,11 @@ class WeComAdapter(WeComStreamMixin, WeComMediaMixin, ChatSendQueueMixin, OwnAcc
         if not self._ws or self._ws.closed:
             raise RuntimeError("WeCom websocket is not connected")
 
-    async def _send_json(self, payload: Dict[str, Any]) -> None:
+    async def _send_json(self, payload: dict[str, Any]) -> None:
         self._require_ws()
         await self._ws.send_json(payload)
 
-    async def _request(self, cmd: str, req_id: str, body: Dict[str, Any], timeout: float) -> Dict[str, Any]:
+    async def _request(self, cmd: str, req_id: str, body: dict[str, Any], timeout: float) -> dict[str, Any]:
         future = self._pending_responses[req_id] = asyncio.get_running_loop().create_future()
         try:
             await self._send_json({"cmd": cmd, "headers": {"req_id": req_id}, "body": body})
@@ -373,11 +379,11 @@ class WeComAdapter(WeComStreamMixin, WeComMediaMixin, ChatSendQueueMixin, OwnAcc
         finally:
             self._pending_responses.pop(req_id, None)
 
-    async def _send_request(self, cmd: str, body: Dict[str, Any], timeout: float = REQUEST_TIMEOUT_SECONDS) -> Dict[str, Any]:
+    async def _send_request(self, cmd: str, body: dict[str, Any], timeout: float = REQUEST_TIMEOUT_SECONDS) -> dict[str, Any]:
         self._require_ws()
         return await self._request(cmd, self._new_req_id(cmd), body, timeout)
 
-    async def _send_reply_request(self, reply_req_id: str, body: Dict[str, Any], cmd: str = APP_CMD_RESPONSE, timeout: float = REQUEST_TIMEOUT_SECONDS) -> Dict[str, Any]:
+    async def _send_reply_request(self, reply_req_id: str, body: dict[str, Any], cmd: str = APP_CMD_RESPONSE, timeout: float = REQUEST_TIMEOUT_SECONDS) -> dict[str, Any]:
         """Send a reply frame correlated to an inbound callback req_id."""
         self._require_ws()
         return await self._request(cmd, self._require_reply_req_id(reply_req_id), body, timeout)
@@ -394,12 +400,12 @@ class WeComAdapter(WeComStreamMixin, WeComMediaMixin, ChatSendQueueMixin, OwnAcc
         return f"{prefix}-{uuid.uuid4().hex}"
 
     @staticmethod
-    def _payload_req_id(payload: Dict[str, Any]) -> str:
+    def _payload_req_id(payload: dict[str, Any]) -> str:
         headers = payload.get("headers")
         return str(headers.get("req_id") or "") if isinstance(headers, dict) else ""
 
     @staticmethod
-    def _parse_json(raw: Any) -> Optional[Dict[str, Any]]:
+    def _parse_json(raw: Any) -> dict[str, Any] | None:
         raw_len = len(raw) if isinstance(raw, (str, bytes)) else -1
         try:
             payload = json.loads(raw)
@@ -418,7 +424,7 @@ class WeComAdapter(WeComStreamMixin, WeComMediaMixin, ChatSendQueueMixin, OwnAcc
             return None
         return payload if isinstance(payload, dict) else None
 
-    async def _on_message(self, payload: Dict[str, Any]) -> None:
+    async def _on_message(self, payload: dict[str, Any]) -> None:
         body = payload.get("body")
         if not isinstance(body, dict):
             return
@@ -457,7 +463,7 @@ class WeComAdapter(WeComStreamMixin, WeComMediaMixin, ChatSendQueueMixin, OwnAcc
                                    message_id=msg_id)
         event = MessageEvent(
             text=text, message_type=message_type, source=source, raw_message=payload, message_id=msg_id, media_urls=media_urls, media_types=media_types,
-            reply_to_message_id=f"quote:{msg_id}" if has_reply_context else None, reply_to_text=reply_text if has_reply_context else None, timestamp=datetime.now(tz=timezone.utc),
+            reply_to_message_id=f"quote:{msg_id}" if has_reply_context else None, reply_to_text=reply_text if has_reply_context else None, timestamp=datetime.now(tz=UTC),
         )
         # Only plain text is batched, EXCEPT attachment-only messages, which are held so the
         # trailing text callback merges instead of "interrupting" a run the attachment spawned.
@@ -494,13 +500,13 @@ class WeComAdapter(WeComStreamMixin, WeComMediaMixin, ChatSendQueueMixin, OwnAcc
                 existing.reply_to_text = event.reply_to_text
                 existing.reply_to_message_id = event.reply_to_message_id
 
-    def _text_batch_delay_for(self, pending: Optional[MessageEvent]) -> float:
+    def _text_batch_delay_for(self, pending: MessageEvent | None) -> float:
         if pending is not None and pending.media_urls and not (pending.text or "").strip():
             return self._attachment_text_merge_delay_seconds  # attachment-only: wait for the text frame
         return super()._text_batch_delay_for(pending)
 
     @staticmethod
-    def _extract_text(body: Dict[str, Any]) -> Tuple[str, Optional[str]]:
+    def _extract_text(body: dict[str, Any]) -> tuple[str, str | None]:
         msgtype = str(body.get("msgtype") or "").lower()
         if msgtype == "mixed":
             items = _dict_or_empty(body, "mixed").get("msg_item")
@@ -516,7 +522,7 @@ class WeComAdapter(WeComStreamMixin, WeComMediaMixin, ChatSendQueueMixin, OwnAcc
         return "\n".join(part for part in text_parts if part).strip(), reply_text
 
     @staticmethod
-    def _derive_message_type(body: Dict[str, Any], text: str, media_types: List[str]) -> MessageType:
+    def _derive_message_type(body: dict[str, Any], text: str, media_types: list[str]) -> MessageType:
         if any(mtype.startswith(("application/", "text/")) for mtype in media_types):
             return MessageType.DOCUMENT
         if any(mtype.startswith("image/") for mtype in media_types):
@@ -525,7 +531,7 @@ class WeComAdapter(WeComStreamMixin, WeComMediaMixin, ChatSendQueueMixin, OwnAcc
             return MessageType.VOICE
         return MessageType.TEXT
 
-    def _entry_matches(self, entries: List[str], target: str) -> bool:
+    def _entry_matches(self, entries: list[str], target: str) -> bool:
         return _entry_matches(entries, target)
 
     def _is_group_allowed(self, chat_id: str, sender_id: str) -> bool:
@@ -536,7 +542,7 @@ class WeComAdapter(WeComStreamMixin, WeComMediaMixin, ChatSendQueueMixin, OwnAcc
         sender_allow = _coerce_list(group_cfg.get("allow_from") or group_cfg.get("allowFrom"))
         return _entry_matches(sender_allow, sender_id) if sender_allow else True
 
-    def _resolve_group_cfg(self, chat_id: str) -> Dict[str, Any]:
+    def _resolve_group_cfg(self, chat_id: str) -> dict[str, Any]:
         """Exact key, then case-insensitive key, then ``"*"``; only dict values count."""
         if not isinstance(self._groups, dict):
             return {}
@@ -551,11 +557,11 @@ class WeComAdapter(WeComStreamMixin, WeComMediaMixin, ChatSendQueueMixin, OwnAcc
             bounded_put(self._last_chat_req_ids, chat_id, req_id, DEDUP_MAX_SIZE)
             self._stream_expired_chats.discard(chat_id)
 
-    def _reply_req_id_for_message(self, reply_to: Optional[str]) -> Optional[str]:
+    def _reply_req_id_for_message(self, reply_to: str | None) -> str | None:
         normalized = str(reply_to or "").strip()
         return None if not normalized or normalized.startswith("quote:") else self._reply_req_ids.get(normalized)
 
-    def _cached_reply_req_id(self, chat_id: str, reply_to: Optional[str]) -> Optional[str]:
+    def _cached_reply_req_id(self, chat_id: str, reply_to: str | None) -> str | None:
         """Explicit reply_to mapping, else the chat's last inbound req_id."""
         return self._reply_req_id_for_message(reply_to) or self._last_chat_req_ids.get(chat_id)
 
@@ -569,28 +575,28 @@ class WeComAdapter(WeComStreamMixin, WeComMediaMixin, ChatSendQueueMixin, OwnAcc
         self._reply_req_ids.clear()
 
     @staticmethod
-    def _response_error(response: Dict[str, Any]) -> Optional[str]:
+    def _response_error(response: dict[str, Any]) -> str | None:
         errcode = response.get("errcode", 0)
         return None if errcode in {0, None} else f"WeCom errcode {errcode}: {response.get('errmsg') or 'unknown error'}"
 
     @classmethod
-    def _raise_for_wecom_error(cls, response: Dict[str, Any], operation: str) -> None:
+    def _raise_for_wecom_error(cls, response: dict[str, Any], operation: str) -> None:
         error = cls._response_error(response)
         if error:
             raise RuntimeError(f"{operation} failed: {error}")
 
-    def _markdown_body(self, content: str) -> Dict[str, Any]:
+    def _markdown_body(self, content: str) -> dict[str, Any]:
         return {"msgtype": "markdown", "markdown": {"content": content[:self.MAX_MESSAGE_LENGTH]}}
 
-    async def _send_reply_markdown(self, reply_req_id: str, content: str) -> Dict[str, Any]:
+    async def _send_reply_markdown(self, reply_req_id: str, content: str) -> dict[str, Any]:
         response = await self._send_reply_request(reply_req_id, self._markdown_body(content))
         self._raise_for_wecom_error(response, "send reply markdown")
         return response
 
-    async def _send_proactive_markdown(self, chat_id: str, content: str) -> Dict[str, Any]:
+    async def _send_proactive_markdown(self, chat_id: str, content: str) -> dict[str, Any]:
         return await self._send_request(APP_CMD_SEND, {"chatid": chat_id, **self._markdown_body(content)})
 
-    async def send(self, chat_id: str, content: str, reply_to: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None) -> SendResult:
+    async def send(self, chat_id: str, content: str, reply_to: str | None = None, metadata: dict[str, Any] | None = None) -> SendResult:
         """Send standalone markdown (never touches active streams); serialized per chat for the 30 msgs/min
         limit (846607). ``metadata["is_approval_prompt"]`` uses the control lane."""
         if not chat_id:
@@ -603,14 +609,14 @@ class WeComAdapter(WeComStreamMixin, WeComMediaMixin, ChatSendQueueMixin, OwnAcc
         return await send_chunks(self.truncate_message(content, self.MAX_MESSAGE_LENGTH), lambda chunk: self._enqueue_chat_send(
             chat_id, lambda: self._send_inner(chat_id, chunk, reply_to, force_proactive=force_proactive), is_control=is_control))
 
-    async def _send_inner(self, chat_id: str, content: str, reply_to: Optional[str] = None, *, force_proactive: bool = False) -> SendResult:
+    async def _send_inner(self, chat_id: str, content: str, reply_to: str | None = None, *, force_proactive: bool = False) -> SendResult:
         """Send under the per-chat queue; force_proactive skips passive reply except in groups."""
         try:
             reply_req_id = None if force_proactive and chat_id not in self._group_chat_ids else self._cached_reply_req_id(chat_id, reply_to)
             if reply_req_id:
                 try:
                     response = await self._send_reply_markdown(reply_req_id, content)
-                except (asyncio.TimeoutError, RuntimeError) as passive_err:
+                except (TimeoutError, RuntimeError) as passive_err:
                     # req_id may be stale after a reconnect — proactive send needs none.
                     logger.warning("[%s] Passive reply failed (%s), falling back to proactive send", self.name, passive_err)
                     response = await self._send_proactive_markdown(chat_id, content)
@@ -619,7 +625,7 @@ class WeComAdapter(WeComStreamMixin, WeComMediaMixin, ChatSendQueueMixin, OwnAcc
                 return SendResult(success=False, error="No req_id available for group chat (passive reply required)")
             else:
                 response = await self._send_proactive_markdown(chat_id, content)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return SendResult(success=False, error="Timeout sending message to WeCom")
         except Exception as exc:
             logger.error("[%s] Send failed: %s", self.name, exc)
@@ -634,7 +640,7 @@ class WeComAdapter(WeComStreamMixin, WeComMediaMixin, ChatSendQueueMixin, OwnAcc
             asyncio.ensure_future(self._force_reconnect_on_stale_subscription(STREAM_NOT_SUBSCRIBED_ERRCODE))
         return SendResult(success=False, error=error)
 
-    async def get_chat_info(self, chat_id: str) -> Dict[str, Any]:
+    async def get_chat_info(self, chat_id: str) -> dict[str, Any]:
         return {"name": chat_id, "type": "group" if chat_id and chat_id.lower().startswith("group") else "dm"}
 
 
@@ -644,13 +650,13 @@ _QR_CODE_PAGE = "https://work.weixin.qq.com/ai/qc/gen?source=hermes&scode="
 _QR_POLL_INTERVAL, _QR_POLL_TIMEOUT = 3, 300  # seconds (poll every 3s, give up after 5 minutes)
 
 
-def qr_scan_for_bot_info(*, timeout_seconds: int = _QR_POLL_TIMEOUT) -> Optional[Dict[str, str]]:
+def qr_scan_for_bot_info(*, timeout_seconds: int = _QR_POLL_TIMEOUT) -> dict[str, str] | None:
     """Fetch a WeCom QR code, render it, poll until scanned or timeout; ``{"bot_id", "secret"}`` or None.
     The ``ai/qc/*`` endpoints back the admin console, not the public API, and may change."""
-    import urllib.request
     import urllib.parse
+    import urllib.request
 
-    def _get_json(url: str, timeout: int) -> Dict[str, Any]:
+    def _get_json(url: str, timeout: int) -> dict[str, Any]:
         req = urllib.request.Request(url, headers={"User-Agent": "HermesAgent/1.0"})
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             return json.loads(resp.read().decode("utf-8"))
@@ -761,9 +767,15 @@ _ACCESS_CHOICES = (
 
 
 def interactive_setup() -> None:
+    from hermes_cli.cli_output import (
+        print_header,
+        print_info,
+        print_success,
+        print_warning,
+        prompt,
+    )
     from hermes_cli.config import remove_env_value, save_env_value
     from hermes_cli.setup import prompt_choice
-    from hermes_cli.cli_output import prompt, print_header, print_info, print_success, print_warning
     from hermes_cli.setup_platforms import declines_reconfigure
     print_header("WeCom (Enterprise WeChat)")
     if declines_reconfigure("WeCom", "Reconfigure WeCom?", "WECOM_BOT_ID"):
@@ -842,7 +854,10 @@ def register(ctx) -> None:
         setup_fn=interactive_setup, allowed_users_env="WECOM_ALLOWED_USERS", allow_all_env="WECOM_ALLOW_ALL_USERS",
         cron_deliver_env_var="WECOM_HOME_CHANNEL", standalone_sender_fn=_standalone_send, max_message_length=4000, **common,
     )
-    from plugins.platforms.wecom.callback_adapter import check_wecom_callback_requirements, ensure_wecom_callback_requirements
+    from plugins.platforms.wecom.callback_adapter import (
+        check_wecom_callback_requirements,
+        ensure_wecom_callback_requirements,
+    )
     ctx.register_platform(
         name="wecom_callback", label="WeCom Callback (self-built apps)", adapter_factory=_build_callback_adapter,
         check_fn=check_wecom_callback_requirements, ensure_deps_fn=ensure_wecom_callback_requirements,

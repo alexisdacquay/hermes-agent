@@ -6,9 +6,10 @@ import contextlib
 import threading
 import time
 import weakref
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 _INITIAL_RETRY_DELAY_SECONDS = 1.0
 _MAX_RETRY_DELAY_SECONDS = 60.0

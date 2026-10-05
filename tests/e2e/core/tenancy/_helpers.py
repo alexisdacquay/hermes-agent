@@ -21,9 +21,10 @@ import socket
 import subprocess
 import sys
 import time
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Iterable
+from typing import Any
 
 import hermes_yaml as yaml
 
@@ -472,7 +473,9 @@ class ServeBackend(TuiBackend):
         import re
         import threading
 
-        from websockets.sync.client import connect  # ``websockets`` is a core dependency
+        from websockets.sync.client import (
+            connect,  # ``websockets`` is a core dependency
+        )
 
         self.token = secrets.token_urlsafe(24)
         self._log = open(log_path, "a", encoding="utf-8")  # noqa: SIM115 - closed in close()

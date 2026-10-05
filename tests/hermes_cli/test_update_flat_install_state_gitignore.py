@@ -210,6 +210,5 @@ def test_untracked_autostash_cannot_split_live_database_lock_inode(flat_install_
         assert lock_path.exists()
         after = lock_path.stat()
         assert (after.st_dev, after.st_ino) == (first_stat.st_dev, first_stat.st_ino)
-        with lock_path.open("a+b") as second:
-            with pytest.raises(BlockingIOError):
-                fcntl.flock(second.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        with lock_path.open("a+b") as second, pytest.raises(BlockingIOError):
+            fcntl.flock(second.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)

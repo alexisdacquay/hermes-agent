@@ -10,7 +10,6 @@ import threading
 import time
 
 import pytest
-
 from hermes_cli.observability import relay_shared_metrics as mod
 
 
@@ -317,9 +316,8 @@ class TestConsentWindows:
             outbox_directory=root / "outbox",
         )
         # A consent window is open from an earlier consented era.
-        with store._connection() as connection:
-            with write_txn(connection):
-                reconcile_send_consent(connection, True)
+        with store._connection() as connection, write_txn(connection):
+            reconcile_send_consent(connection, True)
 
         monkeypatch.setattr(
             "hermes_cli.observability.shared_metrics.SharedMetricsStore",

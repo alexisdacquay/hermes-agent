@@ -2,7 +2,6 @@
 from types import SimpleNamespace
 
 import pytest
-
 from gateway.config import PlatformConfig
 from plugins.platforms.discord.adapter import DiscordAdapter
 

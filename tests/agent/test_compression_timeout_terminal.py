@@ -17,7 +17,6 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from run_agent import AIAgent
 
 

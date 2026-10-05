@@ -23,9 +23,14 @@ import signal as _signal
 import subprocess
 import sys
 from pathlib import Path
-from typing import Dict, Optional
 
-from agent.secret_sources.base import ErrorKind, FetchResult, SecretSource, coerce_float, source_child_env
+from agent.secret_sources.base import (
+    ErrorKind,
+    FetchResult,
+    SecretSource,
+    coerce_float,
+    source_child_env,
+)
 
 __all__ = ["FetchResult", "unquote_dotenv_value"]
 
@@ -58,7 +63,7 @@ def unquote_dotenv_value(raw: str) -> str:
     return t
 
 
-def _run_helper(command: str, secret_key: str, timeout_seconds: float, max_output_bytes: int) -> Optional[str]:
+def _run_helper(command: str, secret_key: str, timeout_seconds: float, max_output_bytes: int) -> str | None:
     """Run the helper via ``/bin/sh -c`` and return its stdout, or None.
 
     The key travels as DATA in ``HERMES_SECRET_KEY``. stdout/stderr are piped
@@ -75,7 +80,7 @@ def _run_helper(command: str, secret_key: str, timeout_seconds: float, max_outpu
     env["HERMES_SECRET_KEY"] = secret_key
 
     try:
-        proc = subprocess.Popen(  # noqa: S602 — command is the user's own config
+        proc = subprocess.Popen(
             ["/bin/sh", "-c", command], env=env, stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE,  # stderr captured and DISCARDED — never inherited
             start_new_session=True,  # so the hard timeout can kill the whole group
@@ -118,9 +123,9 @@ def _run_helper(command: str, secret_key: str, timeout_seconds: float, max_outpu
     return stdout_bytes.decode("utf-8", errors="replace")
 
 
-def _parse_dotenv_map(stdout: str) -> Dict[str, str]:
+def _parse_dotenv_map(stdout: str) -> dict[str, str]:
     """Parse a KEY=VALUE blob; comments and non-env-shaped lines are skipped."""
-    out: Dict[str, str] = {}
+    out: dict[str, str] = {}
     for raw in stdout.replace("\r\n", "\n").split("\n"):
         line = raw.strip()
         if not line or line.startswith("#"):

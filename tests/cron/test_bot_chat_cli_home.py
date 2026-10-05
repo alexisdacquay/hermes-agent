@@ -1,12 +1,11 @@
 """The unowned CLI lane executes only at the home used for owner discovery."""
 import json
-from pathlib import Path
 import subprocess
 import sys
+from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
-
 from cron import scheduler_delivery as delivery
 from hermes_constants import reset_hermes_home_override, set_hermes_home_override
 
@@ -27,7 +26,6 @@ def test_cli_keeps_discovered_home_when_launch_selection_changes(tmp_path, monke
     def discover(target):
         assert target == home
         (root / "active_profile").write_text("other", encoding="utf-8")
-        return None
 
     def run(argv, env, report_path, timeout):
         # Exercise the actual startup resolver with the production child env/flags.
@@ -66,7 +64,6 @@ def test_missing_destination_never_launches_or_recreates(tmp_path, monkeypatch, 
     def discover(target):
         if home.exists():
             home.rmdir()
-        return None
 
     monkeypatch.setattr("tools.bot_live_delivery.find_canonical_live_owner", discover)
     monkeypatch.setattr(delivery, "_run_bot_chat_turn", run)

@@ -16,12 +16,17 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 from functools import wraps
 
-from telegram import Update
-from telegram.ext import Application, ApplicationHandlerStop, ConversationHandler, SimpleUpdateProcessor
-
 from gateway.platforms._shared import coerce_port
 from gateway.platforms.helpers import bounded_put
 from utils import atomic_json_write
+
+from telegram import Update
+from telegram.ext import (
+    Application,
+    ApplicationHandlerStop,
+    ConversationHandler,
+    SimpleUpdateProcessor,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -179,7 +184,7 @@ def build_update_processor(extra, name: str) -> PerChatUpdateProcessor:
 
 
 class TelegramApplication(Application):
-    __slots__ = ("adapter", "_current_claim")
+    __slots__ = ("_current_claim", "adapter")
 
     def __init__(self, *, adapter, **kwargs):
         super().__init__(**kwargs)

@@ -8,11 +8,16 @@ use <command>" instead of a silent non-update), and exits 2 on CLI surfaces.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Optional
 
-from hermes_cli.steward import STEWARD_APT_TERMUX, STEWARD_DESKTOP, STEWARD_DOCKER, STEWARD_NIX
+from hermes_cli.steward import (
+    STEWARD_APT_TERMUX,
+    STEWARD_DESKTOP,
+    STEWARD_DOCKER,
+    STEWARD_NIX,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -36,9 +41,12 @@ class UpdateRefusal:
     update_command: str    # the one-line remediation command
 
 
-def _refusal(code: str, method: str, message: Optional[Callable[[str], str]] = None) -> UpdateRefusal:
+def _refusal(code: str, method: str, message: Callable[[str], str] | None = None) -> UpdateRefusal:
     """Refusal for ``method``: ``message(command)`` if given, else docker's full message / the bare command."""
-    from hermes_cli.config import format_docker_update_message, recommended_update_command_for_method
+    from hermes_cli.config import (
+        format_docker_update_message,
+        recommended_update_command_for_method,
+    )
 
     command = recommended_update_command_for_method(method)
     if message is not None:
@@ -79,7 +87,7 @@ def _steward_refusal(steward: str) -> UpdateRefusal:
     return UpdateRefusal(code=steward, message=steward_update_message(steward), update_command=command)
 
 
-def evaluate_update_admission(project_root: Path) -> Optional[UpdateRefusal]:
+def evaluate_update_admission(project_root: Path) -> UpdateRefusal | None:
     """Return an :class:`UpdateRefusal` when in-place update must not run.
 
     ``None`` means the install is eligible for in-place update (git checkout or unknown-but-
@@ -120,7 +128,10 @@ def evaluate_update_admission(project_root: Path) -> Optional[UpdateRefusal]:
             from hermes_constants import is_termux
 
             if is_termux():
-                from hermes_cli.steward import SOURCE_ON_TERMUX_UPDATE_COMMAND, SOURCE_ON_TERMUX_UPDATE_MESSAGE
+                from hermes_cli.steward import (
+                    SOURCE_ON_TERMUX_UPDATE_COMMAND,
+                    SOURCE_ON_TERMUX_UPDATE_MESSAGE,
+                )
 
                 return UpdateRefusal(
                     code=STEWARD_APT_TERMUX,
@@ -153,7 +164,11 @@ def record_refusal_receipt(refusal: UpdateRefusal) -> None:
     place, use <command>") instead of a silent nothing. Best-effort; never raises.
     """
     try:
-        from hermes_cli.update_receipt import begin_update_receipt, finalize_update_receipt, record_step
+        from hermes_cli.update_receipt import (
+            begin_update_receipt,
+            finalize_update_receipt,
+            record_step,
+        )
 
         begin_update_receipt()
         detail = f"not updatable in place ({refusal.code})"

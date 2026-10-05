@@ -14,7 +14,6 @@ import textwrap
 import time
 
 import pytest
-
 from hermes_state_lockowners import parse_proc_locks, state_db_write_lock_holders
 
 

@@ -8,7 +8,6 @@ through MoA).
 """
 
 import pytest
-
 from gateway.run import GatewayRunner
 
 KEY = "agent:main:telegram:dm:999"

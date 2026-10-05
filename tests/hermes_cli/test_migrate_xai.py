@@ -1,17 +1,14 @@
 """Tests for ``hermes migrate xai`` — apply path with ruamel round-trip."""
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 import pytest
-
 from hermes_cli.xai_retirement import (
     RetirementIssue,
     apply_migration,
     find_retired_xai_refs,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

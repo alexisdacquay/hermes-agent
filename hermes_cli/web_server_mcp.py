@@ -6,7 +6,7 @@ secrets are redacted on read.
 
 import threading
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:  # pragma: no cover - annotation only
     from tools.mcp_dashboard_oauth import DashboardOAuthFlow
@@ -14,7 +14,7 @@ from hermes_cli.config import redact_key
 from hermes_cli.web_models import MCPServerCreate
 
 
-def _normalize_mcp_server_create(body: MCPServerCreate) -> tuple[str, Dict[str, Any], Optional[str]]:
+def _normalize_mcp_server_create(body: MCPServerCreate) -> tuple[str, dict[str, Any], str | None]:
     """Validate a Dashboard MCP create request and build its safe config.
 
     The returned config never contains the Bearer token; callers persist it via
@@ -38,7 +38,7 @@ def _normalize_mcp_server_create(body: MCPServerCreate) -> tuple[str, Dict[str, 
     if auth not in {"none", "header", "oauth"}:
         raise ValueError(f"Unsupported auth mode: {auth}")
 
-    server_config: Dict[str, Any] = {}
+    server_config: dict[str, Any] = {}
     if url:
         if body.args:
             raise ValueError("Arguments are only supported for stdio MCP servers")
@@ -70,9 +70,9 @@ def _normalize_mcp_server_create(body: MCPServerCreate) -> tuple[str, Dict[str, 
     return name, server_config, bearer_token
 
 
-def _redact_mcp_env(env: Dict[str, Any]) -> Dict[str, str]:
+def _redact_mcp_env(env: dict[str, Any]) -> dict[str, str]:
     """Mask secret-shaped MCP env values for read responses."""
-    out: Dict[str, str] = {}
+    out: dict[str, str] = {}
     for k, v in (env or {}).items():
         try:
             out[str(k)] = redact_key(str(v)) if v else ""
@@ -81,7 +81,7 @@ def _redact_mcp_env(env: Dict[str, Any]) -> Dict[str, str]:
     return out
 
 
-def _mcp_server_summary(name: str, cfg: Dict[str, Any], plugin: str | None = None) -> Dict[str, Any]:
+def _mcp_server_summary(name: str, cfg: dict[str, Any], plugin: str | None = None) -> dict[str, Any]:
     from tools.mcp_tool_common import mcp_server_enabled
 
     transport = "http" if cfg.get("url") else ("stdio" if cfg.get("command") else "unknown")
@@ -105,7 +105,7 @@ def _mcp_server_summary(name: str, cfg: Dict[str, Any], plugin: str | None = Non
     }
 
 
-_mcp_oauth_flows: dict[str, "DashboardOAuthFlow"] = {}
+_mcp_oauth_flows: dict[str, DashboardOAuthFlow] = {}
 _mcp_oauth_transactions: dict[tuple[str, str], threading.Lock] = {}
 _mcp_oauth_transactions_lock = threading.Lock()
 
@@ -118,12 +118,27 @@ def _mcp_oauth_transaction(flow) -> threading.Lock:
 
 def _run_dashboard_mcp_oauth(flow, cfg: dict) -> None:
     """Run the normal MCP probe with dashboard redirect/callback handlers."""
-    from hermes_cli.mcp_config import _oauth_tokens_present, _probe_single_server, _save_mcp_server
+    from hermes_cli.mcp_config import (
+        _oauth_tokens_present,
+        _probe_single_server,
+        _save_mcp_server,
+    )
     try:
-        from agent.secret_scope import build_profile_secret_scope, reset_secret_scope, set_secret_scope
-        from hermes_constants import reset_hermes_home_override, set_hermes_home_override
+        from agent.secret_scope import (
+            build_profile_secret_scope,
+            reset_secret_scope,
+            set_secret_scope,
+        )
+        from hermes_constants import (
+            reset_hermes_home_override,
+            set_hermes_home_override,
+        )
         from tools.mcp_dashboard_oauth import dashboard_oauth_flow
-        from tools.mcp_oauth import HermesTokenStorage, force_interactive_oauth, login_connect_timeout
+        from tools.mcp_oauth import (
+            HermesTokenStorage,
+            force_interactive_oauth,
+            login_connect_timeout,
+        )
         from tools.mcp_oauth_manager import get_manager
 
         home_token = secret_token = None

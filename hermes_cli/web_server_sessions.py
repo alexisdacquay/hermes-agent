@@ -2,12 +2,11 @@
 heal, latest-descendant lookup and the auto-archive ticker.
 """
 
-import logging
 import asyncio
+import logging
 import threading
 import time
 from pathlib import Path
-from typing import Dict, Optional
 
 from hermes_state_common import _RESET_CHILD_SQL, _sql_json_extract
 
@@ -189,10 +188,11 @@ def _open_session_db_at_path(db_path: Path, *, read_only: bool):
             return _open_probed()
 
 
-def _session_db_path_for_profile(profile: Optional[str]) -> Path:
+def _session_db_path_for_profile(profile: str | None) -> Path:
     """state.db path for ``profile`` (None/empty = this process's own)."""
-    from hermes_cli.web_server_cron import _cron_profile_home
     from hermes_state import _default_db_path
+
+    from hermes_cli.web_server_cron import _cron_profile_home
 
     if profile:
         _name, home = _cron_profile_home(profile)
@@ -200,7 +200,7 @@ def _session_db_path_for_profile(profile: Optional[str]) -> Path:
     return Path(_default_db_path())
 
 
-def _open_session_db_for_profile(profile: Optional[str], *, read_only: bool):
+def _open_session_db_for_profile(profile: str | None, *, read_only: bool):
     """Open a SessionDB for ``profile`` (None/empty = this process's own state.db).
 
     Access-mode semantics: see :func:`_open_session_db_at_path`.
@@ -212,10 +212,10 @@ def _open_session_db_for_profile(profile: Optional[str], *, read_only: bool):
 # profile: bounds the config.yaml read to once per window; the sweep itself is
 # throttled far more coarsely by state_meta (sessions.min_interval_hours).
 _AUTO_ARCHIVE_CHECK_INTERVAL_S = 300.0
-_last_auto_archive_check: Dict[str, float] = {}
+_last_auto_archive_check: dict[str, float] = {}
 
 
-def _maybe_auto_archive_for_profile(profile: Optional[str]) -> None:
+def _maybe_auto_archive_for_profile(profile: str | None) -> None:
     """Config-gated stale-session auto-archive for ``profile``; never raises.
     ``hermes serve`` runs neither CLI nor gateway startup hooks, so this
     session-list trigger is what makes ``sessions.auto_archive`` work there."""
@@ -227,8 +227,12 @@ def _maybe_auto_archive_for_profile(profile: Optional[str]) -> None:
             return
         _last_auto_archive_check[key] = now
 
+        from hermes_constants import (
+            reset_hermes_home_override,
+            set_hermes_home_override,
+        )
+
         from hermes_cli.config import load_config as _load_full_config
-        from hermes_constants import reset_hermes_home_override, set_hermes_home_override
 
         # The config that governs a store is the one in that store's OWN home. A zero-arg
         # load_config() resolves through the PROCESS HERMES_HOME, so the dashboard swept every
@@ -265,10 +269,9 @@ def _maybe_auto_archive_for_profile(profile: Optional[str]) -> None:
         _log.debug("opportunistic auto-archive skipped: %s", exc)
 
 
-def _skill_maintenance_idle_for(started_at: float) -> Optional[float]:
+def _skill_maintenance_idle_for(started_at: float) -> float | None:
     """Measure chat inactivity, not socket inactivity (Desktop stays connected)."""
     import tui_gateway.server as gateway
-
     from hermes_constants import get_hermes_home
 
     home = get_hermes_home().resolve()
@@ -285,6 +288,7 @@ def _skill_maintenance_idle_for(started_at: float) -> Optional[float]:
 
 def _maybe_run_skill_maintenance(started_at: float) -> None:
     from hermes_constants import get_hermes_home
+
     from hermes_cli.profiles import _check_gateway_running
 
     # A live messaging gateway already owns these chores for this profile.

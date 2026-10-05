@@ -27,9 +27,9 @@ autofill (kernel-login-autofill.ts / fill_from_vault.ts).
 from __future__ import annotations
 
 import json
-import secrets
 import logging
-from typing import Any, Dict, Optional
+import secrets
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +53,7 @@ def _check_vault_available() -> bool:
 # JS evaluation plumbing (server-side; results never carry secret values)
 # ---------------------------------------------------------------------------
 
-def _eval_js(task_id: str, expression: str) -> Dict[str, Any]:
+def _eval_js(task_id: str, expression: str) -> dict[str, Any]:
     """Evaluate NON-SECRET JS on the current page (inspection, origin reads).
 
     Prefers the supervisor's persistent CDP WebSocket, falls back to the
@@ -116,7 +116,7 @@ def _ensure_supervisor(task_id: str):
         return None
 
 
-def _eval_js_secret(task_id: str, expression: str) -> Dict[str, Any]:
+def _eval_js_secret(task_id: str, expression: str) -> dict[str, Any]:
     """Evaluate a SECRET-BEARING JS expression. Supervisor CDP-WS only.
 
     Fails closed: there is deliberately NO fallback to the agent-browser CLI
@@ -176,7 +176,7 @@ def _parse_json_result(raw: Any) -> Any:
     return raw
 
 
-def _current_page_origin(task_id: str) -> Optional[str]:
+def _current_page_origin(task_id: str) -> str | None:
     res = _eval_js(task_id, "window.location.href")
     if not res.get("success"):
         return None
@@ -199,7 +199,7 @@ _TAB_PROBES = {
 }
 
 
-def _focus_bound_origin(task_id: str, origin: str, kind: str) -> Optional[str]:
+def _focus_bound_origin(task_id: str, origin: str, kind: str) -> str | None:
     """Point the supervisor's page session at the open tab on ``origin`` that holds a ``kind`` form
     (browser_exec sessions open their own tabs, so the tab the supervisor attached to first is rarely the
     login page). Returns the origin when a tab was focused, else None (caller falls back to the current page)."""
@@ -248,7 +248,7 @@ def browser_vault_list() -> str:
                 entry["identifier"] = meta.identifier
                 entry["identifier_type"] = meta.identifier_type
             items.append(entry)
-    out: Dict[str, Any] = {"success": True, "items": items}
+    out: dict[str, Any] = {"success": True, "items": items}
     if not items:
         out["hint"] = ("No saved logins. On a login page, call browser_vault_save_login to ask the user to save one. "
                        "Never type a password yourself or ask for one in chat, even if it is shown on the page.")
@@ -288,10 +288,13 @@ def browser_vault_unlock(backend_name: str) -> str:
     return json.dumps({"success": True, "backend": backend.name})
 
 
-def browser_vault_save_login(label: str = "", task_id: Optional[str] = None) -> str:
+def browser_vault_save_login(label: str = "", task_id: str | None = None) -> str:
     """Ask the user (masked prompt on their surface) for the login of the CURRENT page, store it in the local
     vault bound to that origin, and fill the password at once. The values never enter the conversation."""
-    from agent.vault_backends.unlock import can_prompt_here, get_save_login_prompt_callback
+    from agent.vault_backends.unlock import (
+        can_prompt_here,
+        get_save_login_prompt_callback,
+    )
     from agent.vault_store import get_vault_store
 
     effective_task_id = task_id or "default"
@@ -332,7 +335,7 @@ _TAB_PROBES["otp"] = ("!!document.querySelector('input[autocomplete=one-time-cod
                       "input[id*=otp i], input[id*=code i], input[name*=totp i], input[aria-label*=code i]')")
 
 
-def browser_vault_enter_code(handle: str = "", task_id: Optional[str] = None) -> str:
+def browser_vault_enter_code(handle: str = "", task_id: str | None = None) -> str:
     """Second factor: fill the one-time code the CURRENT page asks for. If the saved login (``handle``) has an
     authenticator seed, the code is minted server-side and nobody is asked; otherwise the user is prompted on
     their surface for the code their phone/email/app shows. The code goes into the page over the supervisor
@@ -340,7 +343,13 @@ def browser_vault_enter_code(handle: str = "", task_id: Optional[str] = None) ->
     from agent.redact import register_vault_redaction_value
     from agent.vault_backends import backend_for_handle
     from agent.vault_backends.unlock import can_prompt_here, get_code_prompt_callback
-    from agent.vault_login_classifier import LoginControl, build_fill_js, build_inspection_js, build_otp_fills, classify_otp_controls
+    from agent.vault_login_classifier import (
+        LoginControl,
+        build_fill_js,
+        build_inspection_js,
+        build_otp_fills,
+        classify_otp_controls,
+    )
 
     effective_task_id = task_id or "default"
     _focus_bound_origin(effective_task_id, "", "otp")
@@ -360,7 +369,7 @@ def browser_vault_enter_code(handle: str = "", task_id: Optional[str] = None) ->
                            "error": ("No one-time-code field on the current page. If the site wants a passkey, hardware key or "
                                      "an approval tap in an app, tell the user to complete it on their device and wait for the page to move on.")})
 
-    code: Optional[str] = None
+    code: str | None = None
     source = "user"
     backend = backend_for_handle(handle) if handle else None
     if backend is not None:
@@ -397,7 +406,7 @@ def browser_vault_enter_code(handle: str = "", task_id: Optional[str] = None) ->
                        "next": "Submit the form (many sites auto-submit when the last digit lands)."})
 
 
-def browser_vault_fill(handle: str, task_id: Optional[str] = None) -> str:
+def browser_vault_fill(handle: str, task_id: str | None = None) -> str:
     """Fill the current page's password field from a vault handle.
 
     Password-only: the identifier is agent-visible metadata (see
@@ -406,6 +415,7 @@ def browser_vault_fill(handle: str, task_id: Optional[str] = None) -> str:
     the supervisor CDP WebSocket; the result reports only counts/metadata.
     """
     from agent.redact import register_vault_redaction_value
+    from agent.vault_backends import UnlockRequired, backend_for_handle
     from agent.vault_login_classifier import (
         ClassifiedLoginControl,
         LoginControl,
@@ -416,7 +426,6 @@ def browser_vault_fill(handle: str, task_id: Optional[str] = None) -> str:
         select_checkout_fills,
         select_password_fill,
     )
-    from agent.vault_backends import UnlockRequired, backend_for_handle
     from agent.vault_store import ADDRESS_FIELDS, PAYMENT_FIELDS, scrub_secret_from_text
 
     effective_task_id = task_id or "default"
@@ -679,13 +688,13 @@ BROWSER_VAULT_ENTER_CODE_SCHEMA = {
 }
 
 
-def _bot_desktop_browser_session(task_id: Optional[str]) -> bool:
+def _bot_desktop_browser_session(task_id: str | None) -> bool:
     from tools.browser_tool import _active_sessions, _last_session_key
     from tools.browser_tool_session import _shares_bot_desktop_browser
     return _shares_bot_desktop_browser(_active_sessions.get(_last_session_key(task_id or "default")) or {})
 
 
-def _fenced_page_op(task_id: Optional[str], fn) -> str:
+def _fenced_page_op(task_id: str | None, fn) -> str:
     """Vault operations focus, inspect and fill the page over the supervisor socket, bypassing
     ``_run_browser_command``; they must honour the Bot Desktop lease like every other page access,
     or a human typing a credential on the taken-over screen could be read or written to."""
@@ -697,30 +706,30 @@ def _fenced_page_op(task_id: Optional[str], fn) -> str:
     return res["raw"] if "raw" in res else json.dumps(res)
 
 
-def _handle_vault_enter_code(args: Dict[str, Any], **kwargs) -> str:
+def _handle_vault_enter_code(args: dict[str, Any], **kwargs) -> str:
     tid = kwargs.get("task_id")
     return _fenced_page_op(tid, lambda: browser_vault_enter_code(handle=str(args.get("handle") or ""), task_id=tid))
 
 
-def _handle_vault_save_login(args: Dict[str, Any], **kwargs) -> str:
+def _handle_vault_save_login(args: dict[str, Any], **kwargs) -> str:
     tid = kwargs.get("task_id")
     return _fenced_page_op(tid, lambda: browser_vault_save_login(label=str(args.get("label") or ""), task_id=tid))
 
 
-def _handle_vault_list(args: Dict[str, Any], **kwargs) -> str:
+def _handle_vault_list(args: dict[str, Any], **kwargs) -> str:
     return browser_vault_list()
 
 
-def _handle_vault_unlock(args: Dict[str, Any], **kwargs) -> str:
+def _handle_vault_unlock(args: dict[str, Any], **kwargs) -> str:
     return browser_vault_unlock(str(args.get("backend") or ""))
 
 
-def _handle_vault_fill(args: Dict[str, Any], **kwargs) -> str:
+def _handle_vault_fill(args: dict[str, Any], **kwargs) -> str:
     tid = kwargs.get("task_id")
     return _fenced_page_op(tid, lambda: browser_vault_fill(handle=str(args.get("handle") or ""), task_id=tid))
 
 
-from tools.registry import no_cache_check_fn, registry  # noqa: E402
+from tools.registry import no_cache_check_fn, registry
 
 _check_vault_available = no_cache_check_fn(_check_vault_available)
 

@@ -9,12 +9,11 @@ retry policy live with the watchdogs; this is presentation only.
 """
 
 import math
-from typing import Optional
 
 NEAR_DEADLINE_SECS = 15.0
 
 
-def _near_deadline(watchdog: Optional[tuple[str, float]]) -> bool:
+def _near_deadline(watchdog: tuple[str, float] | None) -> bool:
     return watchdog is not None and watchdog[1] <= NEAR_DEADLINE_SECS
 
 
@@ -31,7 +30,7 @@ _PHASE_TEXT = {
 
 
 def wait_notice_text(model: str, silence_secs: float, phase: str,
-                     watchdog: Optional[tuple[str, float]] = None) -> str:
+                     watchdog: tuple[str, float] | None = None) -> str:
     """One neutral status line. ``watchdog`` is ``(label, seconds_until_it_fires)``."""
     lead = "still waiting on" if _near_deadline(watchdog) else "waiting on"
     text = f"⏳ {lead} {model} — " + _PHASE_TEXT[phase].format(n=int(silence_secs))
@@ -42,10 +41,10 @@ def wait_notice_text(model: str, silence_secs: float, phase: str,
 
 
 def codex_watchdog_deadline(*, stale_timeout: float, ttfb_enabled: bool, ttfb_timeout: float,
-    last_event_ts: Optional[float], last_progress_ts: Optional[float],
-    retry_started_ts: Optional[float], call_start: float, idle_enabled: bool,
+    last_event_ts: float | None, last_progress_ts: float | None,
+    retry_started_ts: float | None, call_start: float, idle_enabled: bool,
     idle_timeout: float, idle_requires_progress: bool, elapsed: float,
-    progress_timeout: float = 0.0) -> Optional[tuple[str, float]]:
+    progress_timeout: float = 0.0) -> tuple[str, float] | None:
     """Earliest enabled Codex watchdog as ``(label, seconds_until_it_fires)``; None when
     none applies (disabled/infinite, or its deadline already passed)."""
     deadlines: list[tuple[str, float]] = []
@@ -80,11 +79,11 @@ class WaitNoticeState:
         self.reset()
 
     def reset(self) -> None:
-        self.phase: Optional[str] = None
-        self.watchdog_label: Optional[str] = None
+        self.phase: str | None = None
+        self.watchdog_label: str | None = None
         self.near_shown = False
 
-    def should_emit(self, phase: str, watchdog: Optional[tuple[str, float]]) -> bool:
+    def should_emit(self, phase: str, watchdog: tuple[str, float] | None) -> bool:
         label = watchdog[0] if watchdog is not None else None
         near = _near_deadline(watchdog)
         emit = self.phase != phase or self.watchdog_label != label or (near and not self.near_shown)

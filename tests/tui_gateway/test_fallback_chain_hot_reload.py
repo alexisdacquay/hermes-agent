@@ -14,7 +14,6 @@ import time
 from types import SimpleNamespace
 
 import pytest
-
 from tui_gateway import server
 
 FALLBACK = [{"provider": "xai-oauth", "model": "grok-4.6"}]

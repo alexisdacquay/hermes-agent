@@ -1,5 +1,4 @@
 import pytest
-
 from hermes_cli.secret_prompt import _collect_masked_input, masked_secret_prompt
 
 

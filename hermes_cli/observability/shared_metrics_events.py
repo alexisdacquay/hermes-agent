@@ -10,7 +10,8 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from . import shared_metrics_contract as contract
 from . import shared_metrics_fields as fields_

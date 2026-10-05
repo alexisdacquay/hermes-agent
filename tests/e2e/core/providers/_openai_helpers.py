@@ -15,10 +15,11 @@ import sqlite3
 import subprocess
 import sys
 import time
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Iterator, Mapping
+from typing import Any
 
 import hermes_yaml as yaml
 
@@ -137,7 +138,7 @@ class Home:
         return env
 
     def write(self, config: dict[str, Any], dotenv: dict[str, str] | None = None,
-              auth: dict[str, Any] | None = None) -> "Home":
+              auth: dict[str, Any] | None = None) -> Home:
         self.hermes_home.mkdir(parents=True, exist_ok=True)
         self.project.mkdir(parents=True, exist_ok=True)
         base = {"updates": {"check": False}, "agent": {"api_max_retries": 2},

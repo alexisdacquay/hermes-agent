@@ -30,9 +30,10 @@ from __future__ import annotations
 import json
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Any, Callable, Union
+from typing import Any, Union
 
 from openai.types.chat import ChatCompletionChunk
 from openai.types.chat.completion_create_params import CompletionCreateParamsStreaming
@@ -137,7 +138,7 @@ class FakeChatVariantServer:
         self._seq = 0
         self._server: ThreadingHTTPServer | None = None
 
-    def __enter__(self) -> "FakeChatVariantServer":
+    def __enter__(self) -> FakeChatVariantServer:
         self._server = ThreadingHTTPServer(("127.0.0.1", 0), _handler_for(self))
         self._server.daemon_threads = True
         threading.Thread(target=self._server.serve_forever, name="fake-chat-variant", daemon=True).start()
@@ -201,18 +202,18 @@ def _handler_for(server: FakeChatVariantServer) -> type[BaseHTTPRequestHandler]:
             self.end_headers()
             self.wfile.write(body)
 
-        def do_CONNECT(self) -> None:  # noqa: N802 - https through the proxy: refused, never tunnelled
+        def do_CONNECT(self) -> None:
             self._json(403, {"error": {"message": "tunnel refused by test proxy"}})
             self.close_connection = True
 
-        def do_GET(self) -> None:  # noqa: N802
+        def do_GET(self) -> None:
             if self.path.rstrip("/").endswith("/models"):
                 self._json(200, {"object": "list", "data": [
                     {"id": MODEL_ID, "object": "model", "context_length": 128000}]})
                 return
             self._json(404, {"error": {"message": "not found"}})
 
-        def do_POST(self) -> None:  # noqa: N802
+        def do_POST(self) -> None:
             raw = self.rfile.read(int(self.headers.get("Content-Length", 0) or 0))
             try:
                 body = json.loads(raw or b"{}")

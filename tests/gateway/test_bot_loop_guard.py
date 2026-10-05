@@ -8,8 +8,12 @@ from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
 
 import pytest
-
-from gateway.bot_loop_guard import BotLoopGuard, BotLoopGuardSettings, load_settings, settings_from_config
+from gateway.bot_loop_guard import (
+    BotLoopGuard,
+    BotLoopGuardSettings,
+    load_settings,
+    settings_from_config,
+)
 from gateway.session import Platform, SessionSource
 
 GROUP_CHAT = "-1001234567890"

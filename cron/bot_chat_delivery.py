@@ -96,8 +96,9 @@ def drain(root: Path | None = None) -> None:
 
 def _drain(root: Path) -> None:
     """Claim before execution. Errors/interruptions never authorize another turn."""
-    from cron.scheduler_delivery import _deliver_to_bot_chat
     from tools.bot_live_delivery import find_canonical_live_owner, find_canonical_owner
+
+    from cron.scheduler_delivery import _deliver_to_bot_chat
 
     with _FileLock(root / ".lock"):
         records = sorted(_records(root), key=lambda item: item[1]["sequence"])
@@ -109,9 +110,10 @@ def _drain(root: Path) -> None:
             home = Path(record["home"])
             # A failure notice queued before the target profile opted out is settled as
             # suppressed at drain time; the policy is the owner's, read from its own config.
-            from cron.scheduler_delivery import BOT_CHAT_POLICY_PLATFORM
             from gateway.warning_notifications import warning_notifications_enabled
             from hermes_cli.config_effective import load_user_config_effective
+
+            from cron.scheduler_delivery import BOT_CHAT_POLICY_PLATFORM
             if (record.get("for_failure")
                     and not warning_notifications_enabled(BOT_CHAT_POLICY_PLATFORM, load_user_config_effective(home / "config.yaml"))):
                 record.update(status="suppressed", error=None)

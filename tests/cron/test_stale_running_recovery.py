@@ -13,9 +13,8 @@ import time
 import uuid
 from datetime import timedelta
 
-import pytest
-
 import cron.executions as executions_mod
+import pytest
 from cron.executions import _hermes_now, _transaction, recover_interrupted_executions
 
 

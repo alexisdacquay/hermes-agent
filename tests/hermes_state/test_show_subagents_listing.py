@@ -1,7 +1,6 @@
 """``sessions.show_subagents`` re-admits delegate runs to human-facing session lists (#97202)."""
 
 import pytest
-
 from hermes_cli.session_listing import subagent_listing_scope
 from hermes_state import SessionDB
 

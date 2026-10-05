@@ -3,7 +3,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from plugins.teams_pipeline.meetings import (
     download_transcript_text,
     resolve_meeting_reference,

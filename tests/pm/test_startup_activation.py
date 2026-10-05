@@ -5,13 +5,14 @@ import os
 import sys
 from pathlib import Path
 
-import pytest
-
 import pm
+import pytest
 from pm import paths, registry
 from pm.lock import Lockfile
 from pm.packages import BinaryPackage
-from tests.pm._fixtures import make_tar, served as served
+
+from tests.pm._fixtures import make_tar
+from tests.pm._fixtures import served as served
 
 
 @pytest.fixture

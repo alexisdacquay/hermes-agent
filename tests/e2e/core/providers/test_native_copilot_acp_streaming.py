@@ -26,15 +26,21 @@ import subprocess
 import sys
 import threading
 import time
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import pytest
 
 from tests.e2e.core._pending_fixes import known_gate
-from tests.e2e.core.providers._native_helpers import TURN_TIMEOUT, KnownSymptom, NativeHome, make_home
+from tests.e2e.core.providers._native_helpers import (
+    TURN_TIMEOUT,
+    KnownSymptom,
+    NativeHome,
+    make_home,
+)
 from tests.fakes.providers import copilot_acp as acp
 
 pytest.importorskip("acp.schema", reason="the fake validates against the agent-client-protocol package (acp extra)")
@@ -73,7 +79,7 @@ class Observed:
     stderr: str = ""
 
 
-def _pump(proc: subprocess.Popen, sink: "queue.Queue[tuple[float, dict[str, Any]] | None]") -> None:
+def _pump(proc: subprocess.Popen, sink: queue.Queue[tuple[float, dict[str, Any]] | None]) -> None:
     for line in proc.stdout:  # type: ignore[union-attr]
         try:
             sink.put((time.time(), json.loads(line)))

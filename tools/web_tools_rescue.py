@@ -51,6 +51,7 @@ def _managed_search_fallback(provider, original_error: str, query: str, limit: i
     """Try managed Firecrawl for this call only; None leaves the original error for keyless rescue.
     Managed Firecrawl is billed, so a caller on free fast search alone never reaches it."""
     from agent.web_search_provider import get_provider_env
+
     from tools import web_tools as _wt
     if (getattr(provider, "name", "") != "perplexity"
             or get_provider_env("PERPLEXITY_API_KEY") or not _wt._managed_web_search() or not _wt._is_tool_gateway_ready()):

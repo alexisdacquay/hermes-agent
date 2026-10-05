@@ -16,24 +16,19 @@ Two sub-scenarios are tested:
      The same dedup pre-seed must still protect against the duplicate.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
-
-import pytest
-
-from gateway.config import PlatformConfig
-
 
 # ---------------------------------------------------------------------------
 # Discord mock setup
 # The tests/gateway/conftest.py already installs a comprehensive discord
 # mock at collection time.  We import the adapter AFTER that is done.
 # ---------------------------------------------------------------------------
-
-import plugins.platforms.discord.adapter as discord_platform  # noqa: E402
-from plugins.platforms.discord.adapter import DiscordAdapter  # noqa: E402
-
+import plugins.platforms.discord.adapter as discord_platform
+import pytest
+from gateway.config import PlatformConfig
+from plugins.platforms.discord.adapter import DiscordAdapter
 
 # ---------------------------------------------------------------------------
 # Fake channel/thread helpers
@@ -102,7 +97,7 @@ def _make_message(
         attachments=list(attachments or []),
         reference=reference,
         message_snapshots=message_snapshots,
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
         channel=channel,
         author=author,
         type=(

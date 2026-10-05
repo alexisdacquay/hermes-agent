@@ -25,12 +25,12 @@ Every request — main turn on any transport, auxiliary calls — goes through
 from __future__ import annotations
 
 import uuid
-from typing import Any, Optional
+from typing import Any
 
 OPENCODE_SESSION_HEADER = "x-opencode-session"
 
 
-def opencode_transport(provider: Optional[str], model: Optional[str], base_url: Optional[str]) -> tuple[Optional[str], str]:
+def opencode_transport(provider: str | None, model: str | None, base_url: str | None) -> tuple[str | None, str]:
     """``(api_mode, base_url)`` re-derived per model for an OpenCode relay target; ``(None, base_url)`` otherwise.
 
     OpenCode Zen/Go serve Responses-only (``gpt-*``, ``grok-*``, ``muse-spark``), Anthropic-wire
@@ -41,8 +41,15 @@ def opencode_transport(provider: Optional[str], model: Optional[str], base_url: 
     Built-in families, custom entries named after one (``opencode-go-bridge``, #85589) and opencode.ai
     hosts all count.
     """
-    from hermes_cli.models import normalize_opencode_base_url, normalize_opencode_model_id, opencode_model_api_mode
-    from hermes_cli.runtime_provider_custom import _get_named_custom_provider, _opencode_family_for_custom
+    from hermes_cli.models import (
+        normalize_opencode_base_url,
+        normalize_opencode_model_id,
+        opencode_model_api_mode,
+    )
+    from hermes_cli.runtime_provider_custom import (
+        _get_named_custom_provider,
+        _opencode_family_for_custom,
+    )
 
     url = str(base_url or "")
     family = _opencode_family_for_custom(str(provider or ""), url)
@@ -57,7 +64,7 @@ def opencode_transport(provider: Optional[str], model: Optional[str], base_url: 
     return api_mode, normalize_opencode_base_url(provider, api_mode, url)
 
 
-def is_opencode_target(provider: Optional[str], base_url: Optional[str]) -> bool:
+def is_opencode_target(provider: str | None, base_url: str | None) -> bool:
     """True when *provider* or *base_url* addresses the OpenCode relay.
 
     Matches the built-in opencode-zen/go providers, custom
@@ -78,7 +85,7 @@ def is_opencode_target(provider: Optional[str], base_url: Optional[str]) -> bool
         return False
 
 
-def resolve_affinity_key(session_id: Optional[str] = None) -> str:
+def resolve_affinity_key(session_id: str | None = None) -> str:
     """Return the normalized rotation-stable conversation affinity key ("" when unknown)."""
     try:
         from agent.portal_tags import get_affinity_scope, get_conversation_context
@@ -90,9 +97,9 @@ def resolve_affinity_key(session_id: Optional[str] = None) -> str:
 
 
 def opencode_session_headers(
-    provider: Optional[str],
-    base_url: Optional[str],
-    session_id: Optional[str] = None,
+    provider: str | None,
+    base_url: str | None,
+    session_id: str | None = None,
 ) -> dict[str, str]:
     """Return ``{"x-opencode-session": <key>}`` for OpenCode targets, else ``{}``.
 
@@ -112,8 +119,8 @@ def opencode_session_headers(
 
 
 def custom_provider_session_affinity_headers(
-    base_url: Optional[str],
-    session_id: Optional[str] = None,
+    base_url: str | None,
+    session_id: str | None = None,
 ) -> dict[str, str]:
     """Return ``{<session_affinity_header>: <key>}`` when the route's provider entry declares one, else ``{}``."""
     try:
@@ -130,9 +137,9 @@ def custom_provider_session_affinity_headers(
 
 def merge_session_affinity_headers(
     kwargs: dict[str, Any],
-    provider: Optional[str],
-    base_url: Optional[str],
-    session_id: Optional[str] = None,
+    provider: str | None,
+    base_url: str | None,
+    session_id: str | None = None,
 ) -> dict[str, Any]:
     """Merge the affinity header(s) into ``kwargs["extra_headers"]`` (in place).
 

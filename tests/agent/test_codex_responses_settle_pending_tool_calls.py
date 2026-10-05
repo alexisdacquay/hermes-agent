@@ -23,7 +23,6 @@ items in ``output_index`` order.
 from types import SimpleNamespace
 
 import pytest
-
 from agent.codex_runtime import _consume_codex_event_stream
 
 

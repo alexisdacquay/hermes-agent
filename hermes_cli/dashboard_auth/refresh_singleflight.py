@@ -16,10 +16,14 @@ import hashlib
 import logging
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable, Optional
 
-from hermes_cli.dashboard_auth.base import DashboardAuthProvider, RefreshExpiredError, Session
+from hermes_cli.dashboard_auth.base import (
+    DashboardAuthProvider,
+    RefreshExpiredError,
+    Session,
+)
 from hermes_cli.dashboard_auth.request_utils import scan_session_providers
 
 # The success TTL covers the window between the winning response and the siblings' arrival
@@ -85,9 +89,9 @@ def _refresh_provider(provider: DashboardAuthProvider, token: str) -> Session | 
 
 def refresh_session_coalesced(
     token: str, provider_hint: str, *, phase: str, log: logging.Logger,
-    on_rejected: Optional[Callable[[DashboardAuthProvider], None]] = None,
-    on_unreachable: Optional[Callable[[DashboardAuthProvider], None]] = None,
-) -> Optional[tuple[Session, str]]:
+    on_rejected: Callable[[DashboardAuthProvider], None] | None = None,
+    on_unreachable: Callable[[DashboardAuthProvider], None] | None = None,
+) -> tuple[Session, str] | None:
     """Rotate ``token`` through the provider stack with per-provider single-flight.
 
     ``(Session, provider_name)`` or ``None`` when every provider rejects the token; a

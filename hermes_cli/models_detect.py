@@ -14,14 +14,12 @@ OpenRouter catalog, and its answer used to be applied blindly. Two guards close 
 
 from __future__ import annotations
 
-from typing import Optional
-
 # Providers where the ladder's own OpenRouter step is the answer, or where there is no catalog to
 # consult; ``custom`` endpoints are never auto-switched away from (handled upstream).
 _SKIP = frozenset({"", "auto", "openrouter", "custom"})
 
 
-def current_provider_catalog_match(model_name: str, current_provider: str) -> Optional[str]:
+def current_provider_catalog_match(model_name: str, current_provider: str) -> str | None:
     """Return the current provider's own spelling of *model_name* when its live (disk-cached)
     catalog serves it — exact id, or the bare part after ``vendor/`` — else ``None``.
 
@@ -54,7 +52,11 @@ def current_provider_owns_vendor(model_name: str, current_provider: str) -> bool
     switch there". Aggregators, custom endpoints and multi-vendor resellers (nvidia, alibaba, ...)
     have no single native vendor and are skipped."""
     from hermes_cli.model_normalize import detect_vendor
-    from hermes_cli.models import _AGGREGATOR_PROVIDERS, _PROVIDER_MODELS, normalize_provider
+    from hermes_cli.models import (
+        _AGGREGATOR_PROVIDERS,
+        _PROVIDER_MODELS,
+        normalize_provider,
+    )
 
     provider = (current_provider or "").strip().lower()
     if provider in _SKIP or provider.startswith("custom:"):

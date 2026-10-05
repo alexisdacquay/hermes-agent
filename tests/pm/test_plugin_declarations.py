@@ -3,17 +3,17 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import sys
 import tomllib
+from pathlib import Path
 
 import pytest
-
 from pm.environment import PythonEnvironment
 from pm.plugin_declarations import read_python_declaration, unsupported_requirements
 from pm.workspace import enabled_member_dirs, lock_and_sync
+
 from tests.pm import _fixtures
 
 

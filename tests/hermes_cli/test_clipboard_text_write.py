@@ -4,12 +4,10 @@ Mirrors the TUI's writeClipboardText fallback chain: pbcopy /
 PowerShell Set-Clipboard / wl-copy / xclip / xsel, with OSC 52 left to
 the caller when every backend fails.
 """
-import base64
 import subprocess
 from unittest.mock import patch
 
 import pytest
-
 from hermes_cli import clipboard as clip
 
 
@@ -56,6 +54,7 @@ class TestOsc52MultiplexerWrapping:
     def _capture_seq(self, env):
         import io
         from unittest.mock import patch as _patch
+
         from cli import HermesCLI
 
         cli_obj = HermesCLI.__new__(HermesCLI)

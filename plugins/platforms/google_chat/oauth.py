@@ -21,11 +21,10 @@ import stat
 import sys
 from importlib.metadata import version as _distribution_version
 from pathlib import Path
-from typing import Any, List, NoReturn, Optional, Tuple
-
-from packaging.requirements import Requirement
+from typing import Any, NoReturn
 
 from hermes_constants import display_hermes_home, get_hermes_home
+from packaging.requirements import Requirement
 from utils import atomic_write_text
 
 # Pinned legacy logger name so operator log filters keep matching (see adapter.py).
@@ -37,7 +36,7 @@ _EMAIL_FS_RE = re.compile(r"[^a-z0-9._@-]+")
 
 # Least privilege: chat.messages.create covers BOTH media.upload and the
 # subsequent messages.create; no drive.file or other scopes.
-SCOPES: List[str] = ["https://www.googleapis.com/auth/chat.messages.create"]
+SCOPES: list[str] = ["https://www.googleapis.com/auth/chat.messages.create"]
 
 # Declared extras (pyproject) and the exact pins they carry; the pins double as the
 # staleness probe so a half-synced interpreter is repaired instead of trusted.
@@ -62,7 +61,7 @@ def _sanitize_email(email: str) -> str:
     return cleaned or "_unknown_"
 
 
-def _token_rel(email: Optional[str]) -> str:
+def _token_rel(email: str | None) -> str:
     """HERMES_HOME-relative token file: per-user under the tokens dir, else the legacy path."""
     return f"google_chat_user_tokens/{_sanitize_email(email)}.json" if email else "google_chat_user_token.json"
 
@@ -71,7 +70,7 @@ def _user_tokens_dir() -> Path:
     return get_hermes_home() / "google_chat_user_tokens"
 
 
-def _token_path(email: Optional[str] = None) -> Path:
+def _token_path(email: str | None = None) -> Path:
     """Per-user token path for ``email``, or the legacy single-user path."""
     return get_hermes_home() / _token_rel(email)
 
@@ -80,7 +79,7 @@ def _client_secret_path() -> Path:
     return get_hermes_home() / "google_chat_user_client_secret.json"
 
 
-def _pending_auth_path(email: Optional[str] = None) -> Path:
+def _pending_auth_path(email: str | None = None) -> Path:
     if email:
         return get_hermes_home() / "google_chat_user_oauth_pending" / f"{_sanitize_email(email)}.json"
     return get_hermes_home() / "google_chat_user_oauth_pending.json"
@@ -89,7 +88,7 @@ def _pending_auth_path(email: Optional[str] = None) -> Path:
 # -- Library API — called from the adapter at runtime -------------------------
 
 
-def _refresh_and_persist(creds: Any, token_path: Path, request_cls: Any, *, failure_msg: str) -> Optional[Any]:
+def _refresh_and_persist(creds: Any, token_path: Path, request_cls: Any, *, failure_msg: str) -> Any | None:
     """Refresh expired creds and write them back; None when unusable or refresh fails."""
     if creds.valid:
         return creds
@@ -105,7 +104,7 @@ def _refresh_and_persist(creds: Any, token_path: Path, request_cls: Any, *, fail
     return None
 
 
-def load_user_credentials(email: Optional[str] = None) -> Optional[Any]:
+def load_user_credentials(email: str | None = None) -> Any | None:
     """Load + validate persisted user OAuth credentials.
 
     ``None`` email → legacy single-user path. Returns ``None`` (never raises) when
@@ -120,8 +119,8 @@ def load_user_credentials(email: Optional[str] = None) -> Optional[Any]:
 
     warn_if_credential_file_broadly_readable(token_path, label="[google_chat_user_oauth]", log=logger)
     try:
-        from google.oauth2.credentials import Credentials
         from google.auth.transport.requests import Request
+        from google.oauth2.credentials import Credentials
     except ImportError:
         logger.warning(
             "[google_chat_user_oauth] google-auth not installed; user-OAuth "
@@ -140,7 +139,7 @@ def load_user_credentials(email: Optional[str] = None) -> Optional[Any]:
     )
 
 
-def refresh_or_none(creds: Any, email: Optional[str] = None) -> Optional[Any]:
+def refresh_or_none(creds: Any, email: str | None = None) -> Any | None:
     """Refresh ``creds`` if expired; ``None`` on failure (caller falls back to the
     text-notice path). ``email`` selects where the refreshed token is written."""
     if creds is None:
@@ -160,7 +159,7 @@ def build_user_chat_service(creds: Any) -> Any:
     return build_service("chat", "v1", credentials=creds, cache_discovery=False)
 
 
-def list_authorized_emails() -> List[str]:
+def list_authorized_emails() -> list[str]:
     """Sanitized emails with stored per-user tokens (admin display only, not trust;
     excludes the legacy single-user token whose owner is unknown)."""
     d = _user_tokens_dir()
@@ -218,7 +217,7 @@ def _ensure_deps() -> None:
         sys.exit(1)
 
 
-def _missing_required_packages() -> List[str]:
+def _missing_required_packages() -> list[str]:
     """Return exact requirements absent or stale in this interpreter."""
     missing = []
     for spec in _REQUIRED_PACKAGES:
@@ -253,7 +252,7 @@ def install_deps() -> bool:
         return False
 
 
-def check_auth(email: Optional[str] = None) -> bool:
+def check_auth(email: str | None = None) -> bool:
     """Print status; return True if creds are usable."""
     token_path = _token_path(email)
     if not token_path.exists():
@@ -284,14 +283,14 @@ def store_client_secret(path: str) -> None:
     print(f"OK: Client secret saved to {target}")
 
 
-def _save_pending_auth(*, state: str, code_verifier: str, email: Optional[str] = None) -> None:
+def _save_pending_auth(*, state: str, code_verifier: str, email: str | None = None) -> None:
     _write_private_json(
         _pending_auth_path(email),
         {"state": state, "code_verifier": code_verifier, "redirect_uri": _REDIRECT_URI, "email": email or ""},
     )
 
 
-def _load_pending_auth(email: Optional[str] = None) -> dict:
+def _load_pending_auth(email: str | None = None) -> dict:
     pending = _pending_auth_path(email)
     if not pending.exists():
         _fail("ERROR: No pending OAuth session found. Run --auth-url first.")
@@ -304,7 +303,7 @@ def _load_pending_auth(email: Optional[str] = None) -> dict:
     return data
 
 
-def _callback_params(code_or_url: str) -> Optional[dict]:
+def _callback_params(code_or_url: str) -> dict | None:
     """Query params of a pasted failed-redirect URL; ``None`` for a raw auth code."""
     if not code_or_url.startswith("http"):
         return None
@@ -313,7 +312,7 @@ def _callback_params(code_or_url: str) -> Optional[dict]:
     return parse_qs(urlparse(code_or_url).query)
 
 
-def _extract_code_and_state(code_or_url: str) -> Tuple[str, Optional[str]]:
+def _extract_code_and_state(code_or_url: str) -> tuple[str, str | None]:
     """Accept a raw auth code OR the full failed-redirect URL the user pastes."""
     params = _callback_params(code_or_url)
     if params is None:
@@ -328,7 +327,7 @@ def _require_client_secret() -> None:
         _fail("ERROR: No client secret stored. Run --client-secret first.")
 
 
-def get_auth_url(email: Optional[str] = None) -> None:
+def get_auth_url(email: str | None = None) -> None:
     """Print the OAuth URL for the user to visit; persists PKCE state under ``email``
     so two users can be mid-flow in parallel."""
     _require_client_secret()
@@ -343,7 +342,7 @@ def get_auth_url(email: Optional[str] = None) -> None:
     print(auth_url)
 
 
-def exchange_auth_code(code: str, email: Optional[str] = None) -> None:
+def exchange_auth_code(code: str, email: str | None = None) -> None:
     """Exchange an auth code (or pasted redirect URL) for a refresh token stored
     at the per-user path for ``email`` (legacy single-user path when None)."""
     _require_client_secret()
@@ -384,15 +383,15 @@ def exchange_auth_code(code: str, email: Optional[str] = None) -> None:
     print(f"Profile path: {display_hermes_home()}/{_token_rel(email)}")
 
 
-def revoke(email: Optional[str] = None) -> None:
+def revoke(email: str | None = None) -> None:
     """Revoke the stored token with Google and delete it locally."""
     token_path = _token_path(email)
     if not token_path.exists():
         print("No token to revoke.")
         return
     _ensure_deps()
-    from google.oauth2.credentials import Credentials
     from google.auth.transport.requests import Request
+    from google.oauth2.credentials import Credentials
 
     try:
         creds = Credentials.from_authorized_user_file(str(token_path), SCOPES)

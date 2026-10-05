@@ -8,7 +8,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
-
 from gateway.config import PlatformConfig
 from gateway.platforms.api_server import APIServerAdapter
 from hermes_state import SessionDB
@@ -704,7 +703,7 @@ def _patch_api_server_runtime(monkeypatch):
         },
     )
     monkeypatch.setattr("gateway.run._resolve_gateway_model", lambda: "global/model")
-    monkeypatch.setattr("gateway.run._load_gateway_config", lambda: {})
+    monkeypatch.setattr("gateway.run._load_gateway_config", dict)
     monkeypatch.setattr(
         "gateway.run.GatewayRunner._load_reasoning_config",
         staticmethod(lambda model="": {}),

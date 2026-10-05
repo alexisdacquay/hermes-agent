@@ -19,11 +19,12 @@ import re
 import sqlite3
 import threading
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from gateway.dead_targets import classify_dead_error
 from hermes_cli.sqlite_util import add_column_if_missing
 from hermes_constants import get_process_hermes_home
+
+from gateway.dead_targets import classify_dead_error
 
 logger = logging.getLogger(__name__)
 _DB_LOCK = threading.Lock()
@@ -82,7 +83,7 @@ FLOOD_RETRY_SLACK_SECONDS = 2.0
 _RAW_FLOOD_RE = re.compile(r"flood control exceeded.*?retry in\s+(\d+(?:\.\d+)?)", re.IGNORECASE)
 
 
-def _raw_flood_wait(text: str) -> Optional[float]:
+def _raw_flood_wait(text: str) -> float | None:
     """Seconds asked for by a flood error still carrying the platform's own wording, else ``None``."""
     match = _RAW_FLOOD_RE.search(text or "")
     if not match:
@@ -148,7 +149,7 @@ def flood_not_before(updated_at: Any, last_error: Any) -> float:
     return _failed_stamp(updated_at) + flood_wait_seconds(last_error)
 
 
-def retry_not_before(updated_at: Any, last_error: Any, attempts: Any) -> Optional[float]:
+def retry_not_before(updated_at: Any, last_error: Any, attempts: Any) -> float | None:
     """Earliest moment a failed row may be resent, or ``None`` for a row the runtime must leave alone:
     a flood refusal keeps the platform's own wait, an allowlisted reconnect error is due at once, a
     whole-chat death is final, and any other rejection backs off by the attempts already spent — but
@@ -214,15 +215,17 @@ def _transaction():
     return transaction(_connect())
 
 
-def _start_time(pid: int) -> Optional[int]:
+def _start_time(pid: int) -> int | None:
     try:
-        from gateway.status import get_process_start_time  # lazy: tests monkeypatch gateway.status
+        from gateway.status import (
+            get_process_start_time,  # lazy: tests monkeypatch gateway.status
+        )
         return get_process_start_time(pid)
     except Exception:
         return None
 
 
-def _owner_stamp() -> tuple[int, Optional[int]]:
+def _owner_stamp() -> tuple[int, int | None]:
     pid = os.getpid()
     return pid, _start_time(pid)
 
@@ -268,7 +271,7 @@ def compute_obligation_id(session_key: str, message_ref: str, content: str) -> s
 
 
 def record_obligation(*, obligation_id: str, session_key: str, platform: str, chat_id: str,
-                      thread_id: Optional[str], content: str, adapter_profile: Optional[str] = None) -> None:
+                      thread_id: str | None, content: str, adapter_profile: str | None = None) -> None:
     """Record a final response as owed to the platform (state='pending')."""
     now, (pid, started) = time.time(), _owner_stamp()
     with _DB_LOCK, _transaction() as conn:
@@ -286,8 +289,8 @@ def record_obligation(*, obligation_id: str, session_key: str, platform: str, ch
 
 
 def record_crash_left_reply(*, obligation_id: str, session_key: str, platform: str, chat_id: str,
-                            thread_id: Optional[str], content: str, since: float,
-                            adapter_profile: Optional[str] = None) -> None:
+                            thread_id: str | None, content: str, since: float,
+                            adapter_profile: str | None = None) -> None:
     """Adopt a reply a killed process persisted but never ledgered. Unowned, so this boot's sweep
     claims it, and 'attempting', because a streamed reply may already be on screen: it is
     redelivered once, with the recovered marker. A no-op when the same reply was already ledgered
@@ -351,7 +354,7 @@ def _update_state(obligation_id: str, state: str, error: str = "") -> None:
 
 def _claimed_row(oid, session_key, platform, chat_id, thread_id, content, attempts, profile, *,
                  needs_marker: bool, runtime: bool = False, flood: bool = False,
-                 last_error: Optional[str] = None) -> Dict[str, Any]:
+                 last_error: str | None = None) -> dict[str, Any]:
     """Claimed-row dict handed back for redelivery. A marked row names its own cause: ``flood`` (a reply
     the rate limit refused, possibly after accepting part of it) gets FLOOD_MARKER at boot or at runtime, a
     ``runtime`` reconnect replay gets RECONNECTED_MARKER, and a boot-recovered crash keeps the runner's
@@ -365,8 +368,8 @@ def _claimed_row(oid, session_key, platform, chat_id, thread_id, content, attemp
             **({"last_error": last_error} if last_error else {}), "attempts": attempts + 1}
 
 
-def sweep_recoverable(now: Optional[float] = None, *, deliverable_platforms: Optional[set] = None,
-                      deliverable_targets: Optional[set] = None) -> List[Dict[str, Any]]:
+def sweep_recoverable(now: float | None = None, *, deliverable_platforms: set | None = None,
+                      deliverable_targets: set | None = None) -> list[dict[str, Any]]:
     """Claim undelivered rows owned by dead processes; return them for redelivery.
 
     Claiming atomically re-stamps the owner to THIS process, moves the row to 'attempting' and increments
@@ -386,7 +389,7 @@ def sweep_recoverable(now: Optional[float] = None, *, deliverable_platforms: Opt
     ``'default'`` on claim or adoption (the caller only accepts such rows when it is not multiplexed),
     because the runtime sweep matches profiles exactly and could otherwise never claim it."""
     now, (pid, started) = now if now is not None else time.time(), _owner_stamp()
-    claimed: List[Dict[str, Any]] = []
+    claimed: list[dict[str, Any]] = []
     with _DB_LOCK, _transaction() as conn:
         rows = conn.execute(
             """SELECT obligation_id, session_key, platform, chat_id, thread_id,
@@ -446,8 +449,8 @@ def sweep_recoverable(now: Optional[float] = None, *, deliverable_platforms: Opt
     return claimed
 
 
-def sweep_failed_for_runtime(platform: str, now: Optional[float] = None, *,
-                             profile: Optional[str] = None) -> List[Dict[str, Any]]:
+def sweep_failed_for_runtime(platform: str, now: float | None = None, *,
+                             profile: str | None = None) -> list[dict[str, Any]]:
     """Claim this process's failed rows that are due for another send, for one adapter.
 
     ``profile`` scopes multiplexed gateways to the bot identity that owned the failed send (``None`` =
@@ -462,7 +465,7 @@ def sweep_failed_for_runtime(platform: str, now: Optional[float] = None, *,
     if started is None:  # PID alone cannot distinguish this process from a stale row left after PID
         return []        # reuse; runtime replay is optional, so fail closed (startup recovery remains).
     expected_profile = "default" if not profile or profile == "default" else str(profile)
-    claimed: List[Dict[str, Any]] = []
+    claimed: list[dict[str, Any]] = []
     with _DB_LOCK, _transaction() as conn:
         rows = conn.execute(
             """SELECT obligation_id, session_key, platform, chat_id, thread_id,
@@ -505,7 +508,7 @@ def sweep_failed_for_runtime(platform: str, now: Optional[float] = None, *,
     return claimed
 
 
-def pending_retries(now: Optional[float] = None) -> List[Dict[str, Any]]:
+def pending_retries(now: float | None = None) -> list[dict[str, Any]]:
     """This process's failed rows that still await redelivery, one entry per adapter identity with the
     earliest deadline (``not_before``). The runner arms one redelivery timer per entry, so a row adopted
     at boot, skipped because its wait had not passed, or rejected again is never stranded. Rows past the
@@ -518,7 +521,7 @@ def pending_retries(now: Optional[float] = None) -> List[Dict[str, Any]]:
             """SELECT platform, adapter_profile, updated_at, last_error, attempts, created_at
                FROM delivery_obligations
                WHERE state='failed' AND owner_pid IS ? AND owner_started_at IS ?""", (pid, started)).fetchall()
-    earliest: Dict[tuple, float] = {}
+    earliest: dict[tuple, float] = {}
     for platform, adapter_profile, updated_at, last_error, attempts, created_at in rows:
         # Reconnect-only rows (a claim released because the adapter was gone) are re-claimed by the
         # reconnect sweep; a timer would claim and release them every tick until the adapter is back.
@@ -552,7 +555,7 @@ def _prune_unlocked(conn, now: float) -> None:
                  LIMIT ?)""", (total - _MAX_ROWS,))
 
 
-def ledger_enabled(config: Optional[Dict[str, Any]] = None) -> bool:
+def ledger_enabled(config: dict[str, Any] | None = None) -> bool:
     """Read the ``gateway.delivery_ledger`` config gate (default on)."""
     try:
         if config is None:

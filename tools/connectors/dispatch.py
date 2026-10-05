@@ -3,9 +3,13 @@
 import json
 from dataclasses import asdict
 
-from tools.registry import tool_error
 from tools.connectors.gateway.config import MAX_CALLS_PER_DISPATCH
-from tools.connectors.gateway.merge import assemble_results, fill_remote_failure, partition_calls
+from tools.connectors.gateway.merge import (
+    assemble_results,
+    fill_remote_failure,
+    partition_calls,
+)
+from tools.registry import tool_error
 
 
 def dispatch_connector_call(name, arguments, tool_call_id):
@@ -21,6 +25,7 @@ def dispatch_connector_call(name, arguments, tool_call_id):
 def dispatch_connector_batch(calls, ids, *, user_task, enabled_tools,
                              middleware_trace, enabled_toolsets, disabled_toolsets):
     from model_tools import handle_function_call
+
     from tools.interrupt import is_interrupted
 
     if len(calls) > MAX_CALLS_PER_DISPATCH:

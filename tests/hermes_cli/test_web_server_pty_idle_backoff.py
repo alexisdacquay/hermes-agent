@@ -6,7 +6,6 @@ import asyncio
 from unittest.mock import patch
 
 import pytest
-
 from hermes_cli.web_server_chat import _legacy_pump
 
 

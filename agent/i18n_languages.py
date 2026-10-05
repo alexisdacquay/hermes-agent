@@ -61,8 +61,9 @@ def describe_language(lang: str, *, pack: dict | None, overlay: bool) -> Languag
 def language_options() -> list[LanguageOption]:
     """``[{"id", "endonym", "rtl", "source"}, ...]`` for every supported language, ``en`` first then sorted
     by id — the list ``i18n.languages`` serves and every switcher renders (endonym only, no flags)."""
-    from agent import i18n, i18n_layers
     from hermes_constants import get_hermes_home
+
+    from agent import i18n, i18n_layers
 
     overlay_langs = i18n_layers.overlay_languages(get_hermes_home())
     return [

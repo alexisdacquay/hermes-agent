@@ -13,10 +13,8 @@ The update receipt (written by every `hermes update` run since #91283,
 import json
 from pathlib import Path
 
-import pytest
-
-import hermes_cli.web_server as web_server
 import hermes_cli.web_server_gateway as _web_server_gateway
+import pytest
 
 
 @pytest.fixture()

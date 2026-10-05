@@ -14,14 +14,13 @@ import os
 import re
 import shutil
 from pathlib import Path
-from typing import Optional
 
 # A provider name is a bare directory/file stem; anything else (path separators, ``..``, spaces)
 # would let a hand-edited config.yaml aim the copy outside the source profile.
 _PROVIDER_NAME_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 
 
-def active_memory_provider(config: Optional[dict]) -> Optional[str]:
+def active_memory_provider(config: dict | None) -> str | None:
     """The external ``memory.provider`` named in a parsed config.yaml, or None for the built-in
     store or an unsafe name."""
     from agent.memory_provider import is_core_memory_provider
@@ -36,7 +35,7 @@ def active_memory_provider(config: Optional[dict]) -> Optional[str]:
     return name
 
 
-def clone_memory_provider_config(source_dir: Path, profile_dir: Path, provider: Optional[str]) -> bool:
+def clone_memory_provider_config(source_dir: Path, profile_dir: Path, provider: str | None) -> bool:
     """Copy ``<provider>/`` and/or ``<provider>.json`` from *source_dir* into *profile_dir* when
     present. Files land owner-only like ``.env``: they can hold an API key. Returns True when
     anything was copied."""
@@ -61,7 +60,7 @@ def clone_memory_provider_config(source_dir: Path, profile_dir: Path, provider: 
     return copied
 
 
-def cloned_memory_provider(profile_dir: Path) -> Optional[str]:
+def cloned_memory_provider(profile_dir: Path) -> str | None:
     """Name of the external provider whose config *profile_dir* now carries, for the CLI notice."""
     from hermes_cli.profiles import _load_yaml_dict
 

@@ -8,7 +8,6 @@ time, or an operator who listed only their npub is rejected with
 """
 
 import pytest
-
 from gateway.config import Platform
 from gateway.platform_registry import PlatformEntry, platform_registry
 from gateway.session import SessionSource

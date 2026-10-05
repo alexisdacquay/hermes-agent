@@ -8,7 +8,6 @@ rendezvous actually uses it, and that the host lock still works on that path.
 """
 
 import pytest
-
 from gateway import host_rendezvous as hr
 
 pytestmark = pytest.mark.platforms("windows")
@@ -24,7 +23,6 @@ def host_dir(tmp_path, monkeypatch):
 def _assert_private_dacl(path):
     import ntsecuritycon
     import win32security
-
     from hermes_cli import windows_ssh_runtime as wsr
 
     descriptor = win32security.GetFileSecurity(

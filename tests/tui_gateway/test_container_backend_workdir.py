@@ -11,7 +11,6 @@ import uuid
 from pathlib import Path
 
 import pytest
-
 from agent.context_references import preprocess_context_references
 from tui_gateway import server
 

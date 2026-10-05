@@ -7,7 +7,6 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
-
 from tools.computer_use import cua_backend_driver
 
 
@@ -44,8 +43,7 @@ def test_gateway_session_key_yolo_maps_to_unrestricted_mode():
     """Gateway /yolo keys bypass off the gateway session_key contextvar,
     not the DB session_id the tool path passes. Mode resolution must consult
     both namespaces or /yolo is silently dead on messaging platforms."""
-    from tools import approval
-    from tools import approval_context
+    from tools import approval, approval_context
     from tools.computer_use import tool as computer_use
 
     gateway_key = "agent:main:telegram:private:12345"
@@ -93,12 +91,12 @@ def test_mode_change_replaces_only_that_sessions_backend():
         yolo = True
         unrestricted = computer_use._get_backend("session-a")
 
-    assert getattr(standard, "permission_mode") == "standard"
-    assert getattr(standard, "stopped") is True
-    assert getattr(unrestricted, "permission_mode") == "unrestricted"
+    assert standard.permission_mode == "standard"
+    assert standard.stopped is True
+    assert unrestricted.permission_mode == "unrestricted"
     assert unrestricted is not standard
-    assert getattr(other, "permission_mode") == "standard"
-    assert getattr(other, "stopped") is False
+    assert other.permission_mode == "standard"
+    assert other.stopped is False
 
 
 def test_mode_change_is_rechecked_after_stale_backend_stops():
@@ -127,8 +125,8 @@ def test_mode_change_is_rechecked_after_stale_backend_stops():
         yolo = True
         replacement = computer_use._get_backend("session-a")
 
-    assert getattr(original, "permission_mode") == "standard"
-    assert getattr(replacement, "permission_mode") == "standard"
+    assert original.permission_mode == "standard"
+    assert replacement.permission_mode == "standard"
     assert replacement is not original
     assert [backend.permission_mode for backend in created] == [
         "standard",
@@ -263,10 +261,9 @@ def test_bypass_escalation_is_warned_once_per_session(caplog):
     with patch(
         "tools.approval.is_approval_bypass_active_for_session",
         return_value=True,
-    ):
-        with caplog.at_level(logging.WARNING, logger=computer_use.logger.name):
-            assert computer_use._cua_permission_mode("session-warn") == "unrestricted"
-            assert computer_use._cua_permission_mode("session-warn") == "unrestricted"
+    ), caplog.at_level(logging.WARNING, logger=computer_use.logger.name):
+        assert computer_use._cua_permission_mode("session-warn") == "unrestricted"
+        assert computer_use._cua_permission_mode("session-warn") == "unrestricted"
 
     escalation = [
         r for r in caplog.records if "escalated the cua-driver" in r.getMessage()
@@ -286,9 +283,8 @@ def test_no_escalation_warning_without_a_bypass(caplog):
     with patch(
         "tools.approval.is_approval_bypass_active_for_session",
         return_value=False,
-    ):
-        with caplog.at_level(logging.WARNING, logger=computer_use.logger.name):
-            assert computer_use._cua_permission_mode("session-quiet") == "standard"
+    ), caplog.at_level(logging.WARNING, logger=computer_use.logger.name):
+        assert computer_use._cua_permission_mode("session-quiet") == "standard"
 
     assert not [
         r for r in caplog.records if "escalated the cua-driver" in r.getMessage()

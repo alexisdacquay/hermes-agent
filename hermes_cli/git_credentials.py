@@ -34,7 +34,7 @@ import re
 import shutil
 import subprocess
 import urllib.parse
-from typing import Iterator, Mapping, Optional
+from collections.abc import Iterator, Mapping
 
 from hermes_cli._subprocess_compat import noninteractive_git_env, windows_hide_flags
 
@@ -43,7 +43,7 @@ logger = logging.getLogger(__name__)
 _GITHUB_HOSTS = {"github.com", "gist.github.com"}
 
 
-def _https_origin(url: str) -> Optional[str]:
+def _https_origin(url: str) -> str | None:
     parsed = urllib.parse.urlsplit(url)
     if parsed.scheme != "https" or not parsed.hostname:
         return None
@@ -53,13 +53,13 @@ def _https_origin(url: str) -> Optional[str]:
     return f"https://{host}"
 
 
-def _env_github_token() -> Optional[str]:
+def _env_github_token() -> str | None:
     from agent.secret_scope import get_secret
 
     return get_secret("GITHUB_TOKEN") or get_secret("GH_TOKEN") or None
 
 
-def _gh_cli_token() -> Optional[str]:
+def _gh_cli_token() -> str | None:
     gh = shutil.which("gh")
     if not gh:
         return None
@@ -81,11 +81,11 @@ def _gh_cli_token() -> Optional[str]:
     return result.stdout.strip() or None
 
 
-def _github_token() -> Optional[str]:
+def _github_token() -> str | None:
     return _env_github_token() or _gh_cli_token()
 
 
-def _credential_fill(origin: str) -> Optional[tuple[str, str]]:
+def _credential_fill(origin: str) -> tuple[str, str] | None:
     """``(username, password)`` from the user's own git credential helpers, never prompting."""
     git = shutil.which("git")
     if not git:
@@ -134,17 +134,17 @@ def iter_git_basic_auth(url: str) -> Iterator[tuple[str, tuple[str, str]]]:
             yield source, auth
 
 
-def _token_pair(token: Optional[str]) -> Optional[tuple[str, str]]:
+def _token_pair(token: str | None) -> tuple[str, str] | None:
     return ("x-access-token", token) if token else None
 
 
-def resolve_git_basic_auth(url: str) -> Optional[tuple[str, str]]:
+def resolve_git_basic_auth(url: str) -> tuple[str, str] | None:
     """``(username, password)`` for *url*, or None for non-HTTPS URLs / no stored credential."""
     return next((auth for _source, auth in iter_git_basic_auth(url)), None)
 
 
 def with_git_auth(env: Mapping[str, str], url: str,
-                  auth: Optional[tuple[str, str]] = None) -> dict[str, str]:
+                  auth: tuple[str, str] | None = None) -> dict[str, str]:
     """Copy of *env* (a :func:`noninteractive_git_env` result) that authenticates HTTPS requests to
     *url*'s origin via a ``GIT_CONFIG_*`` ``http.<origin>/.extraheader`` entry when a credential is
     available (*auth*, else the first stored one); unchanged otherwise. The header lives only in

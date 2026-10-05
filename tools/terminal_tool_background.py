@@ -8,7 +8,7 @@ monkeypatch points authoritative.
 import json
 import logging
 import sys
-from typing import Any, List, Optional
+from typing import Any
 
 logger = logging.getLogger("tools.terminal_tool")
 
@@ -140,14 +140,14 @@ def _register_completion_watcher(process_registry, proc_session, session_key) ->
 
 
 def spawn_background_process(
-    *, command: str, env: Any, env_type: str, effective_task_id: str, task_id: Optional[str],
-    session_key: str, workdir: Optional[str], cwd: str, effective_pty: bool,
-    notify_on_complete: bool, watch_patterns: Optional[List[str]], approval_note: Optional[str],
+    *, command: str, env: Any, env_type: str, effective_task_id: str, task_id: str | None,
+    session_key: str, workdir: str | None, cwd: str, effective_pty: bool,
+    notify_on_complete: bool, watch_patterns: list[str] | None, approval_note: str | None,
     completion_output_chars: int = 0,
-    pty_disabled_reason: Optional[str],
+    pty_disabled_reason: str | None,
     heartbeat_seconds: int = 0,
     persist_on_release: bool = False,
-    mounted_host: Optional[str] = None,
+    mounted_host: str | None = None,
 ) -> str:
     """Spawn *command* as a tracked background process and return the JSON result.
 
@@ -156,7 +156,9 @@ def spawn_background_process(
     """
     from tools.process_registry import process_registry
     from tools.terminal_tool import (
-        _redact_terminal_error_text, _resolve_command_cwd, _resolve_notification_flag_conflict,
+        _redact_terminal_error_text,
+        _resolve_command_cwd,
+        _resolve_notification_flag_conflict,
     )
 
     effective_cwd = _resolve_command_cwd(
@@ -237,8 +239,8 @@ _YIELDED_NOTE = (
 
 
 def yield_to_background_handler(
-    *, command: str, env_type: str, cwd: Optional[str], effective_task_id: str,
-    task_id: Optional[str], session_key: str,
+    *, command: str, env_type: str, cwd: str | None, effective_task_id: str,
+    task_id: str | None, session_key: str,
 ):
     """Build the ``yield_handler`` a foreground ``env.execute`` calls when the tool thread is
     asked to yield (a user message arrived mid-command). Local backend only: the live Popen

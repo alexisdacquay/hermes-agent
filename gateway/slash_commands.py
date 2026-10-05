@@ -6,7 +6,6 @@ the one-off commands.  run.py helpers are imported lazily."""
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import dataclasses
 import inspect
 import logging
@@ -17,21 +16,21 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Union
 
 from agent.i18n import t
+from hermes_cli.config import atomic_config_write, cfg_get
+from utils import atomic_json_write, is_truthy_value
+
 from gateway.config import HomeChannel, Platform, PlatformConfig, persist_home_channel
 from gateway.platforms.base import EphemeralReply
 from gateway.platforms.event import MessageEvent
 from gateway.session import AsyncSessionStore
 from gateway.session_transcript import TranscriptReadError
 from gateway.slash_commands_goals import GatewayGoalCommandsMixin
+from gateway.slash_commands_login import GatewayLoginCommandsMixin
 from gateway.slash_commands_model import GatewayModelCommandsMixin
 from gateway.slash_commands_session import GatewaySessionCommandsMixin
-from gateway.slash_commands_login import GatewayLoginCommandsMixin
 from gateway.slash_commands_status import GatewayStatusCommandsMixin, history_unreadable
-from hermes_cli.config import atomic_config_write, cfg_get
-from utils import atomic_json_write, is_truthy_value
 
 logger = logging.getLogger("gateway.run")
 
@@ -153,7 +152,7 @@ def _spawn_detached_update(hermes_cmd, output_path, exit_code_path) -> None:
     subprocess.Popen(argv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
 
 
-def _home_thread_from_source(source) -> Optional[str]:
+def _home_thread_from_source(source) -> str | None:
     """The thread id /sethome should persist on the home target, or None.  Slack thread-per-message
     keying stamps a top-level message's own id as ``source.thread_id`` (a session key, not a
     location); persisting it would pin HOME to that ephemeral thread.  A thread id equal to the
@@ -228,8 +227,9 @@ class GatewaySlashCommandsMixin(
 
     def _checkpoint_manager(self):
         """A CheckpointManager from gateway config, or None when checkpoints are disabled."""
-        from gateway.run import _checkpoint_agent_kwargs, _load_gateway_config
         from tools.checkpoint_manager import CheckpointManager
+
+        from gateway.run import _checkpoint_agent_kwargs, _load_gateway_config
         cp = _checkpoint_agent_kwargs(_load_gateway_config())
         if not cp["checkpoints_enabled"]:
             return None
@@ -241,10 +241,11 @@ class GatewaySlashCommandsMixin(
         """``set_mode_fn`` for /memory and /skills: persist ``<section>.write_approval``. Raw read is
         correct for the write-back round-trip (merged defaults must not be persisted back to the
         user's file); the cached agent is dropped so the setting takes effect next message."""
-        from gateway.run import _gateway_config_home
         # Persist to config (default) unless --session opted out, mirroring the text /model command path
         # above so a picked model survives across sessions like a typed one (#49066).
         from hermes_cli.config import read_user_config_raw
+
+        from gateway.run import _gateway_config_home
         config_path = _gateway_config_home() / "config.yaml"
         session_key = self._session_key_for_source(event.source)
 
@@ -385,7 +386,7 @@ class GatewaySlashCommandsMixin(
         source has no platform/chat to route back to."""
         source = event.source
 
-        def _field(name: str) -> Optional[str]:
+        def _field(name: str) -> str | None:
             return str(getattr(source, name, "") or "") or None
         platform = getattr(source, "platform", None)
         platform_str = (platform.value if hasattr(platform, "value") else str(platform or "")).lower()
@@ -397,7 +398,6 @@ class GatewaySlashCommandsMixin(
             return False
 
         def _sub():
-            from hermes_cli import kanban_db as _kb
             from hermes_cli import kanban_db_connect as _kbc
             from hermes_cli import kanban_db_notify as _kbn
             conn = _kbc.connect(board=requested_board)
@@ -417,7 +417,7 @@ class GatewaySlashCommandsMixin(
         await asyncio.to_thread(_sub)
         return True
 
-    async def _handle_stop_command(self, event: MessageEvent) -> Union[str, EphemeralReply]:
+    async def _handle_stop_command(self, event: MessageEvent) -> str | EphemeralReply:
         """Handle /stop command - interrupt a running agent.  A truly hung agent (blocked thread
         never checking _interrupt_requested) is caught by the early intercept in _handle_message();
         this handler runs via normal dispatch or as a fallback, and force-cleans the session lock in
@@ -526,7 +526,7 @@ class GatewaySlashCommandsMixin(
         self._resume_paused_platform(platform)
         return t("gateway.platform.resumed", name=name)
 
-    async def _handle_restart_command(self, event: MessageEvent) -> Union[str, EphemeralReply]:
+    async def _handle_restart_command(self, event: MessageEvent) -> str | EphemeralReply:
         """Handle /restart command - drain active work, then restart the gateway."""
         from gateway.run import _hermes_home
         # Idempotency check: if the previous gateway process recorded this same /restart (platform +
@@ -576,7 +576,10 @@ class GatewaySlashCommandsMixin(
         # Under a service manager (systemd/launchd) or Docker/Podman, exit 75 so the supervisor /
         # restart policy restarts us — detached setsid+bash fails there (systemd KillMode=mixed kills
         # the cgroup; tini exits with the gateway). The explicit marker covers ``sudo env -i`` wrappers.
-        from gateway.restart import is_container_restart_context, is_gateway_supervisor_process
+        from gateway.restart import (
+            is_container_restart_context,
+            is_gateway_supervisor_process,
+        )
         via_service = is_gateway_supervisor_process() or is_container_restart_context()
         self.request_restart(detached=not via_service, via_service=via_service)
         # Track sessions that were active at shutdown for stuck-loop detection (#7536). On each restart, the
@@ -921,8 +924,9 @@ class GatewaySlashCommandsMixin(
 
     async def _handle_approvals_command(self, event: MessageEvent) -> str:
         """Show or persist the profile-wide dangerous-command approval mode."""
-        from gateway.slash_access import policy_for_runner_source
         from hermes_cli.approval_mode import run_approval_mode_command
+
+        from gateway.slash_access import policy_for_runner_source
         requested = event.get_command_args().strip() or None
         # This mutates profile-wide security policy. The central slash gate can allow selected
         # commands to non-admin users, so enforce admin again at this side-effect boundary.
@@ -934,9 +938,13 @@ class GatewaySlashCommandsMixin(
         # system prompt/tool schema (prompt-cache prefix is sacred).
         return run_approval_mode_command(requested).message
 
-    async def _handle_yolo_command(self, event: MessageEvent) -> Union[str, EphemeralReply]:
+    async def _handle_yolo_command(self, event: MessageEvent) -> str | EphemeralReply:
         """Handle /yolo — toggle dangerous command approval bypass for this session only."""
-        from tools.approval import disable_session_yolo, enable_session_yolo, is_session_yolo_enabled
+        from tools.approval import (
+            disable_session_yolo,
+            enable_session_yolo,
+            is_session_yolo_enabled,
+        )
         session_key = self._session_key_for_source(event.source)
         if is_session_yolo_enabled(session_key):
             disable_session_yolo(session_key)
@@ -971,7 +979,7 @@ class GatewaySlashCommandsMixin(
             logger.warning("Failed to save tool_progress mode: %s", e)
             return f"{description}\n" + t("gateway.verbose.save_failed", error=e)
 
-    async def _handle_busy_command(self, event: MessageEvent) -> Union[str, EphemeralReply]:
+    async def _handle_busy_command(self, event: MessageEvent) -> str | EphemeralReply:
         """Handle /busy — control what happens when messaging while Hermes is working."""
         arg = event.get_command_args().strip().lower()
         if not arg or arg == "status":
@@ -1042,7 +1050,7 @@ class GatewaySlashCommandsMixin(
                 example = t("gateway.footer.example_line", preview=preview)
         return t("gateway.footer.saved", state=_state(new_state), example=example)
 
-    async def _handle_reload_mcp_command(self, event: MessageEvent) -> Optional[str]:
+    async def _handle_reload_mcp_command(self, event: MessageEvent) -> str | None:
         """Handle /reload-mcp — reconnect MCP servers and rebuild the cached agent. Reloading
         invalidates the provider prompt cache (tool schemas live in the system prompt), so it routes
         through slash-confirm; "Always Approve" persists ``approvals.mcp_reload_confirm: false``."""
@@ -1056,7 +1064,7 @@ class GatewaySlashCommandsMixin(
         # Route through slash-confirm. The primitive sends the prompt and stores the resume handler;
         # the button/text response triggers ``_resolve_slash_confirm`` which invokes the handler
         # with the chosen outcome.
-        async def _on_confirm(choice: str) -> Optional[str]:
+        async def _on_confirm(choice: str) -> str | None:
             if choice == "cancel":
                 return t("gateway.reload_mcp.cancelled")
             if choice == "always":
@@ -1164,7 +1172,7 @@ class GatewaySlashCommandsMixin(
             return session_key, t(stale_key)
         return session_key, t(none_key)
 
-    async def _handle_approve_command(self, event: MessageEvent) -> Optional[str]:
+    async def _handle_approve_command(self, event: MessageEvent) -> str | None:
         """Handle /approve — unblock waiting agent thread(s). They block inside tools/approval.py;
         signalling the event resumes them so the command executes inline (same flow as the CLI)."""
         from tools.approval import resolve_gateway_approval
@@ -1213,9 +1221,15 @@ class GatewaySlashCommandsMixin(
     async def _handle_debug_command(self, event: MessageEvent) -> str:
         """Handle /debug — upload ONLY the summary (system info + log tails), never full logs, to
         protect privacy; ``hermes debug share`` from the CLI does full uploads."""
-        from hermes_cli.debug import (_GATEWAY_PRIVACY_NOTICE, _best_effort_sweep_expired_pastes,
-                                      _capture_dump, _is_dpaste_url, _schedule_auto_delete,
-                                      collect_debug_report, upload_to_pastebin)
+        from hermes_cli.debug import (
+            _GATEWAY_PRIVACY_NOTICE,
+            _best_effort_sweep_expired_pastes,
+            _capture_dump,
+            _is_dpaste_url,
+            _schedule_auto_delete,
+            collect_debug_report,
+            upload_to_pastebin,
+        )
         from hermes_cli.debug_redaction import redact_debug_support_text
 
         def _collect_and_upload():  # blocking I/O (dump capture, log reads, uploads) -> thread
@@ -1245,8 +1259,10 @@ class GatewaySlashCommandsMixin(
         """Handle /update — spawn ``hermes update`` detached (``setsid``) so it survives the gateway
         restart it may trigger; marker files let this or the next gateway process notify the user."""
         import json
+
+        from hermes_cli.config import format_managed_message, is_managed
+
         from gateway.run import _hermes_home, _resolve_hermes_bin
-        from hermes_cli.config import is_managed, format_managed_message
         # Block non-messaging platforms (API server, webhooks, ACP); plugin platforms with
         # allow_update_command=True are also allowed.
         src = event.source

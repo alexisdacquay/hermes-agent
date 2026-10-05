@@ -8,7 +8,6 @@ Bearer ``/models`` probe with HTTP 404. The probe must follow the runtime protoc
 from __future__ import annotations
 
 import httpx
-
 from hermes_cli import doctor_connectivity as dc
 
 _AZURE_BASE = "https://res.services.ai.azure.com/anthropic"

@@ -14,7 +14,6 @@ and the ledger; non-prefix rewrites keep the full-resend fallback.
 import asyncio
 
 import pytest
-
 from gateway.stream_consumer import GatewayStreamConsumer, StreamConsumerConfig
 
 

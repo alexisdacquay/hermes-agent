@@ -4,7 +4,6 @@ import os
 import subprocess
 
 import pytest
-
 from tools.environments.local import LocalEnvironment, _find_bash
 from tools.file_operations import ShellFileOperations
 

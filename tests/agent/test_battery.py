@@ -6,13 +6,13 @@ import sys
 import types
 
 import pytest
-
 from agent import battery as battery_mod
 from agent.battery import (
     BatteryStatus,
     battery_category,
     read_battery,
 )
+
 
 @pytest.fixture(autouse=True)
 def _clear_cache():

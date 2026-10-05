@@ -8,14 +8,19 @@ import hashlib
 import json
 import logging
 import re
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Any
 
 from agent.reasoning_effort import (
-    CODEX_ASTRA_EFFORTS, CODEX_LEGACY_EFFORTS,
-    XAI_GROK46_EFFORTS, XAI_LEGACY_EFFORTS, clamp_effort, is_astra_model,
+    CODEX_ASTRA_EFFORTS,
+    CODEX_LEGACY_EFFORTS,
+    XAI_GROK46_EFFORTS,
+    XAI_LEGACY_EFFORTS,
+    clamp_effort,
     # Same declared vocabulary + shared clamp as the main Codex transport (agent.reasoning_effort):
     # per-model — "max" availability varies; "minimal"/"ultra" clamp to a listed level.
     codex_supported_efforts,
+    is_astra_model,
 )
 from agent.transports.base import ProviderTransport
 from agent.transports.types import NormalizedResponse, ToolCall
@@ -28,14 +33,14 @@ logger = logging.getLogger(__name__)
 _CRON_SESSION_ID_RE = re.compile(r"^(cron_.+)_\d{8}_\d{6}$")
 
 
-def _cache_scope_from_session_id(session_id: Optional[str]) -> str:
+def _cache_scope_from_session_id(session_id: str | None) -> str:
     """Normalize a physical session_id into a stable logical cache scope."""
     sid = str(session_id or "")
     match = _CRON_SESSION_ID_RE.match(sid)
     return match.group(1) if match else sid
 
 
-def _bounded_prompt_cache_key(value: Any) -> Optional[str]:
+def _bounded_prompt_cache_key(value: Any) -> str | None:
     """Return a provider-safe (<=64 char) cache key without changing session identity."""
     key = "" if value is None else str(value).strip()
     if not key:
@@ -342,7 +347,7 @@ _EXTENDED_PROMPT_CACHE_MODEL_RE = re.compile(
 )
 
 
-def _default_prompt_cache_retention_for_request(model: str, base_url: Any) -> Optional[str]:
+def _default_prompt_cache_retention_for_request(model: str, base_url: Any) -> str | None:
     """Return ``24h`` for supported hosts/models (Bedrock Mantle, Meta)."""
     from utils import base_url_hostname
 
@@ -413,7 +418,7 @@ def _sanitize_astra_request_kwargs(kwargs: dict[str, Any], model: Any, base_url:
         kwargs["include"] = [item for item in include if "logprob" not in str(item).lower()]
 
 
-def _content_cache_key(instructions: str, tools: Optional[list[dict[str, Any]]], scope_id: str = "") -> Optional[str]:
+def _content_cache_key(instructions: str, tools: list[dict[str, Any]] | None, scope_id: str = "") -> str | None:
     """``pck_<sha256[:24]>`` of (scope_id, instructions, name-sorted tools), or None if nothing static.
 
     Routing hint only; ``scope_id`` keeps unrelated sessions off one bucket.
@@ -437,7 +442,7 @@ def _content_cache_key(instructions: str, tools: Optional[list[dict[str, Any]]],
     return "pck_" + hashlib.sha256(content.encode("utf-8", errors="replace")).hexdigest()[:24]
 
 
-def _profile_declared_efforts(provider: Any, model: Optional[str], base_url: Any = None) -> Optional[tuple]:
+def _profile_declared_efforts(provider: Any, model: str | None, base_url: Any = None) -> tuple | None:
     """Provider-profile-declared reasoning-effort vocabulary, or None (fail-open).
 
     Resolves by endpoint host first, then by provider name: a ``custom:<name>`` entry pointed
@@ -476,14 +481,17 @@ def _is_azure_foundry_responses(params: dict[str, Any]) -> bool:
     return base_url_host_matches(str(params.get("base_url") or ""), "services.ai.azure.com")
 
 
-def _is_post_tool_replay(messages: Optional[list[dict[str, Any]]]) -> bool:
+def _is_post_tool_replay(messages: list[dict[str, Any]] | None) -> bool:
     """True when ``messages`` end on a tool-result run issued by the preceding assistant turn.
 
     Azure Foundry rejects only this post-tool shape when encrypted reasoning is
     replayed, so only the *trailing* messages are checked (a whole-history scan
     would make suppression sticky). Call ids resolve like ``_chat_messages_to_responses_input``.
     """
-    from agent.codex_responses_adapter import _canonical_call_id_from_fc, _split_responses_tool_id
+    from agent.codex_responses_adapter import (
+        _canonical_call_id_from_fc,
+        _split_responses_tool_id,
+    )
 
     def _pair_ids(raw: Any, explicit: Any = None) -> set:
         embedded_call_id, item_id = _split_responses_tool_id(raw)
@@ -562,7 +570,7 @@ def _native_compaction_active(context_management: Any) -> bool:
     return isinstance(context_management, list) and bool(context_management)
 
 
-def _coerce_timeout(timeout: Any) -> Optional[float]:
+def _coerce_timeout(timeout: Any) -> float | None:
     """Finite positive number -> float; anything else (None, bool, str, inf) -> None."""
     if isinstance(timeout, (int, float)) and not isinstance(timeout, bool) and 0 < float(timeout) < float("inf"):
         return float(timeout)
@@ -609,10 +617,10 @@ class ResponsesApiTransport(ProviderTransport):
     _STOP_REASON_MAP = {"completed": "stop", "incomplete": "length", "failed": "stop", "cancelled": "stop"}
 
     # Issuer kind of the most recent build_kwargs/convert_messages call (normalize_response fallback).
-    _last_issuer_kind: Optional[str] = None
-    _last_issuer_model: Optional[str] = None
+    _last_issuer_kind: str | None = None
+    _last_issuer_model: str | None = None
     # ``{wire_alias: original}`` of the most recent build_kwargs. None = no request built (legacy map).
-    _last_wire_aliases: Optional[dict[str, str]] = None
+    _last_wire_aliases: dict[str, str] | None = None
 
     @property
     def api_mode(self) -> str:
@@ -632,7 +640,10 @@ class ResponsesApiTransport(ProviderTransport):
 
     def convert_messages(self, messages: list[dict[str, Any]], **kwargs) -> Any:
         """Convert OpenAI chat messages to Responses API input items."""
-        from agent.codex_responses_adapter import _chat_messages_to_responses_input, _wire_model_identity
+        from agent.codex_responses_adapter import (
+            _chat_messages_to_responses_input,
+            _wire_model_identity,
+        )
 
         self._last_issuer_model = _wire_model_identity(kwargs.get("model"))
         return _chat_messages_to_responses_input(
@@ -644,14 +655,14 @@ class ResponsesApiTransport(ProviderTransport):
             native_compaction_eligible=_native_compaction_active(kwargs.get("context_management")),
         )
 
-    def convert_tools(self, tools: Optional[list[dict[str, Any]]]) -> Any:
+    def convert_tools(self, tools: list[dict[str, Any]] | None) -> Any:
         """Convert OpenAI tool schemas to Responses API function definitions."""
         from agent.codex_responses_adapter import _responses_tools
 
         return _responses_tools(tools)
 
     def build_kwargs(
-        self, model: str, messages: list[dict[str, Any]], tools: Optional[list[dict[str, Any]]] = None, **params,
+        self, model: str, messages: list[dict[str, Any]], tools: list[dict[str, Any]] | None = None, **params,
     ) -> dict[str, Any]:
         """Build Responses API kwargs (calls convert_messages/convert_tools internally).
 
@@ -705,7 +716,9 @@ class ResponsesApiTransport(ProviderTransport):
         )
 
         # Lazy: provider plugins import this transport during model_metadata init.
-        from agent.model_metadata import strip_codex_context_variant_suffix as _strip_ctx_variant
+        from agent.model_metadata import (
+            strip_codex_context_variant_suffix as _strip_ctx_variant,
+        )
         request_overrides = params.get("request_overrides") or {}
         # An override may rewrite the wire model; provenance must be stamped with what actually goes out.
         wire_model = _strip_ctx_variant(request_overrides.get("model", model))
@@ -899,6 +912,6 @@ class ResponsesApiTransport(ProviderTransport):
 
 
 # Auto-register on import
-from agent.transports import register_transport  # noqa: E402
+from agent.transports import register_transport
 
 register_transport("codex_responses", ResponsesApiTransport)

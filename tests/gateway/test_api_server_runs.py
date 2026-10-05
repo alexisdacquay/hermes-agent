@@ -19,7 +19,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
-
 from gateway.config import PlatformConfig
 from gateway.platforms.api_server import (
     APIServerAdapter,
@@ -31,7 +30,6 @@ from gateway.platforms.api_server import (
 from gateway.platforms.api_server_runs import _RunStream
 from tools import approval as approval_mod
 from tools import approval_gateway_wait
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -1144,9 +1142,8 @@ class TestRunLifecycleSweep:
                 with patch(
                     "gateway.platforms.api_server.asyncio.sleep",
                     side_effect=[None, asyncio.CancelledError()],
-                ):
-                    with pytest.raises(asyncio.CancelledError):
-                        await adapter._sweep_orphaned_runs()
+                ), pytest.raises(asyncio.CancelledError):
+                    await adapter._sweep_orphaned_runs()
 
                 assert adapter._active_run_tasks[run_id] is task
                 assert adapter._active_run_agents[run_id] is mock_agent
@@ -1858,7 +1855,7 @@ class TestRunIdempotency:
 
         path = tmp_path / "idem.db"
         scope = hashlib.sha256(
-            "default\0unauthenticated-test-listener".encode()
+            b"default\0unauthenticated-test-listener"
         ).hexdigest()
         store = RunIdempotencyStore(str(path))
         store.reserve(
@@ -2170,7 +2167,7 @@ class TestHostedRoomRuns:
         policy changed since the grant was issued — never silently mint a
         grant against the drifted policy (blocker 2, #97681 review)."""
         from gateway import hosted_rooms
-        from gateway.hosted_room_peer import issue_room_grant, decode_room_grant
+        from gateway.hosted_room_peer import decode_room_grant, issue_room_grant
         from gateway.hosted_rooms import local_authority_gateway_id
 
         stale_digest = "c" * 64

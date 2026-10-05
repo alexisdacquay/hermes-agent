@@ -8,7 +8,6 @@ import asyncio
 from contextlib import contextmanager
 
 import pytest
-
 from agent.secret_scope import current_secret_scope, set_multiplex_active
 from hermes_cli import env_loader
 from hermes_constants import reset_hermes_home_override, set_hermes_home_override
@@ -111,7 +110,7 @@ def test_connect_scope_install_failure_releases_the_discovery_claim(monkeypatch,
     async def _boom():
         raise RuntimeError("hydration failed")
     monkeypatch.setattr(discovery, "_install_owner_secret_scope", _boom)
-    claim = lambda server: None  # noqa: E731
+    claim = lambda server: None
 
     async def _run():
         token = discovery._core._connect_server_claim.set(claim)
@@ -132,7 +131,11 @@ REMOTE = {"url": "https://example.invalid/mcp", "headers": {"Authorization": f"B
 def _boot_scope(home):
     """The gateway's boot-time ``_profile_runtime_scope`` shape: home override plus a secret scope
     SNAPSHOT built now — before the profile's secret source may have answered."""
-    from agent.secret_scope import build_profile_secret_scope, reset_secret_scope, set_secret_scope
+    from agent.secret_scope import (
+        build_profile_secret_scope,
+        reset_secret_scope,
+        set_secret_scope,
+    )
     home_token = set_hermes_home_override(str(home))
     token = set_secret_scope(build_profile_secret_scope(home), profile_home=str(home))
     try:
@@ -185,6 +188,7 @@ def test_launch_profile_env_only_credential_survives_the_owner_rebuild(spawn_env
     the header stayed the literal ``${VAR}`` and the fail-closed check parked a server that worked."""
     import os
     from pathlib import Path
+
     from tools import mcp_tool_config as _config
     from tui_gateway import launch_profile_policy
     launch_home = Path(os.environ["HERMES_HOME"])  # conftest's per-test process home

@@ -6,8 +6,8 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from gateway.run import run_codex_hygiene_compaction
+
 from tests.gateway.restart_test_helpers import make_restart_runner
 
 

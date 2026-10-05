@@ -1,6 +1,5 @@
 import asyncio
 
-from hermes_cli import web_server
 import hermes_cli.web_routers.sessions as _rt_sessions
 
 

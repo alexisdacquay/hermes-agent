@@ -1,13 +1,11 @@
 """Due-scan comparisons must use absolute instants across a repeated DST hour."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
 import hermes_time
 import pytest
-
 from cron import jobs
-
 
 NEW_YORK = ZoneInfo("America/New_York")
 
@@ -25,7 +23,7 @@ def dst_cron_store(tmp_path, monkeypatch):
 
 
 def _instant(hour, minute):
-    return datetime(2026, 11, 1, hour, minute, tzinfo=timezone.utc).astimezone(NEW_YORK)
+    return datetime(2026, 11, 1, hour, minute, tzinfo=UTC).astimezone(NEW_YORK)
 
 
 def _job(next_run_at):

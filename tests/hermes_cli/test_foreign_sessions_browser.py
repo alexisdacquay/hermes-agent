@@ -4,7 +4,6 @@ import json
 from pathlib import Path
 
 import pytest
-
 from hermes_cli.foreign_sessions_browser import list_foreign_sessions
 
 

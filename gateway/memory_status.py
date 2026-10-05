@@ -9,9 +9,9 @@ coarse numbers (MB), enums and booleans.  A missing/corrupt file degrades to
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 # Thresholds on system MemAvailable.  ``critical`` doubles as the lifecycle
 # ledger's OOM-suspicion heuristic: a level that makes a later unclean death
@@ -30,21 +30,21 @@ _PRESSURE_TIERS = (  # order-sensitive: worst first
 _HEARTBEAT_FRESH_TTL_S = 150.0
 
 
-def _nonneg_int(value: Any) -> Optional[int]:
+def _nonneg_int(value: Any) -> int | None:
     """Return *value* if it is a non-negative int (bools rejected), else None."""
     return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else None
 
 
-def _mb(kib: Any) -> Optional[int]:
+def _mb(kib: Any) -> int | None:
     return None if _nonneg_int(kib) is None else kib // 1024
 
 
-def _parse_iso(value: Any) -> Optional[datetime]:
+def _parse_iso(value: Any) -> datetime | None:
     try:
         parsed = datetime.fromisoformat(value) if isinstance(value, str) and value else None
     except ValueError:
         return None
-    return parsed.replace(tzinfo=timezone.utc) if parsed is not None and parsed.tzinfo is None else parsed
+    return parsed.replace(tzinfo=UTC) if parsed is not None and parsed.tzinfo is None else parsed
 
 
 def classify_pressure(available_kib: Any, total_kib: Any) -> str:
@@ -60,7 +60,7 @@ def classify_pressure(available_kib: Any, total_kib: Any) -> str:
     return "ok"
 
 
-def _read_state_files(home: Optional[Path]) -> tuple:
+def _read_state_files(home: Path | None) -> tuple:
     """``(heartbeat, sentinel)`` dicts, each ``None`` when unreadable."""
     try:
         from gateway.lifecycle_ledger import _read_json, get_lifecycle_sentinel_path
@@ -72,15 +72,15 @@ def _read_state_files(home: Optional[Path]) -> tuple:
 
 
 def collect_memory_status(
-    home: Optional[Path] = None,
+    home: Path | None = None,
     *,
-    now: Optional[datetime] = None,
-) -> Dict[str, Any]:
+    now: datetime | None = None,
+) -> dict[str, Any]:
     """``memory`` block for ``/api/status``; ``home`` scopes to a profile (``None`` =
     active), ``now`` is injectable.  Never raises — a down gateway or corrupt files
     yield ``pressure="unknown"`` plus whatever fields could be recovered."""
-    moment = now or datetime.now(timezone.utc)
-    status: Dict[str, Any] = {
+    moment = now or datetime.now(UTC)
+    status: dict[str, Any] = {
         "pressure": "unknown", "gateway_rss_mb": None, "system_total_mb": None, "system_available_mb": None,
         "swap_used_mb": None, "sampled_at": None, "last_boot_unclean": False, "last_boot_suspected_oom": False,
         # Identity of the CURRENT life (sentinel started_at): the dashboard keys

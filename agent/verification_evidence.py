@@ -11,12 +11,11 @@ import sqlite3
 import tempfile
 import threading
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from hermes_constants import get_hermes_home
-
 
 _DB_LOCK = threading.Lock()
 _MAX_OUTPUT_SUMMARY_CHARS = 2000
@@ -112,7 +111,7 @@ class VerificationEvidence:
 
 
 def _utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _db_path() -> Path:
@@ -261,7 +260,7 @@ def _equivalent_needles(needle: list[str]) -> list[list[str]]:
     return candidates
 
 
-def _find_canonical_match(command: str, canonical_commands: list[str], exit_code: int) -> Optional[tuple[str, list[str]]]:
+def _find_canonical_match(command: str, canonical_commands: list[str], exit_code: int) -> tuple[str, list[str]] | None:
     """Return ``(canonical, trailing_args)`` for the first detected command."""
     segments = _split_shell_segments(command)
     for canonical in canonical_commands:
@@ -323,7 +322,7 @@ def _is_interpreter_token(token: str) -> bool:
     return bool(_INTERPRETER_NAME_RE.match(_WINDOWS_EXE_SUFFIX_RE.sub("", name)))
 
 
-def _ad_hoc_script_args(tokens: list[str], root: str | Path | None) -> Optional[list[str]]:
+def _ad_hoc_script_args(tokens: list[str], root: str | Path | None) -> list[str] | None:
     candidate_tokens = _strip_command_prefix(tokens)
     if not candidate_tokens:
         return None
@@ -343,7 +342,7 @@ def _ad_hoc_script_args(tokens: list[str], root: str | Path | None) -> Optional[
     return None
 
 
-def _find_ad_hoc_match(command: str, root: str | Path | None, exit_code: int = 0) -> Optional[list[str]]:
+def _find_ad_hoc_match(command: str, root: str | Path | None, exit_code: int = 0) -> list[str] | None:
     # posix=False is retried so Windows backslash script paths survive splitting.
     for posix in (True, False):
         segments = _split_shell_segments(command, posix=posix)
@@ -372,7 +371,7 @@ def _prune_old_events(conn: sqlite3.Connection, *, session_id: str, root: str) -
     old events and cap the total — never dropping an event still referenced
     by a ``verification_state.last_event_id``.
     """
-    cutoff = (datetime.now(timezone.utc) - timedelta(days=_MAX_EVIDENCE_AGE_DAYS)).isoformat()
+    cutoff = (datetime.now(UTC) - timedelta(days=_MAX_EVIDENCE_AGE_DAYS)).isoformat()
     conn.execute(
         "DELETE FROM verification_events WHERE session_id = ? AND root = ? AND id NOT IN ("
         " SELECT id FROM verification_events WHERE session_id = ? AND root = ?"
@@ -400,7 +399,7 @@ def _prune_old_events(conn: sqlite3.Connection, *, session_id: str, root: str) -
     )
 
 
-def _project_facts(cwd: str | Path | None) -> Optional[dict[str, Any]]:
+def _project_facts(cwd: str | Path | None) -> dict[str, Any] | None:
     """Workspace facts for ``cwd``; ``None`` when detection fails or finds nothing."""
     try:
         from agent.coding_context import project_facts_for
@@ -423,7 +422,7 @@ def _load_changed_paths(raw: Any) -> list[Any]:
 
 def classify_verification_command(
     command: str, *, cwd: str | Path | None = None, session_id: str | None = None, exit_code: int = 0, output: str = ""
-) -> Optional[VerificationEvidence]:
+) -> VerificationEvidence | None:
     """Classify a terminal command as verification evidence, if applicable.
 
     Ad-hoc temp scripts only count when the project has no canonical verify
@@ -455,7 +454,7 @@ def classify_verification_command(
 
 def record_terminal_result(
     *, command: str, cwd: str | Path | None, session_id: str | None, exit_code: int, output: str = ""
-) -> Optional[dict[str, Any]]:
+) -> dict[str, Any] | None:
     """Record a foreground terminal result when it is verification evidence."""
     if not _ledger_enabled():
         return None
@@ -466,7 +465,7 @@ def record_terminal_result(
 def record_verify_run(
     *, root: str | Path, session_id: str | None = None, ok: bool, command: str = "hermes verify",
     scope: str = "full", output: str = "",
-) -> Optional[dict[str, Any]]:
+) -> dict[str, Any] | None:
     """Record a completed ``hermes verify`` run as verification evidence.
 
     A pass marks the workspace ``passed`` for the verify-on-stop guard like a
@@ -519,7 +518,7 @@ def _insert_evidence(evidence: VerificationEvidence) -> dict[str, Any]:
 
 def mark_workspace_edited(
     *, session_id: str | None, cwd: str | Path | None, paths: list[str] | tuple[str, ...] | None = None
-) -> Optional[dict[str, Any]]:
+) -> dict[str, Any] | None:
     """Mark verification evidence stale after a successful file edit."""
     if not _ledger_enabled():
         return None

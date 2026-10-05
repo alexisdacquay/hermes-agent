@@ -3,14 +3,13 @@ from __future__ import annotations
 
 import hashlib
 import json
-from pathlib import Path
 import shutil
 import stat
 import subprocess
-
-import pytest
+from pathlib import Path
 
 import pm
+import pytest
 from hermes_cli import doctor_tools
 from pm import paths
 from pm.lock import Facts, Lockfile

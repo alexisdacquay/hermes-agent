@@ -8,7 +8,6 @@ so every surface renders one structured signal instead of re-parsing error text.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from typing import Optional
 
 from utils import base_url_host_matches
 
@@ -22,7 +21,7 @@ class BillingBlock:
     provider: str
     provider_label: str
     model: str
-    billing_url: Optional[str]
+    billing_url: str | None
     is_nous: bool
     message: str
 
@@ -66,7 +65,7 @@ def is_nous_inference_route(provider: str, base_url: str) -> bool:
     return (provider or "").strip().lower() == "nous" or base_url_host_matches(str(base_url or ""), "inference-api.nousresearch.com")
 
 
-def _nous_billing_url() -> Optional[str]:
+def _nous_billing_url() -> str | None:
     """Best-effort Nous portal billing URL (text-surface fallback; Nous prefers the in-app flow)."""
     try:
         from hermes_cli.nous_account import nous_portal_billing_url
@@ -75,7 +74,7 @@ def _nous_billing_url() -> Optional[str]:
         return "https://portal.nousresearch.com/billing"
 
 
-def _resolve_provider_link(slug: str, base_url: str) -> tuple[str, Optional[str]]:
+def _resolve_provider_link(slug: str, base_url: str) -> tuple[str, str | None]:
     """Resolve ``(label, url)``: exact slug → base_url host → readable-label fallback."""
     base = str(base_url or "")
     hit = _BY_SLUG.get(slug) or next(

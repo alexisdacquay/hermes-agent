@@ -11,9 +11,9 @@ import subprocess
 import sys
 import textwrap
 
+import hermes_cli.main
 import pytest
 
-import hermes_cli.main
 
 def test_importing_main_does_not_import_command_modules():
     code = textwrap.dedent(

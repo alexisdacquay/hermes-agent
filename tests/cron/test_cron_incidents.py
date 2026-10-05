@@ -10,9 +10,9 @@ from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-import cron.incidents as incidents
 import cron.jobs as cron_jobs
 import cron.scheduler as sched
+from cron import incidents
 from hermes_time import now as _hermes_now
 
 
@@ -50,7 +50,6 @@ def _tick_failing(job, tmp_path, deliveries, error="boom unrelated"):
 
     def fake_deliver(jb, content, adapters=None, loop=None, **kwargs):
         deliveries.append(content)
-        return None
 
     with cron_jobs.use_cron_store(tmp_path), \
          patch("cron.scheduler._hermes_home", tmp_path), \

@@ -17,7 +17,6 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 import pytest
-
 from hermes_cli.models import _fetch_anthropic_models
 
 MODELS = [f"claude-fake-{i:03d}" for i in range(55)]
@@ -27,10 +26,10 @@ class _PagedHandler(BaseHTTPRequestHandler):
     page_cap = 20  # server-side max page size (forces pagination even at limit=1000)
     repeat_cursor = False  # simulate a buggy server that never advances
 
-    def log_message(self, *args):  # noqa: D102
+    def log_message(self, *args):
         pass
 
-    def do_GET(self):  # noqa: N802
+    def do_GET(self):
         u = urlparse(self.path)
         if not u.path.endswith("/models"):
             self.send_response(404)

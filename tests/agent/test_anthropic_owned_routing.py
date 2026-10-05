@@ -5,10 +5,9 @@ from types import SimpleNamespace
 
 import httpx
 import pytest
-from openai import AuthenticationError
-
 from agent import anthropic_credentials as ac
 from agent import auxiliary_client as aux
+from openai import AuthenticationError
 
 
 def _seed(tmp_path, monkeypatch):

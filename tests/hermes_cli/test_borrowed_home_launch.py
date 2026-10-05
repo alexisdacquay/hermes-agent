@@ -8,11 +8,10 @@ dependency sync leaves.
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import sys
+from pathlib import Path
 
 import pytest
-
 from hermes_cli import venv_sync
 from pm.environments import install_key, install_state_dir, owning_home_root, store_root
 

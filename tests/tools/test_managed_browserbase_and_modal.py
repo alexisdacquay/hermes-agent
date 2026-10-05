@@ -8,9 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
 from hermes_cli.nous_account import NousPortalAccountInfo
-
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 TOOLS_DIR = REPO_ROOT / "tools"
@@ -125,7 +123,7 @@ def _install_fake_tools_package():
     )
     sys.modules["agent.browser_registry"] = types.SimpleNamespace(
         get_provider=lambda name: None,
-        list_providers=lambda: [],
+        list_providers=list,
         register_provider=lambda provider: None,
         _resolve=lambda configured: None,
     )

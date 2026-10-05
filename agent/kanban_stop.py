@@ -9,10 +9,10 @@ instead of exiting.
 from __future__ import annotations
 
 import os
-from typing import Any, Iterable, Optional
+from collections.abc import Iterable
+from typing import Any
 
 from agent.delegation_context import owned_kanban_task
-
 
 # Every tool that ends this worker's responsibility for the card, not just the two that
 # close it out: ``kanban_request_review`` moves it to ``review`` (goals.py's continuation /
@@ -66,8 +66,8 @@ def build_kanban_stop_nudge(
     messages: Iterable[dict] | None = None,
     attempts: int = 0,
     max_attempts: int = _DEFAULT_MAX_ATTEMPTS,
-    task_id: Optional[str] = None,
-) -> Optional[str]:
+    task_id: str | None = None,
+) -> str | None:
     """Synthetic follow-up when a kanban worker exits without a terminal tool; ``None`` when
     the guard should not fire (not a kanban worker, already completed/blocked, budget exhausted)."""
     if (

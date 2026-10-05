@@ -8,7 +8,6 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from agent.tool_executor import execute_tool_calls_sequential
 from run_agent import AIAgent
 from tools.clarify_gateway import resolve_clarify_timeout
@@ -38,7 +37,7 @@ def _deterministic_worker_start(monkeypatch):
     generous headroom to reach the dispatch — which is the behavior these
     tests mean to pin.
     """
-    import tools.daemon_pool as daemon_pool
+    from tools import daemon_pool
 
     real_executor = daemon_pool.DaemonThreadPoolExecutor
 
@@ -167,8 +166,8 @@ def test_sequential_tool_timeout_emits_result_and_continues(tmp_path, monkeypatc
 
 
 def test_sequential_tool_timeout_suppresses_late_terminal_event(tmp_path, monkeypatch):
-    import hermes_cli.lifecycle as lifecycle
     import model_tools
+    from hermes_cli import lifecycle
 
     agent = _make_agent(tmp_path)
     release_first = threading.Event()

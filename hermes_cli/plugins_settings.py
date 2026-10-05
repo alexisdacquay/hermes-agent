@@ -13,15 +13,20 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional
+from typing import Any
 
-from hermes_cli.plugins_state import _plugin_relative_segments, _plugin_settings_entry, save_plugin_setting
+from hermes_cli.plugins_state import (
+    _plugin_relative_segments,
+    _plugin_settings_entry,
+    save_plugin_setting,
+)
 
 logger = logging.getLogger(__name__)
 
 # manifest ``type`` → wire field type the renderer keys its component table on.
-_FIELD_TYPES: Dict[str, str] = {
+_FIELD_TYPES: dict[str, str] = {
     "str": "string", "string": "string",
     "int": "number", "integer": "number", "float": "number", "number": "number",
     "bool": "boolean", "boolean": "boolean",
@@ -29,13 +34,13 @@ _FIELD_TYPES: Dict[str, str] = {
     "secret": "secret",
 }
 # wire field type → Python types a saved value must have (bool is excluded from number on purpose).
-_VALUE_TYPES: Dict[str, tuple] = {
+_VALUE_TYPES: dict[str, tuple] = {
     "string": (str,), "enum": (str,), "number": (int, float), "boolean": (bool,), "json": (list, dict),
 }
 _ENV_NAME_CLEAN_RE = re.compile(r"[^A-Z0-9]+")
 
 
-def _manifest_config_schema(plugin_dir: Optional[Path]) -> Mapping[str, Mapping[str, Any]]:
+def _manifest_config_schema(plugin_dir: Path | None) -> Mapping[str, Mapping[str, Any]]:
     """``config_schema`` mapping from ``<plugin_dir>/plugin.yaml``; ``{}`` when absent or malformed
     (the loader already warned about malformed entries at load time)."""
     if plugin_dir is None:
@@ -74,7 +79,7 @@ def _field_type(spec: Mapping[str, Any]) -> str:
     return kind
 
 
-def plugin_settings_fields(plugin_id: str, plugin_dir: Optional[Path]) -> List[Dict[str, Any]]:
+def plugin_settings_fields(plugin_id: str, plugin_dir: Path | None) -> list[dict[str, Any]]:
     """Renderable settings fields for one plugin: schema + the current value of each key.
 
     Secret fields never carry the value — only ``env`` (where it lives) and ``has_value``.
@@ -86,14 +91,14 @@ def plugin_settings_fields(plugin_id: str, plugin_dir: Optional[Path]) -> List[D
     entry = _plugin_settings_entry(load_config_readonly() or {}, plugin_id) or {}
     raw_current = entry.get("settings")
     current: Mapping[str, Any] = raw_current if isinstance(raw_current, Mapping) else {}
-    fields: List[Dict[str, Any]] = []
+    fields: list[dict[str, Any]] = []
     for key, spec in schema.items():
         try:
             _plugin_relative_segments(key)
         except ValueError:
             continue  # a key the plugin could never read through ctx.get_config
         kind = _field_type(spec)
-        field: Dict[str, Any] = {
+        field: dict[str, Any] = {
             "key": key, "type": kind,
             "label": str(spec.get("label") or spec.get("title") or key),
             "description": str(spec.get("description") or ""),
@@ -113,7 +118,7 @@ def plugin_settings_fields(plugin_id: str, plugin_dir: Optional[Path]) -> List[D
     return fields
 
 
-def save_plugin_settings(plugin_id: str, plugin_dir: Optional[Path], values: Mapping[str, Any]) -> List[str]:
+def save_plugin_settings(plugin_id: str, plugin_dir: Path | None, values: Mapping[str, Any]) -> list[str]:
     """Write ``values`` (``{key: value}``) for the plugin's schema keys; returns the keys written.
 
     Raises ``ValueError`` on an unknown key, a type mismatch, an enum value outside ``choices`` or a
@@ -121,7 +126,7 @@ def save_plugin_settings(plugin_id: str, plugin_dir: Optional[Path], values: Map
     ``PermissionError`` propagates from the shared writer (managed installs / managed keys).
     """
     schema = _manifest_config_schema(plugin_dir)
-    plan: List[tuple] = []
+    plan: list[tuple] = []
     for key, value in values.items():
         spec = schema.get(str(key))
         if spec is None:

@@ -3,7 +3,6 @@ import ssl
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from agent.model_metadata_http import resolve_verify
 from hermes_cli.models import _custom_provider_ssl_context
 
@@ -49,7 +48,7 @@ def test_public_endpoint_calls_seam_without_ssl_context_kwarg(clean_env):
     must keep the original 2-arg call shape when no per-provider override
     applies, so a strict 2-arg mock still works.
     """
-    import hermes_cli.models as models
+    from hermes_cli import models
 
     class _Resp:
         def __enter__(self):

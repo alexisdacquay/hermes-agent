@@ -10,7 +10,6 @@ from __future__ import annotations
 import threading
 
 import pytest
-
 from agent.prompt_builder import STEER_MARKER_OPEN, format_steer_marker
 from run_agent import AIAgent
 from tools.registry import registry
@@ -759,7 +758,10 @@ class TestSteerCommandRegistry:
         handler. Otherwise it would be queued as user text and only
         delivered at turn end — defeating the whole point.
         """
-        from hermes_cli.commands import ACTIVE_SESSION_BYPASS_COMMANDS, should_bypass_active_session
+        from hermes_cli.commands import (
+            ACTIVE_SESSION_BYPASS_COMMANDS,
+            should_bypass_active_session,
+        )
 
         assert "steer" in ACTIVE_SESSION_BYPASS_COMMANDS
         assert should_bypass_active_session("steer") is True
@@ -871,8 +873,9 @@ class TestLegacyHiddenPlaceholderWireSubstitution:
         assert "api_content" not in history[1]
 
     def test_hidden_row_with_tool_calls_or_text_is_not_touched(self):
-        from agent.conversation_loop import _clone_message_for_send  # noqa: F401
         from unittest.mock import patch
+
+        from agent.conversation_loop import _clone_message_for_send  # noqa: F401
 
         from tests.agent.test_run_agent import _mock_response
 

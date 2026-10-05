@@ -8,7 +8,6 @@ import time
 from unittest.mock import patch
 
 import pytest
-
 from hermes_constants import apply_scratch_tmp_env, get_scratch_dir, prune_scratch_dir
 
 

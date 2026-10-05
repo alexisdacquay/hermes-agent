@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from agent import video_gen_registry
 
 

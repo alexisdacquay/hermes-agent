@@ -1,5 +1,4 @@
 import pytest
-
 from gateway.config import Platform
 from gateway.platforms.event import MessageType
 from gateway.relay.ws_transport import _event_from_wire

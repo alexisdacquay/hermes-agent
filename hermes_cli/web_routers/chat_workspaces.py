@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Optional
 
 from fastapi import APIRouter, HTTPException
 
@@ -23,7 +22,7 @@ router = APIRouter()
 _open_session_db_for_profile = late("_open_session_db_for_profile", "hermes_cli.web_server_sessions")
 
 
-def resolve_chat_cwd(raw: Optional[str]) -> Optional[str]:
+def resolve_chat_cwd(raw: str | None) -> str | None:
     """Validate a ``?cwd=`` for a fresh chat: an existing host directory, or None when unset.
 
     A dead or relative path fails closed (400) instead of silently falling back to the launch
@@ -38,10 +37,11 @@ def resolve_chat_cwd(raw: Optional[str]) -> Optional[str]:
     return resolved
 
 
-def _collect_workspaces(profile: Optional[str], scan: bool) -> dict:
+def _collect_workspaces(profile: str | None, scan: bool) -> dict:
     # The dashboard hosts the in-process gateway (``web_server`` imports ``tui_gateway.server``
     # at startup), so the sidebar's repo-discovery helpers are already bound there.
     import tui_gateway.server as gateway
+
     from hermes_cli import projects_db as pdb
 
     db = _open_session_db_for_profile(profile, read_only=True)
@@ -62,7 +62,7 @@ def _collect_workspaces(profile: Optional[str], scan: bool) -> dict:
 
 
 @router.get("/api/chat/workspaces")
-async def get_chat_workspaces(profile: Optional[str] = None, scan: bool = False):
+async def get_chat_workspaces(profile: str | None = None, scan: bool = False):
     """Projects + discovered repos a fresh chat may start in; ``scan=1`` rescans the
     configured discovery roots on the host first (headless installs have no Desktop to do it)."""
     with http_failure("GET /api/chat/workspaces failed", 500, "Failed to list workspaces"):

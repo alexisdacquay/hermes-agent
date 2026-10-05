@@ -5,11 +5,9 @@ their token usage into session_model_usage with a ``task`` dimension via
 the ambient accounting context (agent/aux_accounting.py), making aux model
 spend visible in analytics.
 """
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-
 from hermes_state import SessionDB
 
 
@@ -234,7 +232,11 @@ class TestAmbientAccountingContext:
 
 class TestAnalyticsAuxRows:
     def test_aux_usage_rows_and_merge(self, db):
-        from hermes_cli.web_server_profiles import _aux_task_summary, _aux_usage_rows, _merge_aux_into_by_model
+        from hermes_cli.web_server_profiles import (
+            _aux_task_summary,
+            _aux_usage_rows,
+            _merge_aux_into_by_model,
+        )
 
         db.create_session("s1", source="cli")
         db.update_token_counts(

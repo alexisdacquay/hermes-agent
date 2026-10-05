@@ -4,18 +4,37 @@ from __future__ import annotations
 
 import importlib
 import logging
+from collections.abc import Callable
 from functools import partial
-from typing import Callable, Optional
 
-from hermes_cli.cli_output import (
-    print_info as _print_info, print_success as _print_success, print_warning as _print_warning, prompt as _prompt,
-)
-from hermes_cli.colors import Colors, color
-from hermes_cli.config import cfg_get, get_env_value, load_config, save_config, save_env_value
-from hermes_cli.nous_account import format_nous_portal_entitlement_message
-from hermes_cli.nous_subscription import MANAGED_FEATURE_COVERAGE_CATEGORY, NousSubscriptionFeatures
 from tools.tool_backend_helpers import NOUS_MANAGED_PROVIDER, fal_key_is_configured
 from utils import base_url_hostname, is_truthy_value
+
+from hermes_cli.cli_output import (
+    print_info as _print_info,
+)
+from hermes_cli.cli_output import (
+    print_success as _print_success,
+)
+from hermes_cli.cli_output import (
+    print_warning as _print_warning,
+)
+from hermes_cli.cli_output import (
+    prompt as _prompt,
+)
+from hermes_cli.colors import Colors, color
+from hermes_cli.config import (
+    cfg_get,
+    get_env_value,
+    load_config,
+    save_config,
+    save_env_value,
+)
+from hermes_cli.nous_account import format_nous_portal_entitlement_message
+from hermes_cli.nous_subscription import (
+    MANAGED_FEATURE_COVERAGE_CATEGORY,
+    NousSubscriptionFeatures,
+)
 
 logger = logging.getLogger("hermes_cli.tools_config")
 
@@ -129,7 +148,7 @@ _PLUGIN_ROW_BUILDERS = {
 
 
 def _visible_providers(
-    cat: dict, config: dict, *, force_fresh: bool = False, features: Optional[NousSubscriptionFeatures] = None,
+    cat: dict, config: dict, *, force_fresh: bool = False, features: NousSubscriptionFeatures | None = None,
 ) -> list[dict]:
     """Provider entries visible for the current auth/config state.
     Nous-managed rows (``managed_nous_feature``) are always shown, even logged-out/unentitled, to
@@ -160,11 +179,15 @@ def _visible_providers(
     return visible
 
 
-def provider_readiness_status(provider: dict, config: dict, *, features=None, is_active: Optional[bool] = None) -> str:
+def provider_readiness_status(provider: dict, config: dict, *, features=None, is_active: bool | None = None) -> str:
     """Honest readiness state for a provider picker row.
     ``features`` avoids re-fetching portal state per row. ``is_active`` is the completed-setup fallback
     for post_setup hooks with no registered installed-check (selecting a row runs its hook)."""
-    from hermes_cli.tools_config import _POST_SETUP_READY, _provider_env_ready, get_nous_subscription_features
+    from hermes_cli.tools_config import (
+        _POST_SETUP_READY,
+        _provider_env_ready,
+        get_nous_subscription_features,
+    )
     from hermes_cli.tools_config_post_setup import _POST_SETUP_AUTH_READY
 
     if provider.get("env_vars", []):
@@ -207,7 +230,11 @@ def provider_readiness_status(provider: dict, config: dict, *, features=None, is
 
 def _toolset_needs_configuration_prompt(ts_key: str, config: dict, *, force_fresh: bool = False) -> bool:
     """Return True when enabling this toolset should open provider setup."""
-    from hermes_cli.tools_config import TOOL_CATEGORIES, _post_setup_already_installed, _toolset_has_keys
+    from hermes_cli.tools_config import (
+        TOOL_CATEGORIES,
+        _post_setup_already_installed,
+        _toolset_has_keys,
+    )
 
     cat = TOOL_CATEGORIES.get(ts_key)
     if not cat:
@@ -258,7 +285,11 @@ def _configure_tool_category(ts_key: str, cat: dict, config: dict, *, force_fres
     """Provider selection for a tool category, then API-key setup for the chosen row.
     ``reconfigure`` ("Reconfigure an existing tool"): no setup note / skip row / Nous marker, and the
     chosen provider goes through the key-update prompts instead of the new-enable prompts."""
-    from hermes_cli.tools_config import _prompt_choice, _provider_env_ready, get_nous_subscription_features
+    from hermes_cli.tools_config import (
+        _prompt_choice,
+        _provider_env_ready,
+        get_nous_subscription_features,
+    )
 
     name = cat["name"]
     providers = _visible_providers(cat, config, force_fresh=force_fresh)
@@ -490,7 +521,7 @@ def _detect_active_provider_index(providers: list, config: dict, *, force_fresh:
 
 def _fal_model_catalog(config: dict):
     """Lazy-load the FAL model catalog."""
-    from tools.image_generation_catalog import FAL_MODELS, DEFAULT_MODEL
+    from tools.image_generation_catalog import DEFAULT_MODEL, FAL_MODELS
     return FAL_MODELS, DEFAULT_MODEL
 
 
@@ -499,8 +530,9 @@ def _managed_image_catalog(config: dict):
 
     A free-pool account is funded for FAL only, so its picker never offers a Krea or Portal model it
     would be denied at generation time; a logged-out or paid account sees everything."""
-    from hermes_cli.tools_config import get_nous_subscription_features
     from tools.image_generation_managed import managed_image_catalog
+
+    from hermes_cli.tools_config import get_nous_subscription_features
 
     acct = get_nous_subscription_features(config).account_info
     pool_only = bool(acct and acct.logged_in and acct.paid_service_access is not True)
@@ -1010,7 +1042,10 @@ def _configure_vision_provider_model(config: dict, vision_cfg: dict) -> None:
     from hermes_cli.tools_config import _prompt_choice
 
     try:
-        from hermes_cli.inventory import build_aux_picker_rows, format_aux_picker_entries
+        from hermes_cli.inventory import (
+            build_aux_picker_rows,
+            format_aux_picker_entries,
+        )
     except Exception as exc:  # pragma: no cover - import guard
         _print_warning(f"  Could not load provider list: {exc}")
         return
@@ -1063,7 +1098,11 @@ def _configure_simple_requirements(ts_key: str, *, reconfigure: bool = False):
     """Fallback for toolsets that just need env vars (no provider selection).
     Vision has its own provider/model picker — run it directly so neither flow falls back to the generic
     single-key prompt (which would re-ask for OPENROUTER_API_KEY)."""
-    from hermes_cli.tools_config import TOOLSET_ENV_REQUIREMENTS, _toolset_has_keys, _toolset_label
+    from hermes_cli.tools_config import (
+        TOOLSET_ENV_REQUIREMENTS,
+        _toolset_has_keys,
+        _toolset_label,
+    )
 
     if ts_key == "vision":
         if reconfigure or not _toolset_has_keys("vision"):

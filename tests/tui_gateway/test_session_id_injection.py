@@ -10,13 +10,12 @@ saw an empty HERMES_SESSION_ID even though agent_init had set it via
 set_current_session_id().
 """
 import pytest
-
 from gateway.session_context import (
-    get_session_env,
-    _VAR_MAP,
     _UNSET,
+    _VAR_MAP,
+    get_session_env,
 )
-import tui_gateway.server as server
+from tui_gateway import server
 
 
 @pytest.fixture(autouse=True)

@@ -11,8 +11,6 @@ RIFF/WEBP and other images return ``None`` so callers check images first.
 
 from __future__ import annotations
 
-from typing import Optional
-
 # Container id -> canonical file extension.
 CONTAINER_TO_EXT = {c: f".{c}" for c in ("m4a", "mp4", "ogg", "flac", "wav", "mp3", "aac", "webm")}
 
@@ -23,7 +21,7 @@ _MP4_AUDIO_BRANDS = (b"m4a ", b"m4b ")
 _PREFIX_CONTAINERS = ((b"OggS", "ogg"), (b"fLaC", "flac"), (b"ID3", "mp3"))
 
 
-def sniff_container(data: bytes) -> Optional[str]:
+def sniff_container(data: bytes) -> str | None:
     """Return a CONTAINER_TO_EXT key from magic bytes, or ``None`` when unknown."""
     if len(data) >= 8 and data[4:8] == b"ftyp":
         # Brand at bytes 8-11: "M4A "/"M4B " are voice notes/audiobooks;

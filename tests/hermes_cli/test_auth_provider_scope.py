@@ -12,8 +12,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 import agent.secret_scope as ss
 from hermes_constants import (
     reset_hermes_home_override,

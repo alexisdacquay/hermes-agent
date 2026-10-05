@@ -16,7 +16,6 @@ boundary, so they exercise the actual atomic write path.
 import json
 
 import pytest
-
 from hermes_cli import auth
 
 

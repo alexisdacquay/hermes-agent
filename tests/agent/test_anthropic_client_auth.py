@@ -8,7 +8,6 @@ per-file line ceiling.
 """
 
 import pytest
-
 from agent.anthropic_adapter import build_anthropic_client
 
 SENTINEL = "sentinel-env-token-DO-NOT-SEND"

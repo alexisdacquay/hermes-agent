@@ -16,7 +16,7 @@ from pathlib import Path
 import pytest
 
 pytest.importorskip("fastapi")
-from starlette.testclient import TestClient  # noqa: E402
+from starlette.testclient import TestClient
 
 A_VAL = "a-only-secret-0001"
 B_VAL = "b-only-secret-0002"
@@ -82,8 +82,8 @@ def test_console_send_for_named_profile_does_not_write_process_env(two_homes, mo
     seen = {}
 
     def fake_send(args):
-        import hermes_cli.send_cmd as send_cmd
         from gateway.config import _getenv
+        from hermes_cli import send_cmd
         send_cmd._load_hermes_env()
         seen["loader_sees"] = _getenv("TELEGRAM_BOT_TOKEN")
         seen["environ_has"] = "TELEGRAM_BOT_TOKEN" in os.environ

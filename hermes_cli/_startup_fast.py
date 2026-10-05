@@ -28,17 +28,18 @@ import os
 import sys
 
 __all__ = [
-    "project_root_str", "normalize_hermes_home_env",
-    "ensure_project_root_on_path",
-    "is_global_fast_version_argv",
-    "is_container_startup_environment",
     "active_profile_may_override_home",
     "container_mode_may_be_active",
-    "read_openai_version",
-    "read_install_method",
-    "print_fast_version_info",
-    "try_fast_version",
+    "ensure_project_root_on_path",
+    "is_container_startup_environment",
     "is_desktop_ssh_backend_argv",
+    "is_global_fast_version_argv",
+    "normalize_hermes_home_env",
+    "print_fast_version_info",
+    "project_root_str",
+    "read_install_method",
+    "read_openai_version",
+    "try_fast_version",
 ]
 
 
@@ -221,8 +222,8 @@ def print_fast_version_info(*, check_updates: bool = True) -> None:
     # Synchronous update status — bounded by check_for_updates' own subprocess/network timeouts
     # and its 6-hour cache; any failure prints nothing.
     try:
-        from hermes_cli.source_check import UPDATE_AVAILABLE_NO_COUNT, check_for_updates
         from hermes_cli.config import recommended_update_command
+        from hermes_cli.source_check import UPDATE_AVAILABLE_NO_COUNT, check_for_updates
 
         behind = check_for_updates(passive=True).get("behind")
         if behind == UPDATE_AVAILABLE_NO_COUNT:

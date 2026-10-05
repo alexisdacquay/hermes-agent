@@ -4,8 +4,6 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.responses import Response
 from fastapi.testclient import TestClient
-from starlette.requests import Request
-
 from hermes_cli.dashboard_auth.cookies import (
     PKCE_COOKIE,
     SESSION_AT_COOKIE,
@@ -13,12 +11,11 @@ from hermes_cli.dashboard_auth.cookies import (
     SESSION_RT_COOKIE,
     clear_pkce_cookie,
     clear_session_cookies,
-    read_pkce_cookie,
     read_session_cookies,
-    read_session_provider,
     set_pkce_cookie,
     set_session_cookies,
 )
+from starlette.requests import Request
 
 
 def _build_app(use_https: bool = True, prefix: str = ""):
@@ -373,10 +370,11 @@ def test_pkce_callback_works_when_next_query_includes_encoded_path():
     import sys
     from pathlib import Path
     sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from urllib.parse import quote
+
     from conftest_dashboard_auth import StubAuthProvider  # type: ignore
     from hermes_cli import web_server
     from hermes_cli.dashboard_auth import clear_providers, register_provider
-    from urllib.parse import quote, unquote
 
     clear_providers()
     register_provider(StubAuthProvider())

@@ -24,7 +24,7 @@ import shutil
 import uuid
 from collections import OrderedDict
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 try:
     from aiohttp import web
@@ -39,17 +39,23 @@ except ImportError:
     HTTPX_AVAILABLE = False
     httpx = None  # type: ignore[assignment]
 
-from gateway.config import Platform, PlatformConfig
 from agent.i18n import t
-from gateway.platforms.base import BasePlatformAdapter, ExecApprovalPrompt, SendResult, transcode_to_ogg_opus
-from gateway.platforms.base_exec_approval import ea_header_text
-from gateway.platforms.helpers import bounded_put
-from gateway.platforms.event import MessageEvent, MessageType
-from gateway.platforms.whatsapp_common import WhatsAppBehaviorMixin, _get_wsecret
-from gateway.platforms.access_policy_mixin import OPTIN_TRUTHY as _OPTIN_TRUTHY
-from gateway.platforms.media_cache import ext_for_mime
-from gateway import rich_sent_store
 from hermes_constants import get_hermes_dir
+
+from gateway import rich_sent_store
+from gateway.config import Platform, PlatformConfig
+from gateway.platforms.access_policy_mixin import OPTIN_TRUTHY as _OPTIN_TRUTHY
+from gateway.platforms.base import (
+    BasePlatformAdapter,
+    ExecApprovalPrompt,
+    SendResult,
+    transcode_to_ogg_opus,
+)
+from gateway.platforms.base_exec_approval import ea_header_text
+from gateway.platforms.event import MessageEvent, MessageType
+from gateway.platforms.helpers import bounded_put
+from gateway.platforms.media_cache import ext_for_mime
+from gateway.platforms.whatsapp_common import WhatsAppBehaviorMixin, _get_wsecret
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +89,7 @@ _FFMPEG_PATH = shutil.which("ffmpeg")
 
 # mimetypes returns RFC-correct but uncommon extensions (audio/ogg → .oga, image/jpeg → .jpe);
 # downstream STT/vision whitelists the in-the-wild forms, so pin the few Meta sends.
-_WHATSAPP_MIME_EXTENSION_OVERRIDES: Dict[str, str] = {
+_WHATSAPP_MIME_EXTENSION_OVERRIDES: dict[str, str] = {
     "audio/ogg": ".ogg", "audio/x-opus+ogg": ".ogg", "audio/opus": ".ogg",
     "audio/mp4": ".m4a", "audio/x-m4a": ".m4a", "image/jpeg": ".jpg",
 }
@@ -104,7 +110,7 @@ _MESSAGE_TYPE_BY_KIND = {
 _HTTP_PREFIXES = ("http://", "https://")
 
 
-def _interactive_inner(raw_message: Dict[str, Any]) -> Dict[str, Any]:
+def _interactive_inner(raw_message: dict[str, Any]) -> dict[str, Any]:
     """``button_reply`` (type=button) or ``list_reply`` (type=list); both carry id+title."""
     inter = raw_message.get("interactive") or {}
     return inter.get("button_reply") or inter.get("list_reply") or {}
@@ -130,7 +136,7 @@ async def _read_limited_request_body(request: Any, max_bytes: int) -> bytes:
     return body
 
 
-def _ext_for_mime(mime: str) -> Optional[str]:
+def _ext_for_mime(mime: str) -> str | None:
     """Mime → on-disk extension: WhatsApp overrides → mimetypes → None (never the shared default table)."""
     return ext_for_mime(mime, overrides=_WHATSAPP_MIME_EXTENSION_OVERRIDES, use_defaults=False, use_mimetypes=True, fallback=None) if mime else None
 
@@ -139,7 +145,7 @@ def _cloud_allow_all_opted_in() -> bool:
     return str(_get_wsecret("WHATSAPP_CLOUD_ALLOW_ALL_USERS", default="") or "").strip().lower() in _OPTIN_TRUTHY
 
 
-def _reply_to_from(metadata: Optional[Dict[str, Any]]) -> Optional[str]:
+def _reply_to_from(metadata: dict[str, Any] | None) -> str | None:
     return (metadata or {}).get("reply_to_message_id")
 
 
@@ -177,7 +183,7 @@ class WhatsAppCloudAdapter(WhatsAppBehaviorMixin, BasePlatformAdapter):
             for key in ("phone_number_id", "access_token", "app_id", "app_secret", "waba_id", "verify_token")
         )
         # Falsy host (None/"") collapses to the dual-stack default.
-        self._webhook_host: Optional[str] = str(extra.get("webhook_host") or DEFAULT_WEBHOOK_HOST or "") or None
+        self._webhook_host: str | None = str(extra.get("webhook_host") or DEFAULT_WEBHOOK_HOST or "") or None
         self._webhook_port: int = int(extra.get("webhook_port", DEFAULT_WEBHOOK_PORT))
         self._webhook_path: str = self._normalize_path(extra.get("webhook_path", DEFAULT_WEBHOOK_PATH))
         self._health_path: str = self._normalize_path(extra.get("health_path", "/health"))
@@ -185,7 +191,7 @@ class WhatsAppCloudAdapter(WhatsAppBehaviorMixin, BasePlatformAdapter):
         # Behavior-mixin contract attributes. WHATSAPP_CLOUD_* env vars take precedence so
         # both adapters can run in parallel with independent policies; shared WHATSAPP_*
         # names remain the fallback. Allowlist: config, then legacy ALLOW_FROM, then ALLOWED_USERS.
-        self._reply_prefix: Optional[str] = extra.get("reply_prefix")
+        self._reply_prefix: str | None = extra.get("reply_prefix")
         allow_raw = self._select_dm_allowlist(extra, ("WHATSAPP_CLOUD_ALLOW_FROM", "WHATSAPP_CLOUD_ALLOWED_USERS"), _get_wsecret)
         self._allow_from: set[str] = self._normalize_allow_ids(self._coerce_allow_list(allow_raw))
         # DM policy default: "open" if the operator opted into allow-all, else
@@ -204,18 +210,18 @@ class WhatsAppCloudAdapter(WhatsAppBehaviorMixin, BasePlatformAdapter):
         self._group_allow_from: set[str] = self._normalize_allow_ids(self._coerce_allow_list(raw_groups))
         self._mention_patterns = self._compile_mention_patterns()
         # Webhook dedup state (in-memory, FIFO-evicted) and counters.
-        self._seen_wamids: "OrderedDict[str, bool]" = OrderedDict()
+        self._seen_wamids: OrderedDict[str, bool] = OrderedDict()
         self._duplicate_count = self._accepted_count = self._rejected_signature_count = 0
         self._warned_no_ffmpeg: bool = False
         # Latest inbound wamid per chat: Meta's typing/read-receipt API needs a
         # message_id to attach to, and the base send_typing contract has none.
-        self._last_inbound_wamid_by_chat: "OrderedDict[str, str]" = OrderedDict()
+        self._last_inbound_wamid_by_chat: OrderedDict[str, str] = OrderedDict()
         # Interactive-button state: short id (in the button payload) → session_key for
         # the gateway resolver. Popped on tap; FIFO-capped via bounded_put so ignored
         # prompts don't accumulate (an evicted tap degrades to text fallback).
-        self._clarify_state: "OrderedDict[str, str]" = OrderedDict()
-        self._exec_approval_state: "OrderedDict[str, str]" = OrderedDict()
-        self._slash_confirm_state: "OrderedDict[str, str]" = OrderedDict()
+        self._clarify_state: OrderedDict[str, str] = OrderedDict()
+        self._exec_approval_state: OrderedDict[str, str] = OrderedDict()
+        self._slash_confirm_state: OrderedDict[str, str] = OrderedDict()
         self._runner = self._http_client = None
 
     # ------------------------------------------------------------------ helpers
@@ -228,7 +234,7 @@ class WhatsAppCloudAdapter(WhatsAppBehaviorMixin, BasePlatformAdapter):
         """Build a Graph API URL for this adapter's phone-number scope."""
         return f"{GRAPH_API_BASE}/{self._api_version}/{self._phone_number_id}/{path.removeprefix('/')}"
 
-    def _auth_headers(self, *, json_body: bool = True) -> Dict[str, str]:
+    def _auth_headers(self, *, json_body: bool = True) -> dict[str, str]:
         headers = {"Authorization": f"Bearer {self._access_token}"}
         return {**headers, "Content-Type": "application/json"} if json_body else headers
 
@@ -329,7 +335,7 @@ class WhatsAppCloudAdapter(WhatsAppBehaviorMixin, BasePlatformAdapter):
         code = err.get("code")
         return f"graph error {code} (HTTP {resp.status_code}): {message}" if code is not None else f"HTTP {resp.status_code}: {message}"
 
-    async def _post_messages(self, payload: Dict[str, Any], *, fail_log: str, reject_log: str, reject_args: tuple = ()) -> tuple[list, Optional[str]]:
+    async def _post_messages(self, payload: dict[str, Any], *, fail_log: str, reject_log: str, reject_args: tuple = ()) -> tuple[list, str | None]:
         """POST one /messages payload. Returns ``(response messages[], None)`` or ``([], error)``."""
         try:
             resp = await self._http_client.post(self._graph_url("messages"), headers=self._auth_headers(), json=payload)
@@ -345,7 +351,7 @@ class WhatsAppCloudAdapter(WhatsAppBehaviorMixin, BasePlatformAdapter):
         except Exception:
             return [], None
 
-    async def _post_message_result(self, payload: Dict[str, Any], **log_kwargs) -> SendResult:
+    async def _post_message_result(self, payload: dict[str, Any], **log_kwargs) -> SendResult:
         """``_post_messages`` → SendResult with the first returned message id; guards disconnected state."""
         if self._http_client is None:
             return SendResult(success=False, error="Not connected")
@@ -353,21 +359,21 @@ class WhatsAppCloudAdapter(WhatsAppBehaviorMixin, BasePlatformAdapter):
         return SendResult(success=False, error=err) if err is not None else SendResult(success=True, message_id=ids[0].get("id") if ids else None)
 
     @staticmethod
-    def _outbound_payload(chat_id: str, kind: str, block: Any, reply_to: Optional[str]) -> Dict[str, Any]:
+    def _outbound_payload(chat_id: str, kind: str, block: Any, reply_to: str | None) -> dict[str, Any]:
         """Common ``/messages`` envelope; ``context`` quotes ``reply_to`` when given."""
-        payload: Dict[str, Any] = {"messaging_product": "whatsapp", "recipient_type": "individual", "to": chat_id, "type": kind, kind: block}
+        payload: dict[str, Any] = {"messaging_product": "whatsapp", "recipient_type": "individual", "to": chat_id, "type": kind, kind: block}
         if reply_to:
             payload["context"] = {"message_id": reply_to}
         return payload
 
-    async def send(self, chat_id: str, content: str, reply_to: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None) -> SendResult:
+    async def send(self, chat_id: str, content: str, reply_to: str | None = None, metadata: dict[str, Any] | None = None) -> SendResult:
         """Send a text message via Graph API. ``chat_id`` is the recipient's ``wa_id``."""
         if self._http_client is None:
             return SendResult(success=False, error="Not connected")
         if not content or not content.strip():
             return SendResult(success=True, message_id=None)
         formatted = self.format_message(content)
-        last_message_id: Optional[str] = None
+        last_message_id: str | None = None
         for idx, chunk in enumerate(self.truncate_message(formatted, self._outgoing_chunk_limit())):
             # Quote the user's message on the first chunk only.
             payload = self._outbound_payload(
@@ -415,8 +421,8 @@ class WhatsAppCloudAdapter(WhatsAppBehaviorMixin, BasePlatformAdapter):
 
     # ------------------------------------------------------------------ interactive messages
     async def _send_interactive(
-        self, chat_id: str, interactive: Dict[str, Any], metadata: Optional[Dict[str, Any]],
-        state: "OrderedDict[str, str]", state_id: str, session_key: str,
+        self, chat_id: str, interactive: dict[str, Any], metadata: dict[str, Any] | None,
+        state: OrderedDict[str, str], state_id: str, session_key: str,
     ) -> SendResult:
         """POST an ``interactive`` message (caller supplies ``type``/``body``/``action``) and, on
         success, remember ``state_id → session_key`` for the tap. Free-form interactives need no
@@ -443,17 +449,17 @@ class WhatsAppCloudAdapter(WhatsAppBehaviorMixin, BasePlatformAdapter):
         return text if len(text) <= limit else text[: limit - 3] + "..."
 
     @staticmethod
-    def _reply_buttons(*buttons: tuple[str, str]) -> list[Dict[str, Any]]:
+    def _reply_buttons(*buttons: tuple[str, str]) -> list[dict[str, Any]]:
         return [{"type": "reply", "reply": {"id": bid, "title": title}} for bid, title in buttons]
 
     @classmethod
-    def _button_interactive(cls, body_text: str, *buttons: tuple[str, str]) -> Dict[str, Any]:
+    def _button_interactive(cls, body_text: str, *buttons: tuple[str, str]) -> dict[str, Any]:
         """``interactive.type=button`` body: ≤3 quick-reply buttons (id ≤256 chars, title ≤20)."""
         return {"type": "button", "body": {"text": body_text}, "action": {"buttons": cls._reply_buttons(*buttons)}}
 
     async def send_clarify(
-        self, chat_id: str, question: str, choices: Optional[list], clarify_id: str,
-        session_key: str, metadata: Optional[Dict[str, Any]] = None,
+        self, chat_id: str, question: str, choices: list | None, clarify_id: str,
+        session_key: str, metadata: dict[str, Any] | None = None,
     ) -> SendResult:
         """Clarify as native buttons: 1–3 choices → buttons, 4+ → list (+ "Other" row that flips
         the entry into text-capture mode), 0 → plain text question. Button ``id`` carries
@@ -489,7 +495,7 @@ class WhatsAppCloudAdapter(WhatsAppBehaviorMixin, BasePlatformAdapter):
         return await self._send_interactive(chat_id, interactive, metadata, self._clarify_state, clarify_id, session_key)
 
     @property
-    def _EA_HEADER(self) -> str:  # noqa: N802 — WhatsApp bold markup around the shared header
+    def _EA_HEADER(self) -> str:
         return f"⚠️ *{ea_header_text()}*\n\n"
 
     _EA_CODE_CLOSE = "\n```\n\n"
@@ -507,7 +513,7 @@ class WhatsAppCloudAdapter(WhatsAppBehaviorMixin, BasePlatformAdapter):
             prompt.chat_id, interactive, prompt.metadata, self._exec_approval_state, approval_id, prompt.session_key)
 
     async def send_slash_confirm(
-        self, chat_id: str, title: str, message: str, session_key: str, confirm_id: str, metadata: Optional[Dict[str, Any]] = None,
+        self, chat_id: str, title: str, message: str, session_key: str, confirm_id: str, metadata: dict[str, Any] | None = None,
     ) -> SendResult:
         """Approve Once / Always / Cancel buttons; ``confirm_id`` is caller-supplied."""
         interactive = self._button_interactive(
@@ -518,12 +524,12 @@ class WhatsAppCloudAdapter(WhatsAppBehaviorMixin, BasePlatformAdapter):
         )
         return await self._send_interactive(chat_id, interactive, metadata, self._slash_confirm_state, confirm_id, session_key)
 
-    async def get_chat_info(self, chat_id: str) -> Dict[str, Any]:
+    async def get_chat_info(self, chat_id: str) -> dict[str, Any]:
         # No chat-info endpoint; profile name arrives via webhook contacts[].
         return {"name": chat_id, "type": "dm"}
 
     # ------------------------------------------------------------------ outbound media
-    async def _upload_media(self, file_path: str, media_kind: str, mime_type: Optional[str] = None) -> tuple[Optional[str], Optional[str]]:
+    async def _upload_media(self, file_path: str, media_kind: str, mime_type: str | None = None) -> tuple[str | None, str | None]:
         """Upload a local file to Graph /media. Returns ``(media_id, None)`` or ``(None, error)``."""
         if self._http_client is None:
             return None, "Not connected"
@@ -549,9 +555,9 @@ class WhatsAppCloudAdapter(WhatsAppBehaviorMixin, BasePlatformAdapter):
         return (media_id, None) if media_id else (None, "Upload response missing 'id'")
 
     async def _send_media(
-        self, chat_id: str, media_kind: str, *, media_id: Optional[str] = None,
-        media_link: Optional[str] = None, caption: Optional[str] = None,
-        filename: Optional[str] = None, reply_to: Optional[str] = None,
+        self, chat_id: str, media_kind: str, *, media_id: str | None = None,
+        media_link: str | None = None, caption: str | None = None,
+        filename: str | None = None, reply_to: str | None = None,
     ) -> SendResult:
         """POST a media message referencing exactly one of an uploaded ``media_id`` or a public
         ``link``. Caption is accepted on image/video/document; filename on document only."""
@@ -559,7 +565,7 @@ class WhatsAppCloudAdapter(WhatsAppBehaviorMixin, BasePlatformAdapter):
             return SendResult(success=False, error="Not connected")
         if bool(media_id) == bool(media_link):
             return SendResult(success=False, error="Exactly one of media_id or media_link must be set")
-        media_block: Dict[str, Any] = {"id": media_id} if media_id else {"link": media_link}
+        media_block: dict[str, Any] = {"id": media_id} if media_id else {"link": media_link}
         if caption and media_kind in {"image", "video", "document"}:
             media_block["caption"] = caption
         if filename and media_kind == "document":
@@ -572,14 +578,14 @@ class WhatsAppCloudAdapter(WhatsAppBehaviorMixin, BasePlatformAdapter):
         )
 
     async def _send_media_from_path_or_link(
-        self, chat_id: str, source: str, media_kind: str, *, caption: Optional[str] = None,
-        filename: Optional[str] = None, reply_to: Optional[str] = None,
-        mime_type: Optional[str] = None,
+        self, chat_id: str, source: str, media_kind: str, *, caption: str | None = None,
+        filename: str | None = None, reply_to: str | None = None,
+        mime_type: str | None = None,
     ) -> SendResult:
         """HTTPS URL → ``link`` send (one fewer round trip); local path → upload + ``id`` send.
         Local sends are indexed in ``rich_sent_store`` so a later quote of the attachment can be
         resolved (Meta's inbound ``context`` carries only the quoted id)."""
-        ref: Dict[str, Optional[str]] = {"media_link": source}
+        ref: dict[str, str | None] = {"media_link": source}
         if not source.startswith(_HTTP_PREFIXES):
             media_id, err = await self._upload_media(source, media_kind, mime_type)
             if err:
@@ -594,26 +600,26 @@ class WhatsAppCloudAdapter(WhatsAppBehaviorMixin, BasePlatformAdapter):
         return result
 
     # ``**kwargs`` absorbs base-class args (e.g. ``metadata``) the Cloud API has no use for.
-    async def send_image(self, chat_id: str, image_url: str, caption: Optional[str] = None, reply_to: Optional[str] = None, **kwargs) -> SendResult:
+    async def send_image(self, chat_id: str, image_url: str, caption: str | None = None, reply_to: str | None = None, **kwargs) -> SendResult:
         return await self._send_media_from_path_or_link(chat_id, image_url, "image", caption=caption, reply_to=reply_to)
 
-    async def send_image_file(self, chat_id: str, image_path: str, caption: Optional[str] = None, reply_to: Optional[str] = None, **kwargs) -> SendResult:
+    async def send_image_file(self, chat_id: str, image_path: str, caption: str | None = None, reply_to: str | None = None, **kwargs) -> SendResult:
         return await self._send_media_from_path_or_link(chat_id, image_path, "image", caption=caption, reply_to=reply_to)
 
-    async def send_video(self, chat_id: str, video_path: str, caption: Optional[str] = None, reply_to: Optional[str] = None, **kwargs) -> SendResult:
+    async def send_video(self, chat_id: str, video_path: str, caption: str | None = None, reply_to: str | None = None, **kwargs) -> SendResult:
         return await self._send_media_from_path_or_link(chat_id, video_path, "video", caption=caption, reply_to=reply_to)
 
     async def send_document(
-        self, chat_id: str, file_path: str, caption: Optional[str] = None, file_name: Optional[str] = None, reply_to: Optional[str] = None, **kwargs,
+        self, chat_id: str, file_path: str, caption: str | None = None, file_name: str | None = None, reply_to: str | None = None, **kwargs,
     ) -> SendResult:
         return await self._send_media_from_path_or_link(
             chat_id, file_path, "document", caption=caption, filename=file_name or os.path.basename(file_path), reply_to=reply_to,
         )
 
-    async def send_voice(self, chat_id: str, audio_path: str, caption: Optional[str] = None, reply_to: Optional[str] = None, **kwargs) -> SendResult:
+    async def send_voice(self, chat_id: str, audio_path: str, caption: str | None = None, reply_to: str | None = None, **kwargs) -> SendResult:
         """Voice message: ``audio/ogg; codecs=opus`` renders as a voice bubble, so a
         local MP3 (Hermes TTS output) is converted via ffmpeg first; other audio is sent as-is."""
-        mime_type: Optional[str] = None
+        mime_type: str | None = None
         if not audio_path.startswith(_HTTP_PREFIXES) and audio_path.lower().endswith(".mp3") and os.path.exists(audio_path):
             opus_path = await self._convert_to_opus(audio_path)
             if opus_path:
@@ -628,7 +634,7 @@ class WhatsAppCloudAdapter(WhatsAppBehaviorMixin, BasePlatformAdapter):
             mime_type = "audio/mpeg"
         return await self._send_media_from_path_or_link(chat_id, audio_path, "audio", caption=caption, reply_to=reply_to, mime_type=mime_type)
 
-    async def _convert_to_opus(self, mp3_path: str) -> Optional[str]:
+    async def _convert_to_opus(self, mp3_path: str) -> str | None:
         """MP3 → ``audio/ogg; codecs=opus`` sibling file; None if ffmpeg is missing or fails. The
         missing-ffmpeg warning fires once per adapter: it is an install hint, not a per-message error."""
         if not _FFMPEG_PATH:
@@ -643,7 +649,7 @@ class WhatsAppCloudAdapter(WhatsAppBehaviorMixin, BasePlatformAdapter):
         return await asyncio.to_thread(transcode_to_ogg_opus, mp3_path, output_path=mp3_path.rsplit(".", 1)[0] + ".ogg")
 
     # ------------------------------------------------------------------ inbound media
-    async def _graph_get(self, url: str, headers: Dict[str, str], what: str, media_id: str) -> Any:
+    async def _graph_get(self, url: str, headers: dict[str, str], what: str, media_id: str) -> Any:
         """GET with the download path's uniform failure logging; None on exception or non-200."""
         try:
             resp = await self._http_client.get(url, headers=headers)
@@ -655,7 +661,7 @@ class WhatsAppCloudAdapter(WhatsAppBehaviorMixin, BasePlatformAdapter):
             return None
         return resp
 
-    async def _download_media_to_cache(self, media_id: str, *, ext_hint: Optional[str] = None) -> tuple[Optional[str], Optional[str]]:
+    async def _download_media_to_cache(self, media_id: str, *, ext_hint: str | None = None) -> tuple[str | None, str | None]:
         """Two-step Graph download: ``GET /<id>`` → signed temp URL (~5 min) → bytes.
         Returns ``(local_path, mime_type)`` or ``(None, None)`` on any failure (logged)."""
         if self._http_client is None:
@@ -691,7 +697,7 @@ class WhatsAppCloudAdapter(WhatsAppBehaviorMixin, BasePlatformAdapter):
         return str(out_path), mime or None
 
     # ------------------------------------------------------------------ inbound
-    async def _handle_health(self, request: "web.Request") -> "web.Response":
+    async def _handle_health(self, request: web.Request) -> web.Response:
         return web.json_response({
             "status": "ok", "platform": self.platform.value, "phone_number_id": self._phone_number_id,
             "webhook_path": self._webhook_path, "verify_token_configured": bool(self._verify_token),
@@ -700,7 +706,7 @@ class WhatsAppCloudAdapter(WhatsAppBehaviorMixin, BasePlatformAdapter):
             "rejected_signature": self._rejected_signature_count,
         })
 
-    async def _handle_verify(self, request: "web.Request") -> "web.Response":
+    async def _handle_verify(self, request: web.Request) -> web.Response:
         """Meta subscription handshake: echo ``hub.challenge`` iff mode is
         ``subscribe`` and ``hub.verify_token`` matches (constant-time)."""
         if not self._verify_token:
@@ -716,7 +722,7 @@ class WhatsAppCloudAdapter(WhatsAppBehaviorMixin, BasePlatformAdapter):
             return web.Response(status=400, text="missing challenge")
         return web.Response(text=q["hub.challenge"], content_type="text/plain")
 
-    async def _handle_webhook(self, request: "web.Request") -> "web.Response":
+    async def _handle_webhook(self, request: web.Request) -> web.Response:
         """Inbound webhook POST: raw bytes → HMAC verify → JSON → dispatch. Signature is over
         the raw body, so JSON parsing must come after verification. Always 200 once a valid
         request is ack'd — Meta retries non-200 for up to 7 days and would multiply agent work."""
@@ -765,7 +771,7 @@ class WhatsAppCloudAdapter(WhatsAppBehaviorMixin, BasePlatformAdapter):
             bounded_put(self._seen_wamids, wamid, True, WAMID_DEDUP_CACHE_SIZE)
         return True
 
-    async def _dispatch_payload(self, payload: Dict[str, Any]) -> None:
+    async def _dispatch_payload(self, payload: dict[str, Any]) -> None:
         """Walk ``entry[].changes[].value.{messages, contacts, statuses}`` and dispatch each message.
         ``statuses`` (sent/delivered/read/failed) are only logged — the agent doesn't consume receipts."""
         if payload.get("object") != "whatsapp_business_account":
@@ -804,7 +810,7 @@ class WhatsAppCloudAdapter(WhatsAppBehaviorMixin, BasePlatformAdapter):
                     if isinstance(status, dict):
                         logger.debug("[whatsapp_cloud] status %s for %s", status.get("status"), status.get("id"))
 
-    async def _ingest_message(self, raw_message: Dict[str, Any], contacts_by_waid: Dict[str, str], metadata: Dict[str, Any]) -> None:
+    async def _ingest_message(self, raw_message: dict[str, Any], contacts_by_waid: dict[str, str], metadata: dict[str, Any]) -> None:
         """Dedup → build event → handle_message. Neither build nor dispatch errors may
         bubble out: the wamid is already dedup-marked, so a 500 would make Meta retry
         the batch and every message in it would then be dropped as a duplicate."""
@@ -825,7 +831,7 @@ class WhatsAppCloudAdapter(WhatsAppBehaviorMixin, BasePlatformAdapter):
         except Exception:
             logger.exception("[whatsapp_cloud] handle_message raised for wamid %s", wamid)
 
-    async def _dispatch_interactive_reply(self, raw_message: Dict[str, Any], contacts_by_waid: Dict[str, str]) -> bool:
+    async def _dispatch_interactive_reply(self, raw_message: dict[str, Any], contacts_by_waid: dict[str, str]) -> bool:
         """Route an inbound button tap to its resolver (see ``_INTERACTIVE_HANDLERS``). True = claimed.
         False (unknown prefix, no live state, or no waiter) makes the caller fall back to text
         dispatch with the button title — covers stale taps."""
@@ -854,8 +860,8 @@ class WhatsAppCloudAdapter(WhatsAppBehaviorMixin, BasePlatformAdapter):
 
     @staticmethod
     def _pop_tap_state(
-        state: "OrderedDict[str, str]", key: str, stale_log: str, choice: str = "", valid: tuple = (),
-    ) -> Optional[str]:
+        state: OrderedDict[str, str], key: str, stale_log: str, choice: str = "", valid: tuple = (),
+    ) -> str | None:
         """Pop the session_key for a tapped prompt. None (info-logged) when nothing is live — likely
         a stale tap; an unrecognised ``choice`` keeps the prompt live and also yields None."""
         session_key = state.pop(key, None)
@@ -866,7 +872,7 @@ class WhatsAppCloudAdapter(WhatsAppBehaviorMixin, BasePlatformAdapter):
             return None
         return session_key
 
-    async def _handle_clarify_tap(self, to: str, inner: Dict[str, Any], parts: list) -> bool:
+    async def _handle_clarify_tap(self, to: str, inner: dict[str, Any], parts: list) -> bool:
         _, clarify_id, choice = parts
         session_key = self._pop_tap_state(
             self._clarify_state, clarify_id,
@@ -908,7 +914,7 @@ class WhatsAppCloudAdapter(WhatsAppBehaviorMixin, BasePlatformAdapter):
             return False
         return True
 
-    async def _handle_approval_tap(self, to: str, inner: Dict[str, Any], parts: list) -> bool:
+    async def _handle_approval_tap(self, to: str, inner: dict[str, Any], parts: list) -> bool:
         _, approval_id, choice = parts
         session_key = self._pop_tap_state(
             self._exec_approval_state, approval_id,
@@ -931,7 +937,7 @@ class WhatsAppCloudAdapter(WhatsAppBehaviorMixin, BasePlatformAdapter):
         await self._reply_best_effort(to, confirm_text, "[whatsapp_cloud] approval confirm failed")
         return True
 
-    async def _handle_slash_confirm_tap(self, to: str, inner: Dict[str, Any], parts: list) -> bool:
+    async def _handle_slash_confirm_tap(self, to: str, inner: dict[str, Any], parts: list) -> bool:
         _, choice, confirm_id = parts
         session_key = self._pop_tap_state(
             self._slash_confirm_state, confirm_id,
@@ -954,7 +960,7 @@ class WhatsAppCloudAdapter(WhatsAppBehaviorMixin, BasePlatformAdapter):
 
     _INTERACTIVE_HANDLERS = {"cl:": _handle_clarify_tap, "appr:": _handle_approval_tap, "sc:": _handle_slash_confirm_tap}
 
-    async def _collect_inbound_media(self, msg_type_str: str, raw_message: Dict[str, Any], body: str) -> tuple[list[str], list[str], str]:
+    async def _collect_inbound_media(self, msg_type_str: str, raw_message: dict[str, Any], body: str) -> tuple[list[str], list[str], str]:
         """Download inbound media by ``media_id``; returns ``(media_urls, media_types, body)``."""
         inner = raw_message.get(msg_type_str) or {}
         media_id, inbound_mime = str(inner.get("id") or "").strip(), str(inner.get("mime_type") or "").strip()
@@ -995,8 +1001,8 @@ class WhatsAppCloudAdapter(WhatsAppBehaviorMixin, BasePlatformAdapter):
         return body, inlined
 
     async def _build_message_event_from_cloud(
-        self, raw_message: Dict[str, Any], contacts_by_waid: Dict[str, str], metadata: Dict[str, Any],
-    ) -> Optional[MessageEvent]:
+        self, raw_message: dict[str, Any], contacts_by_waid: dict[str, str], metadata: dict[str, Any],
+    ) -> MessageEvent | None:
         """Convert a Cloud-API message object into a MessageEvent, or None if gated out."""
         msg_type_str = str(raw_message.get("type") or "text").lower()
         # Contentless envelopes arrive on the same ``messages`` webhook field and carry no

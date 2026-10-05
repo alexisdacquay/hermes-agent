@@ -1,10 +1,9 @@
 import errno
 import socket
 
+import hermes_bootstrap
 import httpcore
 import pytest
-
-import hermes_bootstrap
 from agent import process_bootstrap
 
 

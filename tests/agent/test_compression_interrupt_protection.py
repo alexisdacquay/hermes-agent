@@ -14,9 +14,8 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-import pytest
-
 import agent.auxiliary_client as aux
+import pytest
 
 
 class TestAuxInterruptProtection:
@@ -167,9 +166,8 @@ class TestCompressionProtectsSummaryCall:
             c,
             "_generate_summary",
             side_effect=aux.AuxiliaryExplicitCancellation(),
-        ):
-            with pytest.raises(aux.AuxiliaryExplicitCancellation):
-                c.compress(msgs)
+        ), pytest.raises(aux.AuxiliaryExplicitCancellation):
+            c.compress(msgs)
 
         assert c._previous_summary == "foreign-session-summary"
         assert c._summary_has_user_turn is False

@@ -11,8 +11,9 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Any, Iterable
+from typing import Any
 
 from . import shared_metrics_contract as contract
 from . import shared_metrics_fields as fields_

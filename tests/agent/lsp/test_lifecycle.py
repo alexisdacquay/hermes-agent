@@ -10,7 +10,6 @@ import atexit
 from unittest.mock import MagicMock
 
 import pytest
-
 from agent import lsp as lsp_module
 
 

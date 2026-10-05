@@ -11,7 +11,6 @@ import time
 from unittest.mock import MagicMock
 
 import pytest
-
 from agent import review_engine as re_mod
 from agent.review_engine import (
     build_review_task,
@@ -21,6 +20,7 @@ from agent.review_engine import (
 )
 from tools import async_delegation as ad
 from tools.process_registry import process_registry
+
 
 @pytest.fixture(autouse=True)
 def _clean_state():

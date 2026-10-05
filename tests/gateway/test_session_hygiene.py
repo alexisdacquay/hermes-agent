@@ -16,15 +16,13 @@ import time
 import types
 from datetime import datetime
 from types import SimpleNamespace
-from unittest.mock import MagicMock, AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from gateway.config import GatewayConfig, Platform, PlatformConfig
 from gateway.platforms.base import BasePlatformAdapter, SendResult
 from gateway.platforms.event import MessageEvent
 from gateway.session import SessionEntry, SessionSource
-
 
 # ---------------------------------------------------------------------------
 # Helpers

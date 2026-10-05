@@ -11,7 +11,6 @@ import json
 import os
 
 import pytest
-
 from agent.lsp.servers import ServerContext, find_server_for_file
 
 

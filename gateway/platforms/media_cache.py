@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import mimetypes
 import uuid
-from typing import Mapping, Optional
+from collections.abc import Mapping
 
 # Union of the per-adapter maps where they agree. Favors the common-in-the-wild extension
 # over the RFC-correct one (``audio/ogg`` → ``.ogg``, not ``.oga``): downstream STT/vision
@@ -41,9 +41,9 @@ def _normalize_mime(mime: str) -> str:
     return (mime or "").split(";")[0].strip().lower()
 
 
-def ext_for_mime(mime: str, *, overrides: Optional[Mapping[str, str]] = None,
+def ext_for_mime(mime: str, *, overrides: Mapping[str, str] | None = None,
                  use_defaults: bool = True, use_mimetypes: bool = True,
-                 fallback: Optional[str] = None) -> Optional[str]:
+                 fallback: str | None = None) -> str | None:
     """Resolve a mime type to a dotted extension: ``overrides`` → ``DEFAULT_MIME_TO_EXT`` (if
     ``use_defaults``) → ``mimetypes.guess_extension`` (if ``use_mimetypes``) → ``fallback``."""
     primary = _normalize_mime(mime)
@@ -59,7 +59,7 @@ def ext_for_mime(mime: str, *, overrides: Optional[Mapping[str, str]] = None,
     return fallback
 
 
-def mime_for_ext(ext: str, *, overrides: Optional[Mapping[str, str]] = None,
+def mime_for_ext(ext: str, *, overrides: Mapping[str, str] | None = None,
                  fallback: str = "application/octet-stream") -> str:
     """Inverse lookup: ``overrides`` → ``DEFAULT_EXT_TO_MIME`` → ``fallback``."""
     key = (ext or "").strip().lower()
@@ -67,8 +67,8 @@ def mime_for_ext(ext: str, *, overrides: Optional[Mapping[str, str]] = None,
 
 
 def cache_media_bytes(data: bytes, mime: str, *, filename_hint: str = "",
-                      kind_hint: Optional[str] = None,
-                      ext_overrides: Optional[Mapping[str, str]] = None) -> str:
+                      kind_hint: str | None = None,
+                      ext_overrides: Mapping[str, str] | None = None) -> str:
     """Cache downloaded media bytes and return the local file path.
 
     Picks the image / audio / document cache primitive by mime class (or explicit ``kind_hint``
@@ -77,7 +77,10 @@ def cache_media_bytes(data: bytes, mime: str, *, filename_hint: str = "",
     """
     # Local import: base is heavyweight and some adapters import this module very early.
     from gateway.platforms.base import (
-        cache_audio_from_bytes, cache_document_from_bytes, cache_image_from_bytes)
+        cache_audio_from_bytes,
+        cache_document_from_bytes,
+        cache_image_from_bytes,
+    )
     primary = _normalize_mime(mime)
     kind = kind_hint
     if kind is None:

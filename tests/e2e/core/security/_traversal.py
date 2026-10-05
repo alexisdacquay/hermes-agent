@@ -10,8 +10,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from tests.e2e.core.security import _helpers as H
 from tests.fakes.fake_llm_provider import FakeLLMServer, Text, ToolCall

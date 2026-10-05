@@ -8,7 +8,6 @@ import subprocess
 from pathlib import Path
 
 import pytest
-
 from scripts.code_health import gitio, replay
 from scripts.code_health.cli import run
 from scripts.code_health.compare import compare

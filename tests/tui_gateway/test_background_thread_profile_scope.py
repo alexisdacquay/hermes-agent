@@ -11,12 +11,19 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
-
 from agent.secret_scope import (
-    UnscopedSecretError, build_profile_secret_scope, get_secret, reset_secret_scope, set_multiplex_active,
+    UnscopedSecretError,
+    build_profile_secret_scope,
+    get_secret,
+    reset_secret_scope,
+    set_multiplex_active,
     set_secret_scope,
 )
-from hermes_constants import get_hermes_home, reset_hermes_home_override, set_hermes_home_override
+from hermes_constants import (
+    get_hermes_home,
+    reset_hermes_home_override,
+    set_hermes_home_override,
+)
 
 
 @pytest.fixture
@@ -68,7 +75,7 @@ def test_auto_title_thread_runs_in_the_turns_profile_scope(served_home, monkeypa
 def test_ws_orphan_reap_tears_down_under_the_sessions_profile(served_home, monkeypatch):
     """The reap Timer (empty context) → ``_teardown_popped_session``: memory commit + ``agent.close`` run
     under ``session['profile_home']``, so the provider reads B's config/credentials, not the launch's."""
-    import tui_gateway.server as server
+    from tui_gateway import server
 
     a, b = served_home
     seen_commit, seen_close = {}, {}

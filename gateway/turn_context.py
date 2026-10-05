@@ -7,15 +7,16 @@ single-element lists so mutation stays visible to the outer body.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, List, Optional
+from typing import Any
 
 
 @dataclass
 class TurnContext:
     # read-only turn identity / wiring
     source: Any = None
-    reply_expected: Optional[bool] = None
+    reply_expected: bool | None = None
     # Scheduled heartbeats are proactive work, not replies to the source message that
     # registered the watch.  Their routine delivery surfaces stay quiet.
     scheduled_heartbeat: bool = False
@@ -37,31 +38,31 @@ class TurnContext:
     agent_holder: list = field(default_factory=lambda: [None])
     _LONG_TOOL_THRESHOLD_S: float = 30.0
     _cleanup_progress: bool = False
-    _cleanup_msg_ids: List[str] = field(default_factory=list)
-    _progress_metadata: Optional[dict] = None
-    _progress_reply_to: Optional[Any] = None
-    message: Optional[str] = None  # the only rebindable field
+    _cleanup_msg_ids: list[str] = field(default_factory=list)
+    _progress_metadata: dict | None = None
+    _progress_reply_to: Any | None = None
+    message: str | None = None  # the only rebindable field
     # turn parameters / config snapshots (read-only in run_sync)
     history: Any = None
-    context_prompt: Optional[str] = None
-    channel_prompt: Optional[str] = None
-    session_id: Optional[str] = None
-    session_key: Optional[str] = None
-    run_generation: Optional[int] = None
+    context_prompt: str | None = None
+    channel_prompt: str | None = None
+    session_id: str | None = None
+    session_key: str | None = None
+    run_generation: int | None = None
     process_task_id: str = ""
     process_baseline: frozenset[str] = field(default_factory=frozenset)
     _interrupt_depth: int = 0
-    event_message_id: Optional[str] = None
+    event_message_id: str | None = None
     # Raw inbound platform id (not the event_message_id reply anchor); stamped on the user turn.
-    inbound_message_id: Optional[str] = None
-    moa_config: Optional[dict] = None
-    title_user_message: Optional[str] = None
-    persist_user_message: Optional[Any] = None
-    persist_user_timestamp: Optional[float] = None
+    inbound_message_id: str | None = None
+    moa_config: dict | None = None
+    title_user_message: str | None = None
+    persist_user_message: Any | None = None
+    persist_user_timestamp: float | None = None
     # display_kind of the persisted user row for a self-injected turn; DB-only, never sent.
     # "internal_notification" for async-delegation/background notifications (#82888).
-    persist_user_display_kind: Optional[str] = None
-    persist_user_display_metadata: Optional[dict] = None
+    persist_user_display_kind: str | None = None
+    persist_user_display_metadata: dict | None = None
     user_config: Any = None
     mute_notification_reply: bool = False
     enabled_toolsets: Any = None
@@ -84,18 +85,18 @@ class TurnContext:
     _hooks_ref: Any = None
     _status_adapter: Any = None
     _status_chat_id: Any = None
-    _status_thread_metadata: Optional[dict] = None
+    _status_thread_metadata: dict | None = None
     # bound TurnRunner callbacks read via ctx
-    progress_callback: Optional[Callable] = None
-    voice_ack_callback: Optional[Callable] = None
-    _step_callback_sync: Optional[Callable] = None
-    _event_callback_sync: Optional[Callable] = None
-    _status_callback_sync: Optional[Callable] = None
+    progress_callback: Callable | None = None
+    voice_ack_callback: Callable | None = None
+    _step_callback_sync: Callable | None = None
+    _event_callback_sync: Callable | None = None
+    _status_callback_sync: Callable | None = None
     # Slack-native task cards (opt-in); ID-bearing callbacks correlate start/complete by call ID
     # --- Slack-native task-card progress (opt-in; #29483) ------------------ True when the Slack adapter's
     # ``native_task_cards_enabled()`` opt-in is set for this turn's platform. The ID-bearing lifecycle
     # callbacks are published by TurnRunner (like voice_ack_callback above) so tool starts and completions
     # correlate by real tool-call ID instead of tool name.
     _native_slack_task_cards: bool = False
-    native_tool_start_callback: Optional[Callable] = None
-    native_tool_complete_callback: Optional[Callable] = None
+    native_tool_start_callback: Callable | None = None
+    native_tool_complete_callback: Callable | None = None

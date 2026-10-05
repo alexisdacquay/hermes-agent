@@ -19,17 +19,17 @@ import os
 import sys
 import threading
 import time
-from typing import Any, Callable, Dict, List, Optional, Set
+from collections.abc import Callable
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 from tools.mcp_tool_common import _DEFAULT_TOOL_TIMEOUT, mcp_field
 from tools.mcp_tool_config import _get_mcp_stderr_log, _npx_cached_bin
-from tools.mcp_tool_sampling import ElicitationHandler, SamplingHandler
-from tools.mcp_tool_transport import MCPServerTransportMixin
-from tools.mcp_tool_server_run import MCPServerRunMixin
 from tools.mcp_tool_health import MCPServerHealthMixin
-
+from tools.mcp_tool_sampling import ElicitationHandler, SamplingHandler
+from tools.mcp_tool_server_run import MCPServerRunMixin
+from tools.mcp_tool_transport import MCPServerTransportMixin
 
 # Wall-clock bound on the fail-open OSV malware preflight before a stdio spawn; just ABOVE
 # osv_check._TIMEOUT (10s) so it only bites when a stalled SSL handshake defeats that.
@@ -45,7 +45,7 @@ async def _preflight_stdio_command(server_name: str, command: str, args: list) -
     try:
         malware_error = await asyncio.wait_for(
             asyncio.to_thread(check_package_for_malware, command, args), timeout=_OSV_MALWARE_CHECK_TIMEOUT_S)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.warning("MCP server '%s': OSV malware preflight timed out after %.0fs "
                        "(network slow/unreachable) — proceeding without the check.",
                        server_name, _OSV_MALWARE_CHECK_TIMEOUT_S)
@@ -122,7 +122,7 @@ def __getattr__(name: str):
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
-def _import_sdk_names(module: str, names: tuple, missing_msg: Optional[str] = None) -> bool:
+def _import_sdk_names(module: str, names: tuple, missing_msg: str | None = None) -> bool:
     """Bind ``names`` from SDK ``module`` into this module's globals; False (nothing bound,
     optional debug line) when this SDK build lacks the module or any of the names."""
     try:
@@ -254,7 +254,7 @@ _MCP_LIST_MAX_PAGES = 50
 
 
 async def _paginate_full_list(list_method, items_attr: str, server_name: str,
-                              cache_meta_out: Optional[dict] = None):
+                              cache_meta_out: dict | None = None):
     """Drain a paginated ``list_*`` call by following ``nextCursor``; ``cache_meta_out`` gets the
     first page's SEP-2549 hints. Callers must hold the server's ``_rpc_lock``."""
     items: list = []
@@ -310,20 +310,53 @@ class MCPServerTask(MCPServerRunMixin, MCPServerTransportMixin, MCPServerHealthM
     keepalive/liveness live in the three mixins."""
 
     __slots__ = (
-        "name", "session", "tool_timeout", "_task", "_ready", "_shutdown_event", "_reconnect_event",
-        "_tools", "_error", "_config", "_sampling", "_elicitation", "_registered_tool_names",
-        "_auth_type", "_refresh_lock", "_rpc_lock", "_pending_refresh_tasks", "_pending_call_context",
-        "_lifecycle_started_at", "_last_tool_call_at", "_idle_timeout_seconds", "_max_lifetime_seconds",
-        "_recycled_reason", "initialize_result", "_ping_unsupported", "_list_cache_meta",
-        "_reconnect_retries", "_session_proven", "_was_parked", "_inflight_tasks", "_reconnecting",
-        "_suspect_reason", "_teardown_race", "_permanent_grace_used", "_stdio_child_pids",
-        "_ever_connected", "_sse_fallback", "_park_reason", "_last_park_line", "_resolved_identity")
+        "_auth_type",
+        "_config",
+        "_elicitation",
+        "_error",
+        "_ever_connected",
+        "_idle_timeout_seconds",
+        "_inflight_tasks",
+        "_last_park_line",
+        "_last_tool_call_at",
+        "_lifecycle_started_at",
+        "_list_cache_meta",
+        "_max_lifetime_seconds",
+        "_park_reason",
+        "_pending_call_context",
+        "_pending_refresh_tasks",
+        "_permanent_grace_used",
+        "_ping_unsupported",
+        "_ready",
+        "_reconnect_event",
+        "_reconnect_retries",
+        "_reconnecting",
+        "_recycled_reason",
+        "_refresh_lock",
+        "_registered_tool_names",
+        "_resolved_identity",
+        "_rpc_lock",
+        "_sampling",
+        "_session_proven",
+        "_shutdown_event",
+        "_sse_fallback",
+        "_stdio_child_pids",
+        "_suspect_reason",
+        "_task",
+        "_teardown_race",
+        "_tools",
+        "_was_parked",
+        "initialize_result",
+        "name",
+        "session",
+        "tool_timeout",
+    )
 
     def __init__(self, name: str):
         self.name = name
-        self.session: Optional[Any] = None
+        self.session: Any | None = None
         self.tool_timeout: float = _DEFAULT_TOOL_TIMEOUT
-        self._task: Optional[asyncio.Task] = None
+        self._task: asyncio.Task | None = None
         self._ready = asyncio.Event()
         self._shutdown_event = asyncio.Event()
         # Set -> _run_http/_run_stdio exit cleanly and run() re-enters the transport.
@@ -331,9 +364,9 @@ class MCPServerTask(MCPServerRunMixin, MCPServerTransportMixin, MCPServerHealthM
         self._tools: list = []
         self._registered_tool_names: list[str] = []
         self._config: dict = {}
-        self._error: Optional[Exception] = None
-        self._sampling: Optional[SamplingHandler] = None
-        self._elicitation: Optional[ElicitationHandler] = None
+        self._error: Exception | None = None
+        self._sampling: SamplingHandler | None = None
+        self._elicitation: ElicitationHandler | None = None
         self._reconnect_retries: int = 0
         # Rapid-drop budget: a session is UNPROVEN until it survives a keepalive interval or a
         # successful call; only a proven session clears the budget, so a post-handshake flapper
@@ -356,11 +389,11 @@ class MCPServerTask(MCPServerRunMixin, MCPServerTransportMixin, MCPServerHealthM
         # Why the server is parked (the revival_reason handed to _park), None once healthy again.
         # Lets cron preflight tell a network-blip park (recovering) from a permanent-error park
         # (revoked credentials, dead endpoint) that must not run the job tool-less forever.
-        self._park_reason: Optional[str] = None
-        self._last_park_line: Optional[str] = None  # last park WARNING text; identical re-parks log at DEBUG
+        self._park_reason: str | None = None
+        self._last_park_line: str | None = None  # last park WARNING text; identical re-parks log at DEBUG
         # Digest of the resolved inputs the transport last connected with; a cross-profile adopter
         # must resolve the same digest in its own scope. None until the transport publishes it.
-        self._resolved_identity: Optional[str] = None
+        self._resolved_identity: str | None = None
         # In-flight RPC tasks so a deliberate teardown fails them fast; _reconnecting is True
         # during that teardown so _track_inflight_rpc turns the cancel into a retryable error.
         # In-flight RPC bookkeeping (#48069 salvage): user-visible requests registered while running so a
@@ -370,7 +403,7 @@ class MCPServerTask(MCPServerRunMixin, MCPServerTransportMixin, MCPServerHealthM
         # Latched by races (teardown-vs-keepalive, auth-lock corruption); ensure_healthy()
         # verifies before the next call.
         # See #77765, #81051, #84132.
-        self._suspect_reason: Optional[str] = None
+        self._suspect_reason: str | None = None
         # Teardown that failed in-flight calls => next reconnect is RACE RECOVERY, not a
         # budget charge.
         self._teardown_race: bool = False
@@ -381,7 +414,7 @@ class MCPServerTask(MCPServerRunMixin, MCPServerTransportMixin, MCPServerHealthM
         # PIDs of the stdio subprocess spawned for the current transport (captured in _run_stdio). Used to
         # fail in-flight calls FAST when the child dies instead of waiting out the full tool timeout
         # (#81995).
-        self._stdio_child_pids: Set[int] = set()
+        self._stdio_child_pids: set[int] = set()
         self._auth_type: str = ""
         self._refresh_lock = asyncio.Lock()
         # A stdio session is one JSON-RPC stream (a concurrent list_tools can wedge a tool
@@ -390,7 +423,7 @@ class MCPServerTask(MCPServerRunMixin, MCPServerTransportMixin, MCPServerHealthM
         self._pending_refresh_tasks: set[asyncio.Task] = set()
         # contextvars snapshot inside session.call_tool(): the SDK runs elicitation/create on a
         # task that does not inherit HERMES_SESSION_PLATFORM, so the callback replays this.
-        self._pending_call_context: Optional[contextvars.Context] = None
+        self._pending_call_context: contextvars.Context | None = None
         self._lifecycle_started_at = self._last_tool_call_at = time.monotonic()
         self._idle_timeout_seconds = self._max_lifetime_seconds = self._recycled_reason = None
         # Handshake InitializeResult: the server's REAL advertised capabilities.
@@ -398,7 +431,7 @@ class MCPServerTask(MCPServerRunMixin, MCPServerTransportMixin, MCPServerHealthM
         # can inspect the server's real advertised capabilities (``.capabilities.resources``,
         # ``.capabilities.prompts``) instead of assuming every ``ClientSession`` method attribute
         # corresponds to a supported server method. See #18051.
-        self.initialize_result: Optional[Any] = None
+        self.initialize_result: Any | None = None
         # SEP-2549 cache hints from the last tools/list (ttl_ms, cache_scope).
         self._list_cache_meta: dict = {}
         # Latched when ``ping`` returns -32601; keepalives then use list_tools. Reset per connect.
@@ -416,27 +449,27 @@ class MCPServerTask(MCPServerRunMixin, MCPServerTransportMixin, MCPServerHealthM
 # same server with their own credentials are two connections; a name-keyed ledger let the first
 # profile's connection shadow the second's (never connected, silently tool-less — #106005).
 
-_servers: Dict[Any, MCPServerTask] = {}
+_servers: dict[Any, MCPServerTask] = {}
 # Profile registry scope per live connection (None outside multiplex) so a multiplexed
 # /reload-mcp tears down only its own profile's servers.
-_server_scope_keys: Dict[Any, Optional[str]] = {}
+_server_scope_keys: dict[Any, str | None] = {}
 # Registry scopes that have adopted a live server connection. The owning scope above remains
 # authoritative for connection teardown; this set preserves visibility for shared connections.
-_server_tool_scopes: Dict[Any, set] = {}
+_server_tool_scopes: dict[Any, set] = {}
 _server_connecting: set = set()
-_server_connect_errors: Dict[Any, str] = {}
+_server_connect_errors: dict[Any, str] = {}
 # adopter scope -> server names whose shared connection an owner's scoped shutdown tore down;
 # drained by the next discovery pass so the adopter is re-registered (see mcp_tool_lifecycle).
-_orphaned_adopters: Dict[str, set] = {}
+_orphaned_adopters: dict[str, set] = {}
 # Lazy startup: servers registered from the schema cache without connecting; popped on
 # first real connection.
 # Keyed by connection key; entries are popped once a real connection is established on first use. See #56832.
-_lazy_server_configs: Dict[Any, dict] = {}
-_lazy_server_fingerprints: Dict[Any, str] = {}
-_lazy_server_tool_names: Dict[Any, List[str]] = {}
+_lazy_server_configs: dict[Any, dict] = {}
+_lazy_server_fingerprints: dict[Any, str] = {}
+_lazy_server_tool_names: dict[Any, list[str]] = {}
 # Task-local claim around ``_connect_server``: discovery retains a recoverable parked task
 # while standalone probes never publish failed servers into module-global ownership.
-_connect_server_claim: contextvars.ContextVar[Optional[Callable[[MCPServerTask], None]]] = (
+_connect_server_claim: contextvars.ContextVar[Callable[[MCPServerTask], None] | None] = (
     contextvars.ContextVar("mcp_connect_server_claim", default=None))
 
 # Per-server connect cooldown: a server that fails to spawn never reaches ``_servers``, so
@@ -454,8 +487,8 @@ _connect_server_claim: contextvars.ContextVar[Optional[Callable[[MCPServerTask],
 # ``retry_after`` deadline with exponential backoff. ``register_mcp_servers`` skips a server whose cooldown
 # has not elapsed, so a chronically failing server is retried on a backoff schedule instead of on every
 # worker session -- isolating it from the rest of the bridge. A successful connection clears the state.
-_server_connect_retry_after: Dict[Any, float] = {}   # connection key -> monotonic deadline
-_server_connect_failures: Dict[Any, int] = {}        # connection key -> consecutive failures
+_server_connect_retry_after: dict[Any, float] = {}   # connection key -> monotonic deadline
+_server_connect_failures: dict[Any, int] = {}        # connection key -> consecutive failures
 _CONNECT_RETRY_BASE_BACKOFF_SEC, _CONNECT_RETRY_MAX_BACKOFF_SEC = 30.0, 600.0
 
 # Per-server circuit breaker: closed -> open (calls short-circuit until the cooldown) ->
@@ -468,11 +501,11 @@ _CONNECT_RETRY_BASE_BACKOFF_SEC, _CONNECT_RETRY_MAX_BACKOFF_SEC = 30.0, 600.0
 # ``_server_breaker_opened_at`` records the monotonic timestamp when the breaker most recently transitioned
 # into the open state. Use the ``_bump_server_error`` / ``_reset_server_error`` helpers to mutate this state
 # — they keep the count and timestamp in sync.
-_server_error_counts: Dict[Any, int] = {}
-_server_breaker_opened_at: Dict[Any, float] = {}
+_server_error_counts: dict[Any, int] = {}
+_server_breaker_opened_at: dict[Any, float] = {}
 # True while every strike in the current streak was the tool's own error payload (server reachable,
 # call rejected); picks the open-breaker wording, since "unreachable" was false for that case (#11113).
-_server_errors_all_application: Dict[Any, bool] = {}
+_server_errors_all_application: dict[Any, bool] = {}
 _CIRCUIT_BREAKER_THRESHOLD, _CIRCUIT_BREAKER_COOLDOWN_SEC = 3, 60.0
 
 # Trust-tier gating (``trust: full | untrusted``): on an untrusted server every write-capable
@@ -483,8 +516,8 @@ _CIRCUIT_BREAKER_THRESHOLD, _CIRCUIT_BREAKER_COOLDOWN_SEC = 3, 60.0
 # mutation, prompt cache intact. ``_server_trust_levels`` is keyed by the CONSUMING profile's own
 # key (its policy for the name, even when it adopted another profile's connection);
 # ``_tool_read_only_hints`` by the connection key (the server's own tool annotations).
-_server_trust_levels: Dict[Any, str] = {}
-_tool_read_only_hints: Dict[Any, Dict[str, bool]] = {}
+_server_trust_levels: dict[Any, str] = {}
+_tool_read_only_hints: dict[Any, dict[str, bool]] = {}
 
 _TRUST_FULL, _TRUST_UNTRUSTED = "full", "untrusted"
 
@@ -515,12 +548,12 @@ def _reset_server_error(server_name: str) -> None:
 # ``foo_bar`` sanitize alike but must not share policy; neither do two profiles' same-named servers).
 _parallel_safe_servers: set = set()
 # registry tool name -> raw server name (the generated name is lossy; never re-parse it).
-_mcp_tool_server_names: Dict[str, str] = {}
+_mcp_tool_server_names: dict[str, str] = {}
 
 # Dedicated event loop in a background daemon thread; _lock guards the loop handles, _servers,
 # the status maps and the PID ledgers.
-_mcp_loop: Optional[asyncio.AbstractEventLoop] = None
-_mcp_thread: Optional[threading.Thread] = None
+_mcp_loop: asyncio.AbstractEventLoop | None = None
+_mcp_thread: threading.Thread | None = None
 _lock = threading.Lock()
 
 
@@ -648,7 +681,7 @@ def _update_death_supervisor(verb: str, pgids) -> None:
             _death_supervisor = None
 
 
-def _mcp_registry_scope() -> Optional[str]:
+def _mcp_registry_scope() -> str | None:
     """Registry scope for MCP registrations: a profile overlay when this process serves profiles,
     else None. Under ``gateway.multiplex_profiles`` every turn runs scoped; a process that serves a
     routed profile through the HERMES_HOME override (dashboard/desktop backend, per-profile cron
@@ -662,7 +695,7 @@ def _mcp_registry_scope() -> Optional[str]:
     return registry.current_scope_key()
 
 
-def _server_registry_scope(key) -> Optional[str]:
+def _server_registry_scope(key) -> str | None:
     """Scope owning the connection under *key*'s tools: the one captured at adoption (teardown
     runs on the MCP loop without the discovering profile's context), else the current one."""
     if key in _server_scope_keys:
@@ -671,7 +704,7 @@ def _server_registry_scope(key) -> Optional[str]:
     return _key_scope(key) or _mcp_registry_scope()
 
 
-def _server_visible_in_scope(key, scope: Optional[str]) -> bool:
+def _server_visible_in_scope(key, scope: str | None) -> bool:
     """Whether the live connection under *key* is visible from ``scope`` without changing its
     teardown owner."""
     if scope is None:
@@ -683,7 +716,7 @@ def _server_visible_in_scope(key, scope: Optional[str]) -> bool:
 # Cross-process discovery guard: advisory file lock so gateway + CLI + TUI don't all discover.
 # See issue #62771.
 _LOCK_UNAVAILABLE: Any = object()  # sentinel: locking broken/unavailable
-_MCP_DISCOVERY_LOCK_PATH: Optional[str] = None  # resolved lazily
+_MCP_DISCOVERY_LOCK_PATH: str | None = None  # resolved lazily
 # A discovery pass (bounded gathers, one 120 s budget per wave) may legitimately
 # run past the 120 s a scatter completes in. The waiter must outlast the worst
 # legitimate holder (pass ceiling + slack), or it fails over at 120 s, discovers

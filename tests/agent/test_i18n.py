@@ -4,11 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
 import hermes_yaml as yaml
-
+import pytest
 from agent import i18n
-
 
 LOCALES_DIR = Path(__file__).resolve().parents[2] / "locales"
 

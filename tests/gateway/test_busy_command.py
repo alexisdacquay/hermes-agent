@@ -1,8 +1,7 @@
 """Smoke tests for gateway /busy command dispatch."""
 
-import pytest
-
 import gateway.run as gateway_run
+import pytest
 from gateway.config import Platform
 from gateway.platforms.event import MessageEvent
 from gateway.session import SessionSource

@@ -21,9 +21,10 @@ import subprocess
 import sys
 import time
 import uuid
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Iterable
+from typing import Any
 
 import hermes_yaml as yaml
 

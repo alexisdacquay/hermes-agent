@@ -13,11 +13,10 @@ import subprocess
 import sys
 import time
 
-import psutil
-import pytest
-
 import hermes_state_common
 import hermes_state_pidns
+import psutil
+import pytest
 from agent.conversation_compression import _compression_lock_holder
 from hermes_state import SessionDB
 from hermes_state_pidns import LocalPidNamespace

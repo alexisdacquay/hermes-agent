@@ -1,10 +1,10 @@
 """Build/CI operations with caller-owned inputs, independent of live selection."""
 from __future__ import annotations
 
+import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-import sys
 from types import MappingProxyType
 
 from pm.install import InstalledPackage
@@ -119,6 +119,7 @@ def prepare_tools(names: Sequence[str], *, out: Path, target: str,
 
 def _copy_links(package, entry: Path) -> None:
     import os
+
     from pm.filesystem import is_junction
 
     for directory, dirs, files in os.walk(entry):
@@ -199,6 +200,7 @@ def stage_tools(names: Sequence[str], *, source_store: Path, out: Path, target: 
     the ordinary installer owns verification, independent copies and fresh facts.
     """
     from contextlib import ExitStack
+
     from pm.install import _entry_verified, _install, _lockfile
     from pm.lock import Facts
     from pm.package import StatePackage

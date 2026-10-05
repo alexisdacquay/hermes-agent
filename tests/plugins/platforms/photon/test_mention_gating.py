@@ -10,10 +10,7 @@ on what reaches ``handle_message``.
 """
 from __future__ import annotations
 
-from typing import List
-
 import pytest
-
 from gateway.config import PlatformConfig
 from gateway.platforms.event import MessageEvent
 from plugins.platforms.photon.adapter import PhotonAdapter
@@ -48,8 +45,8 @@ def _dm_payload(text: str) -> dict:
     }
 
 
-def _capture(adapter: PhotonAdapter, monkeypatch: pytest.MonkeyPatch) -> List[MessageEvent]:
-    captured: List[MessageEvent] = []
+def _capture(adapter: PhotonAdapter, monkeypatch: pytest.MonkeyPatch) -> list[MessageEvent]:
+    captured: list[MessageEvent] = []
 
     async def fake_handle(event: MessageEvent) -> None:
         captured.append(event)
@@ -124,7 +121,7 @@ async def test_unmentioned_group_attachment_is_not_cached(
 
     adapter = _make_adapter(monkeypatch, extra={"require_mention": True})
     captured = _capture(adapter, monkeypatch)
-    calls: List[str] = []
+    calls: list[str] = []
 
     def fake_cache(content, name, mime, *, force_audio=False):
         calls.append(name)

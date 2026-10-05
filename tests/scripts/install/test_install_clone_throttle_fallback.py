@@ -1,8 +1,8 @@
 """A throttled clone is retried without publishing a partial checkout."""
 import os
-from pathlib import Path
 import shlex
 import subprocess
+from pathlib import Path
 
 import pytest
 

@@ -8,7 +8,7 @@ import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from gateway.session import SessionSource
 
@@ -47,52 +47,52 @@ class MessageEvent:
     text: str
     message_type: MessageType = MessageType.TEXT
     # Author, mirrored from ``source`` for per-message prompt builders; None for non-IM sources.
-    user_id: Optional[str] = None
-    user_name: Optional[str] = None
+    user_id: str | None = None
+    user_name: str | None = None
     # None only in isolated unit tests; production always sets it. Typing it Optional
     # exposes ~60 unguarded ``.source.<attr>`` reads, so that is a separate change.
     source: SessionSource = None
     raw_message: Any = None
-    message_id: Optional[str] = None
+    message_id: str | None = None
     # Delivery-ledger identity for the final send, when it differs from ``message_id``. A queued
     # (/queue) chain answers the LAST message of the chain, so its final send has to be ledgered
     # under that message's id. Keyed on the opening event's id instead, two chained turns carrying
     # the same text collide on one obligation id and the earlier turn's row is overwritten (a
     # refused first reply then reads as delivered). Reply routing is unaffected: the reply anchor
     # still comes from this event.
-    ledger_message_id: Optional[str] = None
+    ledger_message_id: str | None = None
     # Reply anchor for the final send when the answer is to a DIFFERENT message than the one that
     # opened the turn: a successful busy redirect turns the running turn onto the redirecting
     # message, so its reply must quote that message (#115001). ``_reply_anchor_for_event``
     # honours this over ``message_id``; None = derive from the event as usual.
-    reply_anchor_override: Optional[str] = None
+    reply_anchor_override: str | None = None
     # Platform update id (Telegram ``update_id``): ``/restart`` records it so the new gateway
     # advances past it even if PTB's shutdown ACK times out.
-    platform_update_id: Optional[int] = None
+    platform_update_id: int | None = None
     # Media attachments: local file paths (for vision tool access)
-    media_urls: List[str] = field(default_factory=list)
-    media_types: List[str] = field(default_factory=list)
+    media_urls: list[str] = field(default_factory=list)
+    media_types: list[str] = field(default_factory=list)
     # Per-attachment text-inlining contract; None = legacy "text/* already inlined into ``text``".
-    media_text_inlined: List[Optional[bool]] = field(default_factory=list)
-    reply_to_message_id: Optional[str] = None
-    reply_to_text: Optional[str] = None  # Text of the replied-to message (for context injection)
-    reply_to_author_id: Optional[str] = None
-    reply_to_author_name: Optional[str] = None
+    media_text_inlined: list[bool | None] = field(default_factory=list)
+    reply_to_message_id: str | None = None
+    reply_to_text: str | None = None  # Text of the replied-to message (for context injection)
+    reply_to_author_id: str | None = None
+    reply_to_author_name: str | None = None
     reply_to_is_own_message: bool = False  # True when the user replied to this bot/assistant's message
     # Structured interactive-prompt reply (relay only): {prompt_id, option_id, label?,
     # prompt_message_id?}; routed to the approval/slash-confirm/clarify resolvers BEFORE dispatch.
-    prompt_response: Optional[Dict[str, Any]] = None
+    prompt_response: dict[str, Any] | None = None
     # Auto-loaded skill(s) for topic/channel bindings; a single name or ordered list.
-    auto_skill: Optional[str | list[str]] = None
+    auto_skill: str | list[str] | None = None
     # Per-channel ephemeral system prompt; applied at API call time, never persisted to transcript.
-    channel_prompt: Optional[str] = None
+    channel_prompt: str | None = None
     # History-backfilled channel context (missed under require_mention); kept out of ``text`` so
     # run.py's sender-prefix logic sees only the trigger message.
-    channel_context: Optional[str] = None
+    channel_context: str | None = None
     # Set for synthetic events (e.g. background-process notifications) that must bypass user authorization.
     internal: bool = False
     # Free-form per-event metadata (e.g. ``whatsapp_from_owner=True``); plugins must ``.get()``.
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
     timestamp: datetime = field(default_factory=datetime.now)
     # May this event resolve gateway commands / control prompts? Proactive plugin events set False
     # so untrusted payload text stays conversational. New fields append after it (positional compat).
@@ -100,14 +100,14 @@ class MessageEvent:
     # Was this message addressed to this bot? False lets a bare silence marker stand (the adapter
     # knows the message was meant for someone else); None means unknown and keeps the visible
     # fallback, like True.
-    reply_expected: Optional[bool] = None
+    reply_expected: bool | None = None
 
     # Process-local admission receipt, never routing metadata or execution acknowledgement.
     _gateway_accepted: bool = field(default=False, init=False, repr=False, compare=False)
     # Run-owned final presentation snapshot; never deserialized from ingress metadata.
-    _notification_reply_muted: Optional[bool] = field(default=None, init=False, repr=False, compare=False)
+    _notification_reply_muted: bool | None = field(default=None, init=False, repr=False, compare=False)
 
-    def absorb_reply_expected(self, other: "MessageEvent") -> None:
+    def absorb_reply_expected(self, other: MessageEvent) -> None:
         """One turn now answers *other* too: an addressed message wins, then an unknown one."""
         if self.reply_expected is not True and other.reply_expected is not False:
             self.reply_expected = other.reply_expected
@@ -126,7 +126,7 @@ class MessageEvent:
         """Check if this is a command message (e.g., /new, /reset)."""
         return self.allow_gateway_control and self._command_text().startswith("/")
 
-    def get_command(self) -> Optional[str]:
+    def get_command(self) -> str | None:
         """Extract command name if this is a command message."""
         if not self.is_command():
             return None

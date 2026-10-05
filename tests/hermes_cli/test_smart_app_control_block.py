@@ -10,7 +10,6 @@ from __future__ import annotations
 import builtins
 
 import pytest
-
 from hermes_cli import main
 from hermes_cli.main_dep_hints import smart_app_control_block_message
 

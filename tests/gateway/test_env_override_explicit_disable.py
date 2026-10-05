@@ -13,7 +13,6 @@ against a temp HERMES_HOME — real YAML I/O, no mocks of the code under test.
 import logging
 
 import pytest
-
 from gateway import config_env as gateway_config_env
 from gateway.config import Platform, load_gateway_config
 

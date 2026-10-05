@@ -14,13 +14,14 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from tools.skillevaluator_scan import (  # noqa: E402
+from tools.skillevaluator_scan import (
     Tier1Report,
     _parse_report,
     format_tier1_report,
     run_tier1_scan,
     tier1_advisory_enabled,
 )
+
 
 def _report_json(findings):
     return {

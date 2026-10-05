@@ -1,10 +1,9 @@
 """Duration schedules measure elapsed time, including across UTC offset changes."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import pytest
-
 from cron import jobs
 
 
@@ -27,7 +26,7 @@ def test_one_shot_delay_preserves_elapsed_duration(monkeypatch, start):
     schedule = jobs.parse_schedule("in 2h")
     run_at = datetime.fromisoformat(schedule["run_at"])
 
-    assert run_at.astimezone(timezone.utc) - start.astimezone(timezone.utc) == timedelta(hours=2)
+    assert run_at.astimezone(UTC) - start.astimezone(UTC) == timedelta(hours=2)
     assert run_at.utcoffset() == run_at.astimezone(start.tzinfo).utcoffset()
 
 
@@ -41,5 +40,5 @@ def test_interval_preserves_elapsed_duration(monkeypatch, start, resume):
         schedule, last_run_at=start.isoformat() if resume else None,
     ))
 
-    assert run_at.astimezone(timezone.utc) - start.astimezone(timezone.utc) == timedelta(hours=2)
+    assert run_at.astimezone(UTC) - start.astimezone(UTC) == timedelta(hours=2)
     assert run_at.utcoffset() == run_at.astimezone(start.tzinfo).utcoffset()

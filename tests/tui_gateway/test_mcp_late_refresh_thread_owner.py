@@ -22,11 +22,10 @@ consult BOTH thread owners.
 
 import threading
 
-import pytest
-
 import hermes_cli.mcp_startup as startup
+import pytest
 from hermes_constants import hermes_home_key
-import tui_gateway.entry as entry
+from tui_gateway import entry
 
 
 @pytest.fixture

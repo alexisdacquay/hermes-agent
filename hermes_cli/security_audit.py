@@ -13,9 +13,9 @@ import re
 import sys
 import urllib.error
 import urllib.request
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterable, Optional
 
 from hermes_constants import get_hermes_home
 
@@ -139,7 +139,7 @@ _UVX_PKG = re.compile(r"^([A-Za-z0-9][A-Za-z0-9._-]*)==([A-Za-z0-9._+!-]+)$")
 _MCP_LAUNCHERS = {"npx": (_NPX_PKG, "npm"), "uvx": (_UVX_PKG, "PyPI")}
 
 
-def _extract_mcp_component(server_name: str, command: str, args: list[str]) -> Optional[Component]:
+def _extract_mcp_component(server_name: str, command: str, args: list[str]) -> Component | None:
     """Parse `command/args` into a Component, or None when the entry doesn't pin an auditable
     version (local paths, Docker images, unversioned npx, ...) — stay silent rather than guess.
     """
@@ -174,7 +174,7 @@ def _discover_mcp() -> list[Component]:
 _HTTP_ERRORS = (urllib.error.URLError, TimeoutError, ConnectionError)
 
 
-def _http_json(url: str, payload: Optional[dict] = None) -> dict:
+def _http_json(url: str, payload: dict | None = None) -> dict:
     """GET ``url`` (or POST ``payload`` as JSON when given) and decode the JSON body."""
     req = urllib.request.Request(url, method="GET") if payload is None else urllib.request.Request(
         url, data=json.dumps(payload).encode("utf-8"), method="POST", headers={"Content-Type": "application/json"})
@@ -233,7 +233,7 @@ def _osv_fetch_details(vuln_ids: Iterable[str]) -> dict[str, Vulnerability]:
 
 
 def _discover_components(
-    *, skip_venv: bool = False, skip_plugins: bool = False, skip_mcp: bool = False, hermes_home: Optional[Path] = None
+    *, skip_venv: bool = False, skip_plugins: bool = False, skip_mcp: bool = False, hermes_home: Path | None = None
 ) -> list[Component]:
     """Discover all scannable components across the enabled sources."""
     home = hermes_home or Path(get_hermes_home())
@@ -241,7 +241,7 @@ def _discover_components(
     return [c for skip, discover in sources if not skip for c in discover()]
 
 
-def run_audit(*, components: Optional[list[Component]] = None, **discover_kwargs) -> list[Finding]:
+def run_audit(*, components: list[Component] | None = None, **discover_kwargs) -> list[Finding]:
     """Query OSV for ``components`` (or discover them with ``discover_kwargs`` when None; passing
     an already-discovered list avoids scanning the venv/plugins/MCP config a second time).
     """

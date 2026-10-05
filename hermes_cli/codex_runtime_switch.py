@@ -5,7 +5,6 @@ from __future__ import annotations
 import functools
 import logging
 from dataclasses import dataclass
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -32,13 +31,13 @@ class CodexRuntimeStatus:
     """Result of a /codex-runtime invocation; callers render it per surface (Rich panel / text)."""
 
     success: bool
-    new_value: Optional[str] = None
-    old_value: Optional[str] = None
+    new_value: str | None = None
+    old_value: str | None = None
     message: str = ""
     requires_new_session: bool = False
 
 
-def parse_args(arg_string: str) -> tuple[Optional[str], list[str]]:
+def parse_args(arg_string: str) -> tuple[str | None, list[str]]:
     """Parse the slash-command argument string into ``(value, errors)``.
 
     No args → ``(None, [])`` (show current state); a runtime name or synonym → that runtime.
@@ -85,7 +84,7 @@ def set_runtime(config: dict, new_value: str) -> str:
     return old
 
 
-def check_codex_binary_ok(codex_bin: str = "codex") -> tuple[bool, Optional[str]]:
+def check_codex_binary_ok(codex_bin: str = "codex") -> tuple[bool, str | None]:
     """Best-effort codex CLI install/version check → ``(ok, version_or_message)``."""
     try:
         from agent.transports.codex_app_server import check_codex_binary
@@ -99,7 +98,10 @@ def _migration_lines(config: dict) -> list[str]:
     """Run the ~/.codex/config.toml migration and describe it; failures are non-fatal."""
     lines: list[str] = []
     try:
-        from hermes_cli.codex_runtime_plugin_migration import HERMES_TOOLS_MCP_SERVER_NAME, migrate
+        from hermes_cli.codex_runtime_plugin_migration import (
+            HERMES_TOOLS_MCP_SERVER_NAME,
+            migrate,
+        )
         mig_report = migrate(config)
         # The hermes-tools callback is internal plumbing — surfaced separately below.
         user_servers = [s for s in mig_report.migrated if s != HERMES_TOOLS_MCP_SERVER_NAME]
@@ -126,7 +128,7 @@ def _migration_lines(config: dict) -> list[str]:
 
 
 def apply(
-    config: dict, new_value: Optional[str], *, persist_callback=None) -> CodexRuntimeStatus:
+    config: dict, new_value: str | None, *, persist_callback=None) -> CodexRuntimeStatus:
     """Entry point for CLI and gateway. ``config`` is mutated in place when ``new_value`` is set
     (None = show current state); ``persist_callback(config)`` writes it, skipped when None."""
     current = get_current_runtime(config)

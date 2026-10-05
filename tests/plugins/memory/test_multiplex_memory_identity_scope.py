@@ -8,7 +8,6 @@ OPENVIKING_* / HERMES_HONCHO_HOST, the provider must fall back to its own defaul
 from __future__ import annotations
 
 import pytest
-
 from agent import secret_scope
 
 _DEFAULT_ENV = {
@@ -44,9 +43,7 @@ def secondary_profile(monkeypatch, tmp_path):
 
 
 def test_secondary_profile_memory_identity_never_inherits_default_environ(secondary_profile):
-    import plugins.memory.mem0 as mem0
-    import plugins.memory.openviking as openviking
-    import plugins.memory.retaindb as retaindb
+    from plugins.memory import mem0, openviking, retaindb
 
     cfg = mem0._load_config()
     assert "user_id" not in cfg  # falls back to the gateway-native id, not the default's user
@@ -67,7 +64,6 @@ def test_secondary_profile_memory_identity_never_inherits_default_environ(second
 def test_mem0_oss_llm_never_borrows_default_profile_openai_key(secondary_profile):
     pytest.importorskip("mem0")
     from mem0.configs.llms.openai import OpenAIConfig
-
     from plugins.memory.mem0._openai_llm import DirectOpenAILLM
 
     with pytest.raises(ValueError, match="OpenAI API key is required"):

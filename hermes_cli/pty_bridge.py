@@ -19,7 +19,7 @@ import struct
 import sys
 import termios  # windows-footgun: ok — POSIX-only module by design (see docstring)
 import time
-from typing import Optional, Sequence
+from collections.abc import Sequence
 
 try:
     import ptyprocess  # type: ignore
@@ -97,14 +97,14 @@ class PtyBridge:
     WebSocket task, never the dashboard event loop.
     """
 
-    def __init__(self, proc: "ptyprocess.PtyProcess"):  # type: ignore[name-defined]
+    def __init__(self, proc: ptyprocess.PtyProcess):  # type: ignore[name-defined]
         self._proc = proc
         self._fd: int = proc.fd
         self._closed = False
         # Recorded at spawn: once the leader is reaped getpgid() can no longer find its group,
         # but the helpers it started still belong to it.
         try:
-            self._pgid: Optional[int] = os.getpgid(proc.pid)  # windows-footgun: ok — POSIX-only module (imports fcntl/termios/ptyprocess at top)
+            self._pgid: int | None = os.getpgid(proc.pid)  # windows-footgun: ok — POSIX-only module (imports fcntl/termios/ptyprocess at top)
         except OSError:
             self._pgid = None
         os.set_blocking(self._fd, False)
@@ -116,8 +116,8 @@ class PtyBridge:
 
     @classmethod
     def spawn(
-        cls, argv: Sequence[str], *, cwd: Optional[str] = None, env: Optional[dict] = None, cols: int = 80, rows: int = 24
-    ) -> "PtyBridge":
+        cls, argv: Sequence[str], *, cwd: str | None = None, env: dict | None = None, cols: int = 80, rows: int = 24
+    ) -> PtyBridge:
         """Spawn ``argv`` behind a new PTY and return a bridge."""
         if not _PTY_AVAILABLE:
             if sys.platform.startswith("win"):
@@ -150,7 +150,7 @@ class PtyBridge:
         except Exception:
             return False
 
-    def read(self, timeout: float = 0.2) -> Optional[bytes]:
+    def read(self, timeout: float = 0.2) -> bytes | None:
         """Read up to 64 KiB from the PTY master, blocking at most ``timeout`` seconds.
 
         ``b""`` = nothing yet; ``None`` = EOF / closed (also after :meth:`close`).
@@ -191,7 +191,7 @@ class PtyBridge:
             loop.add_writer(self._fd, _mark_ready)
             await asyncio.wait_for(ready, timeout=timeout)
             return not self._closed
-        except (asyncio.TimeoutError, OSError, ValueError):
+        except (TimeoutError, OSError, ValueError):
             return False
         finally:
             try:
@@ -325,7 +325,7 @@ class PtyBridge:
         except Exception:
             pass
 
-    def __enter__(self) -> "PtyBridge":
+    def __enter__(self) -> PtyBridge:
         return self
 
     def __exit__(self, *_exc) -> None:

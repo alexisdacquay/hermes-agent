@@ -30,10 +30,8 @@ import pytest
 from fastapi import FastAPI
 from fastapi.responses import Response
 from fastapi.testclient import TestClient
-
 from hermes_cli import web_server
 from hermes_cli.dashboard_auth import clear_providers, register_provider
-from hermes_cli.dashboard_auth.base import ProviderError, RefreshExpiredError
 from hermes_cli.dashboard_auth.cookies import (
     SESSION_AT_COOKIE,
     SESSION_PROVIDER_COOKIE,
@@ -41,8 +39,8 @@ from hermes_cli.dashboard_auth.cookies import (
     clear_session_cookies,
     set_session_cookies,
 )
-from tests.hermes_cli.conftest_dashboard_auth import StubAuthProvider
 
+from tests.hermes_cli.conftest_dashboard_auth import StubAuthProvider
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -197,6 +195,7 @@ class TestTransparentRefreshOnAccessTokenEviction:
         signature + exp), then send ONLY that RT cookie.
         """
         import time as _t
+
         from tests.hermes_cli.conftest_dashboard_auth import _sign
 
         clear_providers()
@@ -255,6 +254,7 @@ class TestTransparentRefreshOnAccessTokenEviction:
         gated_app.cookies.clear()
         # A syntactically-real but expired RT (signed with exp<=now).
         import time as _t
+
         from tests.hermes_cli.conftest_dashboard_auth import _sign
         dead_rt = _sign({"sub": "u", "kind": "refresh", "exp": int(_t.time()) - 1})
         gated_app.cookies.set(SESSION_RT_COOKIE, dead_rt)

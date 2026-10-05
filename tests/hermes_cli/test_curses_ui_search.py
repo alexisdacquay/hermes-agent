@@ -1,9 +1,7 @@
 from hermes_cli.curses_ui import (
-    _SearchState,
-    _filter_indices,
     _handle_active_search_key,
-    _move_filtered_cursor,
     _reconcile_cursor,
+    _SearchState,
 )
 
 

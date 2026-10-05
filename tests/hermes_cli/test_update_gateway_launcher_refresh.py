@@ -24,8 +24,7 @@ from pathlib import Path
 from unittest import mock
 
 import pytest
-
-import hermes_cli.gateway_windows as gateway_windows
+from hermes_cli import gateway_windows
 
 # ---------------------------------------------------------------------------
 # _resolve_detached_python: legacy pythonw normalization

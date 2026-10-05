@@ -6,7 +6,8 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Any
 
 from gateway.platforms.base import BasePlatformAdapter as _BasePlatformAdapter
 from gateway.stream_consumer_fences import ensure_closed_code_fences
@@ -17,8 +18,8 @@ logger = logging.getLogger("gateway.stream_consumer")
 class StreamFallbackMixin:
     """Non-streaming delivery paths used once progressive edits fail or the turn ends oddly."""
 
-    async def _send_new_chunk(self, text: str, reply_to_id: Optional[str], *,
-                              final: bool = False) -> Optional[str]:
+    async def _send_new_chunk(self, text: str, reply_to_id: str | None, *,
+                              final: bool = False) -> str | None:
         """Send a new chunk threaded to ``reply_to_id``; returns the new message_id."""
         text = self._clean_for_display(text)
         if not text.strip():
@@ -71,14 +72,14 @@ class StreamFallbackMixin:
         return final_text
 
     @staticmethod
-    def _split_text_chunks(text: str, limit: int, len_fn: "Callable[[str], int]" = len,
+    def _split_text_chunks(text: str, limit: int, len_fn: Callable[[str], int] = len,
                            ) -> list[str]:
         """Split text for fallback sends: newline-preferred, fence-balanced across chunks."""
         from gateway.platforms.helpers import split_text_fence_aware
         return split_text_fence_aware(text, limit, len_fn, prefer_paragraphs=False,
                                       balance_fences=True)
 
-    def _truncate_for_stream(self, text: str, limit: int, len_fn: "Callable[[str], int]",
+    def _truncate_for_stream(self, text: str, limit: int, len_fn: Callable[[str], int],
                              ) -> list[str]:
         """Split via the adapter's canonical truncate_message (platform-specific rules);
         non-base test doubles / legacy adapters keep the two-argument call shape."""
@@ -120,7 +121,7 @@ class StreamFallbackMixin:
         chunks = self._split_text_chunks(continuation, max(500, raw_limit - 100), len_fn=_len_fn)
 
         stale_message_id = self._message_id  # partial message to clean up
-        last_message_id: Optional[str] = None
+        last_message_id: str | None = None
         last_successful_chunk = ""
         sent_any_chunk = False
         # Thread only a FULL resend (it replaces the preview); a tail continuation
@@ -161,7 +162,7 @@ class StreamFallbackMixin:
         self._fallback_prefix = ""
         self._fallback_preserve_partial_messages = False
 
-    async def _fallback_when_nothing_unseen(self, final_text: str) -> Optional[str]:
+    async def _fallback_when_nothing_unseen(self, final_text: str) -> str | None:
         """Fallback entered but the visible prefix already covers ``final_text``: returns the
         continuation to send (the whole final when the prefix is from a *previous* segment)
         or None when the turn is settled here."""
@@ -208,10 +209,10 @@ class StreamFallbackMixin:
         self._mark_final_delivered(record=final_text)
         return None
 
-    def _fallback_len_budget(self) -> "tuple[Callable[[str], int], int]":
+    def _fallback_len_budget(self) -> tuple[Callable[[str], int], int]:
         """(len_fn, raw_limit) for fallback chunking — per-chat cap/unit on base adapters."""
         raw_limit = getattr(self.adapter, "MAX_MESSAGE_LENGTH", 4096)
-        _len_fn: "Callable[[str], int]" = len
+        _len_fn: Callable[[str], int] = len
         if isinstance(self.adapter, _BasePlatformAdapter):
             _len_fn = self.adapter.message_len_fn
             try:  # per-chat cap/unit (relay adapter fronting N platforms)

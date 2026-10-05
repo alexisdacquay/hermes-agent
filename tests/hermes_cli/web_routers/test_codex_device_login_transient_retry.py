@@ -10,9 +10,7 @@ import ssl
 from types import SimpleNamespace
 
 import pytest
-
 from hermes_cli.web_routers import oauth as rt_oauth
-
 
 _SSL_EOF_MESSAGE = (
     "[SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1016)")

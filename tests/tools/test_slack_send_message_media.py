@@ -18,7 +18,6 @@ from types import ModuleType, SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from plugins.platforms.slack.adapter import _standalone_send
 
 
@@ -141,8 +140,8 @@ def test_send_to_platform_routes_slack_media():
         pytest.skip("httpx type annotations incompatible with telegram library")
 
     from gateway.config import Platform
-    from hermes_cli.plugins import discover_plugins
     from gateway.platform_registry import platform_registry
+    from hermes_cli.plugins import discover_plugins
     from tools.send_message_tool import _send_to_platform
 
     pdf = _tmpfile(".pdf")

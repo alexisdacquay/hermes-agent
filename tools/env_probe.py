@@ -11,7 +11,6 @@ import shutil
 import subprocess
 import tempfile
 import threading
-from typing import Optional
 
 from hermes_cli._subprocess_compat import windows_hide_flags
 
@@ -24,9 +23,9 @@ logger = logging.getLogger(__name__)
 # Module-level cache. The probe result is deterministic for the lifetime of the process — Python install
 # state doesn't change mid-session in any way that would matter for the system prompt. See #67964.
 _CACHE_LOCK = threading.Lock()
-_CACHED_LINE: Optional[str] = None  # None = not probed yet; "" = probed, nothing to say.
+_CACHED_LINE: str | None = None  # None = not probed yet; "" = probed, nothing to say.
 _PROBE_DONE = threading.Event()
-_PROBE_THREAD: Optional[threading.Thread] = None
+_PROBE_THREAD: threading.Thread | None = None
 _PROBE_GEN = 0  # bumped on reset so a stale worker can't publish into the fresh generation
 _PROBE_WAIT_TIMEOUT = 10.0  # healthy runtime ~0.5s
 _WAIT_ALREADY_TIMED_OUT = False  # after one full wait, later callers only peek
@@ -78,7 +77,7 @@ def _run(cmd: list[str], timeout: float = 3.0) -> tuple[int, str, str]:
         return -1, "", f"oserror: {exc}"
 
 
-def _py_out(binary: str, *args: str) -> Optional[str]:
+def _py_out(binary: str, *args: str) -> str | None:
     """stdout of ``<binary> *args`` when the binary is on PATH and exits 0, else None."""
     if not shutil.which(binary):
         return None
@@ -86,7 +85,7 @@ def _py_out(binary: str, *args: str) -> Optional[str]:
     return out if rc == 0 else None
 
 
-def _python_version_of(binary: str) -> Optional[str]:
+def _python_version_of(binary: str) -> str | None:
     """Return a short version string like ``3.12.4`` for ``binary``, or None."""
     code = "import sys; print('.'.join(map(str, sys.version_info[:3])))"
     return _py_out(binary, "-c", code) or None
@@ -105,7 +104,7 @@ def _detect_pep668(binary: str) -> bool:
     return (_py_out(binary, "-c", code) or "").strip() == "yes"
 
 
-def _pip_python_version() -> Optional[str]:
+def _pip_python_version() -> str | None:
     """If ``pip`` is on PATH, the Python version it's bound to — the trailing
     ``(python X.Y)`` of ``pip --version`` (e.g. ``"3.12"``), else None."""
     out = _py_out("pip", "--version") or ""

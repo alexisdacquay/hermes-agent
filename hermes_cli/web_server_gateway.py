@@ -2,8 +2,8 @@
 subprocess spawning, gateway restart plumbing, system platform display.
 """
 
-import logging
 import json
+import logging
 import os
 import re
 import subprocess
@@ -12,7 +12,8 @@ import threading
 import time
 import urllib.request
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
+
 from hermes_cli._subprocess_compat import windows_detach_flags
 from hermes_cli.config import get_hermes_home
 
@@ -45,7 +46,7 @@ def _probe_gateway_health() -> tuple[bool, dict | None]:
 # ``platform-name -> (config port key, adapter default)`` for port-binding gateway platforms.
 # Mirrors PORT_BINDING_PLATFORM_VALUES (gateway/config.py) and each adapter's DEFAULT_PORT /
 # DEFAULT_WEBHOOK_PORT. Display-only data for the topology readout, not a bind source.
-_PORT_BINDING_PLATFORM_PORTS: Dict[str, Tuple[str, int]] = {
+_PORT_BINDING_PLATFORM_PORTS: dict[str, tuple[str, int]] = {
     "webhook": ("port", 8644), "api_server": ("port", 8642), "msgraph_webhook": ("port", 8646),
     "feishu": ("webhook_port", 8765), "wecom_callback": ("port", 8645), "bluebubbles": ("webhook_port", 8645),
     "sms": ("webhook_port", 8080), "whatsapp_cloud": ("webhook_port", 8090), "line": ("port", 8646),
@@ -56,7 +57,7 @@ _PORT_BINDING_PLATFORM_PORTS: Dict[str, Tuple[str, int]] = {
 _PLATFORM_DEAD_STATES = frozenset({"fatal", "disconnected", "stopped"})
 
 
-def _profile_platform_ports(profile_home: Path, runtime: Optional[dict]) -> Dict[str, int]:
+def _profile_platform_ports(profile_home: Path, runtime: dict | None) -> dict[str, int]:
     """Best-effort ``platform -> host TCP port`` for one profile's live gateway.
 
     Ports come from the profile's own config.yaml (``gateway.platforms`` then top-level
@@ -72,7 +73,7 @@ def _profile_platform_ports(profile_home: Path, runtime: Optional[dict]) -> Dict
     if not active:
         return {}
 
-    blocks: Dict[str, dict] = {}
+    blocks: dict[str, dict] = {}
     try:
         # load_config() targets the ACTIVE profile's home; read the probed profile's file raw.
         from hermes_cli.config import read_user_config_raw
@@ -87,7 +88,7 @@ def _profile_platform_ports(profile_home: Path, runtime: Optional[dict]) -> Dict
     except Exception:
         blocks = {}
 
-    ports: Dict[str, int] = {}
+    ports: dict[str, int] = {}
     for name in active:
         port_key, default_port = _PORT_BINDING_PLATFORM_PORTS[name]
         block = blocks.get(name) or {}
@@ -100,14 +101,17 @@ def _profile_platform_ports(profile_home: Path, runtime: Optional[dict]) -> Dict
     return ports
 
 
-def _profile_gateway_writer_identity(profile_home: Path, runtime: Optional[dict]) -> Optional[tuple]:
+def _profile_gateway_writer_identity(profile_home: Path, runtime: dict | None) -> tuple | None:
     """``(pid, start_time)`` of the profile's LIVE gateway, or None.
 
     Uses the same validated-liveness helper and the same ``_get_process_start_time`` that stamped
     the record, so equality is exact (no unit/clock-source mismatch).
     """
     try:
-        from gateway.status import _get_process_start_time, get_runtime_status_running_pid
+        from gateway.status import (
+            _get_process_start_time,
+            get_runtime_status_running_pid,
+        )
         pid = get_runtime_status_running_pid(runtime, expected_home=profile_home)
         if pid is None:
             return None
@@ -117,7 +121,7 @@ def _profile_gateway_writer_identity(profile_home: Path, runtime: Optional[dict]
         return None
 
 
-def _owned_profile_platforms(writer_identity: Optional[tuple], platforms: dict) -> dict:
+def _owned_profile_platforms(writer_identity: tuple | None, platforms: dict) -> dict:
     """Keep only platform entries stamped by the profile's CURRENT gateway process.
 
     Gateway startup preserves plain platform entries in gateway_state.json across restarts, so the
@@ -136,7 +140,7 @@ def _owned_profile_platforms(writer_identity: Optional[tuple], platforms: dict) 
         and value.get("writer_start_time") == live_start}
 
 
-def _collect_profile_gateway_topology() -> Dict[str, Any]:
+def _collect_profile_gateway_topology() -> dict[str, Any]:
     """Enumerate profiles and the gateways serving them for ``/api/status``.
 
     Returns ``profiles`` (all profile names via the cheap ``profiles_to_serve(True)`` chokepoint),
@@ -146,17 +150,22 @@ def _collect_profile_gateway_topology() -> Dict[str, Any]:
     platform maps per live gateway, an internal aggregation input never exposed directly.
     """
     try:
-        from hermes_cli.profiles import _check_gateway_running, profiles_to_serve, profile_is_parked
         from gateway.status import read_runtime_status
+
+        from hermes_cli.profiles import (
+            _check_gateway_running,
+            profile_is_parked,
+            profiles_to_serve,
+        )
         homes = profiles_to_serve(True, include_standalone=True, include_parked=True)
     except Exception:
         _log.debug("profile/gateway topology enumeration failed", exc_info=True)
         return {"profiles": [], "gateway_mode": "unknown", "gateways": [], "profile_platforms": {}}
 
-    gateways: List[Dict[str, Any]] = []
-    profile_platforms: Dict[str, dict] = {}
+    gateways: list[dict[str, Any]] = []
+    profile_platforms: dict[str, dict] = {}
     multiplex = False
-    standalone_reason: Optional[str] = None
+    standalone_reason: str | None = None
     for name, home in homes:
         try:
             # A served profile's liveness is the multiplexer's: listing it here showed one phantom
@@ -182,7 +191,7 @@ def _collect_profile_gateway_topology() -> Dict[str, Any]:
                 profile_platforms[name] = owned
         # Ports from the OWNED entries too: a platform entry a previous process left "connected"
         # reported a port the live gateway does not bind.
-        entry: Dict[str, Any] = {"profile": name, "ports": _profile_platform_ports(home, {"platforms": owned})}
+        entry: dict[str, Any] = {"profile": name, "ports": _profile_platform_ports(home, {"platforms": owned})}
         if served:
             entry["served_profiles"] = served
         gateways.append(entry)
@@ -211,18 +220,18 @@ def _collect_profile_gateway_topology() -> Dict[str, Any]:
 # gets gateway.ready. A short TTL cache with a collapse lock keeps the scan to one per window.
 # The cache remembers which collector produced the entry: tests monkeypatch
 # _collect_profile_gateway_topology per case, and a swapped collector is a miss (no reset hook).
-_TOPOLOGY_CACHE: Dict[str, Any] = {"ts": 0.0, "data": None, "fn": None}
+_TOPOLOGY_CACHE: dict[str, Any] = {"ts": 0.0, "data": None, "fn": None}
 _TOPOLOGY_CACHE_LOCK = threading.Lock()
 _TOPOLOGY_CACHE_TTL = 10.0
 
 
-def _topology_cache_get(fn: Any) -> Optional[Dict[str, Any]]:
+def _topology_cache_get(fn: Any) -> dict[str, Any] | None:
     c = _TOPOLOGY_CACHE
     fresh = c["fn"] is fn and time.monotonic() - c["ts"] < _TOPOLOGY_CACHE_TTL
     return c["data"] if fresh and c["data"] is not None else None
 
 
-def _collect_profile_gateway_topology_cached() -> Dict[str, Any]:
+def _collect_profile_gateway_topology_cached() -> dict[str, Any]:
     fn = _collect_profile_gateway_topology
     cached = _topology_cache_get(fn)
     if cached is not None:
@@ -247,7 +256,7 @@ def _load_configured_gateway_platforms() -> set[str]:
 _WINDOWS_11_MIN_BUILD = 22000
 
 
-def _windows_build_number(version: str, platform_label: str) -> Optional[int]:
+def _windows_build_number(version: str, platform_label: str) -> int | None:
     """Extract the Windows NT build number from stdlib platform strings."""
     for value in (version or "", platform_label or ""):
         match = re.search(r"(?:^|[^\d])10\.0\.(\d{5,})(?:[^\d]|$)", value)
@@ -256,7 +265,7 @@ def _windows_build_number(version: str, platform_label: str) -> Optional[int]:
     return None
 
 
-def _display_system_platform(*, system: str, release: str, version: str, platform_label: str) -> Dict[str, str]:
+def _display_system_platform(*, system: str, release: str, version: str, platform_label: str) -> dict[str, str]:
     """Host OS fields for display; Windows 10 builds >= 22000 are relabelled Windows 11."""
     if system == "Windows" and release == "10":
         build = _windows_build_number(version, platform_label)
@@ -273,7 +282,7 @@ def _display_system_platform(*, system: str, release: str, version: str, platfor
 _ACTION_LOG_DIR: Path = get_hermes_home() / "logs"
 
 # Short ``name`` (from the URL) → log file name under _ACTION_LOG_DIR.
-_ACTION_LOG_FILES: Dict[str, str] = {
+_ACTION_LOG_FILES: dict[str, str] = {
     "gateway-restart": "gateway-restart.log",
     "gateway-start": "gateway-start.log",
     "gateway-stop": "gateway-stop.log",
@@ -287,11 +296,11 @@ _ACTION_LOG_FILES: Dict[str, str] = {
 }
 
 # ``name`` → most recent Popen handle / argv / action id, so ``status`` needs no ``ps``.
-_ACTION_PROCS: Dict[str, subprocess.Popen] = {}
-_ACTION_COMMANDS: Dict[str, Tuple[str, ...]] = {}
-_ACTION_IDS: Dict[str, str] = {}
+_ACTION_PROCS: dict[str, subprocess.Popen] = {}
+_ACTION_COMMANDS: dict[str, tuple[str, ...]] = {}
+_ACTION_IDS: dict[str, str] = {}
 # ``name`` → synthetic result for actions handled without a subprocess (e.g. unsupported Docker updates).
-_ACTION_RESULTS: Dict[str, Dict[str, Any]] = {}
+_ACTION_RESULTS: dict[str, dict[str, Any]] = {}
 
 
 def _terminate_desktop_managed_gateway() -> None:
@@ -306,7 +315,7 @@ def _terminate_desktop_managed_gateway() -> None:
         pass  # exited between poll() and terminate()
 
 
-def _named_profile_from_action(subcommand: List[str]) -> Optional[str]:
+def _named_profile_from_action(subcommand: list[str]) -> str | None:
     """Return the named-profile selector that :func:`_profile_cli_args` puts in front of an action.
 
     Deliberately inspects only the leading selector: values after the real subcommand may
@@ -319,7 +328,7 @@ def _named_profile_from_action(subcommand: List[str]) -> Optional[str]:
     return None
 
 
-def _is_host_gateway_spawn(subcommand: List[str]) -> bool:
+def _is_host_gateway_spawn(subcommand: list[str]) -> bool:
     """True when *subcommand* starts the host multiplexer, not a named profile's own gateway.
 
     ``hermes gateway restart`` and ``hermes -p default gateway restart`` are the host.
@@ -338,8 +347,8 @@ def _is_host_gateway_spawn(subcommand: List[str]) -> bool:
 
 
 def _profile_action_environment(
-    subcommand: List[str], env_overrides: Optional[Dict[str, str]] = None,
-) -> Dict[str, str]:
+    subcommand: list[str], env_overrides: dict[str, str] | None = None,
+) -> dict[str, str]:
     """Environment for a detached ``hermes <subcommand>`` action.
 
     The dashboard loads its own profile's ``.env`` into process-global ``os.environ``. Copying
@@ -363,12 +372,18 @@ def _profile_action_environment(
     elif profile is None:
         action_env = dict(os.environ)
     else:
+        from hermes_constants import apply_subprocess_home_env, get_default_hermes_root
+        from tools.environments.local import (
+            build_subprocess_env,
+            strip_launch_profile_env,
+        )
+
         from hermes_cli.env_loader import (
-            _PROFILE_MANAGED_ENV_KEYS, _env_keys_defined_in_dotenv, get_secret_source_values,
+            _PROFILE_MANAGED_ENV_KEYS,
+            _env_keys_defined_in_dotenv,
+            get_secret_source_values,
         )
         from hermes_cli.web_server_profiles import _resolve_profile_dir
-        from hermes_constants import apply_subprocess_home_env, get_default_hermes_root
-        from tools.environments.local import build_subprocess_env, strip_launch_profile_env
 
         target_home = _resolve_profile_dir(profile)
         action_env = build_subprocess_env(base=os.environ, scrub_secrets=True)
@@ -414,7 +429,7 @@ def _profile_action_environment(
 _ROOT_REQUIRING_GATEWAY_VERBS = frozenset({"restart", "start", "stop"})
 
 
-def _action_targets_system_gateway(subcommand: List[str]) -> bool:
+def _action_targets_system_gateway(subcommand: list[str]) -> bool:
     """True when *subcommand* is a gateway lifecycle verb that resolves to the SYSTEM unit.
 
     Scope is decided by the CLI's own picker (``_select_systemd_scope``) evaluated for the profile
@@ -433,8 +448,9 @@ def _action_targets_system_gateway(subcommand: List[str]) -> bool:
     if verb not in _ROOT_REQUIRING_GATEWAY_VERBS:
         return False
 
-    from hermes_cli.gateway import _select_systemd_scope
     from hermes_constants import reset_hermes_home_override, set_hermes_home_override
+
+    from hermes_cli.gateway import _select_systemd_scope
 
     profile = _named_profile_from_action(subcommand)
     if profile is None:
@@ -451,7 +467,7 @@ def _action_targets_system_gateway(subcommand: List[str]) -> bool:
 
 
 def _spawn_hermes_action(
-    subcommand: List[str], name: str, *, env_overrides: Optional[Dict[str, str]] = None
+    subcommand: list[str], name: str, *, env_overrides: dict[str, str] | None = None
 ) -> subprocess.Popen:
     """Spawn ``hermes <subcommand>`` detached (via ``hermes_cli.main``) and record the handle."""
     from hermes_cli.web_server import PROJECT_ROOT
@@ -502,7 +518,7 @@ def _spawn_hermes_action(
     return proc
 
 
-def _own_profile_selector(profile: Optional[str]) -> Optional[str]:
+def _own_profile_selector(profile: str | None) -> str | None:
     """The profile a lifecycle verb addresses: the explicit selector, else the process's own
     profile (a pooled Desktop ``hermes --profile X serve`` answers ``/api/gateway/*`` without
     ``?profile=``; an unscoped verb there is about X). The default home resolves to the literal
@@ -516,7 +532,7 @@ def _own_profile_selector(profile: Optional[str]) -> Optional[str]:
     return profile_name_for_home(get_process_hermes_home()) or None
 
 
-def _gateway_subcommand(profile: Optional[str], verb: str) -> List[str]:
+def _gateway_subcommand(profile: str | None, verb: str) -> list[str]:
     """``hermes [-p X] gateway <verb>`` argv for a dashboard lifecycle action. A profile served by the
     live default multiplexer has no gateway of its own: ``restart`` targets the multiplexer (the process
     that actually serves X — a ``-p X gateway restart`` child only exits 78 into the action log while the
@@ -544,7 +560,12 @@ def _has_own_gateway(profile_dir: Path) -> bool:
     serves it. Gateway liveness reports a served profile as running on the multiplexer's PID (#97120),
     so reading liveness alone made every served profile look self-hosted and the refusal below never
     fired while a multiplexer was live, which is the only time it is needed."""
-    from gateway.status import get_running_pid, multiplexer_liveness_for_profile, resolve_gateway_liveness
+    from gateway.status import (
+        get_running_pid,
+        multiplexer_liveness_for_profile,
+        resolve_gateway_liveness,
+    )
+
     from hermes_cli.profiles import _check_gateway_running
     if not _check_gateway_running(profile_dir):
         return False
@@ -557,7 +578,7 @@ def _has_own_gateway(profile_dir: Path) -> bool:
     return liveness.running and liveness.pid != served[0]
 
 
-def multiplexed_profile_refusal(profile: Optional[str], verb: str) -> Optional[str]:
+def multiplexed_profile_refusal(profile: str | None, verb: str) -> str | None:
     """Refusal text for ``gateway start``/``stop`` on a named profile with no gateway of its own (a
     ``--force``-started separate one is managed normally), else None. A profile the live host
     multiplexer serves is parked by ``stop`` and a parked one is unparked by ``start`` (the spawned
@@ -602,7 +623,7 @@ def multiplexed_profile_refusal(profile: Optional[str], verb: str) -> Optional[s
             f"`hermes -p {requested} gateway install --force` starts a separate one anyway.")
 
 
-def _restart_gateway_after(profile: Optional[str], *, what: str, label: str) -> dict[str, Any]:
+def _restart_gateway_after(profile: str | None, *, what: str, label: str) -> dict[str, Any]:
     """Best-effort gateway restart after a config change. The save stays authoritative: a failed
     spawn is reported (``restart_started: False`` + ``restart_error``) so the UI can fall back to
     its manual restart banner instead of failing the request."""
@@ -646,7 +667,7 @@ def _split_text_for_speak_stream(text: str, cap: int) -> list:
 _SESSION_LIST_HEAVY_FIELDS = ("system_prompt", "model_config")
 
 
-def _strip_session_list_rows(sessions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _strip_session_list_rows(sessions: list[dict[str, Any]]) -> list[dict[str, Any]]:
     for s in sessions:
         for key in _SESSION_LIST_HEAVY_FIELDS:
             s.pop(key, None)

@@ -1,6 +1,6 @@
 """Memory callers cross real PM admission before importing their optional SDK."""
-import importlib.machinery
 import importlib.abc
+import importlib.machinery
 import sys
 from types import ModuleType
 
@@ -11,8 +11,8 @@ import pytest
 def test_provider_sdk_admission(monkeypatch, tmp_path, state):
     extra = "mem0"
     import pm.client
-    from pm import paths
     from plugins.memory.mem0 import Mem0MemoryProvider
+    from pm import paths
 
     sdk = ModuleType(extra)
     sdk.__spec__ = importlib.machinery.ModuleSpec(extra, loader=None)

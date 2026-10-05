@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Optional
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
@@ -57,7 +56,7 @@ def _should_evict(held: dict, lease, viewer_id: str) -> bool:
     return bool(held["ever"])
 
 
-def _consume_display_ticket(ws: WebSocket) -> Optional[dict]:
+def _consume_display_ticket(ws: WebSocket) -> dict | None:
     from hermes_cli.dashboard_auth.ws_tickets import TicketInvalid, consume_ticket
     ticket = ws.query_params.get("display_ticket", "")
     if not ticket:
@@ -120,10 +119,11 @@ async def _open_rfb(profile_home: Path):
 async def _bridge(ws: WebSocket, info: dict) -> None:
     """Pump RFB bytes between the viewer socket (already accepted) and THIS profile's Xvnc, gated by
     the lease."""
+    from pathlib import Path
+
     from hermes_constants import hermes_home_key
     from tools.bot_desktop import lease as _lease
     from tools.bot_desktop.rfb_filter import RfbClientFilter
-    from pathlib import Path
 
     profile_home = str(info["hermes_home"])
     profile_key = hermes_home_key(profile_home)

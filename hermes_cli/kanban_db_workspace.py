@@ -7,6 +7,7 @@ late-bound via ``_kb`` (import-cycle breaking) so monkeypatching
 
 from __future__ import annotations
 
+import contextlib
 import os
 import shutil
 import sqlite3
@@ -14,9 +15,7 @@ import subprocess
 import time
 import unicodedata
 from pathlib import Path
-from typing import Optional
 from typing import TYPE_CHECKING
-import contextlib
 
 from hermes_cli.worktree_ops import release_lsp_clients
 
@@ -58,7 +57,10 @@ def _git(repo_root: Path, *args: str, timeout: int) -> subprocess.CompletedProce
     :func:`noninteractive_repo_git_env` (GHSA-7x36-8jrh-v4pw): the dispatcher runs ``worktree add``
     unattended, which executes the repo's hooks, ``core.fsmonitor`` and smudge filters.
     """
-    from hermes_cli._subprocess_compat import FILTER_DISCOVERY_FAILED, noninteractive_repo_git_env
+    from hermes_cli._subprocess_compat import (
+        FILTER_DISCOVERY_FAILED,
+        noninteractive_repo_git_env,
+    )
     env = noninteractive_repo_git_env(repo_root)
     if env is None:
         return subprocess.CompletedProcess(["git", "-C", str(repo_root), *args], 1, "", FILTER_DISCOVERY_FAILED)
@@ -156,7 +158,7 @@ def _other_board_uses_path(db_file: Path, task_id: str, key: str) -> bool:
 
 def _workspace_in_use_by_other(
     conn: sqlite3.Connection, task_id: str, path: Path | str
-) -> Optional[str]:
+) -> str | None:
     """Why *path* must be kept: ``"shared"``, ``"unknown"``, or None when free.
 
     ``gc``, completion and deferred parent cleanup used to ``rmtree`` a shared
@@ -248,7 +250,7 @@ def _lexical_path(path: Path | str) -> Path:
     return Path(_path_key(os.path.abspath(path)))
 
 
-def _managed_scratch_path_info(p: Path) -> tuple[bool, Optional[str]]:
+def _managed_scratch_path_info(p: Path) -> tuple[bool, str | None]:
     """Return whether *p* is managed scratch storage and the matching board.
 
     *p* must be strictly below a managed root both after resolving symlinks
@@ -269,10 +271,10 @@ def _managed_scratch_path_info(p: Path) -> tuple[bool, Optional[str]]:
         return False, None
     p_lex = _lexical_path(p)
     # (resolved root, lexical spellings of the root, board)
-    roots: list[tuple[Path, tuple[Path, ...], Optional[str]]] = []
+    roots: list[tuple[Path, tuple[Path, ...], str | None]] = []
 
     def _add_root(
-        anchor: Path, anchor_real: Path, parts: tuple[str, ...], board: Optional[str]
+        anchor: Path, anchor_real: Path, parts: tuple[str, ...], board: str | None
     ) -> None:
         root = anchor.joinpath(*parts)
         with contextlib.suppress(OSError):
@@ -323,7 +325,7 @@ def _managed_scratch_path_info(p: Path) -> tuple[bool, Optional[str]]:
     return False, None
 
 
-def _scratch_workspace(conn: sqlite3.Connection, task_id: str) -> Optional[Path]:
+def _scratch_workspace(conn: sqlite3.Connection, task_id: str) -> Path | None:
     """Expanded ``workspace_path`` when the task uses a scratch workspace, else ``None``."""
     row = conn.execute(
         "SELECT workspace_kind, workspace_path FROM tasks WHERE id = ?",
@@ -360,8 +362,8 @@ def _cleanup_workspace(conn: sqlite3.Connection, task_id: str) -> None:
         row = conn.execute(_WORKSPACE_ROW_SQL, (task_id,)).fetchone()
         if not row:
             return
-        kind: Optional[str] = row["workspace_kind"]
-        path: Optional[str] = row["workspace_path"]
+        kind: str | None = row["workspace_kind"]
+        path: str | None = row["workspace_path"]
         if kind not in _REMOVABLE_KINDS or not path:
             # Not removable itself, but completing may still unblock a deferred
             # parent scratch cleanup (e.g. a 'dir' child of a scratch parent).
@@ -415,7 +417,7 @@ def _cleanup_workspace(conn: sqlite3.Connection, task_id: str) -> None:
 
 
 def _cleanup_worktree_workspace(
-    task_id: str, path: str, branch_name: Optional[str] = None
+    task_id: str, path: str, branch_name: str | None = None
 ) -> None:
     """Remove a finished task's linked git worktree when it holds no work.
     Mirrors the CLI startup pruner (``cli._prune_stale_worktrees``): removal
@@ -424,7 +426,10 @@ def _cleanup_worktree_workspace(
     it. The auto-generated ``wt/<task-id>`` branch is deleted with it; custom
     branches are kept. Best-effort."""
     try:
-        from hermes_cli.worktree_ops import _worktree_has_unpushed_commits, _worktree_is_dirty
+        from hermes_cli.worktree_ops import (
+            _worktree_has_unpushed_commits,
+            _worktree_is_dirty,
+        )
     except Exception:
         return  # CLI safety predicates unavailable — preserve
     try:
@@ -586,7 +591,7 @@ def _mark_scratch_tip_shown() -> None:
 def _maybe_emit_scratch_tip(
     conn: sqlite3.Connection,
     task_id: str,
-    workspace_kind: Optional[str],
+    workspace_kind: str | None,
 ) -> None:
     """Emit the first-use scratch-workspace tip once per install, right after a
     scratch workspace is materialized. No-op for ``worktree``/``dir`` (preserved
@@ -611,7 +616,7 @@ def _maybe_emit_scratch_tip(
 # Workspace resolution
 # ---------------------------------------------------------------------------
 
-def _git_toplevel(path: Path) -> Optional[Path]:
+def _git_toplevel(path: Path) -> Path | None:
     """Return the git toplevel containing ``path``, or ``None`` if not in a repo."""
     out = _kb._git_out(path, "rev-parse", "--show-toplevel")
     if out is None:
@@ -630,16 +635,16 @@ def _git_branch_exists(repo_root: Path, branch_name: str) -> bool:
     return result.returncode == 0
 
 
-def _git_abs_path(path: Path, flag: str) -> Optional[Path]:
+def _git_abs_path(path: Path, flag: str) -> Path | None:
     out = _kb._git_out(path, "rev-parse", "--path-format=absolute", flag)
     return Path(out).expanduser().resolve(strict=False) if out else None
 
 
-def _git_common_dir(path: Path) -> Optional[Path]:
+def _git_common_dir(path: Path) -> Path | None:
     return _git_abs_path(path, "--git-common-dir")
 
 
-def _git_current_branch(path: Path) -> Optional[str]:
+def _git_current_branch(path: Path) -> str | None:
     return _kb._git_out(path, "branch", "--show-current")
 
 
@@ -664,7 +669,7 @@ def _nearest_existing_path(path: Path) -> Path:
     return current
 
 
-def _repo_root_for_worktree_target(path: Path) -> Optional[Path]:
+def _repo_root_for_worktree_target(path: Path) -> Path | None:
     current = _nearest_existing_path(path).resolve(strict=False)
     while True:
         repo_root = _git_toplevel(current)
@@ -701,7 +706,7 @@ def _anchored_worktree(repo_root: Path, task_id: str, branch_name: str) -> tuple
     return target, branch_name
 
 
-def _resolve_worktree_workspace(task: Task, *, board: Optional[str] = None) -> tuple[Path, str]:
+def _resolve_worktree_workspace(task: Task, *, board: str | None = None) -> tuple[Path, str]:
     """Resolve + materialize a linked git worktree for ``task``. With no
     ``task.workspace_path`` the anchor is the board's ``default_workdir`` so
     every worktree lands under a board-owned repo (``<repo>/.worktrees/<id>``)
@@ -773,7 +778,7 @@ def _resolve_worktree_workspace(task: Task, *, board: Optional[str] = None) -> t
     return requested, branch_name
 
 
-def resolve_workspace(task: Task, *, board: Optional[str] = None) -> Path:
+def resolve_workspace(task: Task, *, board: str | None = None) -> Path:
     """Resolve (and create if needed) the workspace for a task.
 
     ``scratch``: ``<board-root>/workspaces/<id>/`` — path-stable across the
@@ -829,4 +834,4 @@ def set_branch_name(conn: sqlite3.Connection, task_id: str, branch_name: str) ->
 
 # Late-bound origin namespace (see module docstring); imported LAST so this
 # module is fully populated before ``kanban_db`` imports from it.
-from hermes_cli import kanban_db as _kb  # noqa: E402
+from hermes_cli import kanban_db as _kb

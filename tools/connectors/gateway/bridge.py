@@ -1,11 +1,17 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field, replace as dataclass_replace
-from typing import Any, Callable, Optional, Sequence
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass, field
+from dataclasses import replace as dataclass_replace
+from typing import Any
 
 from tools.connectors.gateway.config import connectors_available
-from tools.connectors.gateway.errors import GatewayAuthError, GatewayUnavailable, ToolGatewayError
+from tools.connectors.gateway.errors import (
+    GatewayAuthError,
+    GatewayUnavailable,
+    ToolGatewayError,
+)
 from tools.connectors.gateway.merge import fill_remote_failure, splice_remote_results
 from tools.connectors.gateway.names import parse_connector_name, vendor_slug_candidates
 
@@ -28,13 +34,13 @@ __all__ = [
 class ConnectorLeg:
 
     payload: dict[str, Any] = field(default_factory=dict)
-    failure: Optional[str] = None
+    failure: str | None = None
 
 
 _TOKEN_REJECTED_CODES = frozenset({"UNAUTHORIZED", "INVALID_TOKEN", "TOKEN_EXPIRED"})
 
 
-def _leg_failure(exc: Exception) -> Optional[str]:
+def _leg_failure(exc: Exception) -> str | None:
     if isinstance(exc, GatewayAuthError):
         if exc.status == 401 or str(exc.code).upper() in _TOKEN_REJECTED_CODES:
             return SIGN_IN_EXPIRED
@@ -51,8 +57,8 @@ def _default_client_factory():
 def connector_search_hits(
     queries: Sequence[dict[str, Any]],
     *,
-    availability: Optional[Callable[[], bool]] = None,
-    client_factory: Optional[Callable[[], Any]] = None,
+    availability: Callable[[], bool] | None = None,
+    client_factory: Callable[[], Any] | None = None,
 ) -> ConnectorLeg:
     try:
         available = (availability or connectors_available)()
@@ -71,8 +77,8 @@ def connector_search_hits(
 def connector_describe(
     names: Sequence[str],
     *,
-    availability: Optional[Callable[[], bool]] = None,
-    client_factory: Optional[Callable[[], Any]] = None,
+    availability: Callable[[], bool] | None = None,
+    client_factory: Callable[[], Any] | None = None,
 ) -> ConnectorLeg:
     try:
         available = (availability or connectors_available)()
@@ -119,10 +125,10 @@ def connector_describe(
 
 def run_remote(
     planned,
-    dispatch_id: Optional[str],
+    dispatch_id: str | None,
     *,
-    availability: Optional[Callable[[], bool]],
-    client_factory: Optional[Callable[[], Any]],
+    availability: Callable[[], bool] | None,
+    client_factory: Callable[[], Any] | None,
 ) -> list[dict[str, Any]]:
     try:
         available = (availability or connectors_available)()

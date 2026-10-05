@@ -2,7 +2,9 @@
 resolved through the module object so test patches on ``hermes_cli.setup.<name>`` take effect."""
 
 import logging
+
 from tools import tool_backend_helpers
+
 from hermes_cli import nous_subscription
 
 logger = logging.getLogger("hermes_cli.setup")
@@ -69,6 +71,7 @@ def _first_available_plugin_provider(registry: str, skip: str = None):
     available (fail-soft: any error means none), skipping ``skip``."""
     try:
         import importlib
+
         from hermes_cli.plugins import _ensure_plugins_discovered
         _ensure_plugins_discovered()
         for provider in importlib.import_module(f"agent.{registry}").list_providers():
@@ -267,4 +270,4 @@ def _print_setup_summary(config: dict, hermes_home):
     print()
 
 
-import hermes_cli.setup as _setup  # noqa: E402  (bottom: hermes_cli.setup imports this module)
+import hermes_cli.setup as _setup

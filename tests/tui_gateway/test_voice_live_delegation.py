@@ -17,7 +17,6 @@ import threading
 import types
 
 import pytest
-
 from tools import voice_live
 from tui_gateway import server
 

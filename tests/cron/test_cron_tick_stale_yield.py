@@ -23,10 +23,8 @@ import threading
 import time
 from unittest.mock import patch
 
-import pytest
-
 import cron.scheduler as scheduler_mod
-
+import pytest
 
 BOOT_SHA = "a" * 40
 DISK_SHA = "b" * 40

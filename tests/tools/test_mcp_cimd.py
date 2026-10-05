@@ -28,11 +28,11 @@ pytest.importorskip(
     reason="MCP SDK 1.26.0+ required for OAuth support",
 )
 
-from tools.mcp_oauth import (  # noqa: E402 — after the SDK availability gate
-    HermesTokenStorage,
+from tools.mcp_oauth import (
     _CIMD_CLIENT_METADATA_URL,
     _CIMD_PORTS,
     _CIMD_REDIRECT_HOSTS,
+    HermesTokenStorage,
     _build_client_metadata,
     _configure_callback_port,
     _is_valid_cimd_url,

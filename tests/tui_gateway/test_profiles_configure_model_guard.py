@@ -20,10 +20,9 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 
-import pytest
-import hermes_yaml as yaml
-
 import hermes_cli.model_selection_guards as guards
+import hermes_yaml as yaml
+import pytest
 import tui_gateway.server as srv
 
 GUARDED_MODEL = "muse-spark-1.2-contributor"

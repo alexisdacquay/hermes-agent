@@ -11,9 +11,8 @@ from __future__ import annotations
 import json
 import threading
 
-import pytest
-
 import hermes_cli.update_receipt as ur
+import pytest
 
 
 @pytest.fixture

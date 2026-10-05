@@ -7,7 +7,6 @@ import subprocess
 import sys
 
 import pytest
-
 from tests.ci.desktop_release_roles import native_builds, universal_assembler
 from tests.ci.test_desktop_release_tag_admission import _BASH, _child_env, _workflow
 

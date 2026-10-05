@@ -10,7 +10,6 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
-
 from agent import shell_hooks
 from hermes_cli import hooks as hooks_cli
 

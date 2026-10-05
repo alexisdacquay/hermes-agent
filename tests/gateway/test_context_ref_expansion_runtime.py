@@ -18,11 +18,9 @@ the hygiene-compression block already uses) and must actually reach
 """
 import logging
 import threading
-from contextlib import contextmanager
-
-import pytest
 
 import gateway.run as gateway_run
+import pytest
 from agent.context_references import ContextReferenceResult
 from gateway.config import GatewayConfig, Platform, PlatformConfig
 from gateway.platforms.event import MessageEvent

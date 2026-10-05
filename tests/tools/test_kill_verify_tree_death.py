@@ -11,7 +11,6 @@ from contextlib import suppress
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from tools.process_registry import ProcessRegistry, ProcessSession
 
 

@@ -9,14 +9,12 @@ from a known-untrusted source.
 """
 
 import pytest
-
 from agent.tool_dispatch_helpers import (
     _extract_file_mutation_targets,
     _is_untrusted_tool,
     _maybe_wrap_untrusted,
     make_tool_result_message,
 )
-
 
 # =========================================================================
 # Tool classification
@@ -280,7 +278,10 @@ class TestElisionNoticeWiring:
     def test_notice_inside_untrusted_wrapper(self):
         """Order: detect on raw -> append notice -> wrap. The notice must sit
         INSIDE the untrusted block, and the message is built once (cache-safe)."""
-        from agent.tool_dispatch_helpers import _UPSTREAM_ELISION_NOTICE, make_tool_result_message
+        from agent.tool_dispatch_helpers import (
+            _UPSTREAM_ELISION_NOTICE,
+            make_tool_result_message,
+        )
         msg = make_tool_result_message("mcp_composio_search", self._elided(), "call_1")
         content = msg["content"]
         notice = _UPSTREAM_ELISION_NOTICE.strip()

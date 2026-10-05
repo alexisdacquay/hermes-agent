@@ -1,10 +1,8 @@
 """Real-Git rollback contracts for checkpoints containing uncaptured gitlinks."""
 import os
-import shutil
 import subprocess
 
 import pytest
-
 from tools import checkpoint_manager as cm
 from utils import rmtree_readonly
 

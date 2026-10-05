@@ -1,19 +1,19 @@
 """Minor-style updates follow advertised artifacts without dropping other pins."""
 from __future__ import annotations
 
-from argparse import Namespace
 import hashlib
 import importlib
 import io
 import json
 import zipfile
+from argparse import Namespace
 
 import pytest
-
 from pm import cli, paths, registry
 from pm.lock import Facts, Lockfile
 from pm.package import Package
 from pm.store import current_target
+
 from tests.pm._range_server import RangeHandler, dl_server, url  # noqa: F401
 
 

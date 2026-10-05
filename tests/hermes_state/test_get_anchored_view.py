@@ -5,7 +5,6 @@ anchor, the call returns goal (bookend_start) + match (window) + resolution
 (bookend_end) in a single round trip, no LLM.
 """
 import pytest
-
 from hermes_state import SessionDB
 
 

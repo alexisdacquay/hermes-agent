@@ -1,8 +1,8 @@
 """Tests for process wait timeout-result clarity (not-an-error semantics)."""
 
 import pytest
-
 from tools.process_registry import ProcessRegistry
+
 
 @pytest.fixture
 def registry(tmp_path, monkeypatch):

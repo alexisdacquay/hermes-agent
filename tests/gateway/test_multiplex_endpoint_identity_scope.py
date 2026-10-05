@@ -12,9 +12,9 @@ import os
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from agent import secret_scope as ss
 from gateway.config import PlatformConfig
+
 from tests.gateway._plugin_adapter_loader import load_plugin_adapter
 
 DEFAULT_ENV = {

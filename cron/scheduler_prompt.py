@@ -11,8 +11,8 @@ from __future__ import annotations
 import json
 import logging
 import re
+
 from hermes_time import now as _hermes_now
-from typing import Optional
 
 # Log-record parity with the origin module.
 logger = logging.getLogger("cron.scheduler")
@@ -192,11 +192,14 @@ def _inject_context_from(job: dict, prompt: str) -> tuple[str, bool]:
 
 def _load_cron_skill_parts(job: dict, skill_names: list[str]) -> list[str]:
     """Load each named skill/bundle into prompt parts; unknown ones are skipped with a notice."""
-    from tools.skills_tool import skill_view
-    from tools.skill_usage import bump_use
-    from agent.skill_bundles import build_bundle_invocation_message, resolve_bundle_command_key
+    from agent.skill_bundles import (
+        build_bundle_invocation_message,
+        resolve_bundle_command_key,
+    )
     from agent.skill_commands import _inject_skill_config, ambiguous_skill_label
     from agent.skill_utils import normalize_skill_lookup_name
+    from tools.skill_usage import bump_use
+    from tools.skills_tool import skill_view
     job_label = job.get("name", job.get("id"))
     task_id = str(job.get("id") or "") or None
     parts: list[str] = []
@@ -281,8 +284,8 @@ _CRON_HINT = (
 
 
 def _build_job_prompt(
-    job: dict, prerun_script: Optional[tuple] = None, extra_prompt: Optional[str] = None,
-    runtime_data_prompt: Optional[str] = None,
+    job: dict, prerun_script: tuple | None = None, extra_prompt: str | None = None,
+    runtime_data_prompt: str | None = None,
 ) -> str:
     """Build the effective prompt for a cron job, optionally loading skills first.
     ``prerun_script``: cached ``(success, stdout)`` from a script the caller already ran (wake-gate
@@ -366,7 +369,7 @@ def _build_job_prompt(
 
 def _scan_assembled_cron_prompt(
     assembled: str, job: dict, *, has_skills: bool = False, has_injected_data: bool = False,
-    user_prompt: Optional[str] = None,
+    user_prompt: str | None = None,
 ) -> str:
     """Scan the assembled cron prompt for injection; raise ``CronPromptInjectionBlocked`` on a hit.
     Needed because skill content is loaded from disk at runtime (never scanned at create/update)
@@ -378,8 +381,8 @@ def _scan_assembled_cron_prompt(
     Since cron runs non-interactively (auto-approves tool calls), a malicious skill carrying an injection
     payload bypassed every gate. See #3968.
     """
-    from tools.cronjob_tools import _scan_cron_prompt
     from tools.cronjob_prompt_scan import _scan_cron_skill_assembled
+    from tools.cronjob_tools import _scan_cron_prompt
     if has_skills or has_injected_data:
         # The cleaned (sanitized) prompt is what actually runs.
         assembled, scan_error = _scan_cron_skill_assembled(assembled)
@@ -421,7 +424,7 @@ def _guard_job_credential_exfil(job: dict) -> None:
 
 
 def _block_and_pause_job(
-    job_id: str, job_name: str, reason: str) -> tuple[bool, str, str, Optional[str]]:
+    job_id: str, job_name: str, reason: str) -> tuple[bool, str, str, str | None]:
     """Fail a run closed and pause the job: an unrunnable job left enabled re-fires every tick
     forever; ``paused_at``/``paused_reason`` give an auditable record."""
     from cron.jobs import pause_job
@@ -445,6 +448,6 @@ def _block_and_pause_job(
 
 # Late-bound origin namespace (see module docstring). Imported LAST so this module is fully
 # populated before ``scheduler`` re-exports from it.
-from cron import scheduler as _sched  # noqa: E402
-from cron import scheduler_delivery as _delivery  # noqa: E402
-from cron import scheduler_script as _script  # noqa: E402
+from cron import scheduler as _sched
+from cron import scheduler_delivery as _delivery
+from cron import scheduler_script as _script

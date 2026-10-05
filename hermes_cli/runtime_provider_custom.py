@@ -9,11 +9,13 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Any, Callable, Dict, Optional, Tuple
+from collections.abc import Callable
+from typing import Any
 
-from hermes_cli.providers import custom_provider_aliases, custom_provider_slug
 from agent.secret_scope import get_secret_str
 from utils import base_url_hostname
+
+from hermes_cli.providers import custom_provider_aliases, custom_provider_slug
 
 logger = logging.getLogger("hermes_cli.runtime_provider")
 
@@ -38,7 +40,7 @@ def _clean(value: Any) -> str:
     return str(value or "").strip()
 
 
-def _key_env_secret(entry: Dict[str, Any], label: str) -> str:
+def _key_env_secret(entry: dict[str, Any], label: str) -> str:
     """The credential named by ``key_env`` / ``api_key_env`` on a config block, or "".
 
     A declared variable that resolves to nothing is logged: every custom rung substitutes
@@ -56,7 +58,7 @@ def _key_env_secret(entry: Dict[str, Any], label: str) -> str:
     return value
 
 
-def _model_cfg_key_env_for(model_cfg: Dict[str, Any], base_url: str) -> str:
+def _model_cfg_key_env_for(model_cfg: dict[str, Any], base_url: str) -> str:
     """``model.key_env`` for a bare ``provider: custom`` runtime, only when ``base_url`` IS the
     configured ``model.base_url`` — the key was declared for that endpoint, never for a direct alias
     or CUSTOM_BASE_URL pointing elsewhere."""
@@ -66,21 +68,21 @@ def _model_cfg_key_env_for(model_cfg: Dict[str, Any], base_url: str) -> str:
     return _key_env_secret(model_cfg, "model")
 
 
-def _entry_url(entry: Dict[str, Any]) -> str:
+def _entry_url(entry: dict[str, Any]) -> str:
     return entry.get("api") or entry.get("url") or entry.get("base_url") or ""
 
 
 # ── field lifting shared by ``providers:`` and legacy ``custom_providers:`` entries ────────
 
 
-def _filter_capabilities(value: Any) -> Dict[str, bool]:
+def _filter_capabilities(value: Any) -> dict[str, bool]:
     """Return the string-keyed boolean capabilities accepted at runtime."""
     if not isinstance(value, dict):
         return {}
     return {k: v for k, v in value.items() if isinstance(k, str) and isinstance(v, bool)}
 
 
-def _lift_model_capabilities(entry: Dict[str, Any], model: Optional[str], result: Dict[str, Any]) -> None:
+def _lift_model_capabilities(entry: dict[str, Any], model: str | None, result: dict[str, Any]) -> None:
     """Copy explicit boolean per-model capabilities into the runtime."""
     capabilities = _filter_capabilities(entry.get("capabilities"))
     models = entry.get("models")
@@ -92,15 +94,15 @@ def _lift_model_capabilities(entry: Dict[str, Any], model: Optional[str], result
 
 
 
-def _lift_extra_headers(entry: Dict[str, Any], result: Dict[str, Any]) -> None:
+def _lift_extra_headers(entry: dict[str, Any], result: dict[str, Any]) -> None:
     """Copy a validated ``extra_headers`` dict. SECURITY: values carry credentials — never log."""
     extra_headers = _rp().normalize_extra_headers(entry.get("extra_headers"))
     if extra_headers:
         result["extra_headers"] = extra_headers
 
 
-def _lift_common_custom_fields(entry: Dict[str, Any], result: Dict[str, Any], *, provider_key: str, key_env: str,
-                               api_mode: Optional[str]) -> None:
+def _lift_common_custom_fields(entry: dict[str, Any], result: dict[str, Any], *, provider_key: str, key_env: str,
+                               api_mode: str | None) -> None:
     """Copy the optional fields shared by ``providers:`` and legacy ``custom_providers:`` entries."""
     if key_env:
         result["key_env"] = key_env
@@ -136,7 +138,7 @@ def _shadowed_by_builtin(requested_norm: str) -> bool:
     return (canonical or "").strip().lower() == requested_norm
 
 
-def _match_new_style_provider(requested_norm: str, providers: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def _match_new_style_provider(requested_norm: str, providers: dict[str, Any]) -> dict[str, Any] | None:
     """Scan ``providers:`` (new-style, keyed) for ``requested_norm``."""
     from hermes_cli.config import is_provider_enabled
     rp = _rp()
@@ -153,7 +155,7 @@ def _match_new_style_provider(requested_norm: str, providers: Dict[str, Any]) ->
         # unrelated entry must not read its profile-scoped secret.
         key_env = _clean(entry.get("key_env") or entry.get("api_key_env"))
         api_key = get_secret_str(key_env, "").strip() if key_env else ""
-        result: Dict[str, Any] = {"name": entry.get("name", ep_name), "base_url": base_url.strip(),
+        result: dict[str, Any] = {"name": entry.get("name", ep_name), "base_url": base_url.strip(),
                                   "api_key": api_key or _clean(entry.get("api_key", "")), "model": entry.get("default_model", "")}
         # Command that PRINTS a short-lived credential; wrapped in a per-request token provider.
         key_cmd = _clean(entry.get("key_cmd", ""))
@@ -169,7 +171,7 @@ def _match_new_style_provider(requested_norm: str, providers: Dict[str, Any]) ->
     return None
 
 
-def _match_legacy_custom_provider(requested_norm: str, custom_providers) -> Optional[Dict[str, Any]]:
+def _match_legacy_custom_provider(requested_norm: str, custom_providers) -> dict[str, Any] | None:
     """Scan the legacy ``custom_providers:`` list for ``requested_norm``."""
     for entry in custom_providers:
         name, base_url = (entry.get("name"), entry.get("base_url")) if isinstance(entry, dict) else (None, None)
@@ -188,7 +190,7 @@ def _match_legacy_custom_provider(requested_norm: str, custom_providers) -> Opti
     return None
 
 
-def _get_named_custom_provider(requested_provider: str) -> Optional[Dict[str, Any]]:
+def _get_named_custom_provider(requested_provider: str) -> dict[str, Any] | None:
     requested_norm = _normalize_custom_provider_name(requested_provider or "")
     if not requested_norm or requested_norm == "auto" or _shadowed_by_builtin(requested_norm):
         return None
@@ -216,7 +218,7 @@ def has_named_custom_provider(requested_provider: str) -> bool:
         return False
 
 
-def codex_model_provider_id(requested_provider: str) -> Optional[str]:
+def codex_model_provider_id(requested_provider: str) -> str | None:
     """Codex ``[model_providers.<id>]`` key for a configured named custom provider — its ``custom:``
     identity without the prefix (the ``providers:`` config key; legacy ``custom_providers:`` entries
     use their normalized display name). None for bare ``custom``, aliases that resolve to custom
@@ -235,7 +237,7 @@ def codex_model_provider_id(requested_provider: str) -> Optional[str]:
 # ── identity recovery (bare "custom" -> durable ``custom:<name>``) ─────────────────────────
 
 
-def _find_custom_identity(matches: Callable[[Dict[str, Any]], bool]) -> Optional[str]:
+def _find_custom_identity(matches: Callable[[dict[str, Any]], bool]) -> str | None:
     """First entry in ``providers:`` then legacy ``custom_providers:`` where ``matches(entry)``
     holds, as its canonical ``custom:<name>`` slug."""
     rp = _rp()
@@ -259,7 +261,7 @@ def _find_custom_identity(matches: Callable[[Dict[str, Any]], bool]) -> Optional
     return None
 
 
-def find_custom_provider_identity(base_url: str) -> Optional[str]:
+def find_custom_provider_identity(base_url: str) -> str | None:
     """Map an endpoint URL back to its canonical ``custom:<name>`` menu key. Session persistence
     stores the agent's *resolved* provider, which for every named custom endpoint is the literal
     string ``"custom"`` — the entry name is lost, and the api_key is deliberately never persisted."""
@@ -273,7 +275,7 @@ def _model_id_matches(value: Any, target: str) -> bool:
     return isinstance(value, str) and value.strip().lower() == target
 
 
-def find_custom_provider_identity_by_model(model: str) -> Optional[str]:
+def find_custom_provider_identity_by_model(model: str) -> str | None:
     """Map a model id back to the ``custom:<name>`` entry that serves it — companion to
     :func:`find_custom_provider_identity` for persistence paths where no base_url survived the
     round-trip (the session row always stores the model name)."""
@@ -281,7 +283,7 @@ def find_custom_provider_identity_by_model(model: str) -> Optional[str]:
     if not target:
         return None
 
-    def _entry_serves_model(entry: Dict[str, Any]) -> bool:
+    def _entry_serves_model(entry: dict[str, Any]) -> bool:
         if any(_model_id_matches(entry.get(key), target) for key in ("model", "default_model")):
             return True
         models = entry.get("models")
@@ -295,8 +297,8 @@ def find_custom_provider_identity_by_model(model: str) -> Optional[str]:
     return _find_custom_identity(_entry_serves_model)
 
 
-def canonical_custom_identity(*, base_url: Optional[str] = None, config_provider: Optional[str] = None,
-                              model: Optional[str] = None) -> Optional[str]:
+def canonical_custom_identity(*, base_url: str | None = None, config_provider: str | None = None,
+                              model: str | None = None) -> str | None:
     """Recover the durable menu identity for a bare custom provider. Match a configured
     endpoint first, then the ownership-checked managed server, then a configured model or
     provider. Every session persistence/restore path shares this lookup."""
@@ -343,7 +345,7 @@ def canonical_custom_identity(*, base_url: Optional[str] = None, config_provider
     return identity or custom_provider_slug(candidate_norm)
 
 
-def is_routable_provider(provider: Optional[str]) -> bool:
+def is_routable_provider(provider: str | None) -> bool:
     """Whether a provider name currently resolves to a routable route. Empty/None/``auto`` is
     vacuously routable (agent build falls back to the configured default). Bare ``custom`` is the
     resolved billing class shared by every named entry — not a routable identity; restore paths
@@ -367,8 +369,8 @@ def is_routable_provider(provider: Optional[str]) -> bool:
 
 
 def _try_resolve_from_custom_pool(
-    base_url: str, provider_label: str, api_mode_override: Optional[str] = None, provider_name: Optional[str] = None
-) -> Optional[Dict[str, Any]]:
+    base_url: str, provider_label: str, api_mode_override: str | None = None, provider_name: str | None = None
+) -> dict[str, Any] | None:
     """Runtime dict from the first credential pool that owns this custom endpoint, else None."""
     rp = _rp()
     try:
@@ -400,14 +402,14 @@ def _try_resolve_from_custom_pool(
     return None
 
 
-def _custom_provider_request_overrides(custom_provider: Dict[str, Any]) -> Dict[str, Any]:
+def _custom_provider_request_overrides(custom_provider: dict[str, Any]) -> dict[str, Any]:
     extra_body = custom_provider.get("extra_body")
     if not isinstance(extra_body, dict) or not extra_body:
         return {}
     return {"extra_body": dict(extra_body)}
 
 
-def _apply_custom_provider_extras(custom_provider: Dict[str, Any], target_model: Optional[str], result: Dict[str, Any]) -> None:
+def _apply_custom_provider_extras(custom_provider: dict[str, Any], target_model: str | None, result: dict[str, Any]) -> None:
     """Copy model / capabilities / extra_headers / request_overrides onto a
     resolved custom runtime. An explicit ``target_model`` wins over the provider's configured
     default (auxiliary slots / background-review resolve a concrete model and must not fall back to
@@ -424,7 +426,7 @@ def _apply_custom_provider_extras(custom_provider: Dict[str, Any], target_model:
         result["request_overrides"] = {**(result.get("request_overrides") or {}), **request_overrides}
 
 
-def _resolve_llamacpp_runtime(requested_provider: str, explicit_api_key: Optional[str]) -> Dict[str, Any]:
+def _resolve_llamacpp_runtime(requested_provider: str, explicit_api_key: str | None) -> dict[str, Any]:
     """Managed llama.cpp runtime: the supervised (or detected external) server, or a typed error.
     No server => say so and stop; falling through to the generic custom path would surface "local
     server is off" as OpenRouter's baffling "401 Invalid API key". The switch's state picks the
@@ -452,7 +454,7 @@ def _resolve_llamacpp_runtime(requested_provider: str, explicit_api_key: Optiona
                      "model.")
 
 
-def _custom_runtime(rp, base_url: str, api_key: Any, api_mode: Optional[str], **extra: Any) -> Dict[str, Any]:
+def _custom_runtime(rp, base_url: str, api_key: Any, api_mode: str | None, **extra: Any) -> dict[str, Any]:
     """``custom`` runtime dict with URL-detected api_mode fallback and the no-auth placeholder."""
     return rp._runtime("custom", api_mode or rp._detect_api_mode_for_url(base_url) or "chat_completions", base_url,
                        api_key or "no-key-required", **extra)
@@ -461,10 +463,10 @@ def _custom_runtime(rp, base_url: str, api_key: Any, api_mode: Optional[str], **
 # Aliases for direct REST APIs not modeled in PROVIDER_REGISTRY, so ``provider: openai`` (aux slots,
 # background review, curator, MoA slots, the main model) resolves to a working ``custom`` endpoint
 # instead of "Unknown provider" and a silent fall-back to the main model (#116055).
-_DIRECT_API_BASE_URLS: Dict[str, str] = {"openai": "https://api.openai.com/v1"}
+_DIRECT_API_BASE_URLS: dict[str, str] = {"openai": "https://api.openai.com/v1"}
 
 
-def expand_direct_api_alias(provider: Optional[str], existing_base: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
+def expand_direct_api_alias(provider: str | None, existing_base: str | None) -> tuple[str | None, str | None]:
     """``provider: openai`` → custom + the user's OpenAI endpoint, api.openai.com/v1 only as the last resort.
 
     The ONE normalization both aux paths (``agent.auxiliary_client`` and ``resolve_runtime_provider``)
@@ -481,8 +483,8 @@ def expand_direct_api_alias(provider: Optional[str], existing_base: Optional[str
     return "custom", (existing_base or "").strip() or get_secret_str("OPENAI_BASE_URL", "").strip().rstrip("/") or target_base
 
 
-def _resolve_direct_alias_runtime(requested_provider: str, explicit_api_key: Optional[str],
-                                  explicit_base_url: str) -> Dict[str, Any]:
+def _resolve_direct_alias_runtime(requested_provider: str, explicit_api_key: str | None,
+                                  explicit_base_url: str) -> dict[str, Any]:
     """Bare ``custom`` + explicit base_url (e.g. a ``model_aliases:`` direct alias)."""
     rp = _rp()
     base_url = explicit_base_url.strip().rstrip("/")
@@ -501,7 +503,7 @@ def _resolve_direct_alias_runtime(requested_provider: str, explicit_api_key: Opt
     return _custom_runtime(rp, base_url, api_key, None, source="direct-alias", requested_provider=requested_provider)
 
 
-def _opencode_family_for_custom(requested_provider: str, base_url: str) -> Optional[str]:
+def _opencode_family_for_custom(requested_provider: str, base_url: str) -> str | None:
     """OpenCode family by provider name, else by opencode.ai host (``/zen/go`` => opencode-go)."""
     # Custom providers in the OpenCode family (name extends opencode-go/zen, or base_url hosted on
     # opencode.ai) serve models behind different API surfaces per model — a static api_mode 503s for
@@ -519,9 +521,9 @@ def _opencode_family_for_custom(requested_provider: str, base_url: str) -> Optio
     return None
 
 
-def _resolve_named_custom_runtime(*, requested_provider: str, explicit_api_key: Optional[str] = None,
-                                  explicit_base_url: Optional[str] = None,
-                                  target_model: Optional[str] = None) -> Optional[Dict[str, Any]]:
+def _resolve_named_custom_runtime(*, requested_provider: str, explicit_api_key: str | None = None,
+                                  explicit_base_url: str | None = None,
+                                  target_model: str | None = None) -> dict[str, Any] | None:
     """Runtime for a llamacpp alias, a bare-custom direct alias, or a configured custom entry.
     Aliases resolving to "custom" (ollama, vllm, llamacpp, …) are treated like bare ``custom``. A
     llamacpp alias with no explicit base_url resolves to the managed server first; an explicit
@@ -582,7 +584,10 @@ def _resolve_named_custom_runtime(*, requested_provider: str, explicit_api_key: 
     # api_mode from the model and normalize /v1 like the built-in paths.
     family = _opencode_family_for_custom(requested_provider, base_url)
     if family is not None and not custom_provider.get("api_mode"):
-        from hermes_cli.models import normalize_opencode_base_url, opencode_model_api_mode
+        from hermes_cli.models import (
+            normalize_opencode_base_url,
+            opencode_model_api_mode,
+        )
         effective_model = str(target_model or custom_provider.get("model") or rp._get_model_config().get("default") or "").strip()
         if effective_model:
             result["api_mode"] = opencode_model_api_mode(family, effective_model)

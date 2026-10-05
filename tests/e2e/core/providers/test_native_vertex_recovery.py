@@ -14,15 +14,16 @@ never issued). Scenarios run concurrently in a module fixture:
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import pytest
 
 pytest.importorskip("google.auth", reason="Vertex minting needs google-auth (CI installs it)")
 
-from tests.e2e.core.providers._native_helpers import (  # noqa: E402
+from tests.e2e.core.providers._native_helpers import (
     ChatResult,
     assert_no_duplicate_assistant_text,
     latest_session,
@@ -31,7 +32,7 @@ from tests.e2e.core.providers._native_helpers import (  # noqa: E402
     run_chat,
     tool_calls_of,
 )
-from tests.fakes.providers.vertex import (  # noqa: E402
+from tests.fakes.providers.vertex import (
     PROJECT,
     REGION,
     SA_EMBEDDED_PROJECT,

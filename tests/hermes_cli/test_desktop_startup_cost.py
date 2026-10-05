@@ -3,13 +3,10 @@
 Source freshness itself is the compiler's receipt (scripts/build/freshness.mjs), covered in tests-js."""
 
 import argparse
-import os
 import subprocess
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
 from hermes_cli import main as cli_main
 from hermes_cli import main_desktop as desktop
 

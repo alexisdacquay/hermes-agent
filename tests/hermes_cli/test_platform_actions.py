@@ -20,7 +20,6 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from gateway.config import Platform
 from hermes_cli.platform_actions import PlatformActions
 

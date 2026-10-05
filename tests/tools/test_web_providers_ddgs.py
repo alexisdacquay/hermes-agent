@@ -237,7 +237,7 @@ class TestDDGSBackendWiring:
 
     def test_auto_detect_picks_ddgs_as_last_resort(self, monkeypatch):
         from tools import web_tools
-        monkeypatch.setattr(web_tools, "_load_web_config", lambda: {})
+        monkeypatch.setattr(web_tools, "_load_web_config", dict)
         for key in ("FIRECRAWL_API_KEY", "FIRECRAWL_API_URL", "PARALLEL_API_KEY",
                     "EXA_API_KEY", "SEARXNG_URL", "BRAVE_SEARCH_API_KEY", "KEENABLE_API_KEY"):
             monkeypatch.delenv(key, raising=False)
@@ -269,6 +269,7 @@ class TestDDGSSearchOnlyErrors:
 
     def test_web_extract_returns_search_only_error(self, monkeypatch):
         import asyncio
+
         from tools import web_tools
 
         monkeypatch.setattr(web_tools, "_load_web_config", lambda: {"backend": "ddgs"})

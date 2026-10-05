@@ -11,14 +11,15 @@ Stdlib-only: the bootstrap runner imports this from a pre-3.11 system Python.
 """
 from __future__ import annotations
 
-from collections import deque
 import os
 import re
 import shutil
 import subprocess
 import sys
 import time
-from typing import IO, Callable, Mapping, Optional, Protocol, Sequence
+from collections import deque
+from collections.abc import Callable, Mapping, Sequence
+from typing import IO, Protocol
 
 TAIL_LINES = 80
 # A child that never prints a newline (a bare progress stream, a binary blob) must not
@@ -37,7 +38,7 @@ class TextSink(Protocol):
     def flush(self) -> None: ...
 
 
-def verbose_output(env: Optional[Mapping[str, str]] = None) -> bool:
+def verbose_output(env: Mapping[str, str] | None = None) -> bool:
     """Whether child output streams unchanged instead of being contained."""
     source = os.environ if env is None else env
     explicit = source.get("HERMES_VERBOSE", "").strip().lower()
@@ -62,8 +63,8 @@ class LiveTail:
     quick to deserve a line of their own.
     """
 
-    def __init__(self, label: Optional[str], stream: Optional[IO[str]] = None, *,
-                 hide: Optional[Callable[[str], bool]] = None, indent: str = "") -> None:
+    def __init__(self, label: str | None, stream: IO[str] | None = None, *,
+                 hide: Callable[[str], bool] | None = None, indent: str = "") -> None:
         self.label = label
         self.stream = sys.stdout if stream is None else stream
         self.hide = hide
@@ -133,8 +134,8 @@ class LiveTail:
         self.stream.flush()
 
 
-def run_contained(command: Sequence[str], label: str, *, stream: Optional[IO[str]] = None,
-                  hide: Optional[Callable[[str], bool]] = None, indent: str = "",
+def run_contained(command: Sequence[str], label: str, *, stream: IO[str] | None = None,
+                  hide: Callable[[str], bool] | None = None, indent: str = "",
                   **kwargs) -> subprocess.CompletedProcess:
     """``subprocess.run(check=True)`` under the output policy."""
     if verbose_output():

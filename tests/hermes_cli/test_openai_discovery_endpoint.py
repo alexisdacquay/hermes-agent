@@ -22,7 +22,6 @@ from __future__ import annotations
 from unittest.mock import patch as mock_patch
 
 import pytest
-
 from hermes_cli import models as models_mod
 
 

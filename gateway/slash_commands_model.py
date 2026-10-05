@@ -12,12 +12,13 @@ import asyncio
 import contextlib
 import dataclasses
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from agent.i18n import t
-from gateway.platforms.event import MessageEvent
 from hermes_cli.config import atomic_config_write
 from utils import base_url_host_matches
+
+from gateway.platforms.event import MessageEvent
 
 logger = logging.getLogger("gateway.run")  # log-record parity with gateway/run.py
 
@@ -33,7 +34,7 @@ _FAST_SELECTIONS = {
 }
 
 
-def _fast_route_supports(model: str, runtime: dict, tier: Optional[str] = None) -> bool:
+def _fast_route_supports(model: str, runtime: dict, tier: str | None = None) -> bool:
     """The turn's own gate (``run_turn.py::_resolve_turn_agent_config``): a tier /fast accepts must be
     one the session's next request actually carries, so proxies and other providers are refused."""
     from hermes_cli.models import resolve_fast_mode_overrides
@@ -46,7 +47,7 @@ def _fast_route_supports(model: str, runtime: dict, tier: Optional[str] = None) 
 _REASONING_DISPLAY_TOGGLES = {"show": True, "on": True, "hide": False, "off": False}
 
 
-def _model_switch_skew_guard() -> Optional[str]:
+def _model_switch_skew_guard() -> str | None:
     """Refuse a model switch when the gateway is running stale code: a first-time lazy import on
     a new code path can crash on a stale cached dependency. Scoped to the highest-risk trigger."""
     from gateway.code_skew import detect_code_skew
@@ -78,12 +79,12 @@ class _ModelSwitchContext:
     persist_global: bool
     one_turn: bool = False
     reasoning_effort: str = ""  # `--reasoning <level>` riding with the pick (typed path only)
-    restore_snapshot: Optional[dict] = None
+    restore_snapshot: dict | None = None
     current_model: str = ""
     current_provider: str = "openrouter"
     # The provider actually configured/overridden (None = unset): ``current_provider`` defaults to
     # openrouter for switch_model, which must not label the configured model in metrics.
-    route_provider: Optional[str] = None
+    route_provider: str | None = None
     current_base_url: str = ""
     current_api_key: str = ""
     user_provs: Any = None
@@ -156,8 +157,9 @@ class GatewayModelCommandsMixin:
         self, ctx: _ModelSwitchContext, raw_input: str, explicit_provider, source
     ):
         """Resolve a /model switch off-loop. Returns ``(result, None)`` or ``(None, error_text)``."""
-        from gateway.run import _load_gateway_config
         from hermes_cli.model_switch import switch_model
+
+        from gateway.run import _load_gateway_config
 
         skew_error = _model_switch_skew_guard()
         if skew_error:
@@ -173,7 +175,9 @@ class GatewayModelCommandsMixin:
         if not result.success:
             return None, t("gateway.model.error_prefix", error=result.error_message)
         try:
-            from hermes_cli.context_switch_guard import enrich_model_switch_warnings_for_gateway
+            from hermes_cli.context_switch_guard import (
+                enrich_model_switch_warnings_for_gateway,
+            )
             # Off-loop: merge_preflight_compression_warning() runs the sync provider probe ladder.
             await asyncio.to_thread(
                 enrich_model_switch_warnings_for_gateway, result, self, session_key=ctx.session_key,
@@ -184,7 +188,7 @@ class GatewayModelCommandsMixin:
             logger.debug("preflight-compression switch warning failed: %s", exc)
         return result, None
 
-    def _switch_cached_agent_model(self, result, ctx: _ModelSwitchContext, picker: bool) -> Optional[str]:
+    def _switch_cached_agent_model(self, result, ctx: _ModelSwitchContext, picker: bool) -> str | None:
         """In-place swap on the cached agent; returns the error reply when it failed.
 
         The agent rolls back to the OLD model/client and re-raises; the commit (DB, override,
@@ -211,7 +215,7 @@ class GatewayModelCommandsMixin:
 
     async def _record_model_switch(
         self, result, ctx: _ModelSwitchContext, *, source, one_turn: bool, picker: bool
-    ) -> Optional[str]:
+    ) -> str | None:
         """Persist a committed switch: session DB, next-turn note, config write-through, override map.
 
         Returns the warning for a ``--global`` switch whose ``config.yaml`` write or stale-override
@@ -262,7 +266,7 @@ class GatewayModelCommandsMixin:
         # the session override (memory + store) — a redundant copy would shadow every later global
         # change after a restart (#100314: a stale override resumed `gpt-5.6-sol-900k` as the base
         # 272K model). On failure keep the override so the switch truthfully survives as session-only.
-        global_error: Optional[str] = None
+        global_error: str | None = None
         if ctx.persist_global:
             try:
                 await _persist_model_switch_to_config(result, ctx.config_path)
@@ -301,11 +305,15 @@ class GatewayModelCommandsMixin:
 
     async def _model_switch_confirmation(
         self, result, ctx: _ModelSwitchContext, *, one_turn: bool, picker: bool,
-        global_error: Optional[str] = None,
+        global_error: str | None = None,
     ) -> str:
         """Confirmation text with full metadata (display form shortens opaque Palantir IDs)."""
+        from hermes_cli.model_switch import (
+            format_model_for_display,
+            resolve_display_context_length_async,
+        )
+
         from gateway.run import _load_gateway_config
-        from hermes_cli.model_switch import format_model_for_display, resolve_display_context_length_async
 
         lines = [
             t("gateway.model.switched", model=format_model_for_display(result.new_model)),
@@ -393,7 +401,10 @@ class GatewayModelCommandsMixin:
         """Slash dispatch does not install the routed profile's scope, so a multiplexed runner binds
         the owning home for the switch row and its switch_away friction."""
         from hermes_cli.observability.shared_metrics_events import record_model_switch
-        from hermes_constants import reset_hermes_home_override, set_hermes_home_override
+        from hermes_constants import (
+            reset_hermes_home_override,
+            set_hermes_home_override,
+        )
 
         home = None
         if getattr(getattr(self, "config", None), "multiplex_profiles", False):
@@ -453,7 +464,7 @@ class GatewayModelCommandsMixin:
 
     async def _model_listing_reply(
         self, event: MessageEvent, ctx: _ModelSwitchContext, profile_home
-    ) -> Optional[str]:
+    ) -> str | None:
         """``/model`` with no args: interactive picker where supported, else the text list."""
         from hermes_cli.model_switch import list_authenticated_providers
         from hermes_cli.providers import get_label
@@ -500,7 +511,7 @@ class GatewayModelCommandsMixin:
 
     async def _model_selection_guard_reply(
         self, event: MessageEvent, ctx: _ModelSwitchContext, result
-    ) -> tuple[bool, Optional[str]]:
+    ) -> tuple[bool, str | None]:
         """Selection-guard confirmation for the typed path (pickers confirm via their own UI).
 
         The unified registry (cost + data-policy guards) runs off-loop — pricing lookups may hit
@@ -509,7 +520,9 @@ class GatewayModelCommandsMixin:
         """
         try:
             from hermes_cli.model_selection_guards import (
-                combined_selection_warning, selection_context_for_agent)
+                combined_selection_warning,
+                selection_context_for_agent,
+            )
             warning = await asyncio.to_thread(
                 combined_selection_warning, result.new_model, provider=result.target_provider,
                 base_url=result.base_url or ctx.current_base_url or "",
@@ -533,15 +546,19 @@ class GatewayModelCommandsMixin:
             event=event, command="model", title=warning.title, message=message, handler=_on_cost_confirm,
         )
 
-    async def _handle_model_command(self, event: MessageEvent) -> Optional[str]:
+    async def _handle_model_command(self, event: MessageEvent) -> str | None:
         """Handle /model command — switch model. Taken under the switch lock BEFORE the first await so
         concurrent commands commit in issue order (see ``_model_switch_lock``)."""
         async with self._model_switch_lock():
             return await self._handle_model_command_locked(event)
 
-    async def _handle_model_command_locked(self, event: MessageEvent) -> Optional[str]:
+    async def _handle_model_command_locked(self, event: MessageEvent) -> str | None:
+        from hermes_cli.model_switch import (
+            parse_model_switch_args,
+            resolve_persist_behavior,
+        )
+
         from gateway.run import _hermes_home
-        from hermes_cli.model_switch import parse_model_switch_args, resolve_persist_behavior
 
         profile_home = None
         if getattr(getattr(self, "config", None), "multiplex_profiles", False):
@@ -620,7 +637,6 @@ class GatewayModelCommandsMixin:
 
     async def _handle_personality_command(self, event: MessageEvent) -> str:
         """Handle /personality — list or set a personality (hermes_cli.personality owns the state)."""
-        from gateway.run import _load_gateway_config
         from hermes_cli.personality import (
             active_personality_name,
             available_personalities,
@@ -628,6 +644,8 @@ class GatewayModelCommandsMixin:
             persist_personality,
             resolve_personality,
         )
+
+        from gateway.run import _load_gateway_config
 
         args = event.get_command_args().strip()
         try:
@@ -662,9 +680,10 @@ class GatewayModelCommandsMixin:
 
     def _save_gateway_config_key(self, key_path: str, value) -> bool:
         """Save a dot-separated key to config.yaml (shared by /reasoning, /fast and their pickers)."""
-        from gateway.slash_commands import _nested_dict
-        from gateway.run import _gateway_config_home
         from hermes_cli.config import read_user_config_raw
+
+        from gateway.run import _gateway_config_home
+        from gateway.slash_commands import _nested_dict
         config_path = _gateway_config_home() / "config.yaml"
         try:
             user_config = read_user_config_raw(config_path)  # raw: never persist merged defaults
@@ -733,10 +752,11 @@ class GatewayModelCommandsMixin:
             logger.warning("send_choice_picker failed, falling back to text: %s", e)
             return False
 
-    async def _handle_reasoning_command(self, event: MessageEvent) -> Optional[str]:
+    async def _handle_reasoning_command(self, event: MessageEvent) -> str | None:
         """Handle /reasoning command — manage reasoning effort and display toggle."""
-        from gateway.run import _platform_config_key
         from hermes_constants import VALID_REASONING_EFFORTS
+
+        from gateway.run import _platform_config_key
 
         raw_args = event.get_command_args().strip()
         args, persist_global = self._parse_reasoning_command_args(raw_args)
@@ -759,8 +779,9 @@ class GatewayModelCommandsMixin:
         # Labels tell the truth about the route: a Hermes-internal step (``ultra``) that the wire
         # clamps is shown as "ultra (sends max on this route)" instead of a distinct level (#61634).
         from agent.reasoning_effort import effort_display_label
-        from gateway.run import _load_gateway_config
         from hermes_cli.codex_runtime_switch import get_current_runtime
+
+        from gateway.run import _load_gateway_config
         _session_route = ((getattr(self, "_session_model_overrides", {}) or {}).get(session_key) or {})
         _model_cfg = {}
         with contextlib.suppress(Exception):  # fail-open on config read errors, like /model does
@@ -818,10 +839,11 @@ class GatewayModelCommandsMixin:
         self._evict_cached_agent(session_key)
         return t("gateway.fast.session_only", label=label)
 
-    async def _handle_fast_command(self, event: MessageEvent) -> Optional[str]:
+    async def _handle_fast_command(self, event: MessageEvent) -> str | None:
         """Handle /fast — the CLI Priority Processing toggle; session-scoped unless ``--global``
         (persists agent.service_tier, parity with /model)."""
         from agent.fast_mode import service_tier_word
+
         from gateway.run import _load_gateway_config, _resolve_gateway_model
 
         # The /reasoning parser strips --global (any position) and normalizes unicode dashes.

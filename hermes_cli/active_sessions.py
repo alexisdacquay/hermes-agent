@@ -7,19 +7,24 @@ written a transcript row yet.
 
 from __future__ import annotations
 
+import collections
 import json
 import logging
-import collections
 import math
 import os
 import time
 import uuid
+from collections.abc import Iterator
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterator, Optional
+from typing import Any
 
-from hermes_constants import get_default_hermes_root, get_hermes_home, named_profile_is_live
+from hermes_constants import (
+    get_default_hermes_root,
+    get_hermes_home,
+    named_profile_is_live,
+)
 from utils import atomic_json_write
 
 logger = logging.getLogger(__name__)
@@ -29,7 +34,7 @@ class ActiveSessionRegistryError(RuntimeError):
     """The liveness registry could not prove a safe ownership decision."""
 
 
-def coerce_max_concurrent_sessions(value: Any, key: str = "max_concurrent_sessions") -> Optional[int]:
+def coerce_max_concurrent_sessions(value: Any, key: str = "max_concurrent_sessions") -> int | None:
     """Return a positive integer cap, or None when disabled/invalid."""
     if value is None:
         return None
@@ -45,7 +50,7 @@ def coerce_max_concurrent_sessions(value: Any, key: str = "max_concurrent_sessio
     return parsed if parsed > 0 else None
 
 
-def resolve_max_concurrent_sessions(config: Any) -> Optional[int]:
+def resolve_max_concurrent_sessions(config: Any) -> int | None:
     """Resolve top-level max_concurrent_sessions with gateway.* fallback."""
     raw: Any = None
     key = "max_concurrent_sessions"
@@ -86,7 +91,7 @@ def summarize_holders(entries: list[dict[str, Any]]) -> str:
 
 
 def active_session_limit_message(
-    active_count: int, max_sessions: int, entries: Optional[list[dict[str, Any]]] = None
+    active_count: int, max_sessions: int, entries: list[dict[str, Any]] | None = None
 ) -> str:
     # Name the holders: slots are shared across CLI, desktop/TUI and gateway,
     # so the rejected surface is usually NOT the one squatting on them.
@@ -122,7 +127,7 @@ class ActiveSessionRefusal(str):
 
     reason: str
 
-    def __new__(cls, message: str, reason: str) -> "ActiveSessionRefusal":
+    def __new__(cls, message: str, reason: str) -> ActiveSessionRefusal:
         obj = super().__new__(cls, message)
         obj.reason = reason
         return obj
@@ -134,7 +139,7 @@ def format_refusal_stderr(message: str) -> str:
     return f"hermes-refusal-reason: {reason}\n{message}" if reason else str(message)
 
 
-def _is_same_writer(entry: dict[str, Any], metadata: Optional[dict[str, Any]]) -> bool:
+def _is_same_writer(entry: dict[str, Any], metadata: dict[str, Any] | None) -> bool:
     """True when an existing lease belongs to the very caller re-acquiring it.
     Identity is (pid, live_session_id): pid alone lets two live sessions in one process
     steal each other's lease; the live id alone lets another process with an equal id."""
@@ -181,7 +186,7 @@ def _lock_path(registry_home: str | Path | None = None) -> Path:
 
 
 def _lease_paths(
-    lease: Optional["ActiveSessionLease"] = None, registry_home: str | Path | None = None
+    lease: ActiveSessionLease | None = None, registry_home: str | Path | None = None
 ) -> tuple[Path, Path]:
     if lease is not None and lease.state_path is not None and lease.lock_path is not None:
         return lease.state_path, lease.lock_path
@@ -298,7 +303,7 @@ def _write_entries(path: Path, entries: list[dict[str, Any]]) -> None:
     atomic_json_write(path, {"entries": entries}, indent=None, sort_keys=True)
 
 
-def _process_start_time(pid: int) -> Optional[float]:
+def _process_start_time(pid: int) -> float | None:
     # Pair pid with create_time when psutil can read it, so a recycled pid does not
     # keep a stale lease alive indefinitely.
     try:
@@ -311,7 +316,7 @@ def _process_start_time(pid: int) -> Optional[float]:
 _OWN_START: tuple[int, float] | None = None  # (pid, create_time); published atomically, re-read after fork
 
 
-def _own_start_time() -> Optional[float]:
+def _own_start_time() -> float | None:
     """This process's create_time, read from psutil once instead of per lease probe."""
     global _OWN_START
     pid = os.getpid()
@@ -323,7 +328,7 @@ def _own_start_time() -> Optional[float]:
     return _OWN_START[1]
 
 
-def _optional_float(value: Any) -> Optional[float]:
+def _optional_float(value: Any) -> float | None:
     if value is None or value == "":
         return None
     try:
@@ -332,7 +337,7 @@ def _optional_float(value: Any) -> Optional[float]:
         return None
 
 
-def _pid_liveness(pid: Any, process_start_time: Any = None, *, lenient: bool = False) -> Optional[bool]:
+def _pid_liveness(pid: Any, process_start_time: Any = None, *, lenient: bool = False) -> bool | None:
     """True/False for live/dead, or None when unknowable. ``lenient`` never returns None:
     an unparseable pid or failed existence probe counts as dead, an unreadable start as alive."""
     unknown_dead = False if lenient else None
@@ -405,8 +410,8 @@ class ActiveSessionLease:
     # against the same registry even inside a profile-home override, or phantom
     # leases fill the session cap.
     # See #85431.
-    state_path: Optional[Path] = None
-    lock_path: Optional[Path] = None
+    state_path: Path | None = None
+    lock_path: Path | None = None
     track_liveness: bool = False
 
     def release(self) -> None:
@@ -437,7 +442,7 @@ def _holds_session(entries: list[dict[str, Any]], session_id: str) -> bool:
 def _read_live_entries(
     state_path: Path, *, track_liveness: bool, warn: str,
     target_session_id: str | None = None, target_pid: int | None = None,
-) -> Optional[tuple[list[dict[str, Any]], list[dict[str, Any]]]]:
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]] | None:
     """``(raw, pruned)`` from the registry, or None when it is unreadable.
 
     Liveness-tracked callers re-raise instead (they must not proceed on an unprovable
@@ -460,7 +465,7 @@ def _read_live_entries(
 
 def _lease_entry(
     *, lease_id: str, session_id: str, surface: str,
-    metadata: Optional[dict[str, Any]] = None, track_liveness: bool = False,
+    metadata: dict[str, Any] | None = None, track_liveness: bool = False,
 ) -> dict[str, Any]:
     now = time.time()
     entry: dict[str, Any] = {
@@ -480,9 +485,9 @@ def _lease_entry(
 
 
 def try_acquire_active_session(
-    *, session_id: str, surface: str, config: Any, metadata: Optional[dict[str, Any]] = None,
+    *, session_id: str, surface: str, config: Any, metadata: dict[str, Any] | None = None,
     registry_home: str | Path | None = None, track_liveness: bool = False,
-) -> tuple[Optional[ActiveSessionLease], Optional[str]]:
+) -> tuple[ActiveSessionLease | None, str | None]:
     """Acquire an active-session slot: ``(lease, None)`` or ``(None, ActiveSessionRefusal)``.
 
     Per-session exclusivity is CORRECTNESS, enforced unconditionally (at most one live
@@ -594,7 +599,7 @@ def release_active_session(lease: ActiveSessionLease) -> None:
 
 
 def transfer_active_session(
-    lease: ActiveSessionLease, *, session_id: str, metadata: Optional[dict[str, Any]] = None
+    lease: ActiveSessionLease, *, session_id: str, metadata: dict[str, Any] | None = None
 ) -> bool:
     """Move an existing lease to a new session id without dropping the slot."""
     new_session_id = str(session_id or "")

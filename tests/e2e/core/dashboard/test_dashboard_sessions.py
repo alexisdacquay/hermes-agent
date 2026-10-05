@@ -17,9 +17,8 @@ from __future__ import annotations
 import subprocess
 import sys
 import threading
-import time
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
-from typing import Callable
 
 import pytest
 

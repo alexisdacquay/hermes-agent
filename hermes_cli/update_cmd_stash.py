@@ -7,9 +7,8 @@ Origin helpers are imported lazily per function (no cycle; test patches on the o
 import logging
 import re
 import subprocess
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Optional
 
 # Log-record parity with the origin module.
 logger = logging.getLogger("hermes_cli.update_cmd")
@@ -30,7 +29,7 @@ _STASH_LEFT_IN_PLACE = "  The stash was left in place. You can remove it manuall
 #: update stashes local patches; cleared when they are restored, discarded or parked because
 #: the user asked for it, or once a failure verdict already named them. While it is set, no
 #: outcome may claim the update completed (#122557).
-_pending_autostash: Optional[tuple[str, int]] = None
+_pending_autostash: tuple[str, int] | None = None
 
 
 def _git_quiet(git_cmd: list[str], args: list[str], cwd: Path, **kwargs):
@@ -79,7 +78,7 @@ def _print_first_line(text: str) -> None:
         print(f"  {text.strip().splitlines()[0]}")
 
 
-def _stash_local_changes_if_needed(git_cmd: list[str], cwd: Path) -> Optional[str]:
+def _stash_local_changes_if_needed(git_cmd: list[str], cwd: Path) -> str | None:
     global _pending_autostash
     from hermes_cli.update_cmd_git import _git_run
     _pending_autostash = None
@@ -103,7 +102,7 @@ def _stash_local_changes_if_needed(git_cmd: list[str], cwd: Path) -> Optional[st
         if add.returncode != 0:
             _print_nonempty(add.stderr)
 
-    stash_name = datetime.now(timezone.utc).strftime(f"{_AUTOSTASH_NAME_PREFIX}%Y%m%d-%H%M%S")
+    stash_name = datetime.now(UTC).strftime(f"{_AUTOSTASH_NAME_PREFIX}%Y%m%d-%H%M%S")
     print("→ Local changes detected — stashing before update...")
     prev_stash = _git_run(git_cmd, ["rev-parse", "--verify", "refs/stash"], cwd).stdout.strip()
     push = _git_run(git_cmd, ["stash", "push", "--include-untracked", "-m", stash_name], cwd)
@@ -133,7 +132,7 @@ def _stash_local_changes_if_needed(git_cmd: list[str], cwd: Path) -> Optional[st
     return stash_ref
 
 
-def _resolve_stash_selector(git_cmd: list[str], cwd: Path, stash_ref: str) -> Optional[str]:
+def _resolve_stash_selector(git_cmd: list[str], cwd: Path, stash_ref: str) -> str | None:
     """Selector for the stash entry whose commit is *stash_ref*, as the bare index ``N``
     (git accepts it wherever ``stash@{N}`` is valid). Never ``stash@{N}`` itself: on native
     Windows the MSYS runtime strips the braces from git.exe's argv, so ``stash@{0}`` reaches git
@@ -154,7 +153,7 @@ def _clear_pending_autostash() -> None:
     _pending_autostash = None
 
 
-def _unrestored_autostash_notice() -> Optional[str]:
+def _unrestored_autostash_notice() -> str | None:
     """What to tell the user while this run's autostash is unsettled (#122557), else ``None``.
 
     Used as the completion line (it is not a success line, so the update ends partial and
@@ -185,7 +184,7 @@ def _warn_orphaned_update_autostashes(git_cmd: list[str], cwd: Path) -> int:
         stash_list = _git_run(git_cmd, ["stash", "list", "--format=%gd %s"], cwd)
         if stash_list.returncode != 0:
             return 0
-        cutoff = datetime.now(timezone.utc) - timedelta(days=_AUTOSTASH_WARN_AGE_DAYS)
+        cutoff = datetime.now(UTC) - timedelta(days=_AUTOSTASH_WARN_AGE_DAYS)
         stale: list[tuple[str, str]] = []
         for line in stash_list.stdout.splitlines():
             selector, _, subject = line.strip().partition(" ")
@@ -194,7 +193,7 @@ def _warn_orphaned_update_autostashes(git_cmd: list[str], cwd: Path) -> int:
                 continue
             stamp = subject[pos + len(_AUTOSTASH_NAME_PREFIX):][:15]  # "YYYYMMDD-HHMMSS"
             try:
-                stash_time = datetime.strptime(stamp, "%Y%m%d-%H%M%S").replace(tzinfo=timezone.utc)
+                stash_time = datetime.strptime(stamp, "%Y%m%d-%H%M%S").replace(tzinfo=UTC)
             except ValueError:
                 continue  # age unknown — leave it alone rather than guess
             if stash_time < cutoff:
@@ -234,7 +233,7 @@ def _record_stash_disposition(outcome: str, stash_ref: str, detail: str = "", *,
     )
 
 
-def _print_stash_cleanup_guidance(stash_ref: str, stash_selector: Optional[str] = None) -> None:
+def _print_stash_cleanup_guidance(stash_ref: str, stash_selector: str | None = None) -> None:
     print("  Check `git status` first so you don't accidentally reapply the same change twice.")
     print("  Find the saved entry with: git stash list --format='%gd %H %s'")
     if stash_selector:
@@ -432,7 +431,12 @@ def _drop_restored_stash(git_cmd: list[str], cwd: Path, stash_ref: str) -> None:
 def _restore_stashed_changes(
     git_cmd: list[str], cwd: Path, stash_ref: str, prompt_user: bool = False, input_fn=None,
 ) -> bool:
-    from hermes_cli.update_cmd import _critical_module_import_failures, _git_untracked_paths, _restored_python_paths, _validate_python_files_syntax
+    from hermes_cli.update_cmd import (
+        _critical_module_import_failures,
+        _git_untracked_paths,
+        _restored_python_paths,
+        _validate_python_files_syntax,
+    )
     if prompt_user and not _confirm_restore(stash_ref, input_fn):
         _record_stash_disposition("parked", stash_ref, "restore declined", chosen=True)
         return False

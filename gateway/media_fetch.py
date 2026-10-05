@@ -23,10 +23,12 @@ import posixpath
 import re
 import uuid
 from pathlib import Path, PurePosixPath
-from typing import Optional
 
 from gateway.platforms.base import (
-    _MEDIA_DELIVERY_DENIED_HOME_SUBPATHS, _MEDIA_DELIVERY_DENIED_PREFIXES, _ROOT_CREDENTIAL_PATHS)
+    _MEDIA_DELIVERY_DENIED_HOME_SUBPATHS,
+    _MEDIA_DELIVERY_DENIED_PREFIXES,
+    _ROOT_CREDENTIAL_PATHS,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +42,7 @@ _DENIED_HOME_RELATIVE = tuple(PurePosixPath(s) for s in _MEDIA_DELIVERY_DENIED_H
     PurePosixPath(".hermes", *PurePosixPath(rel.replace(os.sep, "/")).parts) for rel in _ROOT_CREDENTIAL_PATHS)
 
 
-def remote_path_is_denied(path: str, remote_home: Optional[str]) -> bool:
+def remote_path_is_denied(path: str, remote_home: str | None) -> bool:
     """Pure string check (the remote fs can't be stat'd from here) applying the host denylist to a
     sandbox path. Unknown home ⇒ home-relative entries match ANY path component (conservative)."""
     target = PurePosixPath(posixpath.normpath(path))
@@ -65,17 +67,21 @@ def remote_path_is_denied(path: str, remote_home: Optional[str]) -> bool:
 def _active_remote_env():
     """The live remote BaseEnvironment for the current session, or None (local backend / no env yet).
     Keyed by the session id the turn registered its sandbox under (falls back to the session key)."""
-    from agent.prompt_builder import _REMOTE_TERMINAL_BACKENDS, _plugin_backend_is_remote
+    from agent.prompt_builder import (
+        _REMOTE_TERMINAL_BACKENDS,
+        _plugin_backend_is_remote,
+    )
+    from tools.terminal_tool_lifecycle import get_active_env
+
     from gateway.platforms.base import _tenv
     from gateway.session_context import get_session_env
-    from tools.terminal_tool_lifecycle import get_active_env
     backend = _tenv("TERMINAL_ENV", "local").strip().lower()
     if backend not in _REMOTE_TERMINAL_BACKENDS and not _plugin_backend_is_remote(backend):
         return None
     return get_active_env(get_session_env("HERMES_SESSION_ID") or get_session_env("HERMES_SESSION_KEY") or "default")
 
 
-def fetch_remote_media(path: str) -> Optional[str]:
+def fetch_remote_media(path: str) -> str | None:
     """Host path of a validated copy of sandbox file ``path``, or None (never raises). Only fires
     when a remote backend is active; the caller has already failed local validation."""
     from gateway.media_policy import media_delivery_strict
@@ -84,9 +90,14 @@ def fetch_remote_media(path: str) -> Optional[str]:
     env = _active_remote_env()
     if env is None:
         return None
-    from gateway.platforms.base import (
-        DOCUMENT_CACHE_DIR, _log_safe_path, _normalize_media_tag_path, validate_media_delivery_path)
     from tools.environments.base import FileFetchError
+
+    from gateway.platforms.base import (
+        DOCUMENT_CACHE_DIR,
+        _log_safe_path,
+        _normalize_media_tag_path,
+        validate_media_delivery_path,
+    )
 
     remote_home = getattr(env, "_remote_home", None)
     candidate = posixpath.normpath(_normalize_media_tag_path(str(path)) or "")

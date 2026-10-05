@@ -4,8 +4,9 @@ These are behavior contracts, not snapshots — they assert WHERE trust comes
 from and that explicit per-provider settings still beat it.
 """
 
-import pytest
+from datetime import UTC
 
+import pytest
 from agent.ssl_verify import resolve_httpx_verify
 
 
@@ -76,14 +77,14 @@ with httpx.Client(verify=resolve_httpx_verify()) as client:
 
 def test_explicit_provider_ca_replaces_platform_trust_on_real_https(tmp_path):
     """A private endpoint trusts only its provider CA, never a global fallback."""
-    from datetime import datetime, timedelta, timezone
-    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-    from ipaddress import ip_address
     import os
     import ssl
     import subprocess
     import sys
     import threading
+    from datetime import datetime, timedelta
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    from ipaddress import ip_address
 
     from cryptography import x509
     from cryptography.hazmat.primitives import hashes, serialization
@@ -92,7 +93,7 @@ def test_explicit_provider_ca_replaces_platform_trust_on_real_https(tmp_path):
 
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     subject = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "Private provider")])
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     cert = (x509.CertificateBuilder().subject_name(subject).issuer_name(subject)
             .public_key(key.public_key()).serial_number(x509.random_serial_number())
             .not_valid_before(now - timedelta(days=1)).not_valid_after(now + timedelta(days=1))

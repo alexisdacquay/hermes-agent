@@ -38,7 +38,6 @@ from __future__ import annotations
 from unittest.mock import patch
 
 import pytest
-
 from agent.context_compressor import (
     COMPRESSED_SUMMARY_METADATA_KEY,
     SUMMARY_PREFIX,

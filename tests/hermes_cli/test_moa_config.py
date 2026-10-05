@@ -1,5 +1,4 @@
 import pytest
-
 from agent.errors import MoAPresetNotFoundError
 from hermes_cli.moa_config import (
     DEFAULT_MOA_AGGREGATOR,

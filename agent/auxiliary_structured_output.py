@@ -23,7 +23,7 @@ must be false"), which the ladder still retries once but which say nothing about
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
@@ -39,13 +39,13 @@ _CAPABILITY_REJECTION_MARKERS = (
 )
 
 
-def _route_key(provider: Optional[str], base_url: Optional[str]) -> str:
+def _route_key(provider: str | None, base_url: str | None) -> str:
     """Endpoint host:port when known (a base_url override turns a named provider into ``custom``; local
     servers differ by port), else the provider name."""
     return (urlparse(base_url or "").netloc or "").lower() or str(provider or "").strip().lower()
 
 
-def _response_format_type(request_kwargs: Dict[str, Any]) -> Optional[str]:
+def _response_format_type(request_kwargs: dict[str, Any]) -> str | None:
     extra_body = request_kwargs.get("extra_body")
     response_format = (extra_body or {}).get("response_format") if isinstance(extra_body, dict) else None
     if response_format is None:
@@ -53,7 +53,7 @@ def _response_format_type(request_kwargs: Dict[str, Any]) -> Optional[str]:
     return response_format.get("type") if isinstance(response_format, dict) else None
 
 
-def _profile_unsupported_formats(provider: Optional[str], base_url: Optional[str]) -> tuple:
+def _profile_unsupported_formats(provider: str | None, base_url: str | None) -> tuple:
     """The provider profile's declared unsupported types; a ``custom`` route whose base_url is a profiled
     provider's own host (``api.deepseek.com``) gets that provider's profile."""
     try:
@@ -68,7 +68,7 @@ def _profile_unsupported_formats(provider: Optional[str], base_url: Optional[str
     return tuple(getattr(profile, "unsupported_response_formats", ()) or ()) if profile is not None else ()
 
 
-def is_capability_rejection(error: Optional[BaseException]) -> bool:
+def is_capability_rejection(error: BaseException | None) -> bool:
     """Whether a structured-output rejection speaks to the route/model's capability (memoisable) rather
     than to this request's schema (retry once, remember nothing)."""
     err_lower = str(error or "").lower()
@@ -78,7 +78,7 @@ def is_capability_rejection(error: Optional[BaseException]) -> bool:
 
 
 def remember_structured_output_rejection(
-    provider: Optional[str], base_url: Optional[str], rejected_kwargs: Dict[str, Any], error: BaseException,
+    provider: str | None, base_url: str | None, rejected_kwargs: dict[str, Any], error: BaseException,
 ) -> None:
     """Record that this route's ``rejected_kwargs["model"]`` rejected the ``response_format`` type carried
     by *rejected_kwargs* — only when *error* names the capability, never for a schema-validation 400."""
@@ -88,9 +88,9 @@ def remember_structured_output_rejection(
 
 
 def without_unsupported_response_format(
-    extra_body: Dict[str, Any], provider: Optional[str], base_url: Optional[str], model: Optional[str],
-    task: Optional[str] = None,
-) -> Dict[str, Any]:
+    extra_body: dict[str, Any], provider: str | None, base_url: str | None, model: str | None,
+    task: str | None = None,
+) -> dict[str, Any]:
     """*extra_body* minus a ``response_format`` whose type this route+model is known to reject; unchanged
     otherwise."""
     response_format = extra_body.get("response_format")

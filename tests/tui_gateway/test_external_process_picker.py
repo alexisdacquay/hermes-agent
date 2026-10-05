@@ -9,7 +9,6 @@ import sys
 from pathlib import Path
 
 import pytest
-
 from providers import register_provider
 from providers.base import ProviderProfile
 
@@ -43,9 +42,9 @@ def picker_env(monkeypatch, tmp_path):
     real_which = shutil.which
     monkeypatch.setattr(shutil, "which",
                         lambda cmd, *a, **kw: sys.executable if cmd == profile.process_command else real_which(cmd, *a, **kw))
-    import agent.models_dev as models_dev
+    from agent import models_dev
     monkeypatch.setattr(models_dev, "fetch_models_dev", lambda *a, **kw: {})
-    import hermes_cli.inventory as inventory
+    from hermes_cli import inventory
     monkeypatch.setattr(inventory, "_prewarm_pricing_async", lambda *a, **kw: None)
     return home, profile
 
@@ -54,7 +53,11 @@ def test_process_provider_reaches_every_shared_picker(picker_env, monkeypatch):
     home, profile = picker_env
     from hermes_cli.config import save_config
     from hermes_cli.main_provider_setup import _build_provider_picker_rows
-    from hermes_cli.models import _PROVIDER_LABELS, list_available_providers, provider_model_ids
+    from hermes_cli.models import (
+        _PROVIDER_LABELS,
+        list_available_providers,
+        provider_model_ids,
+    )
     from tui_gateway import server
 
     assert any(row["id"] == profile.name for row in list_available_providers())

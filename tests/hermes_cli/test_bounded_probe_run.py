@@ -20,12 +20,10 @@ descendant-survival cases live in ``test_git_probe_tree_kill.py`` and now
 exercise the same code path through the ``bounded_git_probe`` delegation.
 """
 
-import subprocess
 import sys
 import time
 
 import pytest
-
 from hermes_cli._subprocess_compat import bounded_git_probe, bounded_probe_run
 
 _PY = sys.executable

@@ -18,8 +18,8 @@ autouse fixture below puts the process-global flag back (activation is one-way p
 import json
 import zipfile
 
-import pytest
 import hermes_yaml as yaml
+import pytest
 
 
 @pytest.fixture(autouse=True)
@@ -30,7 +30,7 @@ def _multiplex_state_is_per_test():
     request 400 by accident) and restored exactly as found, including the frozen launch
     env snapshot activation captures.
     """
-    import agent.secret_scope as secret_scope
+    from agent import secret_scope
     from tui_gateway import launch_profile_policy
 
     was_active = secret_scope.is_multiplex_active()
@@ -47,8 +47,8 @@ def _multiplex_state_is_per_test():
 @pytest.fixture
 def homes(tmp_path, monkeypatch, _isolate_hermes_home):
     """Isolated launch home + one named profile, both seeded with real files."""
-    from hermes_constants import get_hermes_home
     from hermes_cli import profiles
+    from hermes_constants import get_hermes_home
 
     launch_home = get_hermes_home()
     profiles_root = launch_home / "profiles"
@@ -82,7 +82,7 @@ def client(monkeypatch, homes):
         pytest.skip("fastapi/starlette not installed")
 
     import hermes_state
-    from hermes_cli.web_server import app, _SESSION_HEADER_NAME, _SESSION_TOKEN
+    from hermes_cli.web_server import _SESSION_HEADER_NAME, _SESSION_TOKEN, app
 
     monkeypatch.setattr(hermes_state, "DEFAULT_DB_PATH", homes["launch"] / "state.db")
     c = TestClient(app)
@@ -120,8 +120,7 @@ def seams(monkeypatch):
     session-store open names, ``pool_home`` = the home the credential-pool body resolves.
     A route that reaches any of them after a 400 shows up as a non-empty list.
     """
-    import agent.credential_pool as credential_pool
-    import agent.credential_sources as credential_sources
+    from agent import credential_pool, credential_sources
     from hermes_cli import web_server_gateway, web_server_sessions
     from hermes_cli.config import get_hermes_home
 

@@ -3,7 +3,6 @@
 import json
 
 import pytest
-
 from agent import web_search_registry
 from agent.web_search_provider import WebSearchProvider
 from tools import web_tools

@@ -14,7 +14,8 @@ import logging
 import math
 import threading
 import time
-from typing import Any, Callable, Dict, NamedTuple, Optional, Tuple
+from collections.abc import Callable
+from typing import Any, NamedTuple
 
 from agent.session_activity import AwakeIdleMeter
 
@@ -33,7 +34,7 @@ class ActivitySnapshot(NamedTuple):
     revalidated by the commit callback under the shared lock."""
 
     generation: int
-    activity_ts: Optional[float]
+    activity_ts: float | None
     idle_seconds: float
 
 
@@ -58,8 +59,8 @@ def _resolve_finite_seconds(raw: Any, *, default: float, key: str) -> float:
 
 
 def resolve_turn_liveness_settings(
-    config: Optional[Dict[str, Any]] = None,
-) -> Tuple[Optional[float], float]:
+    config: dict[str, Any] | None = None,
+) -> tuple[float | None, float]:
     """Resolve ``(timeout_s, poll_s)``; ``timeout_s <= 0`` opts out (``None``).
 
     Invalid values (typo, NaN, Inf, non-positive poll) warn and fall back to
@@ -67,7 +68,7 @@ def resolve_turn_liveness_settings(
     """
     agent_cfg = config.get("agent") if isinstance(config, dict) else None
     raw_section = agent_cfg.get("turn_liveness") if isinstance(agent_cfg, dict) else None
-    section: Dict[str, Any] = raw_section if isinstance(raw_section, dict) else {}
+    section: dict[str, Any] = raw_section if isinstance(raw_section, dict) else {}
     if raw_section is not None and not isinstance(raw_section, dict):
         _warn_invalid_value("agent.turn_liveness", raw_section, DEFAULT_TURN_LIVENESS_TIMEOUT_S)
 
@@ -143,11 +144,13 @@ class TurnLivenessWatchdog:
         # Stop renewing the lease so a wedge the interrupt cannot unwind expires via TTL.
         self._deactivate_turn()
         self._surface_committed_abort(snapshot)
-        from hermes_cli.observability.shared_metrics_process import record_watchdog_turn_abort
+        from hermes_cli.observability.shared_metrics_process import (
+            record_watchdog_turn_abort,
+        )
         record_watchdog_turn_abort(self._agent)
         return False
 
-    def _sample(self) -> Optional[ActivitySnapshot]:
+    def _sample(self) -> ActivitySnapshot | None:
         with self._activity_lock:
             if not self._is_turn_active():
                 return None

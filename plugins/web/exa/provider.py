@@ -7,11 +7,21 @@ sync-only; the dispatcher threads extract when the caller is async.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 from plugins.web._common import (
-    BaseWebSearchProvider, cached_sdk_client, document, keyless_extract, keyless_search, keyless_variant_schema,
-    provider_env, run_extract, run_search, search_ok, use_keyless, web_hit,
+    BaseWebSearchProvider,
+    cached_sdk_client,
+    document,
+    keyless_extract,
+    keyless_search,
+    keyless_variant_schema,
+    provider_env,
+    run_extract,
+    run_search,
+    search_ok,
+    use_keyless,
+    web_hit,
 )
 
 logger = logging.getLogger(__name__)
@@ -38,8 +48,8 @@ class ExaWebSearchProvider(BaseWebSearchProvider):
     EXTRACT = True
     KEYLESS = True
 
-    def search(self, query: str, limit: int = 5) -> Dict[str, Any]:
-        def _body() -> Dict[str, Any]:
+    def search(self, query: str, limit: int = 5) -> dict[str, Any]:
+        def _body() -> dict[str, Any]:
             if use_keyless("exa", provider_env("EXA_API_KEY")):
                 return keyless_search("Exa", "exa", query, limit, logger)
             logger.info("Exa search: '%s' (limit=%d)", query, limit)
@@ -51,8 +61,8 @@ class ExaWebSearchProvider(BaseWebSearchProvider):
 
         return run_search("Exa", logger, _body, sdk=True)
 
-    def extract(self, urls: List[str], **kwargs: Any) -> List[Dict[str, Any]]:
-        def _body() -> List[Dict[str, Any]]:
+    def extract(self, urls: list[str], **kwargs: Any) -> list[dict[str, Any]]:
+        def _body() -> list[dict[str, Any]]:
             if use_keyless("exa", provider_env("EXA_API_KEY")):
                 return keyless_extract("Exa", "exa", urls, logger)
             logger.info("Exa extract: %d URL(s)", len(urls))
@@ -61,7 +71,7 @@ class ExaWebSearchProvider(BaseWebSearchProvider):
 
         return run_extract("Exa", logger, urls, _body, sdk=True)
 
-    def get_setup_schema(self) -> Dict[str, Any]:
+    def get_setup_schema(self) -> dict[str, Any]:
         return keyless_variant_schema(
             "Exa", "EXA_API_KEY", "https://exa.ai",
             free_tag="Semantic + neural web search with content extraction on Exa's anonymous free tier. Rate-limited under burst load.",

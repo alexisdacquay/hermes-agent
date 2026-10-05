@@ -24,7 +24,6 @@ import time
 from types import SimpleNamespace
 
 import pytest
-
 from gateway.config import Platform
 from gateway.relay.adapter import RelayAdapter
 from gateway.session import SessionSource
@@ -70,7 +69,6 @@ async def test_injection_path_primes_before_handle_message():
     """End-to-end wiring: _inject_watch_notification must call
     prime_routing_cache on the resolved adapter BEFORE handle_message —
     a helper nobody calls fixes nothing."""
-    from unittest.mock import AsyncMock
     from gateway.run import GatewayRunner
 
     calls = []

@@ -11,18 +11,17 @@ import itertools
 import logging
 import time
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import patch
-from typing import Any, Optional
-
-import pytest
 
 import agent.transports.codex_app_server_session as session_mod
+import pytest
 from agent.transports.codex_app_server import CodexAppServerTransportError
 from agent.transports.codex_app_server_session import (
     CodexAppServerSession,
-    _ServerRequestRouting,
     _approval_choice_to_codex_decision,
     _build_turn_input,
+    _ServerRequestRouting,
 )
 
 
@@ -49,7 +48,7 @@ class FakeClient:
         return {"userAgent": "fake/0.0.0", "codexHome": "/tmp",
                 "platformOs": "linux", "platformFamily": "unix"}
 
-    def request(self, method: str, params: Optional[dict] = None, timeout: float = 30.0):
+    def request(self, method: str, params: dict | None = None, timeout: float = 30.0):
         self.requests.append((method, params or {}))
         if self._request_handler is not None:
             return self._request_handler(method, params or {})

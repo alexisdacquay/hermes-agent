@@ -12,7 +12,6 @@ import time
 from datetime import datetime
 
 import pytest
-
 from hermes_cli.inventory import build_model_options_payload, load_picker_context
 
 

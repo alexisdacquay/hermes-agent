@@ -16,7 +16,6 @@ import base64
 import json
 
 import pytest
-
 from gateway.config import Platform, PlatformConfig
 from gateway.relay.adapter import RelayAdapter
 from gateway.relay.descriptor import CONTRACT_VERSION, CapabilityDescriptor

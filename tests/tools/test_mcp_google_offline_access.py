@@ -39,7 +39,7 @@ def _standin(httpx, *, issuer, authorization_servers):
     def handler(request):
         url = str(request.url)
         path = urlsplit(url).path
-        j = lambda status, body, **h: httpx.Response(status, json=body, headers=h, request=request)  # noqa: E731
+        j = lambda status, body, **h: httpx.Response(status, json=body, headers=h, request=request)
         if url == RESOURCE:
             if request.headers.get("Authorization") == "Bearer AT-1":
                 return j(200, {"ok": True})
@@ -63,7 +63,6 @@ def _standin(httpx, *, issuer, authorization_servers):
 async def _run_browser_flow(tmp_path, monkeypatch, *, issuer, authorization_servers, scope=None):
     from mcp.shared.auth import OAuthClientMetadata
     from pydantic import AnyUrl
-
     from tools.mcp_oauth import HermesTokenStorage, _authorization_code_result
     from tools.mcp_oauth_manager import _HERMES_PROVIDER_CLS, reset_manager_for_tests
     from tools.mcp_tool import sdk_httpx
@@ -131,7 +130,6 @@ async def test_device_flow_normalizes_issuer_and_asks_google_for_offline_access(
     from mcp.client.auth.exceptions import OAuthFlowError
     from mcp.shared.auth import OAuthClientInformationFull, OAuthClientMetadata
     from pydantic import AnyUrl
-
     from tools.mcp_oauth import HermesTokenStorage
     from tools.mcp_oauth_device import DeviceOAuthMetadata, _authorize, _device_metadata
     from tools.mcp_oauth_manager import _HERMES_PROVIDER_CLS

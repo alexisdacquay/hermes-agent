@@ -6,11 +6,11 @@ import json
 import logging
 import os
 import re
-import shutil
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ def _stringify_filter_value(value: Any) -> str:
     return "" if value is _MISSING else json.dumps(value, sort_keys=True) if isinstance(value, (dict, list)) else str(value)
 
 
-def _resolve_profile_path(path_value: Any) -> Optional[Path]:
+def _resolve_profile_path(path_value: Any) -> Path | None:
     """Resolve a user path, mapping ~/.hermes to the active profile home."""
     if not isinstance(path_value, str):
         return None
@@ -37,7 +37,7 @@ def _resolve_profile_path(path_value: Any) -> Optional[Path]:
     return path if path.is_absolute() else hermes_home / path
 
 
-def _resolve_script_path(script_value: Any) -> tuple[Optional[Path], Optional[str]]:
+def _resolve_script_path(script_value: Any) -> tuple[Path | None, str | None]:
     """Resolve a route script; must live under HERMES_HOME/scripts."""
     if not isinstance(script_value, str) or not script_value.strip():
         return None, "script path is empty"
@@ -166,7 +166,7 @@ class WebhookRouteProcessor:
             return False
         return all(self.filter_matches(spec, payload, event_type, headers) for spec in filters)
 
-    def run_route_script(self, script_value: Any, payload: dict) -> tuple[bool, Optional[dict]]:
+    def run_route_script(self, script_value: Any, payload: dict) -> tuple[bool, dict | None]:
         """Run a route script and return (should_continue, transformed_payload).
 
         Non-zero exit, empty/``[SILENT]`` stdout, or a ``[SILENT]``/``__hermes_ignore__`` flag drops the

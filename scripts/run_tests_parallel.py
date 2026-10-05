@@ -54,14 +54,13 @@ import sys
 import tempfile
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor, Future
+from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
 # The CI lane selector owns the platforms() spec resolver; share it so the
 # "skipped on this host" note and the lanes can never disagree.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from scripts.ci.list_os_marked_tests import gated_specs, spec_hosts  # noqa: E402
+from scripts.ci.list_os_marked_tests import gated_specs, spec_hosts
 
 
 def _sweep_killed_run_roots(root: str) -> None:
@@ -158,7 +157,7 @@ _DEFAULT_FILE_RETRIES = 1
 _DURATIONS_FILE = "test_durations.json"
 
 
-def _split_pathspec(value: str) -> List[str]:
+def _split_pathspec(value: str) -> list[str]:
     """Split a separator-joined path list (``--paths``/``--files``/
     ``HERMES_TEST_PATHS``) into individual paths.
 
@@ -174,7 +173,7 @@ def _split_pathspec(value: str) -> List[str]:
     """
     if sys.platform != "win32":
         return [p for p in value.split(":") if p.strip()]
-    parts: List[str] = []
+    parts: list[str] = []
     for chunk in value.split(";"):
         raw = chunk.split(":")
         i = 0
@@ -199,7 +198,7 @@ def _split_pathspec(value: str) -> List[str]:
 # behaviour, and names the CI lane where those tests actually execute.
 
 
-def _read_files_from(spec: str) -> List[str]:
+def _read_files_from(spec: str) -> list[str]:
     """Read an explicit test-file list from *spec* - a path, or ``-`` for stdin.
 
     One path per line, blank lines ignored. This is the file-backed
@@ -230,7 +229,7 @@ _LANES = {
 }
 
 
-def _off_host_marker_files(files: List[Path]) -> dict[str, int]:
+def _off_host_marker_files(files: list[Path]) -> dict[str, int]:
     """Count discovered files carrying a platforms() spec that excludes this host.
 
     Text-level scan, same resolver as scripts/ci/list_os_marked_tests.py:
@@ -252,7 +251,7 @@ def _off_host_marker_files(files: List[Path]) -> dict[str, int]:
 
 
 def _approximately_count_tests(
-    files: List[Path], repo_root: Path
+    files: list[Path], repo_root: Path
 ) -> dict[Path, int]:
     """
     Make a decent estimate at individual tests per file.
@@ -274,7 +273,7 @@ def _approximately_count_tests(
     return results
 
 
-def _discover_files(roots: List[Path]) -> List[Path]:
+def _discover_files(roots: list[Path]) -> list[Path]:
     """Return every ``test_*.py`` under the given roots (sorted).
 
     Roots may be directories (recursed for ``test_*.py``) or explicit
@@ -289,7 +288,7 @@ def _discover_files(roots: List[Path]) -> List[Path]:
     the sharded matrix from blowing up, not to block targeted runs.
     """
     seen: set[Path] = set()
-    out: List[Path] = []
+    out: list[Path] = []
     for root in roots:
         if not root.exists():
             continue
@@ -321,7 +320,7 @@ def _discover_files(roots: List[Path]) -> List[Path]:
     return sorted(out)
 
 
-def _kill_tree(proc: "subprocess.Popen", pgid: int | None = None) -> None:
+def _kill_tree(proc: subprocess.Popen, pgid: int | None = None) -> None:
     """Kill the pytest subprocess and every descendant it spawned.
 
     A test run can spin up uvicorn servers, async runtimes, or other
@@ -410,10 +409,10 @@ def _effective_file_timeout(
 
 
 def _clean_pass_durations(
-    file_times: List[Tuple[Path, float]],
-    failures: List[Tuple[Path, str, Dict[str, int]]],
-    flaky: List[Tuple[Path, str]],
-) -> List[Tuple[Path, float]]:
+    file_times: list[tuple[Path, float]],
+    failures: list[tuple[Path, str, dict[str, int]]],
+    flaky: list[tuple[Path, str]],
+) -> list[tuple[Path, float]]:
     """Keep only durations from files that passed on their first attempt.
 
     ``file_times`` records every file's total subprocess wall, including a
@@ -431,11 +430,11 @@ def _clean_pass_durations(
 
 def _run_one_file(
     file: Path,
-    pytest_args: List[str],
+    pytest_args: list[str],
     repo_root: Path,
     file_timeout: float,
     retries: int = 0,
-) -> Tuple[Path, int, str, dict[str, int], float]:
+) -> tuple[Path, int, str, dict[str, int], float]:
     """Run ``python -m pytest <file> <pytest_args>`` in a fresh subprocess.
 
     Returns (file, returncode, captured_combined_output, summary_counts, subprocess_wall_seconds).
@@ -499,16 +498,16 @@ def _run_one_file(
 # Keeping the traceback is load-bearing: a self-healed flake without its
 # failing assertion is only a filename, which forces another expensive full
 # run to rediscover the race.
-_FLAKY_RESULTS: List[Tuple[Path, str]] = []
+_FLAKY_RESULTS: list[tuple[Path, str]] = []
 _flaky_lock = threading.Lock()
 
 
 def _run_one_file_once(
     file: Path,
-    pytest_args: List[str],
+    pytest_args: list[str],
     repo_root: Path,
     file_timeout: float,
-) -> Tuple[Path, int, str, dict[str, int], float]:
+) -> tuple[Path, int, str, dict[str, int], float]:
     """Single attempt of a per-file pytest subprocess (see _run_one_file)."""
     cmd = [sys.executable, "-m", "pytest", str(file), *pytest_args]
 
@@ -649,7 +648,7 @@ def _parse_pytest_summary(output: str) -> dict[str, int]:
     return result
 
 
-def _describe_interpreter_crash(rc: int, output: str) -> Optional[str]:
+def _describe_interpreter_crash(rc: int, output: str) -> str | None:
     """Return a one-line description when the pytest subprocess died instead of exiting.
 
     A native fault (sqlite stepping a connection another thread closed,
@@ -767,7 +766,7 @@ def _print_progress(
 
 
 def _print_inline_failure(
-    file: Path, output: str, repo_root: Path, pytest_passthrough: List[str]
+    file: Path, output: str, repo_root: Path, pytest_passthrough: list[str]
 ) -> None:
     """Print a compact failure summary immediately when a file fails.
 
@@ -809,13 +808,13 @@ def _load_durations(repo_root: Path) -> dict[str, float]:
         return {}
     try:
         return json.loads(path.read_text(encoding="utf-8-sig"))
-    except (json.JSONDecodeError, OSError) as e:
+    except (json.JSONDecodeError, OSError):
         print("[ERROR] Failed to load json durations file! {e}")
         return {}
 
 
 def _save_durations(
-    file_times: List[Tuple[Path, float]],
+    file_times: list[tuple[Path, float]],
     repo_root: Path,
 ) -> None:
     """Write the duration cache so future ``--slice`` runs can use it.
@@ -834,11 +833,11 @@ def _save_durations(
 
 
 def _compute_lpt_slices(
-    files: List[Path],
+    files: list[Path],
     slice_count: int,
     durations: dict[str, float],
     repo_root: Path,
-) -> List[List[Path]]:
+) -> list[list[Path]]:
     """Distribute files across N slices using LPT (Longest Processing Time first).
 
     Sorts files by estimated duration descending, then greedily assigns each
@@ -855,7 +854,7 @@ def _compute_lpt_slices(
         return [files]
 
     default_dur = 2.0
-    file_durs: List[Tuple[Path, float]] = []
+    file_durs: list[tuple[Path, float]] = []
     for f in files:
         rel = _format_file(f, repo_root)
         dur = durations.get(rel, default_dur)
@@ -866,8 +865,8 @@ def _compute_lpt_slices(
 
     # Greedy assignment: for each file, add it to the slice with the
     # smallest current total.
-    bucket_files: List[List[Path]] = [[] for _ in range(slice_count)]
-    bucket_totals: List[float] = [0.0] * slice_count
+    bucket_files: list[list[Path]] = [[] for _ in range(slice_count)]
+    bucket_totals: list[float] = [0.0] * slice_count
 
     for f, dur in file_durs:
         min_idx = min(range(slice_count), key=lambda i: bucket_totals[i])
@@ -878,12 +877,12 @@ def _compute_lpt_slices(
 
 
 def _slice_files(
-    files: List[Path],
+    files: list[Path],
     slice_index: int,
     slice_count: int,
     durations: dict[str, float],
     repo_root: Path,
-) -> List[Path]:
+) -> list[Path]:
     """Return the subset of *files* belonging to slice *slice_index*.
 
     Every slice job computes the partition on its own, so it must come only from
@@ -948,7 +947,7 @@ def _make_stdio_glyph_safe() -> None:
                 pass
 
 
-def _pytest_flag_error(tokens: List[str]) -> Optional[str]:
+def _pytest_flag_error(tokens: list[str]) -> str | None:
     """Return pytest's own complaint about the bare passthrough tokens, if any.
 
     A mistyped flag (``--jbs``) that is not one of OUR options used to be
@@ -1139,8 +1138,8 @@ def main() -> int:
     else:
         before, explicit_passthrough = argv, []
 
-    our_args: List[str] = []
-    bare_passthrough: List[str] = []
+    our_args: list[str] = []
+    bare_passthrough: list[str] = []
     i = 0
     while i < len(before):
         tok = before[i]
@@ -1172,9 +1171,9 @@ def main() -> int:
     # "No test files to run" — the selector looked accepted but nothing ran.
     # Translate instead: run the FILE and narrow with ``-k`` on the last
     # segment, which is what the caller meant.
-    node_id_selectors: List[Tuple[str, str]] = []
+    node_id_selectors: list[tuple[str, str]] = []
     if args.paths_positional:
-        translated: List[str] = []
+        translated: list[str] = []
         for raw in args.paths_positional:
             if "::" not in raw:
                 translated.append(raw)
@@ -1250,7 +1249,7 @@ def main() -> int:
 
         if args.include_integration:
             # Caller takes responsibility — typically used via explicit -k filter.
-            global _SKIP_PARTS  # noqa: PLW0603 — config knob
+            global _SKIP_PARTS
             _SKIP_PARTS = set()
 
         files = _discover_files(roots)
@@ -1306,8 +1305,8 @@ def main() -> int:
 
     # Capture and print on completion (out-of-order is fine — keeps the
     # terminal clean rather than interleaving N parallel pytest outputs).
-    failures: List[Tuple[Path, str, Dict[str, int]]] = []
-    file_times: List[Tuple[Path, float]] = []  # (file, subprocess_wall) for distribution
+    failures: list[tuple[Path, str, dict[str, int]]] = []
+    file_times: list[tuple[Path, float]] = []  # (file, subprocess_wall) for distribution
     started = time.monotonic()
     files_done = 0
     tests_done = 0
@@ -1324,7 +1323,7 @@ def main() -> int:
     files_crashed = 0
     lock = threading.Lock()
 
-    def _on_done(file: Path, started_at: float, fut: "Future[Tuple[Path, int, str, Dict[str, int], float]]") -> None:
+    def _on_done(file: Path, started_at: float, fut: Future[tuple[Path, int, str, dict[str, int], float]]) -> None:
         nonlocal files_done, tests_done, pass_count, fail_count, tests_passed, tests_failed, tests_skipped
         nonlocal tests_collected, files_crashed
         n_tests = test_counts.get(file, 0)
@@ -1382,7 +1381,7 @@ def main() -> int:
         # proportional headroom instead of a false timeout-kill under
         # CI load (see _effective_file_timeout).
         timeout_durations = _load_durations(repo_root)
-        futures: List[Future] = []
+        futures: list[Future] = []
         for file in files:
             t0 = time.monotonic()
             fut = pool.submit(

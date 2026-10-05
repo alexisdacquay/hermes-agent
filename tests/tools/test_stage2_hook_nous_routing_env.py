@@ -14,7 +14,6 @@ import subprocess
 from pathlib import Path
 
 import pytest
-
 from agent.secret_scope import load_env_file
 
 REPO_ROOT = Path(__file__).resolve().parents[2]

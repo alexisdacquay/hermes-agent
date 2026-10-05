@@ -8,7 +8,6 @@ import time
 from pathlib import Path
 
 import pytest
-
 from hermes_cli.source_completion import complete_source_checkout
 from hermes_cli.source_stamp import write_source_stamp
 

@@ -25,7 +25,6 @@ import sys
 from types import SimpleNamespace
 
 import pytest
-
 from hermes_cli import update_abort_recovery as abort_recovery
 from hermes_cli import update_cmd
 from hermes_cli import update_restart_recovery as recovery

@@ -15,7 +15,6 @@ on a schedule, isolated from the rest of the bridge.
 from unittest.mock import patch
 
 import pytest
-
 import tools.mcp_tool as mcp_mod
 from tools import mcp_tool_discovery as _mcp_discovery
 from tools import mcp_tool_lifecycle as _mcp_lifecycle

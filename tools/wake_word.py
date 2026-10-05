@@ -10,17 +10,19 @@ idle (two input streams on one device is unreliable cross-platform).
 
 from __future__ import annotations
 
-from pm import install_hint
 import logging
 import os
 import queue
 import sys
 import threading
 import time
+from collections.abc import Callable
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional
+from typing import Any
+
+from pm import install_hint
 
 # The engine classes are re-exported on purpose: _build_engine resolves the
 # _PROVIDERS names on THIS module so a test (or plugin) can swap one engine.
@@ -58,7 +60,7 @@ _SILENCE_ALERT_SECONDS = 10
 
 # provider alias -> (engine class name on this module, pm extra).
 # Unknown providers probe as openwakeword but fail to build.
-_PROVIDERS: Dict[str, tuple[str, str]] = {
+_PROVIDERS: dict[str, tuple[str, str]] = {
     "porcupine": ("_PorcupineEngine", "wake-porcupine"),
     **{k: ("_SherpaKwsEngine", "wake-sherpa") for k in ("sherpa", "sherpa-onnx", "kws", "open")},
     **{k: ("_OpenWakeWordEngine", "wake-openwakeword") for k in ("openwakeword", "oww", "local")},
@@ -74,7 +76,7 @@ class WakeWordInUse(RuntimeError):
 
 # capture: "local" (PortAudio on the backend host), "client" (desktop/TUI streams int16
 # frames via wake.feed), or "auto" (local when a device exists, else client).
-_DEFAULTS: Dict[str, Any] = {
+_DEFAULTS: dict[str, Any] = {
     "enabled": False, "surface": "auto", "input_device": None, "capture": "auto",
     "provider": "auto", "phrase": "hey hermes", "sensitivity": 0.6,
     "confirmation_frames": _DEFAULT_CONFIRMATION_FRAMES, "start_new_session": True,
@@ -91,7 +93,7 @@ def _bundled_wakeword_path() -> str:
     return os.path.join(os.path.dirname(__file__), "wakewords", f"{_BUNDLED_MODEL_NAME}.tflite")
 
 
-def load_wake_word_config() -> Dict[str, Any]:
+def load_wake_word_config() -> dict[str, Any]:
     """Return the ``wake_word`` config section, shape-guarded to a dict."""
     cfg = None
     with suppress(Exception):
@@ -100,12 +102,12 @@ def load_wake_word_config() -> Dict[str, Any]:
     return cfg if isinstance(cfg, dict) else {}
 
 
-def _get(cfg: Dict[str, Any], key: str) -> Any:
+def _get(cfg: dict[str, Any], key: str) -> Any:
     val = cfg.get(key)
     return _DEFAULTS.get(key) if val is None else val
 
 
-def _clamped(cfg: Dict[str, Any], key: str, cast, lo, hi):
+def _clamped(cfg: dict[str, Any], key: str, cast, lo, hi):
     """Numeric config value via ``cast``, defaulting on junk, clamped to lo..hi."""
     try:
         n = cast(_get(cfg, key))
@@ -114,7 +116,7 @@ def _clamped(cfg: Dict[str, Any], key: str, cast, lo, hi):
     return min(max(n, lo), hi)
 
 
-def _provider(cfg: Dict[str, Any], *, supported: Callable[[str], bool] | None = None) -> str:
+def _provider(cfg: dict[str, Any], *, supported: Callable[[str], bool] | None = None) -> str:
     provider = str(_get(cfg, "provider")).strip().lower() or "auto"
     if provider != "auto":
         return provider
@@ -124,28 +126,28 @@ def _provider(cfg: Dict[str, Any], *, supported: Callable[[str], bool] | None = 
     return next((name for name in _PROVIDER_PREFERENCE if supported(_PROVIDERS[name][1])), "porcupine")
 
 
-def _input_device(cfg: Dict[str, Any]) -> int | str | None:
+def _input_device(cfg: dict[str, Any]) -> int | str | None:
     """Configured PortAudio input selector, preserving indices and names."""
     raw = _get(cfg, "input_device")
     return None if isinstance(raw, bool) else raw if raw is None or isinstance(raw, int) else (str(raw).strip() or None)
 
 
-def _sensitivity(cfg: Dict[str, Any]) -> float:
+def _sensitivity(cfg: dict[str, Any]) -> float:
     return _clamped(cfg, "sensitivity", float, 0.0, 1.0)
 
 
-def _confirmation_frames(cfg: Dict[str, Any]) -> int:
+def _confirmation_frames(cfg: dict[str, Any]) -> int:
     """Consecutive over-threshold frames required to fire, clamped 1..10 (1 = single-frame)."""
     return _clamped(cfg, "confirmation_frames", int, 1, 10)
 
 
-def wake_phrase(cfg: Optional[Dict[str, Any]] = None) -> str:
+def wake_phrase(cfg: dict[str, Any] | None = None) -> str:
     """Human-facing wake phrase label (purely cosmetic; engine keys detection)."""
     cfg = cfg if cfg is not None else load_wake_word_config()
     return str(_get(cfg, "phrase")) or "hey hermes"
 
 
-def resolve_capture_mode(cfg: Optional[Dict[str, Any]] = None, *, prefer_client: bool = False,
+def resolve_capture_mode(cfg: dict[str, Any] | None = None, *, prefer_client: bool = False,
                          force_local: bool = False) -> str:
     """Return ``local`` or ``client`` capture mode for this arm. ``prefer_client`` is set by remote
     desktop; ``force_local`` keeps CLI/TUI on the process mic. Under ``auto`` a working backend input
@@ -179,7 +181,7 @@ def _local_input_device_ready() -> bool:
         return False
 
 
-def wake_surface_enabled(surface: str, cfg: Optional[Dict[str, Any]] = None) -> bool:
+def wake_surface_enabled(surface: str, cfg: dict[str, Any] | None = None) -> bool:
     """Should ``surface`` (cli/tui/gui) host the listener? True when enabled and the configured
     surface is ``auto`` or this one; ``auto`` only makes it eligible — the lock admits one claimant."""
     cfg = cfg if cfg is not None else load_wake_word_config()
@@ -196,11 +198,11 @@ def _active_profile_name() -> str:
     return "default"
 
 
-def enrolled_profile_phrases() -> Dict[str, str]:
+def enrolled_profile_phrases() -> dict[str, str]:
     """Map ``profile name -> wake phrase`` for every wake-enabled profile, reading each profile's own
     ``config.yaml`` raw (``load_config()`` targets only the ACTIVE profile). Phrase defaults to
     ``"hey <profile>"``; the sherpa engine listens for all and routes to the match. Unreadable → skipped."""
-    phrases: Dict[str, str] = {}
+    phrases: dict[str, str] = {}
     with suppress(Exception):
         from hermes_cli.config import read_user_config_raw
         from hermes_cli.profiles import get_profile_dir, list_profiles
@@ -229,10 +231,10 @@ def _audio_available() -> bool:
     return False
 
 
-def _describe_input_device(selector: int | str | None, sd=None) -> Dict[str, Any]:
+def _describe_input_device(selector: int | str | None, sd=None) -> dict[str, Any]:
     """Resolve a PortAudio selector into JSON-safe diagnostics (``InputStream`` stays the
     authority on whether the device actually opens). Imports sounddevice unless ``sd`` is given."""
-    details: Dict[str, Any] = {"selector": selector}
+    details: dict[str, Any] = {"selector": selector}
     try:
         sd = sd or _import_audio()[0]
         info = sd.query_devices(selector, "input")
@@ -274,7 +276,7 @@ def _resample_audio_frame(np, frame, output_length: int):
     return np.rint(values).clip(-32768, 32767).astype(np.int16)
 
 
-def silent_audio_hint(details: Dict[str, Any]) -> str:
+def silent_audio_hint(details: dict[str, Any]) -> str:
     """Platform-specific remediation for an armed stream delivering silence."""
     if sys.platform == "darwin":
         return ("Microphone delivers only silence. Grant the Hermes backend "
@@ -289,7 +291,7 @@ def silent_audio_hint(details: Dict[str, Any]) -> str:
     return f"Microphone delivers only silence from {label}. {fix}, then toggle the wake word."
 
 
-def _build_engine(cfg: Dict[str, Any]) -> _Engine:
+def _build_engine(cfg: dict[str, Any]) -> _Engine:
     provider = _provider(cfg)
     if provider not in _PROVIDERS:
         raise ValueError(f"Unknown wake_word provider: {provider!r}")
@@ -302,7 +304,11 @@ def _stt_ready() -> bool:
     """Is a speech-to-text provider configured and enabled? (A wake without STT arms the
     mic but every utterance dies at transcription — same bar as ``check_voice_requirements``.)"""
     with suppress(Exception):
-        from tools.transcription_tools import _get_provider, _load_stt_config, is_stt_enabled
+        from tools.transcription_tools import (
+            _get_provider,
+            _load_stt_config,
+            is_stt_enabled,
+        )
         stt_config = _load_stt_config()
         return is_stt_enabled(stt_config) and _get_provider(stt_config) != "none"
     return False
@@ -322,7 +328,11 @@ def _tts_ready() -> bool:
     use" counts as ready and we never touch pip from here.
     """
     try:
-        from tools.tts_tool import _get_provider, _load_tts_config, check_tts_requirements
+        from tools.tts_tool import (
+            _get_provider,
+            _load_tts_config,
+            check_tts_requirements,
+        )
         provider = _get_provider(_load_tts_config())
     except Exception:
         return False
@@ -352,13 +362,13 @@ def _tts_ready() -> bool:
         return False
 
 
-def check_wake_word_requirements(cfg: Optional[Dict[str, Any]] = None, *,
-                                 supported: Callable[[str], bool] | None = None) -> Dict[str, Any]:
+def check_wake_word_requirements(cfg: dict[str, Any] | None = None, *,
+                                 supported: Callable[[str], bool] | None = None) -> dict[str, Any]:
     """Report whether wake-word detection can run, with a remediation hint."""
     cfg = cfg if cfg is not None else load_wake_word_config()
     import pm
-    from pm.install import lazy_installs_allowed
     from pm.extras import extra_supported
+    from pm.install import lazy_installs_allowed
 
     supported = supported or extra_supported
     provider = _provider(cfg, supported=supported)
@@ -443,7 +453,7 @@ class _Capture:
     # guard and go straight to the blocking read.
     _skip_available_poll: bool = False
 
-    def read(self, stop: Optional[threading.Event] = None):
+    def read(self, stop: threading.Event | None = None):
         """One raw block; None when nothing arrived within ~250 ms (client) or ``stop`` was
         set while waiting (local). Stream errors propagate.
 
@@ -496,21 +506,21 @@ class WakeWordDetector:
     once and kept across pause/resume — only the stream + reader thread cycle, so mic toggles are cheap."""
 
     def __init__(self, engine: _Engine, on_wake: Callable[[], None], cooldown: float = _FIRE_COOLDOWN_SECONDS,
-                 on_failure: Optional[Callable[["WakeWordDetector"], None]] = None,
+                 on_failure: Callable[[WakeWordDetector], None] | None = None,
                  input_device: int | str | None = None, external_audio: bool = False):
         self.engine, self.on_wake, self.cooldown, self.on_failure = engine, on_wake, cooldown, on_failure
         self.input_device, self.external_audio = input_device, bool(external_audio)
-        self.input_device_details: Dict[str, Any] = (
+        self.input_device_details: dict[str, Any] = (
             {"selector": "client", "name": "client capture", "hostapi": "remote"}
             if self.external_audio else {"selector": input_device})
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
         # Armed capture of the current reader thread; lets _halt_thread abort a
         # blocking read the poll guard cannot return from. Written by _run.
-        self._cap: Optional[_Capture] = None
+        self._cap: _Capture | None = None
         self._stop, self._callback_inflight = threading.Event(), threading.Event()
         self._lock, self._last_fire = threading.Lock(), 0.0
         # Client-capture PCM queue (int16 mono frames). Local mode ignores this.
-        self._audio_q: "queue.Queue[Any]" = queue.Queue(maxsize=64)
+        self._audio_q: queue.Queue[Any] = queue.Queue(maxsize=64)
         # True when the stream is open but every frame is (near-)silence, so status
         # surfaces can tell "armed" from "deaf".
         self.audio_silent, self._silent_frames = False, 0
@@ -676,7 +686,7 @@ class WakeWordDetector:
             self._callback_inflight.set()
             threading.Thread(target=self._dispatch_wake, daemon=True, name="wake-word-callback").start()
 
-    def _recover_capture(self, frame_length: int, retries) -> Optional[_Capture]:
+    def _recover_capture(self, frame_length: int, retries) -> _Capture | None:
         """Retry only an already-started local capture, keeping its owner and engine."""
         if self.external_audio:
             return None
@@ -756,7 +766,7 @@ class WakeWordDetector:
 
 # ── Process-wide singleton (mirrors hermes_cli.voice's continuous API) ──
 
-_detector: Optional[WakeWordDetector] = None
+_detector: WakeWordDetector | None = None
 _detector_owner: object | None = None
 _detector_file_lock = None
 _detector_lock = threading.Lock()
@@ -783,7 +793,7 @@ def _flock(handle, acquire: bool) -> None:
         fcntl.flock(handle.fileno(), (fcntl.LOCK_EX | fcntl.LOCK_NB) if acquire else fcntl.LOCK_UN)
 
 
-def _acquire_machine_lock(path: Optional[Path] = None):
+def _acquire_machine_lock(path: Path | None = None):
     """Acquire the cross-process microphone lease, or raise WakeWordInUse."""
     lock_path = path or _lock_path()
     lock_path.parent.mkdir(parents=True, exist_ok=True)
@@ -818,7 +828,7 @@ def _teardown_locked(close: Callable[[], None]) -> None:
         _release_machine_lock(lock_handle)
 
 
-def _owned_detector(owner: object) -> Optional[WakeWordDetector]:
+def _owned_detector(owner: object) -> WakeWordDetector | None:
     """The armed detector iff ``owner`` holds the lease (caller holds the lock)."""
     return _detector if _detector is not None and _detector_owner is owner else None
 
@@ -830,7 +840,7 @@ def _detector_failed(detector: WakeWordDetector) -> None:
             _teardown_locked(detector.engine.close)
 
 
-def start_listening(on_wake: Callable[[], None], *, owner: object, config: Optional[Dict[str, Any]] = None,
+def start_listening(on_wake: Callable[[], None], *, owner: object, config: dict[str, Any] | None = None,
                     external_audio: bool = False) -> WakeWordDetector:
     """Claim, build, and start the detector. Idempotent for the same owner; a different owner
     (or process) gets :class:`WakeWordInUse`. Raises if engine construction fails (missing deps /
@@ -861,7 +871,7 @@ def start_listening(on_wake: Callable[[], None], *, owner: object, config: Optio
             raise
 
 
-def _owned_call(owner: object, action: Optional[Callable[[WakeWordDetector], None]] = None) -> bool:
+def _owned_call(owner: object, action: Callable[[WakeWordDetector], None] | None = None) -> bool:
     """Under the lock, True iff ``owner`` holds the lease; also runs ``action(detector)`` when given."""
     with _detector_lock:
         det = _owned_detector(owner)
@@ -891,7 +901,7 @@ def stop_listening(*, owner: object) -> bool:
     return _owned_call(owner, lambda det: _teardown_locked(det.stop))
 
 
-def _current_detector() -> Optional[WakeWordDetector]:
+def _current_detector() -> WakeWordDetector | None:
     with _detector_lock:
         return _detector
 
@@ -906,14 +916,14 @@ def audio_is_silent() -> bool:
     return (det := _current_detector()) is not None and det.audio_silent
 
 
-def get_input_device_status(cfg: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+def get_input_device_status(cfg: dict[str, Any] | None = None) -> dict[str, Any]:
     """Return configured/active PortAudio input diagnostics for status UIs."""
     if (det := _current_detector()) is not None:
         return dict(det.input_device_details)
     return _describe_input_device(_input_device(cfg if cfg is not None else load_wake_word_config()))
 
 
-def get_last_match() -> Optional[tuple[str, str]]:
+def get_last_match() -> tuple[str, str] | None:
     """(matched phrase, profile) of the most recent wake fire when the engine reports
     per-phrase matches (sherpa multi-profile routing); None otherwise."""
     return None if (det := _current_detector()) is None else getattr(det.engine, "last_match", None)
@@ -929,7 +939,7 @@ def feed_audio(*, owner: object, pcm_int16) -> bool:
     return True
 
 
-def detector_frame_info() -> Dict[str, Any]:
+def detector_frame_info() -> dict[str, Any]:
     """Sample rate + frame length for client capture streamers."""
     if (det := _current_detector()) is None:
         return {"sample_rate": SAMPLE_RATE, "frame_length": 1280}

@@ -1,7 +1,6 @@
 """Tests for the desktop-only renderer-event bridge."""
 
 import pytest
-
 from tools import desktop_ui
 
 

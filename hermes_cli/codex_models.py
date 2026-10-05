@@ -6,7 +6,6 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import List, Optional
 
 from hermes_cli.route_identity import normalize_route_base_url
 
@@ -19,7 +18,7 @@ logger = logging.getLogger(__name__)
 # ("not supported when using Codex with a ChatGPT account"), so listing them leaked dead picker
 # choices (#52492). If OpenAI re-enables any, live discovery (_fetch_models_from_api) picks them
 # up automatically.
-DEFAULT_CODEX_MODELS: List[str] = [
+DEFAULT_CODEX_MODELS: list[str] = [
     "gpt-6-sol",
     "gpt-6-luna",
     "gpt-5.6-sol",
@@ -42,7 +41,7 @@ DEFAULT_CODEX_MODELS: List[str] = [
 # paths below intentionally do not filter on it. PR #12994 removed this entry on the assumption it was
 # unsupported — that was wrong; restored here. Keep it in the curated fallback so Pro users still see Spark
 # in `/model` when live discovery is unavailable (offline first run, transient API failure).
-_FORWARD_COMPAT_TEMPLATE_MODELS: List[tuple[str, tuple[str, ...]]] = [
+_FORWARD_COMPAT_TEMPLATE_MODELS: list[tuple[str, tuple[str, ...]]] = [
     ("gpt-6-sol", ("gpt-5.6-sol", "gpt-5.5")),
     ("gpt-6-luna", ("gpt-5.6-luna", "gpt-5.5")),
     ("gpt-5.6-sol", ("gpt-5.5", "gpt-5.4")),
@@ -54,12 +53,12 @@ _FORWARD_COMPAT_TEMPLATE_MODELS: List[tuple[str, tuple[str, ...]]] = [
     ("gpt-5.3-codex-spark", ("gpt-5.4", "gpt-5.5"))]
 
 
-def _dedupe(model_ids) -> List[str]:
+def _dedupe(model_ids) -> list[str]:
     """Order-preserving dedupe."""
     return list(dict.fromkeys(model_ids))
 
 
-def _add_forward_compat_models(model_ids: List[str]) -> List[str]:
+def _add_forward_compat_models(model_ids: list[str]) -> list[str]:
     """Surface newer Codex slugs missing from live discovery when an older compatible template is
     present (Clawdbot-style synthetic forward-compat catalog)."""
     ordered = _dedupe(model_ids)
@@ -71,16 +70,19 @@ def _add_forward_compat_models(model_ids: List[str]) -> List[str]:
     return ordered
 
 
-def _add_context_variants(model_ids: List[str]) -> List[str]:
+def _add_context_variants(model_ids: list[str]) -> list[str]:
     """Insert ``<slug>-900k`` large-context picker variants after eligible base slugs.
 
     Base slugs keep the cheaper advertised 272K limit; the variant opts into the large window.
     The suffix is Hermes-side only — stripped before the id hits the wire (agent/transports/codex.py,
     agent/auxiliary_client.py).
     """
-    from agent.model_metadata import CODEX_CONTEXT_VARIANT_SUFFIX, has_codex_context_variant
+    from agent.model_metadata import (
+        CODEX_CONTEXT_VARIANT_SUFFIX,
+        has_codex_context_variant,
+    )
 
-    out: List[str] = []
+    out: list[str] = []
     present = set(model_ids)
     for model_id in model_ids:
         out.append(model_id)
@@ -92,12 +94,12 @@ def _add_context_variants(model_ids: List[str]) -> List[str]:
     return out
 
 
-def _finalize_codex_models(model_ids: List[str]) -> List[str]:
+def _finalize_codex_models(model_ids: list[str]) -> list[str]:
     """Forward-compat synthesis + large-context variant synthesis."""
     return _add_context_variants(_add_forward_compat_models(model_ids))
 
 
-def _drop_undiscovered_astra(model_ids: List[str]) -> List[str]:
+def _drop_undiscovered_astra(model_ids: list[str]) -> list[str]:
     """Astra is account-gated: only the live account-scoped catalog may advertise it. A stale
     ``models_cache.json`` or a ``config.toml`` default is a compatibility hint, not entitlement."""
     from agent.reasoning_effort import is_astra_model
@@ -115,7 +117,10 @@ def codex_catalog_credential_identity() -> str:
     principal's key. Opaque non-JWT tokens
     fall back to the token itself (the caller hashes every part before anything is persisted).
     """
-    from hermes_cli.auth import _codex_access_token_is_expiring, resolve_codex_runtime_credentials
+    from hermes_cli.auth import (
+        _codex_access_token_is_expiring,
+        resolve_codex_runtime_credentials,
+    )
 
     try:
         creds = resolve_codex_runtime_credentials(read_only=True)
@@ -133,7 +138,7 @@ def codex_catalog_credential_identity() -> str:
     return ("/".join(principal) if principal else token) + "\n" + route
 
 
-def _ranked_slugs(entries: object) -> List[str]:
+def _ranked_slugs(entries: object) -> list[str]:
     """Visible slugs from a Codex catalog ``models`` list, sorted by (priority, slug), deduped.
 
     Does not filter on ``supported_in_api``: that flag describes the public OpenAI API, while the
@@ -157,7 +162,7 @@ def _ranked_slugs(entries: object) -> List[str]:
     return _dedupe(slug for _, slug in sortable)
 
 
-def _fetch_models_from_api(access_token: str, base_url: Optional[str] = None) -> List[str]:
+def _fetch_models_from_api(access_token: str, base_url: str | None = None) -> list[str]:
     """Fetch available models from the Codex API. Returns visible models sorted by priority.
 
     ``base_url`` is the host the credential is routed to (resolved together with it); the
@@ -165,11 +170,13 @@ def _fetch_models_from_api(access_token: str, base_url: Optional[str] = None) ->
     """
     try:
         from agent.model_metadata import _codex_catalog_probe_allowed
+
         from hermes_cli.auth_codex import _codex_base_url
         catalog_base = (base_url or "").strip().rstrip("/") or _codex_base_url()
         if not _codex_catalog_probe_allowed(access_token, catalog_base):
             return []
         import httpx
+
         # The per-account catalog needs ChatGPT-Account-ID (else ``{"models":[]}`` with HTTP 200
         # masquerades as "no models") and, for residency-enforced workspaces, the residency header.
         from agent.codex_headers import codex_account_headers
@@ -184,12 +191,11 @@ def _fetch_models_from_api(access_token: str, base_url: Optional[str] = None) ->
     return _finalize_codex_models(_ranked_slugs(entries))
 
 
-def _read_default_model(codex_home: Path) -> Optional[str]:
+def _read_default_model(codex_home: Path) -> str | None:
     config_path = codex_home / "config.toml"
     if not config_path.exists():
         return None
     try:
-        import tomllib
         import tomllib
         payload = tomllib.loads(config_path.read_text(encoding="utf-8-sig"))
     except Exception:
@@ -198,7 +204,7 @@ def _read_default_model(codex_home: Path) -> Optional[str]:
     return model.strip() if isinstance(model, str) and model.strip() else None
 
 
-def _read_cache_models(codex_home: Path) -> List[str]:
+def _read_cache_models(codex_home: Path) -> list[str]:
     cache_path = codex_home / "models_cache.json"
     if not cache_path.exists():
         return []
@@ -211,7 +217,7 @@ def _read_cache_models(codex_home: Path) -> List[str]:
     return _ranked_slugs(entries if isinstance(entries, list) else [])
 
 
-def get_codex_model_ids(access_token: Optional[str] = None, base_url: Optional[str] = None) -> List[str]:
+def get_codex_model_ids(access_token: str | None = None, base_url: str | None = None) -> list[str]:
     """Available Codex model IDs: live API (if token) > config.toml default > local cache > defaults.
 
     Pass the ``base_url`` resolved together with ``access_token`` (runtime/pool route) so live

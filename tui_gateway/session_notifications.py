@@ -447,7 +447,10 @@ def _notif_poll_kanban_scoped(sid: str, session: dict) -> None:
         return
     with session["history_lock"]:
         pending = session.get("_kanban_pending") or []
-        from gateway.warning_notifications import DiagnosticText, warning_notifications_enabled
+        from gateway.warning_notifications import (
+            DiagnosticText,
+            warning_notifications_enabled,
+        )
         split = not warning_notifications_enabled("tui")
         diagnostic = split and isinstance(pending[0], DiagnosticText)
         batch = [text for text in pending if not split or isinstance(text, DiagnosticText) == diagnostic]
@@ -469,7 +472,11 @@ def _background_notifications_off(session: dict) -> bool:
 
 def _notif_dispatch_event(sid: str, session: dict, evt: dict, text: str) -> None:
     """Run the claimed (running=True) agent turn for one notification event."""
-    from tools.async_delegation import claim_event_delivery, complete_event_delivery, release_event_delivery
+    from tools.async_delegation import (
+        claim_event_delivery,
+        complete_event_delivery,
+        release_event_delivery,
+    )
     try:
         claim = claim_event_delivery(evt, "tui-poller")
     except Exception as exc:  # shared ledger busy/unreadable: the durable row stays pending and replays
@@ -543,7 +550,10 @@ def _notif_handle_event(sid, session, evt, emitted, registry, fmt, deferred, com
     # while distinct watch_match events from one process must stay visible.
     dedup_key = _notification_event_dedup_key(evt)
     if dedup_key not in emitted:
-        from tools.process_registry_notifications import async_delegation_display_text, process_completion_display_text
+        from tools.process_registry_notifications import (
+            async_delegation_display_text,
+            process_completion_display_text,
+        )
         display_text = (async_delegation_display_text(evt) if is_delegation
                         else process_completion_display_text([evt]) if evt_type == "completion" else text)
         from agent.notification_presentation import diagnostic_process_event
@@ -569,8 +579,15 @@ def _notif_handle_event(sid, session, evt, emitted, registry, fmt, deferred, com
 
 
 def _notif_dispatch_completions(sid, session, notifications, registry, deferred):
-    from tools.process_registry_notifications import PROCESS_COMPLETE_DISPLAY_KIND, ProcessNotificationBatch
-    from tools.async_delegation import claim_event_delivery, complete_event_delivery, release_event_delivery
+    from tools.async_delegation import (
+        claim_event_delivery,
+        complete_event_delivery,
+        release_event_delivery,
+    )
+    from tools.process_registry_notifications import (
+        PROCESS_COMPLETE_DISPLAY_KIND,
+        ProcessNotificationBatch,
+    )
 
     if not notifications:
         return
@@ -624,7 +641,12 @@ def _notif_handle_ready(sid, session, events, emitted, registry, fmt, deferred, 
 
 def _poll_bot_live_delivery_once(sid: str, session: dict) -> bool:
     """Run one durable envelope only after local FIFO/continuations yield the idle boundary."""
-    from tools.bot_live_delivery import claim_pending_delivery, complete_delivery, find_canonical_live_owner, has_mailbox
+    from tools.bot_live_delivery import (
+        claim_pending_delivery,
+        complete_delivery,
+        find_canonical_live_owner,
+        has_mailbox,
+    )
 
     home = _session_home(session)
     # Most profiles never receive a delivery: without a mailbox there is nothing to claim, and the owner
@@ -727,7 +749,7 @@ def _notification_poller_scoped_loop(stop_event: threading.Event, sid: str, sess
     process_registry.restore_completions()  # first consumer in a TUI process (#123265)
     queue = process_registry.completion_queue
     emitted = session.setdefault("_notification_emitted", set())
-    handle = lambda events, deferred: _notif_handle_ready(  # noqa: E731
+    handle = lambda events, deferred: _notif_handle_ready(
         sid, session, events, emitted, process_registry, format_process_notification, deferred)
     last_kanban_poll = last_loop_poll = last_bot_poll = 0.0
     while not stop_event.is_set() and not session.get("_finalized"):

@@ -16,15 +16,15 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
-
 from gateway.config import Platform, PlatformConfig
 from gateway.platforms import api_server_runs as _api_runs
 from gateway.platforms.api_server import APIServerAdapter
 from gateway.platforms.api_server_run_idempotency import RunIdempotencyStore
 from gateway.run import _INTERRUPT_REASON_GATEWAY_SHUTDOWN
 from hermes_state import SessionDB
-from tests.gateway.restart_test_helpers import make_restart_runner
 from tools import browser_tool_lifecycle as bt_lifecycle
+
+from tests.gateway.restart_test_helpers import make_restart_runner
 
 # Safety net so a regression parks the executor thread forever instead of
 # hanging CI.  No assertion below depends on elapsed time.
@@ -610,7 +610,7 @@ class TestShutdownSettleWindow:
         """
         import tools.process_registry as _pr
         import tools.terminal_tool as _tt
-        import tools.terminal_tool_lifecycle as terminal_tool_lifecycle
+        from tools import terminal_tool_lifecycle
 
         runner, adapter = make_restart_runner()
         runner._restart_drain_timeout = 0.01  # force the drain-timeout path
@@ -659,7 +659,7 @@ class TestShutdownSettleWindow:
         """
         import tools.process_registry as _pr
         import tools.terminal_tool as _tt
-        import tools.terminal_tool_lifecycle as terminal_tool_lifecycle
+        from tools import terminal_tool_lifecycle
 
         runner, adapter = make_restart_runner()
         runner._restart_drain_timeout = 0.01

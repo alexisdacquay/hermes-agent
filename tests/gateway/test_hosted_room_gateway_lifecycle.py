@@ -8,7 +8,6 @@ import time
 from types import SimpleNamespace
 
 import pytest
-
 from gateway import hosted_room_driver, hosted_rooms
 from gateway.run import GatewayRunner
 from tui_gateway.hosted_room_service import HostedRoomService

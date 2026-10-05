@@ -6,12 +6,10 @@ import os
 import threading
 from base64 import b64encode
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 import pytest
-
 from plugins.platforms.photon import auth as photon_auth
-
 
 # ---------------------------------------------------------------------------
 # Fake httpx — we don't want to hit the real Photon API in unit tests.
@@ -22,7 +20,7 @@ class _FakeResponse:
         *,
         status: int = 200,
         json_body: Any = None,
-        headers: Dict[str, str] | None = None,
+        headers: dict[str, str] | None = None,
         text: str = "",
     ) -> None:
         self.status_code = status
@@ -171,7 +169,7 @@ def _hold_auth_lock_then_release(hold_event: threading.Event, release_event: thr
 # Device login flow
 
 def test_request_device_code_uses_photon_cli(monkeypatch: pytest.MonkeyPatch) -> None:
-    captured: Dict[str, Any] = {}
+    captured: dict[str, Any] = {}
 
     def fake_post(url: str, **kwargs: Any) -> _FakeResponse:
         captured["url"] = url
@@ -198,7 +196,7 @@ def test_request_device_code_uses_photon_cli(monkeypatch: pytest.MonkeyPatch) ->
     assert captured["body"]["scope"] == "openid profile email"
 
 
-def _device_code() -> "photon_auth.DeviceCode":
+def _device_code() -> photon_auth.DeviceCode:
     return photon_auth.DeviceCode(
         device_code="d", user_code="u",
         verification_uri="https://x", verification_uri_complete=None,
@@ -239,7 +237,7 @@ def test_find_project_by_name_case_insensitive(monkeypatch: pytest.MonkeyPatch) 
 
 
 def test_create_project_omits_spectrum_flag(monkeypatch: pytest.MonkeyPatch) -> None:
-    captured: Dict[str, Any] = {}
+    captured: dict[str, Any] = {}
 
     def fake_post(url: str, **kwargs: Any) -> _FakeResponse:
         captured["url"] = url
@@ -369,7 +367,7 @@ def test_device_response_candidates_covers_known_shapes() -> None:
 def test_validate_photon_token_rejects_unrecognized_session(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def fake_get(url: str, *, headers: Dict[str, str], timeout: float) -> _FakeResponse:
+    def fake_get(url: str, *, headers: dict[str, str], timeout: float) -> _FakeResponse:
         if url.endswith("/api/auth/get-session"):
             return _FakeResponse(json_body={})  # no "user" key
         return _FakeResponse(json_body=[])
@@ -382,7 +380,7 @@ def test_validate_photon_token_rejects_unrecognized_session(
 def test_login_device_flow_validates_before_persisting(
     tmp_hermes_home: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def fake_post(url: str, *, json: Dict[str, Any], timeout: float) -> _FakeResponse:
+    def fake_post(url: str, *, json: dict[str, Any], timeout: float) -> _FakeResponse:
         if url.endswith("/api/auth/device/code"):
             return _FakeResponse(json_body={
                 "device_code": "dev", "user_code": "AAAA",
@@ -393,7 +391,7 @@ def test_login_device_flow_validates_before_persisting(
         # device/token approval
         return _FakeResponse(json_body={"access_token": "good-token"})
 
-    def fake_get(url: str, *, headers: Dict[str, str], timeout: float) -> _FakeResponse:
+    def fake_get(url: str, *, headers: dict[str, str], timeout: float) -> _FakeResponse:
         if url.endswith("/api/auth/get-session"):
             return _FakeResponse(json_body={"user": {"id": "u1"}})
         return _FakeResponse(json_body=[])  # projects OK

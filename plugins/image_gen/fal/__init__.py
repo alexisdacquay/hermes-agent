@@ -37,15 +37,15 @@ class FalImageGenProvider(StaticImageGenProvider):
         except Exception:  # noqa: BLE001 — never break the picker
             return False
 
-    def list_models(self) -> List[Dict[str, Any]]:
+    def list_models(self) -> list[dict[str, Any]]:
         from tools.image_generation_catalog import FAL_MODELS
         return catalog_rows(FAL_MODELS)
 
-    def default_model(self) -> Optional[str]:
+    def default_model(self) -> str | None:
         from tools.image_generation_catalog import DEFAULT_MODEL
         return DEFAULT_MODEL
 
-    def capabilities(self) -> Dict[str, Any]:
+    def capabilities(self) -> dict[str, Any]:
         # Image-to-image depends on the selected model (``edit_endpoint``); upscale works for any.
         import tools.image_generation_tool as _it
 
@@ -63,9 +63,9 @@ class FalImageGenProvider(StaticImageGenProvider):
 
     def generate(
         self, prompt: str, aspect_ratio: str = DEFAULT_ASPECT_RATIO, *,
-        image_url: Optional[str] = None, reference_image_urls: Optional[List[str]] = None,
+        image_url: str | None = None, reference_image_urls: list[str] | None = None,
         **kwargs: Any,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Forward to ``image_generate_tool`` and reshape its JSON-string response into the ABC dict."""
         import tools.image_generation_tool as _it
 
@@ -79,7 +79,7 @@ class FalImageGenProvider(StaticImageGenProvider):
 
         try:
             raw = _it.image_generate_tool(prompt=prompt, aspect_ratio=aspect, **passthrough)
-        except Exception as exc:  # noqa: BLE001 — never raise out of generate
+        except Exception as exc:
             logger.warning("FAL image_generate_tool raised: %s", exc, exc_info=True)
             return {
                 "success": False, "image": None, "error": f"FAL image generation failed: {exc}",

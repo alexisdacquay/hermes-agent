@@ -8,7 +8,6 @@ level may resolve to an equal-or-stronger LM Studio level, never a weaker one.
 from __future__ import annotations
 
 import pytest
-
 from agent.lmstudio_reasoning import resolve_lmstudio_effort
 from hermes_constants import VALID_REASONING_EFFORTS
 

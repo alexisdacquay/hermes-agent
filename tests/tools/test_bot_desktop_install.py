@@ -6,7 +6,6 @@ import os
 import threading
 
 import pytest
-
 from tools.bot_desktop import install, runtime
 
 _REAL_INSTALL_COMMAND = runtime.install_command  # captured before the fixture pins a sudo line

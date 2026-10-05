@@ -9,17 +9,16 @@ import json
 import logging
 import os
 import re
-import shutil
 import subprocess
 import threading
 import time
 import urllib.parse
 import urllib.request
 from pathlib import Path
-from typing import Optional
+
+from utils import atomic_json_write
 
 from hermes_cli._subprocess_compat import IS_WINDOWS, windows_hide_flags
-from utils import atomic_json_write
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +103,7 @@ def _gh_cli_candidates() -> list[str]:
 # miss made one settings page a 4×5s stall past Desktop's 15s IPC budget. Short TTL keeps a
 # fresh ``gh auth login`` discoverable.
 _GH_CLI_TOKEN_CACHE_TTL_SECONDS = 300.0
-_gh_cli_token_cache: tuple[float, Optional[str]] | None = None
+_gh_cli_token_cache: tuple[float, str | None] | None = None
 
 
 def _invalidate_gh_cli_token_cache() -> None:
@@ -113,7 +112,7 @@ def _invalidate_gh_cli_token_cache() -> None:
     _gh_cli_token_cache = None
 
 
-def _try_gh_cli_token() -> Optional[str]:
+def _try_gh_cli_token() -> str | None:
     """Token from ``gh auth token`` when available; the result (incl. a miss) is cached per TTL."""
     global _gh_cli_token_cache
     now = time.monotonic()
@@ -125,7 +124,7 @@ def _try_gh_cli_token() -> Optional[str]:
     return token
 
 
-def _probe_gh_cli_token() -> Optional[str]:
+def _probe_gh_cli_token() -> str | None:
     """Uncached ``gh auth token`` subprocess probe (see ``_try_gh_cli_token``)."""
     hostname = os.getenv("COPILOT_GH_HOST", "").strip()
     # gh must not short-circuit on GITHUB_TOKEN / GH_TOKEN, nor prompt from a backend process.
@@ -162,7 +161,7 @@ def _post_form(url: str, fields: dict, timeout: float) -> dict:
 
 
 def copilot_device_code_login(
-    *, host: str = "github.com", timeout_seconds: float = 300) -> Optional[str]:
+    *, host: str = "github.com", timeout_seconds: float = 300) -> str | None:
     """Run the GitHub OAuth device code flow for Copilot."""
     domain = host.rstrip("/")
     try:
@@ -214,7 +213,7 @@ def copilot_device_code_login(
 
 
 # In-process cache: raw_token_fingerprint -> (api_token, expires_at_epoch, base_url).
-_jwt_cache: dict[str, tuple[str, float, Optional[str]]] = {}
+_jwt_cache: dict[str, tuple[str, float, str | None]] = {}
 _JWT_REFRESH_MARGIN_SECONDS = 120  # refresh 2 min before expiry
 # Exchange endpoint and headers (matching VS Code / Copilot CLI)
 _TOKEN_EXCHANGE_URL = "https://api.github.com/copilot_internal/v2/token"
@@ -258,7 +257,7 @@ def _token_fingerprint(raw_token: str) -> str:
     return hashlib.sha256(raw_token.encode()).hexdigest()[:16]
 
 
-def _read_jwt_store(path: Path) -> Optional[dict]:
+def _read_jwt_store(path: Path) -> dict | None:
     """Bounded read of the on-disk JWT store → dict, or None if missing/unusable (a store over
     the 1 MiB cap or non-dict can't balloon memory or get rewritten back out)."""
     if not path.exists():
@@ -275,7 +274,7 @@ def _read_jwt_store(path: Path) -> Optional[dict]:
         return None
 
 
-def _jwt_disk_path() -> Optional[Path]:
+def _jwt_disk_path() -> Path | None:
     """Path to the on-disk exchanged-JWT cache (profile-aware), or None."""
     try:
         from hermes_constants import get_hermes_home
@@ -314,7 +313,7 @@ def evict_cached_exchanged_token(raw_token: str) -> None:
     _with_jwt_store("evict cached", _evict)
 
 
-def _load_jwt_from_disk(fp: str) -> Optional[tuple[str, float, Optional[str]]]:
+def _load_jwt_from_disk(fp: str) -> tuple[str, float, str | None] | None:
     """Persisted exchanged JWT for ``fp`` → (api_token, expires_at, base_url), or None."""
     def _load(path, store):
         entry = (store or {}).get(fp)
@@ -327,7 +326,7 @@ def _load_jwt_from_disk(fp: str) -> Optional[tuple[str, float, Optional[str]]]:
     return _with_jwt_store("load persisted", _load)
 
 
-def _save_jwt_to_disk(fp: str, api_token: str, expires_at: float, base_url: Optional[str]) -> None:
+def _save_jwt_to_disk(fp: str, api_token: str, expires_at: float, base_url: str | None) -> None:
     """Persist an exchanged JWT (0o600), pruning expired entries."""
     def _save(path, store):
         now = time.time()
@@ -383,7 +382,7 @@ def _fetch_exchange_with_retry(req, timeout: float, fp: str) -> dict:
     Permanent rejections (401/403/404) skip the retry loop. Failures populate the negative
     cache (long TTL for permanent, short for transient); success clears it.
     """
-    last_exc: Optional[Exception] = None
+    last_exc: Exception | None = None
     permanent_failure = False
     for attempt in range(1, _EXCHANGE_MAX_ATTEMPTS + 1):
         try:
@@ -415,7 +414,7 @@ def _cache_entry_fresh(cached) -> bool:
 
 
 def exchange_copilot_token(
-    raw_token: str, *, timeout: float = 10.0) -> tuple[str, float, Optional[str]]:
+    raw_token: str, *, timeout: float = 10.0) -> tuple[str, float, str | None]:
     """Exchange a raw GitHub token for a Copilot API token → (token, expires_at, base_url).
 
     The token is a semicolon-separated string (not a JWT) used as a Bearer token. ``base_url``
@@ -441,7 +440,7 @@ def exchange_copilot_token(
 
 
 def _exchange_copilot_token_locked(
-    raw_token: str, fp: str, *, timeout: float) -> tuple[str, float, Optional[str]]:
+    raw_token: str, fp: str, *, timeout: float) -> tuple[str, float, str | None]:
     # Re-check in-process under the lock (a queued-behind caller may have just exchanged), then
     # on-disk: a fresh process may hold a still-valid persisted JWT, avoiding a network
     # round-trip precisely when the network is most likely flaky.
@@ -467,7 +466,7 @@ def _exchange_copilot_token_locked(
     # ``endpoints.api`` is authoritative (Copilot Enterprise / proxied accounts); else derive from
     # the token's ``proxy-ep``. Individual accounts have neither → None (registry default).
     endpoints = data.get("endpoints")
-    base_url: Optional[str] = (
+    base_url: str | None = (
         str(endpoints.get("api") or "").strip().rstrip("/") if isinstance(endpoints, dict) else ""
     ) or _derive_base_url_from_proxy_ep(api_token)
     _jwt_cache[fp] = (api_token, expires_at, base_url)
@@ -476,7 +475,7 @@ def _exchange_copilot_token_locked(
     return api_token, expires_at, base_url
 
 
-def _derive_base_url_from_proxy_ep(token: str) -> Optional[str]:
+def _derive_base_url_from_proxy_ep(token: str) -> str | None:
     """Copilot API base URL from the token's ``proxy-ep=proxy.<host>`` field (→ ``api.``)."""
     m = re.search(r'(?:^|;)\s*proxy-ep=([^;\s]+)', token)
     if not m:
@@ -486,7 +485,7 @@ def _derive_base_url_from_proxy_ep(token: str) -> Optional[str]:
     return f"https://{proxy_ep}"
 
 
-def get_copilot_api_token(raw_token: str) -> tuple[str, Optional[str]]:
+def get_copilot_api_token(raw_token: str) -> tuple[str, str | None]:
     """``(api_token, base_url)`` from the exchange, or ``(raw_token, None)`` when it fails
     (accounts that don't need exchange keep working)."""
     if not raw_token:

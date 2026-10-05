@@ -4,7 +4,6 @@ import io
 import sys
 
 import pytest
-
 from hermes_cli.console_engine import HermesConsoleEngine, run_console_repl
 
 

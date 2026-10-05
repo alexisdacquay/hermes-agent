@@ -4,11 +4,10 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
-
 from agent.context_compressor import (
+    _SUMMARY_END_MARKER,
     HISTORICAL_TASK_HEADING,
     SUMMARY_PREFIX,
-    _SUMMARY_END_MARKER,
 )
 from hermes_state import SessionDB
 

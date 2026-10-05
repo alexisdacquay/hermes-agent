@@ -8,14 +8,12 @@ from __future__ import annotations
 
 from textwrap import dedent
 
-from wcwidth import wcswidth
-
 from agent.markdown_tables import (
-    is_table_divider,
     looks_like_table_row,
     realign_markdown_tables,
     split_table_row,
 )
+from wcwidth import wcswidth
 
 
 def _column_offsets(line: str) -> list[int]:

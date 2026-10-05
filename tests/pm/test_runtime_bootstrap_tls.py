@@ -3,10 +3,11 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import sys
+from datetime import UTC
+from pathlib import Path
 
 import pytest
 
@@ -69,21 +70,21 @@ print(result.stdout)
 
 @pytest.mark.platforms("linux")
 def test_pm_cli_verifies_tls_with_platform_trust(tmp_path, monkeypatch):
-    from datetime import datetime, timedelta, timezone
     import hashlib
-    from http.server import ThreadingHTTPServer
-    from ipaddress import ip_address
     import io
     import ssl
     import tarfile
     import threading
+    from datetime import datetime, timedelta
+    from http.server import ThreadingHTTPServer
+    from ipaddress import ip_address
 
     from cryptography import x509
     from cryptography.hazmat.primitives import hashes, serialization
     from cryptography.hazmat.primitives.asymmetric import rsa
     from cryptography.x509.oid import NameOID
-
     from pm.runtime import prepare_runtime, runtime_environment
+
     from tests.pm._range_server import RangeHandler
 
     home = tmp_path / "home"
@@ -100,7 +101,7 @@ def test_pm_cli_verifies_tls_with_platform_trust(tmp_path, monkeypatch):
     shutil.copy2(source / "hermes_constants.py", repo / "hermes_constants.py")
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     subject = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "PM test CA")])
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     cert = (x509.CertificateBuilder().subject_name(subject).issuer_name(subject)
             .public_key(key.public_key()).serial_number(x509.random_serial_number())
             .not_valid_before(now - timedelta(days=1)).not_valid_after(now + timedelta(days=1))

@@ -11,7 +11,6 @@ from __future__ import annotations
 from contextlib import redirect_stderr, redirect_stdout
 from dataclasses import dataclass
 from io import StringIO
-from typing import Optional
 
 VALID_APPROVAL_MODES = ("manual", "smart", "off")
 
@@ -30,7 +29,7 @@ def _effective_mode() -> str:
     return _get_approval_mode()
 
 
-def run_approval_mode_command(requested_mode: Optional[str]) -> ApprovalModeResult:
+def run_approval_mode_command(requested_mode: str | None) -> ApprovalModeResult:
     """Inspect or persist ``approvals.mode`` through canonical config APIs."""
     current = _effective_mode()
     requested = (requested_mode or "").strip().lower()

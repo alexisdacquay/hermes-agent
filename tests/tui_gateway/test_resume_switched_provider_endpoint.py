@@ -8,7 +8,6 @@ Portal's chat/completions ("Model 'gpt-6-luna-900k' isn't available on ChatGPT o
 import json
 
 import pytest
-
 from hermes_cli.cli_model_switch_mixin import stored_session_route
 from hermes_state import SessionDB
 from tui_gateway.server import _stored_session_runtime_overrides

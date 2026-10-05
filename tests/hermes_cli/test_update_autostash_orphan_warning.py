@@ -9,10 +9,9 @@ test.
 """
 
 import subprocess
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
-
 from hermes_cli import update_cmd
 
 
@@ -37,7 +36,7 @@ def _make_repo_with_autostash(tmp_path, age_days: float):
 
     (tmp_path / "tracked.txt").write_text("local change\n")
     stamp = (
-        datetime.now(timezone.utc) - timedelta(days=age_days)
+        datetime.now(UTC) - timedelta(days=age_days)
     ).strftime("%Y%m%d-%H%M%S")
     name = f"hermes-update-autostash-{stamp}"
     _git(tmp_path, "stash", "push", "--include-untracked", "-m", name)

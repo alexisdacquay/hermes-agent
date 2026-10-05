@@ -15,9 +15,8 @@ import sys
 import time
 
 import pytest
-
-from hermes_cli.profiles import _check_gateway_running
 from hermes_cli import web_server_sessions as wss
+from hermes_cli.profiles import _check_gateway_running
 
 pytestmark = pytest.mark.platforms("posix")  # POSIX flock holder
 

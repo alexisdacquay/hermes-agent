@@ -13,14 +13,15 @@ from __future__ import annotations
 import logging
 import os
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
-from typing import Any, Callable, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-def parse_money(value: Any) -> Optional[Decimal]:
+def parse_money(value: Any) -> Decimal | None:
     """Server money value (decimal string; defensively int/float) -> Decimal, or None. Never raises."""
     try:
         # Decimal(str(...)) avoids binary-float artifacts if a float ever sneaks in.
@@ -29,7 +30,7 @@ def parse_money(value: Any) -> Optional[Decimal]:
         return None
 
 
-def format_money(value: Optional[Decimal], *, grouped: bool = False) -> str:
+def format_money(value: Decimal | None, *, grouped: bool = False) -> str:
     """``$X`` for whole dollars, ``$X.YY`` (exactly 2dp) otherwise; ``None`` -> ``—``.
 
     ``grouped=True`` adds thousands separators (mirrors the TUI's ``toLocaleString('en-US')``
@@ -44,7 +45,7 @@ def format_money(value: Optional[Decimal], *, grouped: bool = False) -> str:
     return f"${format(value.quantize(Decimal('0.01')), spec)}"
 
 
-def _optional_str(raw: dict, key: str) -> Optional[str]:
+def _optional_str(raw: dict, key: str) -> str | None:
     value = raw.get(key)
     return value if isinstance(value, str) else None
 
@@ -67,7 +68,7 @@ _CARD_PROVENANCE_LABELS = {
 class CardInfo:
     brand: str
     last4: str
-    resolved_via: Optional[str] = None  # ladder rung; None on pre-resolver payloads
+    resolved_via: str | None = None  # ladder rung; None on pre-resolver payloads
 
     @property
     def masked(self) -> str:
@@ -75,7 +76,7 @@ class CardInfo:
         return f"{self.brand} ····{self.last4}" if self.last4 else self.brand
 
     @property
-    def provenance(self) -> Optional[str]:
+    def provenance(self) -> str | None:
         """Human label for why this card was picked, or None (unknown rung / old server)."""
         return _CARD_PROVENANCE_LABELS.get(self.resolved_via) if self.resolved_via is not None else None
 
@@ -92,42 +93,42 @@ class PaymentMethodInfo:
     so consumers only see fields that belong to the kind they are looking at)."""
 
     kind: str
-    brand: Optional[str] = None
-    last4: Optional[str] = None
-    wallet: Optional[str] = None
-    email: Optional[str] = None
-    resolved_via: Optional[str] = None
-    raw_kind: Optional[str] = None  # what the server called an unrecognised kind
+    brand: str | None = None
+    last4: str | None = None
+    wallet: str | None = None
+    email: str | None = None
+    resolved_via: str | None = None
+    raw_kind: str | None = None  # what the server called an unrecognised kind
 
 
 @dataclass(frozen=True)
 class MonthlyCap:
-    limit_usd: Optional[Decimal] = None
-    spent_this_month_usd: Optional[Decimal] = None
+    limit_usd: Decimal | None = None
+    spent_this_month_usd: Decimal | None = None
     is_default_ceiling: bool = False
 
 
 @dataclass(frozen=True)
 class AutoReloadCard:
     kind: str  # "canonical" | "distinct" | "none"
-    payment_method_id: Optional[str] = None
-    brand: Optional[str] = None
-    last4: Optional[str] = None
+    payment_method_id: str | None = None
+    brand: str | None = None
+    last4: str | None = None
 
 
 @dataclass(frozen=True)
 class AutoReload:
     enabled: bool = False
-    threshold_usd: Optional[Decimal] = None
-    reload_to_usd: Optional[Decimal] = None
-    card: Optional[AutoReloadCard] = None
+    threshold_usd: Decimal | None = None
+    reload_to_usd: Decimal | None = None
+    card: AutoReloadCard | None = None
 
 
 class OrgRoleCapability:
     """``is_admin`` / ``can_change_plan`` shared by the billing and subscription states."""
 
-    role: Optional[str]
-    can_change_plan_raw: Optional[bool]
+    role: str | None
+    can_change_plan_raw: bool | None
 
     @property
     def is_admin(self) -> bool:
@@ -145,22 +146,22 @@ class BillingState(OrgRoleCapability):
     """Parsed ``GET /api/billing/state``; fail-open ``logged_in=False`` (empty fields) when unavailable."""
 
     logged_in: bool
-    org_id: Optional[str] = None
-    org_slug: Optional[str] = None
-    org_name: Optional[str] = None
-    role: Optional[str] = None  # "OWNER" | "ADMIN" | "FINANCE_ADMIN" | "SECURITY_ADMIN" | "MEMBER"
-    can_change_plan_raw: Optional[bool] = None
-    balance_usd: Optional[Decimal] = None
+    org_id: str | None = None
+    org_slug: str | None = None
+    org_name: str | None = None
+    role: str | None = None  # "OWNER" | "ADMIN" | "FINANCE_ADMIN" | "SECURITY_ADMIN" | "MEMBER"
+    can_change_plan_raw: bool | None = None
+    balance_usd: Decimal | None = None
     cli_billing_enabled: bool = False
     charge_presets: tuple[Decimal, ...] = ()
-    min_usd: Optional[Decimal] = None
-    max_usd: Optional[Decimal] = None
-    card: Optional[CardInfo] = None
-    payment_method: Optional[PaymentMethodInfo] = None
-    monthly_cap: Optional[MonthlyCap] = None
-    auto_reload: Optional[AutoReload] = None
-    portal_url: Optional[str] = None
-    error: Optional[str] = None  # set when the fetch failed (vs cleanly not-logged-in)
+    min_usd: Decimal | None = None
+    max_usd: Decimal | None = None
+    card: CardInfo | None = None
+    payment_method: PaymentMethodInfo | None = None
+    monthly_cap: MonthlyCap | None = None
+    auto_reload: AutoReload | None = None
+    portal_url: str | None = None
+    error: str | None = None  # set when the fetch failed (vs cleanly not-logged-in)
 
     @property
     def can_charge(self) -> bool:
@@ -170,7 +171,7 @@ class BillingState(OrgRoleCapability):
 
 
 @_dict_parser
-def _parse_card(raw: dict) -> Optional[CardInfo]:
+def _parse_card(raw: dict) -> CardInfo | None:
     brand, last4 = raw.get("brand"), raw.get("last4")
     if not (isinstance(brand, str) and isinstance(last4, str)):
         return None
@@ -178,7 +179,7 @@ def _parse_card(raw: dict) -> Optional[CardInfo]:
 
 
 @_dict_parser
-def _parse_payment_method(raw: dict) -> Optional[PaymentMethodInfo]:
+def _parse_payment_method(raw: dict) -> PaymentMethodInfo | None:
     if not isinstance(kind := raw.get("kind"), str):
         return None
     resolved_via = _optional_str(raw, "resolvedVia")
@@ -205,7 +206,7 @@ def _parse_auto_reload(raw: dict) -> AutoReload:
 
 
 @_dict_parser
-def _parse_auto_reload_card(raw: dict) -> Optional[AutoReloadCard]:
+def _parse_auto_reload_card(raw: dict) -> AutoReloadCard | None:
     if (kind := raw.get("kind")) not in ("canonical", "distinct", "none"):
         return None
     if kind != "distinct":
@@ -214,13 +215,13 @@ def _parse_auto_reload_card(raw: dict) -> Optional[AutoReloadCard]:
                           brand=_optional_str(raw, "brand"), last4=_optional_str(raw, "last4"))
 
 
-def parse_org_fields(payload: dict[str, Any]) -> tuple[dict[str, Any], Optional[bool]]:
+def parse_org_fields(payload: dict[str, Any]) -> tuple[dict[str, Any], bool | None]:
     """``(org dict or {}, canChangePlan if bool else None)`` — shared by both state parsers."""
     raw_org, ccp = payload.get("org"), payload.get("canChangePlan")
     return (raw_org if isinstance(raw_org, dict) else {}), (ccp if isinstance(ccp, bool) else None)
 
 
-def billing_state_from_payload(payload: dict[str, Any], *, portal_url: Optional[str] = None) -> BillingState:
+def billing_state_from_payload(payload: dict[str, Any], *, portal_url: str | None = None) -> BillingState:
     """Map a raw ``/api/billing/state`` JSON dict into :class:`BillingState`."""
     org, can_change_plan_raw = parse_org_fields(payload)
     bounds: dict[str, Any] = payload.get("bounds") if isinstance(payload.get("bounds"), dict) else {}
@@ -246,7 +247,7 @@ def billing_state_from_payload(payload: dict[str, Any], *, portal_url: Optional[
 
 
 def fetch_portal_state(
-    endpoint: str, label: str, *, failed: Callable[..., Any], parse: Callable[[dict, Optional[str]], Any],
+    endpoint: str, label: str, *, failed: Callable[..., Any], parse: Callable[[dict, str | None], Any],
     portal_fallback: Callable[[str], str], timeout: float, log: logging.Logger,
 ):
     """Shared fail-open fetch+parse for the billing/subscription overview builders.
@@ -300,7 +301,7 @@ _FIXTURE_ALIASES = {
 }
 
 
-def _dev_fixture_billing_state() -> Optional[BillingState]:
+def _dev_fixture_billing_state() -> BillingState | None:
     """``HERMES_DEV_BILLING_FIXTURE`` -> :class:`BillingState` for offline UX; None when unset.
 
     Names: nocard · card · card-sub · card-autoreload · notadmin · billing-off · logged-out; an
@@ -316,15 +317,15 @@ def _dev_fixture_billing_state() -> Optional[BillingState]:
     # Prod portal host (matches subscription_view._DEV_FIXTURE_PORTAL) + the /topup deep-link suffix.
     common: dict[str, Any] = dict(
         logged_in=True, org_id="org_acme", org_slug="acme", org_name="Acme Inc", role="OWNER",
-        balance_usd=Decimal("3.40"), cli_billing_enabled=True, min_usd=Decimal("5"), max_usd=Decimal("500"),
-        charge_presets=(Decimal("10"), Decimal("25"), Decimal("50")), portal_url="https://portal.nousresearch.com/billing?topup=open",
+        balance_usd=Decimal("3.40"), cli_billing_enabled=True, min_usd=Decimal(5), max_usd=Decimal(500),
+        charge_presets=(Decimal(10), Decimal(25), Decimal(50)), portal_url="https://portal.nousresearch.com/billing?topup=open",
     )
     card = CardInfo(brand="Visa", last4="4242")
     overrides: dict[str, dict[str, Any]] = {
         "nocard": dict(card=None),
         "card": dict(card=card),
         "card-sub": dict(card=CardInfo(brand="Visa", last4="4242", resolved_via="subPin")),
-        "card-autoreload": dict(card=card, auto_reload=AutoReload(enabled=True, threshold_usd=Decimal("5"), reload_to_usd=Decimal("25"))),
+        "card-autoreload": dict(card=card, auto_reload=AutoReload(enabled=True, threshold_usd=Decimal(5), reload_to_usd=Decimal(25))),
         "notadmin": dict(card=card, role="MEMBER"),
         "billing-off": dict(card=None, cli_billing_enabled=False),
     }
@@ -342,11 +343,11 @@ def new_idempotency_key() -> str:
 @dataclass(frozen=True)
 class AmountValidation:
     ok: bool
-    amount: Optional[Decimal] = None
-    error: Optional[str] = None
+    amount: Decimal | None = None
+    error: str | None = None
 
 
-def validate_charge_amount(raw: str, *, min_usd: Optional[Decimal], max_usd: Optional[Decimal]) -> AmountValidation:
+def validate_charge_amount(raw: str, *, min_usd: Decimal | None, max_usd: Decimal | None) -> AmountValidation:
     """Mirror the server's accept/reject (bounds + multipleOf 0.01) for instant UI feedback; server is authoritative."""
     amount = parse_money((raw or "").strip().lstrip("$").strip())
     if amount is None:

@@ -3,7 +3,6 @@
 import threading
 
 import pytest
-
 from agent.replay_cleanup import canonicalize_replay_history
 from hermes_state import SessionDB
 from tui_gateway import server

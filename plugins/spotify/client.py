@@ -6,11 +6,11 @@ endpoint paths live with their tool handlers in ``tools.py``.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Iterable, Optional
+from collections.abc import Iterable
+from typing import Any
 from urllib.parse import urlparse
 
 import httpx
-
 from hermes_cli.auth import AuthError, resolve_spotify_runtime_credentials
 
 
@@ -21,19 +21,19 @@ class SpotifyAuthRequiredError(SpotifyError): """Raised when the user needs to a
 class SpotifyAPIError(SpotifyError):
     """Structured Spotify API failure."""
 
-    def __init__(self, message: str, *, status_code: Optional[int] = None, response_body: Optional[str] = None) -> None:
+    def __init__(self, message: str, *, status_code: int | None = None, response_body: str | None = None) -> None:
         super().__init__(message)
         self.status_code, self.response_body, self.path = status_code, response_body, None
 
 
-_empty_204 = lambda message: {"status_code": 204, "empty": True, "message": message}  # noqa: E731  explanatory stand-in for a bare 204
+_empty_204 = lambda message: {"status_code": 204, "empty": True, "message": message}
 
 
 class SpotifyClient:
     def __init__(self) -> None:
         self._runtime = self._resolve_runtime(refresh_if_expiring=True)
 
-    def _resolve_runtime(self, *, force_refresh: bool = False, refresh_if_expiring: bool = True) -> Dict[str, Any]:
+    def _resolve_runtime(self, *, force_refresh: bool = False, refresh_if_expiring: bool = True) -> dict[str, Any]:
         try:
             return resolve_spotify_runtime_credentials(force_refresh=force_refresh, refresh_if_expiring=refresh_if_expiring)
         except AuthError as exc:
@@ -44,8 +44,8 @@ class SpotifyClient:
         return str(self._runtime.get("base_url") or "").rstrip("/")
 
     def request(
-        self, method: str, path: str, *, params: Optional[Dict[str, Any]] = None, json_body: Optional[Dict[str, Any]] = None,
-        allow_retry_on_401: bool = True, empty_response: Optional[Dict[str, Any]] = None,
+        self, method: str, path: str, *, params: dict[str, Any] | None = None, json_body: dict[str, Any] | None = None,
+        allow_retry_on_401: bool = True, empty_response: dict[str, Any] | None = None,
     ) -> Any:
         response = httpx.request(
             method, f"{self.base_url}{path}",
@@ -73,12 +73,12 @@ class SpotifyClient:
 
     # -- player: reads return an explanatory payload instead of a bare 204 --------
 
-    def get_playback_state(self, *, market: Optional[str] = None) -> Any:
+    def get_playback_state(self, *, market: str | None = None) -> Any:
         return self.request("GET", "/me/player", params={"market": market}, empty_response=_empty_204(
             "No active Spotify playback session was found. Open Spotify on a device and start playback, or transfer playback to an available device."
         ))
 
-    def get_currently_playing(self, *, market: Optional[str] = None) -> Any:
+    def get_currently_playing(self, *, market: str | None = None) -> Any:
         return self.request("GET", "/me/player/currently-playing", params={"market": market}, empty_response=_empty_204(
             "Spotify is not currently playing anything. Start playback in Spotify and try again."
         ))
@@ -98,7 +98,7 @@ def _extract_spotify_error_detail(response: httpx.Response, *, fallback: str) ->
     return detail.strip()
 
 
-def _friendly_spotify_error_message(*, status_code: int, detail: str, path: str, retry_after: Optional[str]) -> str:
+def _friendly_spotify_error_message(*, status_code: int, detail: str, path: str, retry_after: str | None) -> str:
     is_playback_path = path.startswith("/me/player")
     if status_code == 401:
         return "Spotify authentication failed or expired. Run `hermes auth spotify` again."
@@ -116,15 +116,15 @@ def _friendly_spotify_error_message(*, status_code: int, detail: str, path: str,
     return detail or f"Spotify API request failed with status {status_code}."
 
 
-_strip_none = lambda payload: {key: value for key, value in (payload or {}).items() if value is not None}  # noqa: E731
+_strip_none = lambda payload: {key: value for key, value in (payload or {}).items() if value is not None}
 
 
-def _check_type(item_type: str, expected_type: Optional[str]) -> None:
+def _check_type(item_type: str, expected_type: str | None) -> None:
     if expected_type and item_type != expected_type:
         raise SpotifyError(f"Expected a Spotify {expected_type}, got {item_type}.")
 
 
-def normalize_spotify_id(value: str, expected_type: Optional[str] = None) -> str:
+def normalize_spotify_id(value: str, expected_type: str | None = None) -> str:
     """Accept a bare id, ``spotify:<type>:<id>`` URI, or open.spotify.com URL; return the id."""
     cleaned = (value or "").strip()
     if not cleaned:
@@ -139,7 +139,7 @@ def normalize_spotify_id(value: str, expected_type: Optional[str] = None) -> str
     return cleaned
 
 
-def normalize_spotify_uri(value: str, expected_type: Optional[str] = None) -> str:
+def normalize_spotify_uri(value: str, expected_type: str | None = None) -> str:
     """Like normalize_spotify_id but returns a URI; bare ids need *expected_type* to become one."""
     cleaned = (value or "").strip()
     if not cleaned:
@@ -153,7 +153,7 @@ def normalize_spotify_uri(value: str, expected_type: Optional[str] = None) -> st
     return f"spotify:{expected_type}:{item_id}" if expected_type else cleaned
 
 
-def normalize_spotify_uris(values: Iterable[str], expected_type: Optional[str] = None) -> list[str]:
+def normalize_spotify_uris(values: Iterable[str], expected_type: str | None = None) -> list[str]:
     """Normalize each value, dropping duplicates while keeping first-seen order."""
     uris = list(dict.fromkeys(normalize_spotify_uri(str(value), expected_type) for value in values))
     if not uris:

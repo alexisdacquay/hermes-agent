@@ -7,7 +7,6 @@ off switch on families that document it.
 """
 
 import pytest
-
 from agent.transports.chat_completions import (
     _build_gemini_thinking_config,
     _snake_case_gemini_thinking_config,

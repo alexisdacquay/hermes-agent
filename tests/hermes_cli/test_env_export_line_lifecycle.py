@@ -13,7 +13,6 @@ Fake tokens are constructed at runtime — no key-shaped literals on disk.
 
 import pytest
 from fastapi.testclient import TestClient
-
 from hermes_cli.web_server import _SESSION_TOKEN, app
 
 client = TestClient(app)

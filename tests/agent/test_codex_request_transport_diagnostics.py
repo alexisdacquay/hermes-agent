@@ -10,9 +10,8 @@ from types import SimpleNamespace
 
 import httpx
 import pytest
-from openai import APIConnectionError
-
 from agent.codex_runtime import _codex_request_failure_details, run_codex_stream
+from openai import APIConnectionError
 
 
 def test_transport_failure_without_attached_request_reports_unknown_size():
@@ -101,8 +100,9 @@ def _oversized_codex_kwargs(size: int) -> dict:
 def test_zero_event_retry_prunes_oversized_tool_output_and_logs_size_delta(monkeypatch, tmp_path, caplog):
     """#95429 criterion 3: a reconnect after a zero-event attempt must not resend the same oversized
     payload unchanged -- the inline tool output is spilled and the size delta is logged."""
-    from tests.agent.test_run_agent_codex_responses import _build_agent
     from tools.tool_result_storage import PERSISTED_OUTPUT_TAG
+
+    from tests.agent.test_run_agent_codex_responses import _build_agent
 
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
     monkeypatch.setattr("hermes_constants.get_hermes_home", lambda: tmp_path, raising=False)

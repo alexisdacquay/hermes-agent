@@ -10,12 +10,10 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 import hermes_yaml as yaml
-
 from hermes_cli.plugins import PluginManager
-
 
 # ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -24,7 +22,7 @@ def _write_plugin(
     root: Path,
     segments: list[str],
     *,
-    manifest_extra: Dict[str, Any] | None = None,
+    manifest_extra: dict[str, Any] | None = None,
     register_body: str = "pass",
 ) -> Path:
     """Create a plugin dir at ``root/<segments...>/`` with plugin.yaml + __init__.py.

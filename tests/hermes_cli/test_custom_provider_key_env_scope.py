@@ -5,7 +5,6 @@ another profile's process-env value must never be picked up under multiplexing."
 from unittest.mock import patch
 
 import pytest
-
 from agent import secret_scope
 
 

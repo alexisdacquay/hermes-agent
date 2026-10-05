@@ -16,7 +16,6 @@ import logging
 import subprocess
 import threading
 import time
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +42,7 @@ def materialize_probe_api_key(api_key: object) -> str:
     return token.strip() if isinstance(token, str) else ""
 
 
-def _mint(command: str, label: str) -> tuple[str, Optional[float]]:
+def _mint(command: str, label: str) -> tuple[str, float | None]:
     """Run *command*, returning ``(token, ttl_seconds_or_None)``. The helper runs FOR the profile whose
     provider is being minted: it gets that profile's own env (secrets + HERMES_HOME), never the multiplexer's
     launch environ — an ``op read`` / ``vault kv get`` helper must sign in as the served profile."""
@@ -142,7 +141,7 @@ class CommandTokenSource:
             return token
 
 
-def build_command_token_provider(key_cmd: str, provider_label: str = "custom") -> Optional[CommandTokenSource]:
+def build_command_token_provider(key_cmd: str, provider_label: str = "custom") -> CommandTokenSource | None:
     """A per-request token provider for *key_cmd*, or ``None`` when unset."""
     command = str(key_cmd or "").strip()
     return CommandTokenSource(command, provider_label) if command else None

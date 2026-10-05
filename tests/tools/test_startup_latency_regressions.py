@@ -15,6 +15,7 @@ from unittest.mock import patch
 
 import pytest
 
+
 class TestAuxProbeMode:
     def test_probe_mode_returns_stub_without_openai_import(self):
         import agent.auxiliary_client as aux
@@ -88,8 +89,8 @@ class TestAuxProbeMode:
 
 class TestVisionCheckUsesProbeMode:
     def test_check_vision_requirements_enters_probe_mode(self):
-        from tools import vision_tools
         import agent.auxiliary_client as aux
+        from tools import vision_tools
 
         states = []
 
@@ -121,19 +122,20 @@ class TestLazyMcpSdk:
 
     def test_lazy_symbol_getattr_resolves_via_ensure(self):
         import importlib.util
+
         from tools import mcp_tool
 
         if importlib.util.find_spec("mcp") is None:
             pytest.skip("mcp SDK not installed")
         # getattr through the module (what mock.patch does when saving the
         # original) must materialize the symbol instead of AttributeError.
-        assert getattr(mcp_tool, "StdioServerParameters") is not None
+        assert mcp_tool.StdioServerParameters is not None
 
 class TestBannerUpdateCheckNonBlocking:
     def test_banner_does_not_block_on_pending_update_check(self):
         """When the prefetch hasn't finished, the banner path must return in
         well under the old 500ms blocking wait."""
-        import hermes_cli.banner as banner
+        from hermes_cli import banner
 
         with patch.object(banner, "_update_check_done", threading.Event()), \
              patch.object(banner, "_deferred_update_notice_started", False):
@@ -148,7 +150,7 @@ class TestBannerUpdateCheckNonBlocking:
         """The late notice lands after patch_stdout owns stdout, where raw ESC bytes are
         sanitized into visible ``?[1;33m`` text (#83969). It must reach prompt_toolkit as a
         parsed ANSI fragment — never as a bare ``Console.print`` to stdout."""
-        import hermes_cli.banner as banner
+        from hermes_cli import banner
         from prompt_toolkit.formatted_text import ANSI, to_formatted_text
 
         printed = []

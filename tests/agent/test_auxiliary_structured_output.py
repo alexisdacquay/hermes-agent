@@ -11,7 +11,6 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
-
 from agent import auxiliary_structured_output as structured_output
 from agent.auxiliary_client import (
     _build_call_kwargs,

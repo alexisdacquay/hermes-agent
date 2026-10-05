@@ -9,8 +9,8 @@ threads) — which showed up as the post-banner freeze before the first prompt.
 
 from types import SimpleNamespace
 
-import hermes_cli.goals as goals
 from cli import HermesCLI
+from hermes_cli import goals
 
 
 def test_cli_session_store_is_the_registry_handle_goals_reuse(monkeypatch):

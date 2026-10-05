@@ -21,9 +21,8 @@ import urllib.error
 from io import BytesIO
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 import hermes_cli.dashboard_register as dr
+import pytest
 
 
 def _ns(**kw):

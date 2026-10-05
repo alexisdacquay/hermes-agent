@@ -12,20 +12,37 @@ fixture; each test asserts one property of the wire requests, ``state.db`` rows 
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import pytest
 
 pytest.importorskip("botocore")
 
-from tests.e2e.core._pending_fixes import known_gate  # noqa: E402
-from tests.e2e.core.providers._native_helpers import (  # noqa: E402
-    ChatResult, KnownSymptom, NativeHome, latest_session, make_home, messages, run_chat, session_ids, tool_calls_of,
+from tests.e2e.core._pending_fixes import known_gate
+from tests.e2e.core.providers._native_helpers import (
+    ChatResult,
+    KnownSymptom,
+    NativeHome,
+    latest_session,
+    make_home,
+    messages,
+    run_chat,
+    session_ids,
+    tool_calls_of,
 )
-from tests.fakes.providers.bedrock_converse import (  # noqa: E402
-    ACCESS_KEY, REGION, SECRET_KEY, FakeBedrock, Reasoning, Text, ToolUse, Turn, seq,
+from tests.fakes.providers.bedrock_converse import (
+    ACCESS_KEY,
+    REGION,
+    SECRET_KEY,
+    FakeBedrock,
+    Reasoning,
+    Text,
+    ToolUse,
+    Turn,
+    seq,
 )
 
 MODEL = "deepseek.v3-v1:0"

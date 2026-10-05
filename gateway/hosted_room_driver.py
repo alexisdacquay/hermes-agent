@@ -12,14 +12,24 @@ import hashlib
 import json
 import math
 import sqlite3
+from collections.abc import Callable
 from contextlib import closing
 from dataclasses import dataclass
 from functools import partial
-from typing import Any, Callable, Literal, get_args
+from typing import Any, Literal, get_args
 
 from gateway.hosted_rooms_common import (
-    DbPath, bounded_int, canonical_json, compact_json, connect, fenced_update, identifier, table_columns, text,
-    transaction)
+    DbPath,
+    bounded_int,
+    canonical_json,
+    compact_json,
+    connect,
+    fenced_update,
+    identifier,
+    table_columns,
+    text,
+    transaction,
+)
 
 Clock = Callable[[], float]
 TaskStatus = Literal["queued", "running", "settled", "failed", "cancelled", "indeterminate", "deferred", "stopping"]

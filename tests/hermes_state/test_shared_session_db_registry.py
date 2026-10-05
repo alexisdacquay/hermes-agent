@@ -23,9 +23,8 @@ import threading
 import time
 from pathlib import Path
 
-import pytest
-
 import hermes_state_registry as registry
+import pytest
 
 
 @pytest.fixture(autouse=True)

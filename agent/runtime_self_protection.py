@@ -35,7 +35,6 @@ import shlex
 import sys
 from functools import lru_cache
 from pathlib import Path
-from typing import Optional
 
 # Split a command line into individually-analyzable commands. Newlines, `;`,
 # `&&`, `||` and `|` each start a fresh command whose own name decides whether
@@ -163,7 +162,7 @@ def split_entry(path: str) -> tuple[str, str]:
     return parent, leaf
 
 
-def is_protected_path(path: str, *, follow: bool = True) -> Optional[str]:
+def is_protected_path(path: str, *, follow: bool = True) -> str | None:
     """Description of the protected runtime path ``path`` touches, else ``None``.
 
     ``follow=False`` keeps the final component unresolved (the entry itself, for
@@ -217,7 +216,7 @@ def _version_spec_matches(spec: str, version: str, uv_root_name: str) -> bool:
     return spec == version or (version.startswith(spec) and version[len(spec):len(spec) + 1] == ".")
 
 
-def _uv_uninstall_target(words: list[str]) -> Optional[str]:
+def _uv_uninstall_target(words: list[str]) -> str | None:
     """Description when ``uv python uninstall`` would remove the running base."""
     protected = _protected()
     uv_entries = [
@@ -242,7 +241,7 @@ def _uv_uninstall_target(words: list[str]) -> Optional[str]:
     return None
 
 
-def command_deletes_runtime(command: str) -> Optional[str]:
+def command_deletes_runtime(command: str) -> str | None:
     """Description of the runtime path ``command`` would delete, else ``None``.
 
     Covers ``rm``/``rmdir``/``rd``/``del``/``erase``/``Remove-Item`` (any flags —

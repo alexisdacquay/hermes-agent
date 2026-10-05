@@ -8,7 +8,6 @@ never benches the credential pool).
 import logging
 
 import pytest
-
 from agent import auxiliary_client as ac
 from agent.error_classifier import FailoverReason, classify_api_error
 

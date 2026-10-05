@@ -16,14 +16,12 @@ Covers:
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 import pytest
-
 from gateway.config import PlatformConfig
 from gateway.relay.adapter import RelayAdapter
 from gateway.relay.descriptor import CONTRACT_VERSION, CapabilityDescriptor
-from gateway.relay.media import RelayMediaClient, media_base_url
+from gateway.relay.media import RelayMediaClient
 
 from tests.gateway.relay.stub_connector import StubConnector
 
@@ -56,10 +54,10 @@ class FakeMediaClient:
 
     def __init__(self) -> None:
         self.enabled = True
-        self.uploads: list[tuple[str, Optional[str]]] = []
+        self.uploads: list[tuple[str, str | None]] = []
         self.downloads: list[str] = []
-        self.upload_result: Optional[str] = "https://conn.example/relay/media/aa11"
-        self.download_result: Optional[str] = "/tmp/relay_media_fake.png"
+        self.upload_result: str | None = "https://conn.example/relay/media/aa11"
+        self.download_result: str | None = "/tmp/relay_media_fake.png"
 
     async def upload(self, file_path, *, mime=None, filename=None):
         self.uploads.append((str(file_path), filename))
@@ -205,7 +203,7 @@ async def test_download_sends_a_user_agent_on_every_request():
         def __exit__(self, *_a):
             return False
 
-    def _fake_urlopen(req, timeout=None):  # noqa: ARG001
+    def _fake_urlopen(req, timeout=None):
         seen.append(dict(req.headers))
         return _Resp()
 
@@ -276,7 +274,7 @@ async def test_download_routes_auth_decision_through_is_relay_media_url(monkeypa
         def __exit__(self, *_a):
             return False
 
-    def _fake_urlopen(req, timeout=None):  # noqa: ARG001
+    def _fake_urlopen(req, timeout=None):
         seen.append(dict(req.headers))
         return _Resp()
 

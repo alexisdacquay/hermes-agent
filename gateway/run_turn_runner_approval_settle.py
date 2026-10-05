@@ -12,16 +12,21 @@ Best-effort by design: a failed notice is logged at debug — the approval alrea
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Any
 
 from agent.i18n import t
-from gateway.platforms.base_exec_approval import approval_timeout_seconds, format_approval_timed_out_notice
+
+from gateway.platforms.base_exec_approval import (
+    approval_timeout_seconds,
+    format_approval_timed_out_notice,
+)
 
 logger = logging.getLogger(__name__)
 
 
 def register_timeout_notice(
-    runner, approval_data: dict, *, command: str, card_message_id: Optional[str]) -> None:
+    runner, approval_data: dict, *, command: str, card_message_id: str | None) -> None:
     """Arm a settle hook that posts the timed-out notice for ``approval_data['request_id']``.
 
     ``runner`` is the ``TurnRunner`` (for ``_ctx`` and ``_schedule``); ``card_message_id`` is the
@@ -54,7 +59,7 @@ def register_timeout_notice(
     register_gateway_settle(session_key, request_id, settle)
 
 
-async def _post_timeout_notice(ctx, command: str, card_message_id: Optional[str], timeout_s: int) -> None:
+async def _post_timeout_notice(ctx, command: str, card_message_id: str | None, timeout_s: int) -> None:
     from gateway.run import _interim_metadata
 
     adapter = ctx._status_adapter
@@ -73,7 +78,7 @@ async def _post_timeout_notice(ctx, command: str, card_message_id: Optional[str]
 
 async def _edit_card(adapter, chat_id: str, message_id: str, content: str) -> bool:
     """Edit the card in place (drops the buttons on platforms whose edit replaces the markup)."""
-    edit: Optional[Callable[..., Any]] = getattr(adapter, "edit_message", None)
+    edit: Callable[..., Any] | None = getattr(adapter, "edit_message", None)
     if edit is None:
         return False
     try:

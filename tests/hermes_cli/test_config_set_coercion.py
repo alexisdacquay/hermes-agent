@@ -9,7 +9,6 @@ Covers:
 """
 
 import pytest
-
 from hermes_cli import config as cfg
 
 

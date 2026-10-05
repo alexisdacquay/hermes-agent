@@ -3,10 +3,9 @@
 import asyncio
 
 import pytest
+from hermes_cli import pt_input_extras
 from prompt_toolkit.input.ansi_escape_sequences import ANSI_SEQUENCES
 from prompt_toolkit.input.vt100_parser import Vt100Parser
-
-from hermes_cli import pt_input_extras
 
 
 @pytest.fixture(autouse=True)
@@ -59,6 +58,7 @@ def test_modified_keypad_mirrors_its_non_keypad_twin():
 @pytest.mark.parametrize("prefix", ["alpha", "alpha  ", "alpha!?.,", "[Pasted text #1: 15 lines]"])
 def test_keypad_alt_enter_inserts_newlines_at_the_cursor(prefix):
     """Extended Enter must reach the newline handler, never self-insert raw CSI text."""
+    from hermes_cli.cli_tui_mixin import CLITuiMixin
     from prompt_toolkit import Application
     from prompt_toolkit.buffer import Buffer
     from prompt_toolkit.document import Document
@@ -66,8 +66,6 @@ def test_keypad_alt_enter_inserts_newlines_at_the_cursor(prefix):
     from prompt_toolkit.key_binding import KeyBindings
     from prompt_toolkit.layout import BufferControl, Layout, Window
     from prompt_toolkit.output import DummyOutput
-
-    from hermes_cli.cli_tui_mixin import CLITuiMixin
 
     async def probe(sequence):
         buf = Buffer(document=Document(prefix + "suffix", len(prefix)))

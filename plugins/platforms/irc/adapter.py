@@ -7,23 +7,22 @@ IRC_SERVER_PASSWORD, IRC_NICKSERV_PASSWORD.
 """
 
 import asyncio
-import datetime
 import contextlib
+import datetime
 import logging
 import re
 import ssl
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from gateway.platforms._shared import (
-    coerce_port, get_scoped_secret as _get_scoped_secret, seed_extra_from_env as _seed_extra_from_env, send_error
-)
 from agent.i18n import t
-from gateway.platforms.base import BasePlatformAdapter, SendResult
-from gateway.platforms.helpers import cancel_task
-from gateway.platforms.event import MessageEvent, MessageType
 from gateway.config import Platform
-
+from gateway.platforms._shared import coerce_port, send_error
+from gateway.platforms._shared import get_scoped_secret as _get_scoped_secret
+from gateway.platforms._shared import seed_extra_from_env as _seed_extra_from_env
+from gateway.platforms.base import BasePlatformAdapter, SendResult
+from gateway.platforms.event import MessageEvent, MessageType
+from gateway.platforms.helpers import cancel_task
 
 logger = logging.getLogger(__name__)
 
@@ -76,9 +75,9 @@ def _server_channel(config) -> tuple:
     return _env_or_extra(extra, "IRC_SERVER", "server"), _env_or_extra(extra, "IRC_CHANNEL", "channel")
 
 
-def _chunk_paragraph(paragraph: str, limit: int) -> List[str]:
+def _chunk_paragraph(paragraph: str, limit: int) -> list[str]:
     """Split one line into UTF-8 chunks of at most ``limit`` bytes, preferring space boundaries."""
-    chunks: List[str] = []
+    chunks: list[str] = []
     while paragraph:
         if len(paragraph.encode("utf-8")) <= limit:
             chunks.append(paragraph)
@@ -101,10 +100,10 @@ def _chunk_paragraph(paragraph: str, limit: int) -> List[str]:
 
 def _privmsg_budget(target: str) -> int:
     """Payload bytes left in a 510-byte line after ``PRIVMSG <target> :`` and CRLF."""
-    return 510 - (len(f"PRIVMSG {target} :".encode("utf-8")) + 2)
+    return 510 - (len(f"PRIVMSG {target} :".encode()) + 2)
 
 
-def _split_lines(paragraphs, limit: int) -> List[str]:
+def _split_lines(paragraphs, limit: int) -> list[str]:
     return [chunk for paragraph in paragraphs for chunk in _chunk_paragraph(paragraph, limit)]
 
 
@@ -112,7 +111,7 @@ def _encode_line(line: str) -> bytes:
     return (line + "\r\n").encode("utf-8")
 
 
-def _ssl_ctx(use_tls: bool) -> Optional[ssl.SSLContext]:
+def _ssl_ctx(use_tls: bool) -> ssl.SSLContext | None:
     return ssl.create_default_context() if use_tls else None
 
 
@@ -141,9 +140,9 @@ class IRCAdapter(BasePlatformAdapter):
                 from gateway.platform_registry import platform_registry
                 max_msg = platform_registry.get("irc").max_message_length
         self.max_message_length = int(max_msg or 450)
-        self._reader: Optional[asyncio.StreamReader] = None
-        self._writer: Optional[asyncio.StreamWriter] = None
-        self._recv_task: Optional[asyncio.Task] = None
+        self._reader: asyncio.StreamReader | None = None
+        self._writer: asyncio.StreamWriter | None = None
+        self._recv_task: asyncio.Task | None = None
         self._current_nick = self.nickname
         self._registered = False  # IRC registration complete
         self._registration_event = asyncio.Event()
@@ -177,7 +176,7 @@ class IRCAdapter(BasePlatformAdapter):
         self._recv_task = asyncio.create_task(self._receive_loop())
         try:  # wait for registration (001 RPL_WELCOME)
             await asyncio.wait_for(self._registration_event.wait(), timeout=30.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.error("IRC: registration timed out")
             await self.disconnect()
             return self._fail("registration_timeout", "IRC server did not send RPL_WELCOME", retryable=True)
@@ -208,8 +207,8 @@ class IRCAdapter(BasePlatformAdapter):
         self._registered = False
         self._registration_event.clear()
 
-    async def send(self, chat_id: str, content: str, reply_to: Optional[str] = None,
-                   metadata: Optional[Dict[str, Any]] = None):
+    async def send(self, chat_id: str, content: str, reply_to: str | None = None,
+                   metadata: dict[str, Any] | None = None):
         if not self._writer or self._writer.is_closing():
             return SendResult(success=False, error="Not connected")
         for line in self._split_message(content, chat_id):
@@ -223,10 +222,10 @@ class IRCAdapter(BasePlatformAdapter):
     async def send_typing(self, chat_id: str, metadata=None) -> None:
         """IRC has no typing indicator — no-op."""
 
-    async def get_chat_info(self, chat_id: str) -> Dict[str, Any]:
+    async def get_chat_info(self, chat_id: str) -> dict[str, Any]:
         return {"name": chat_id, "type": "group" if chat_id.startswith(("#", "&")) else "dm"}
 
-    def _split_message(self, content: str, target: str) -> List[str]:
+    def _split_message(self, content: str, target: str) -> list[str]:
         """Split a long message into IRC-safe chunks (510-byte line limit minus PRIVMSG overhead)."""
         paragraphs = [p for p in self._strip_markdown(content).split("\n") if p.strip()]
         return _split_lines(paragraphs, min(self.max_message_length, _privmsg_budget(target))) or [""]
@@ -340,7 +339,15 @@ def validate_config(config) -> bool:
 def interactive_setup() -> None:
     """`hermes gateway setup` flow (lazy hermes_cli imports keep the plugin importable outside the CLI)."""
     from hermes_cli.setup import (
-        prompt, prompt_yes_no, save_env_value, get_env_value, print_header, print_info, print_warning, print_success)
+        get_env_value,
+        print_header,
+        print_info,
+        print_success,
+        print_warning,
+        prompt,
+        prompt_yes_no,
+        save_env_value,
+    )
     from hermes_cli.setup_platforms import declines_reconfigure
 
     def info(*lines: str) -> None:
@@ -441,7 +448,7 @@ def _is_irc_channel(target: str) -> bool:
     return bool(target) and target[0] in "#&+!"
 
 
-def _sa_error(detail: str) -> Dict[str, Any]:
+def _sa_error(detail: str) -> dict[str, Any]:
     return send_error(f"IRC standalone send: {detail}")
 
 
@@ -462,7 +469,7 @@ class _StandaloneConn:
         while (remaining := deadline - self._loop.time()) > 0:
             try:
                 raw_line = await asyncio.wait_for(self.reader.readuntil(b"\r\n"), timeout=remaining)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 return None
             except asyncio.IncompleteReadError:
                 return _EOF
@@ -479,7 +486,7 @@ class _StandaloneConn:
             await asyncio.wait_for(self.writer.wait_closed(), timeout=5.0)
 
 
-async def _sa_register(conn: _StandaloneConn, nick_base: str, server_password: str) -> Optional[Dict[str, Any]]:
+async def _sa_register(conn: _StandaloneConn, nick_base: str, server_password: str) -> dict[str, Any] | None:
     """PASS/NICK/USER and wait for 001, retrying nick collisions; returns an error dict or None on success."""
     nick_attempts = 0
     standalone_nick = f"{nick_base}-cron"[:30]
@@ -508,7 +515,7 @@ async def _sa_register(conn: _StandaloneConn, nick_base: str, server_password: s
     return None if registered is True else registered
 
 
-async def _sa_join(conn: _StandaloneConn, target: str) -> Optional[Dict[str, Any]]:
+async def _sa_join(conn: _StandaloneConn, target: str) -> dict[str, Any] | None:
     """JOIN a channel target (+n channels drop PRIVMSG from non-members); error dict only on explicit rejection."""
     async def _on_join(cmd: str):
         if cmd in {"403", "405", "471", "473", "474", "475"}:
@@ -520,8 +527,8 @@ async def _sa_join(conn: _StandaloneConn, target: str) -> Optional[Dict[str, Any
     return joined if isinstance(joined, dict) else None
 
 
-async def _standalone_send(pconfig, chat_id: str, message: str, *, thread_id: Optional[str] = None,
-                           media_files: Optional[List[str]] = None, force_document: bool = False) -> Dict[str, Any]:
+async def _standalone_send(pconfig, chat_id: str, message: str, *, thread_id: str | None = None,
+                           media_files: list[str] | None = None, force_document: bool = False) -> dict[str, Any]:
     """Open an ephemeral IRC connection, send a PRIVMSG, and quit (out-of-process cron delivery via
     ``send_message_tool``). Uses a distinct ``-cron`` nick so it never collides with the live gateway adapter.
     ``thread_id``/``media_files`` are accepted for signature parity only."""

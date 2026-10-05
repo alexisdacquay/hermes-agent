@@ -3,14 +3,9 @@
 import subprocess
 from types import SimpleNamespace
 
-import pytest
-
 import pm
+import pytest
 from hermes_cli import main, update_cmd
-
-
-
-
 
 
 @pytest.mark.parametrize("failure,exception,code", [

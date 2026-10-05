@@ -5,9 +5,8 @@ import threading
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-import pytest
-
 import plugins.memory.openviking as openviking_module
+import pytest
 from hermes_cli.version_info import get_version_info
 from plugins.memory.openviking import (
     OpenVikingMemoryProvider,
@@ -1761,7 +1760,7 @@ def test_is_available_true_for_config_yaml_endpoint(monkeypatch):
 def test_is_available_false_without_any_endpoint(monkeypatch):
     _clear_openviking_env(monkeypatch)
     monkeypatch.setattr(
-        openviking_module, "_load_hermes_openviking_config", lambda: {}
+        openviking_module, "_load_hermes_openviking_config", dict
     )
     assert OpenVikingMemoryProvider().is_available() is False
 

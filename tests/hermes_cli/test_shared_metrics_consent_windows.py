@@ -11,10 +11,9 @@ reconciler rather than a model of them.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
-
 from hermes_cli.observability.shared_metrics import SharedMetricsStore
 from hermes_cli.observability.shared_metrics_sender import (
     CONSENT_GATE_SQL,
@@ -22,7 +21,7 @@ from hermes_cli.observability.shared_metrics_sender import (
 )
 from hermes_cli.sqlite_util import write_txn
 
-T0 = datetime(2026, 8, 1, tzinfo=timezone.utc)
+T0 = datetime(2026, 8, 1, tzinfo=UTC)
 
 
 def ts(days=0, hours=0):
@@ -59,9 +58,8 @@ def _add(store, pid, start, end):
 
 
 def _observe(store, send_enabled, when):
-    with store._connection() as connection:
-        with write_txn(connection):
-            reconcile_send_consent(connection, send_enabled, now=when)
+    with store._connection() as connection, write_txn(connection):
+        reconcile_send_consent(connection, send_enabled, now=when)
 
 
 def _eligible(store):
@@ -142,7 +140,7 @@ class TestClockAdversaries:
         the window back to the true revoke moment.
         """
         _observe(store, True, dt(0))
-        _observe(store, True, datetime(2099, 1, 1, tzinfo=timezone.utc))
+        _observe(store, True, datetime(2099, 1, 1, tzinfo=UTC))
         _observe(store, False, dt(1))            # honest clock at revoke
         for n in range(2, 10):
             _add(store, f"REFUSED-{n}", ts(days=n), ts(days=n, hours=2))
@@ -163,7 +161,7 @@ class TestClockAdversaries:
         )
 
         _observe(store, True, dt(0))
-        _observe(store, True, datetime(2099, 1, 1, tzinfo=timezone.utc))
+        _observe(store, True, datetime(2099, 1, 1, tzinfo=UTC))
         with store._connection() as connection:
             stamp = connection.execute(
                 "SELECT stamp FROM consent_marks WHERE name = 'obs'"
@@ -262,22 +260,22 @@ class TestReconcilerProperties:
         so deleting the advance from the REAL writer survived 314 tests.
         This drives the production exporter instead.
         """
-        from datetime import date, timedelta as _td
+        from datetime import date
+        from datetime import timedelta as _td
 
         yesterday = (date.today() - _td(days=1)).isoformat()
-        with store._connection() as connection:
-            with write_txn(connection):
-                connection.execute(
-                    "INSERT INTO counter_aggregates("
-                    " period_start, metric_name, hermes_version, os_family,"
-                    " architecture, install_method, dimensions_json, value,"
-                    " packaged_value"
-                    ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    (
-                        yesterday, "hermes.client.active", "0.0.0-test",
-                        "macos", "arm64", "git", "{}", 1, 0,
-                    ),
-                )
+        with store._connection() as connection, write_txn(connection):
+            connection.execute(
+                "INSERT INTO counter_aggregates("
+                " period_start, metric_name, hermes_version, os_family,"
+                " architecture, install_method, dimensions_json, value,"
+                " packaged_value"
+                ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    yesterday, "hermes.client.active", "0.0.0-test",
+                    "macos", "arm64", "git", "{}", 1, 0,
+                ),
+            )
 
         exported = store.create_and_export_package_if_due()
         assert exported, "the generator was expected to export yesterday's period"

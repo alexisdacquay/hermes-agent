@@ -6,10 +6,8 @@ installed there were ``command not found`` from the terminal tool (#111778).
 """
 
 import os
-import sys
 
 import pytest
-
 from tools.environments import local as local_mod
 from tools.environments.local import _append_missing_sane_path_entries, _make_run_env
 
@@ -21,8 +19,8 @@ def test_existing_user_local_bin_appended_after_inherited_entries(monkeypatch, t
     local_bin.mkdir(parents=True)
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("PATH", "/usr/bin:/bin")
-    monkeypatch.setattr(local_mod, "_git_bash_bin_dirs", lambda: [])
-    monkeypatch.setattr(local_mod, "_managed_runtime_path_entries", lambda: [])
+    monkeypatch.setattr(local_mod, "_git_bash_bin_dirs", list)
+    monkeypatch.setattr(local_mod, "_managed_runtime_path_entries", list)
     monkeypatch.setattr(local_mod, "_resolve_hermes_bin_dir", lambda: None)
 
     entries = _make_run_env({})["PATH"].split(os.pathsep)
@@ -36,6 +34,6 @@ def test_existing_user_local_bin_appended_after_inherited_entries(monkeypatch, t
 
 def test_missing_user_local_bin_not_appended(monkeypatch, tmp_path):
     monkeypatch.setenv("HOME", str(tmp_path))
-    monkeypatch.setattr(local_mod, "_managed_runtime_path_entries", lambda: [])
+    monkeypatch.setattr(local_mod, "_managed_runtime_path_entries", list)
 
     assert ".local" not in _append_missing_sane_path_entries("/usr/bin:/bin")

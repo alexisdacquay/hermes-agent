@@ -6,9 +6,10 @@ from __future__ import annotations
 
 import sys
 import time
+from collections.abc import Mapping
 from contextlib import suppress
 from enum import Enum
-from typing import Any, Mapping, Optional
+from typing import Any
 
 from agent.i18n import t
 
@@ -52,18 +53,18 @@ TERMINAL_COMPRESSION_PROVENANCES = frozenset(
 )
 
 
-def is_terminal_compression_provenance(provenance: Optional[ActivityProvenance | str]) -> bool:
+def is_terminal_compression_provenance(provenance: ActivityProvenance | str | None) -> bool:
     """True when this stamp ends a compression phase and must bypass the persist rate limit."""
     return normalize_activity_provenance(provenance) in TERMINAL_COMPRESSION_PROVENANCES
 
 
-def bound_activity_description(description: Optional[str]) -> str:
+def bound_activity_description(description: str | None) -> str:
     """Clamp free-form activity text to the shared description budget."""
     text = (description or "").strip()
     return text if len(text) <= ACTIVITY_DESCRIPTION_MAX else text[: ACTIVITY_DESCRIPTION_MAX - 1] + "…"
 
 
-def normalize_activity_provenance(provenance: Optional[ActivityProvenance | str]) -> ActivityProvenance:
+def normalize_activity_provenance(provenance: ActivityProvenance | str | None) -> ActivityProvenance:
     """Return a known provenance, or ``UNKNOWN`` when unset/unrecognized."""
     if isinstance(provenance, ActivityProvenance):
         return provenance
@@ -96,11 +97,11 @@ def reset_session_activity_persist_window(agent: Any) -> None:
 
 def build_activity_snapshot(
     *,
-    last_activity_at: Optional[float],
-    last_activity_description: Optional[str],
-    last_activity_provenance: Optional[ActivityProvenance | str] = None,
-    now: Optional[float] = None,
-    extra: Optional[Mapping[str, Any]] = None,
+    last_activity_at: float | None,
+    last_activity_description: str | None,
+    last_activity_provenance: ActivityProvenance | str | None = None,
+    now: float | None = None,
+    extra: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build the shared activity snapshot (plus optional caller extras)."""
     when = float(last_activity_at) if last_activity_at is not None else None

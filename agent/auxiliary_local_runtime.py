@@ -9,13 +9,13 @@ local model slug to whatever cloud provider held a key (#119227) or to the prima
 
 from __future__ import annotations
 
-from typing import Any, Optional, Tuple
+from typing import Any
 
 from hermes_cli.local_runtime.endpoint import LLAMACPP_ALIASES
 
 
-def bare_llamacpp_endpoint(provider: Optional[str], base_url: Optional[str],
-                           api_key: Any) -> Optional[Tuple[str, Any]]:
+def bare_llamacpp_endpoint(provider: str | None, base_url: str | None,
+                           api_key: Any) -> tuple[str, Any] | None:
     """``(base_url, api_key)`` of the profile's local llama.cpp server for a bare alias.
 
     ``base_url`` is ``""`` when nothing is serving. ``None`` when the request is not a bare alias:

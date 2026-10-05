@@ -3,9 +3,7 @@ dragged/pasted absolute paths from being mistaken for slash commands."""
 
 
 import pytest
-
 from cli import _detect_file_drop
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

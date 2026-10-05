@@ -5,22 +5,23 @@ must defer to recorded-graph recovery, not resolve today's application inputs.
 """
 from __future__ import annotations
 
-import importlib
 import hashlib
+import importlib
 import json
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
-
 from pm.lock import Facts, Lockfile
 from pm.plugin_inputs import Members
 from pm.runtime import runtime_environment
 from pm.store import current_target, tree_digest
+
 from tests.pm._fixtures import _wheel
+
 
 @pytest.fixture(autouse=True)
 def isolated_machine_home(tmp_path, monkeypatch):
@@ -35,7 +36,7 @@ def isolated_machine_home(tmp_path, monkeypatch):
 
 @pytest.mark.parametrize("marker_name", [".update-incomplete", ".lazy-refresh-incomplete", None, "manual", "baseline"])
 def test_bootstrap_repairs_before_dependency_activation(tmp_path, monkeypatch, marker_name):
-    import pm.paths as paths
+    from pm import paths
     from pm.environments import selected_venv, site_packages
 
     engine = importlib.import_module("pm.install")

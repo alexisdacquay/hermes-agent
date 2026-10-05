@@ -14,14 +14,12 @@ Covers the three seams added for remote Desktop backends:
 
 
 import pytest
-
 from hermes_constants import get_hermes_home
 from tools.connectors import mcp_oauth
 from tools.connectors.mcp_oauth import _validate_client_redirect_uri
 from tools.mcp_dashboard_oauth import DashboardOAuthFlow
 from tui_gateway import mcp_oauth_sessions
 from tui_gateway.mcp_oauth_sessions import deliver_callback_flow
-
 
 # ---------------------------------------------------------------------------
 # _validate_client_redirect_uri
@@ -128,7 +126,7 @@ def test_start_flow_client_redirect_skips_gateway_listener(monkeypatch):
 
     # The connection-card path does not require a dashboard web server: it binds the same backend
     # receiver, registers the flow for callback relay, and carries the SSH paste hint in detail.
-    import hermes_cli.mcp_config as mcp_config
+    from hermes_cli import mcp_config
 
     monkeypatch.setattr(
         mcp_config,

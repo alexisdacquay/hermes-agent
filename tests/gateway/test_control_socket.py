@@ -3,11 +3,9 @@
 import asyncio
 import json
 import socket
-import sys
 from pathlib import Path
 
 import pytest
-
 from gateway.control_socket import (
     CONTROL_PROTOCOL_VERSION,
     GatewayControlServer,
@@ -409,7 +407,7 @@ def test_runtime_inventory_dedupes_same_pid_across_homes(tmp_path: Path, monkeyp
         "hermes_cli.gateway._get_service_pids", lambda all_profiles=False: set()
     )
     monkeypatch.setattr(
-        "hermes_cli.gateway.find_profile_gateway_processes", lambda: []
+        "hermes_cli.gateway.find_profile_gateway_processes", list
     )
     monkeypatch.setattr(
         "gateway.control_socket.identify_gateway",
@@ -438,7 +436,7 @@ def test_runtime_inventory_prefers_socket_supervisor(tmp_path: Path, monkeypatch
         "hermes_cli.gateway._get_service_pids", lambda all_profiles=False: set()
     )
     monkeypatch.setattr(
-        "hermes_cli.gateway.find_profile_gateway_processes", lambda: []
+        "hermes_cli.gateway.find_profile_gateway_processes", list
     )
     monkeypatch.setattr(
         "gateway.control_socket.identify_gateway",

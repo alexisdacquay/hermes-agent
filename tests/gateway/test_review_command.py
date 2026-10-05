@@ -10,9 +10,9 @@ import time
 from unittest.mock import MagicMock
 
 import pytest
-
 from tools import async_delegation as ad
 from tools.process_registry import process_registry
+
 
 @pytest.fixture(autouse=True)
 def _clean_state():

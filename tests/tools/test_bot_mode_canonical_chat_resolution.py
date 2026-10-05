@@ -34,7 +34,6 @@ from __future__ import annotations
 import threading
 
 import pytest
-
 import tui_gateway.server as srv
 
 CANON = "Bot Chat"

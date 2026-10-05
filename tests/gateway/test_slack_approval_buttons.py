@@ -1,6 +1,5 @@
 """Tests for Slack Block Kit approval buttons and thread context fetching."""
 
-import asyncio
 import sys
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -42,8 +41,8 @@ def _ensure_slack_mock():
 
 _ensure_slack_mock()
 
+from gateway.config import Platform, PlatformConfig
 from plugins.platforms.slack.adapter import SlackAdapter
-from gateway.config import PlatformConfig, Platform
 
 
 def _make_adapter():
@@ -816,7 +815,6 @@ class TestSlackReactionAuthorizationGate:
 
             async def handle(self, event):
                 self.handled.append(event)
-                return None
 
             def _is_user_authorized(self, source):
                 self.auth_checked.append(source.user_id)

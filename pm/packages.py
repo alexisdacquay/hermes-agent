@@ -10,7 +10,6 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import Optional
 
 from pm.package import (
     DebPackage,
@@ -22,7 +21,14 @@ from pm.package import (
     unpack_deb,
 )
 from pm.registry import register
-from pm.store import ALL_TARGETS, MUSL_TARGETS, Store, current_target, flatten_single_dir, merge_tree
+from pm.store import (
+    ALL_TARGETS,
+    MUSL_TARGETS,
+    Store,
+    current_target,
+    flatten_single_dir,
+    merge_tree,
+)
 from pm.update import (
     btbn_index,
     btbn_versions,
@@ -74,7 +80,7 @@ class BinaryPackage(Package):
     # cudart) resolve their shared libraries from the working directory.
     probe_cwd = False
 
-    def _rel(self, target: str) -> Optional[str]:
+    def _rel(self, target: str) -> str | None:
         win = target.startswith("win32")
         return self.binary_rel.get(target) or self.binary_rel.get(
             "win32" if win else "posix"
@@ -84,7 +90,7 @@ class BinaryPackage(Package):
         if self.flatten:
             flatten_single_dir(staged)
 
-    def binary(self, entry: Path, target: str) -> Optional[Path]:
+    def binary(self, entry: Path, target: str) -> Path | None:
         rel = self._rel(target)
         return entry / rel if rel else None
 
@@ -170,7 +176,7 @@ class _BionicDebArm:
         if target != "linux-arm64-bionic":
             BinaryPackage.stage(self, store, staged, version, target)
 
-    def binary(self, entry: Path, target: str) -> Optional[Path]:
+    def binary(self, entry: Path, target: str) -> Path | None:
         if target == "linux-arm64-bionic":
             # File evidence, not exec: the staged .deb's main binary.
             # Cross-target verify() never probes it; consumers (env PATH,
@@ -371,6 +377,7 @@ class Venv(StatePackage):
     def expected_stamp(self, extras: list[str], *, plugin_dirs=None) -> str:
         import hashlib
         import json
+
         from pm.lock import Lockfile
         from pm.paths import lockfile_path
         from pm.store import current_target
@@ -398,8 +405,9 @@ class Venv(StatePackage):
         is left out (the caller reports it) instead of refusing the whole graph.
         """
         import uuid
-        from pm.environments import install_state_dir, runtime_facts_path
+
         from pm.environment import managed_environment
+        from pm.environments import install_state_dir, runtime_facts_path
         from pm.lock import Facts
         from pm.native_build import source_build_environment
         from pm.workspace import enabled_member_dirs, lock_and_sync
@@ -520,7 +528,7 @@ class TermuxDocker(Package):
     # entirely -- the digest's consumers (docker pull) verify it.
     pin_only = True
 
-    def missing_reason(self, target: str) -> Optional[str]:
+    def missing_reason(self, target: str) -> str | None:
         return None if target == "linux-arm64-bionic" else "docker image target is linux-arm64-bionic"
 
     def fetch_url(self, version: str, target: str) -> str:
@@ -533,7 +541,7 @@ class TermuxDocker(Package):
         return ""
 
 
-def npm_env(cache_dir: Path, base_env: Optional[dict] = None) -> dict[str, str]:
+def npm_env(cache_dir: Path, base_env: dict | None = None) -> dict[str, str]:
     """Keep ambient Node and npm options out of PM's child process."""
     env = {
         key: value
@@ -944,7 +952,7 @@ class AgentBrowser(BinaryPackage):
         latest = npm_dist_tags("agent-browser").get("latest")
         return [latest] if latest else []
 
-    def _rel(self, target: str) -> Optional[str]:
+    def _rel(self, target: str) -> str | None:
         ext = ".exe" if target.startswith("win32") else ""
         # Windows ARM64 runs the x64 binary under built-in emulation:
         # agent-browser ships no native arm64 build (its own postinstall
@@ -953,7 +961,7 @@ class AgentBrowser(BinaryPackage):
             target = "win32-x64"
         return f"bin/agent-browser-{target}{ext}"
 
-    def binary(self, entry: Path, target: str) -> Optional[Path]:
+    def binary(self, entry: Path, target: str) -> Path | None:
         # The win32-arm64 payload carries the x64 binary (emulated), so
         # resolve it under the win32-x64 name.
         return super().binary(entry, "win32-x64" if target == "win32-arm64" else target)
@@ -1028,7 +1036,7 @@ class Chromium(Package):
             f"{revision}/chromium-{mirror_plat}.zip"
         )
 
-    def binary(self, entry: Path, target: str) -> Optional[Path]:
+    def binary(self, entry: Path, target: str) -> Path | None:
         # CfT and Playwright's ARM Linux archive use different enclosing
         # directories. Resolve the executable within the selected entry.
         names = {"chrome.exe"} if target.startswith("win32") else {"chrome", "chromium", "Google Chrome for Testing", "Chromium"}
@@ -1127,7 +1135,7 @@ class LlamaCpp(BinaryPackage):
             "ggml-org/llama.cpp", strip_prefix="b"
         )
 
-    def known_sha256(self, version: str, url: str) -> Optional[str]:
+    def known_sha256(self, version: str, url: str) -> str | None:
         """GitHub's release API serves every asset's digest, so pinning a
         280 MB engine costs one API call instead of the download."""
         return _github_release_digests("ggml-org/llama.cpp", f"b{version}").get(

@@ -136,10 +136,8 @@ def test_allowlist_env_read_never_borrows_on_scope_failure(tmp_path, monkeypatch
     the deliberate env read (launch profile's own value, the "Slack pattern").
     Single-profile deployments keep the legacy ``os.environ`` read.
     """
-    import os
 
     import pytest
-
     from agent import secret_scope as ss
     from gateway import pairing
 
@@ -174,7 +172,6 @@ def test_allowlist_sync_does_not_persist_foreign_allowlist(tmp_path, monkeypatch
     import os
 
     import pytest
-
     from agent import secret_scope as ss
     from gateway import pairing
 

@@ -11,11 +11,13 @@ import shlex
 import subprocess
 import sys
 import time
-
 from pathlib import Path
 from typing import NoReturn
+
 from hermes_cli.cli_output import line_input
-from hermes_cli.process_identity import is_desktop_owned_backend as _is_desktop_owned_backend
+from hermes_cli.process_identity import (
+    is_desktop_owned_backend as _is_desktop_owned_backend,
+)
 
 _PRE_BUILD_HINT = "  Pre-build first:  npm install --workspace web && npm run build -w web"
 
@@ -315,7 +317,7 @@ def _loaded_launchd_backend_jobs(
 
 def _launchd_job_owning_backend(
     pid: int, cmdline: list[str] | None, jobs: list[tuple[str, str, list[str], int | None]],
-    ancestors: "list[int] | tuple[int, ...]" = (),
+    ancestors: list[int] | tuple[int, ...] = (),
 ) -> tuple[str, str, int | None] | None:
     """``(domain, label, live_pid)`` of the loaded launchd job that owns *pid*: launchd reports *pid*
     (or one of its *ancestors* — a plist may wrap the backend in ``/bin/sh -c …`` without ``exec``)
@@ -406,7 +408,7 @@ def _respawn_dashboard_processes(commands: list[list[str]]) -> list[list[str]]:
     """
     from hermes_constants import get_hermes_home
     respawned: list[list[str]] = []
-    spawned: list[tuple[list[str], list[str], "subprocess.Popen"]] = []
+    spawned: list[tuple[list[str], list[str], subprocess.Popen]] = []
     failed: list[tuple[list[str], list[str], str]] = []
     log_path = get_hermes_home() / "logs" / "dashboard-restart.log"
     with contextlib.suppress(OSError):
@@ -563,8 +565,12 @@ def _report_dashboard_status() -> int:
     augmentation in _scan_dashboard_processes, and the ledger's recorded bind replaces the argv port so
     ``--port 0`` backends are probed on the port the OS actually gave them. See #81564.
     """
-    from hermes_cli.dashboard_procs import _ledger_serve_binds, _scan_dashboard_processes
     from gateway.status import _pid_exists
+
+    from hermes_cli.dashboard_procs import (
+        _ledger_serve_binds,
+        _scan_dashboard_processes,
+    )
     binds = _ledger_serve_binds()
     live: list[tuple[int, str, str]] = []
     for pid, command in _scan_dashboard_processes():

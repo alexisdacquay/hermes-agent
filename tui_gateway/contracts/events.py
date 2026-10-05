@@ -18,7 +18,14 @@ from __future__ import annotations
 from pydantic import Field
 
 from .base import JsonValue, Payload, WireEnum
-from .common import MessageReaction, SessionLiveInfo, SubagentStatus, ToolLabel, ToolLabelKind, Usage
+from .common import (
+    MessageReaction,
+    SessionLiveInfo,
+    SubagentStatus,
+    ToolLabel,
+    ToolLabelKind,
+    Usage,
+)
 from .config_free_tier_control import SessionControlSnapshot
 from .registry import event
 
@@ -690,9 +697,9 @@ class PetChangedPayload(OpenPayload):
 
     enabled: bool
     slug: str | None = None
-    displayName: str | None = None  # noqa: N815 - wire key
+    displayName: str | None = None
     scale: float | None = None
-    spritesheetRevision: str | None = None  # noqa: N815 - wire key
+    spritesheetRevision: str | None = None
 
 
 class PetGenerateProgressPayload(OpenPayload):
@@ -701,7 +708,7 @@ class PetGenerateProgressPayload(OpenPayload):
     token: str
     count: int
     index: int | None = None
-    dataUri: str | None = None  # noqa: N815 - wire key
+    dataUri: str | None = None
 
 
 class PetHatchProgressPayload(OpenPayload):

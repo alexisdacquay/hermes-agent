@@ -6,10 +6,10 @@ Background processes are killed from three agent-lifecycle paths — the release
 all three, while an operator-driven stop still reaches it.
 """
 
-import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
-from tools.process_registry import ProcessRegistry, ProcessSession, _CHECKPOINT_FIELDS
+import pytest
+from tools.process_registry import _CHECKPOINT_FIELDS, ProcessRegistry, ProcessSession
 
 
 def _make_session(sid="proc_test123", task_id="t1", persist=False) -> ProcessSession:
@@ -70,8 +70,8 @@ def test_agent_close_owned_loop_skips_persisted_sessions(registry, monkeypatch):
     must be skipped there too (#41225)."""
     from types import SimpleNamespace
 
-    from agent.client_lifecycle import ClientLifecycleMixin
     import tools.process_registry as registry_module
+    from agent.client_lifecycle import ClientLifecycleMixin
 
     persisted = _make_session(sid="proc_persisted", task_id="turn-1", persist=True)
     volatile = _make_session(sid="proc_volatile", task_id="turn-1")
@@ -123,7 +123,6 @@ def test_list_sessions_flags_persist_on_release(registry):
 def test_spawn_local_stamps_persist_on_release(registry, monkeypatch, tmp_path):
     """spawn_local(persist_on_release=True) stamps the flag onto the minted
     ProcessSession so every kill filter can see it (#41225)."""
-    import os
 
     from tools import terminal_tool_sudo
 

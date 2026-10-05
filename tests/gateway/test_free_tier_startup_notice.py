@@ -3,17 +3,16 @@
 import base64
 import json
 import time
-
-import pytest
 from unittest.mock import AsyncMock
 
 import gateway.run as gateway_run
+import pytest
 from gateway.config import HomeChannel, Platform
 from gateway.platforms.base import SendResult
 from hermes_cli import anon_auth
 from hermes_cli.auth import _auth_store_lock, _load_auth_store, _save_auth_store
-from tests.gateway.restart_test_helpers import make_restart_runner
 
+from tests.gateway.restart_test_helpers import make_restart_runner
 
 
 def _jwt(**claims) -> str:

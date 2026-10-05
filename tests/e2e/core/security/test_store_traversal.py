@@ -21,15 +21,16 @@ from __future__ import annotations
 import json
 import re
 import sys
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 import pytest
 
 from tests.e2e.core._pending_fixes import known_gate
 from tests.e2e.core.security import _helpers as H
-from tests.e2e.core.security._traversal import digest, result_json, tool_text
+from tests.e2e.core.security._traversal import result_json, tool_text
 from tests.e2e.core.tenancy._helpers import TuiBackend
 from tests.fakes.fake_llm_provider import FakeLLMServer, Text, ToolCall
 

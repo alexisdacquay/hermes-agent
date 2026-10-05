@@ -13,11 +13,15 @@ from __future__ import annotations
 import logging
 from contextlib import suppress
 from dataclasses import dataclass
-from typing import Any, Dict, List
+from typing import Any
 
 from agent.image_token_cost import calibrate_from_usage
 from agent.usage_anchor import capture_usage_anchor, set_usage_anchor
-from agent.usage_pricing import estimate_usage_cost, normalize_usage, with_served_service_tier
+from agent.usage_pricing import (
+    estimate_usage_cost,
+    normalize_usage,
+    with_served_service_tier,
+)
 
 logger = logging.getLogger("agent.conversation_loop")
 
@@ -25,7 +29,9 @@ logger = logging.getLogger("agent.conversation_loop")
 def _agent_session_source(agent: Any) -> str:
     """The surface the agent's own row create would stamp (``_ensure_db_session``), so an
     accounting guard that wins the row-creation race never mints an anonymous session."""
-    from run_agent import _session_source_for_agent  # late: run_agent imports this module
+    from run_agent import (
+        _session_source_for_agent,  # late: run_agent imports this module
+    )
     return _session_source_for_agent(getattr(agent, "platform", None))
 
 
@@ -71,7 +77,7 @@ def _fold_moa_usage(agent, canonical_usage):
 
 
 def record_response_usage(
-    agent: Any, response: Any, *, messages: List[Dict[str, Any]], api_call_count: int,
+    agent: Any, response: Any, *, messages: list[dict[str, Any]], api_call_count: int,
     api_duration: float, compression_attempts: int, max_compression_attempts: int,
 ) -> ResponseUsageOutcome:
     """Fold ``response.usage`` into compressor, anchors, session counters, state.db

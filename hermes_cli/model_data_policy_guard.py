@@ -7,8 +7,8 @@ a ProviderProfile hook) because the guard runs inside core selection code (``aut
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable, Optional
 
 
 @dataclass(frozen=True)
@@ -57,9 +57,9 @@ _RULES: tuple[tuple[Callable[[str, str], bool], str], ...] = (
 def data_training_warning(
     model_name: str,
     *,
-    provider: Optional[str] = None,
-    base_url: Optional[str] = None,  # noqa: ARG001 — reserved for host-scoped rules
-) -> Optional[DataTrainingWarning]:
+    provider: str | None = None,
+    base_url: str | None = None,
+) -> DataTrainingWarning | None:
     """Warning payload when *model_name* selects a data-training tier, else ``None``. Call after model
     resolution; surface ``.message`` as a confirm prompt."""
     model = (model_name or "").strip()

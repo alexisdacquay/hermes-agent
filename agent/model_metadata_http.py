@@ -44,9 +44,8 @@ def stream(url: str, *, headers=None, params=None, timeout=10.0, verify=None):
         timeout=timeout,
         follow_redirects=True,
         event_hooks={"request": [scope_credentials]},
-    ) as client:
-        with client.stream("GET", url, headers=headers, params=params) as response:
-            yield response
+    ) as client, client.stream("GET", url, headers=headers, params=params) as response:
+        yield response
 
 
 def get(url: str, *, headers=None, params=None, timeout=10.0, verify=None):

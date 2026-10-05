@@ -14,7 +14,6 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from pm.install import InstalledPackage
 from tools.computer_use import doctor
 

@@ -20,10 +20,9 @@ redaction deliberately passes through.
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from agent.context_compressor import (
-    ContextCompressor,
     SUMMARY_PREFIX,
+    ContextCompressor,
     _redact_compaction_text,
 )
 

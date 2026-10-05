@@ -13,14 +13,14 @@ from __future__ import annotations
 
 import asyncio
 import json
-
-import pytest
+from datetime import UTC
 
 import gateway.drain_control as dc
-from gateway.run import GatewayRunner
+import pytest
 from gateway.platforms.event import MessageEvent, MessageType
-from tests.gateway.restart_test_helpers import make_restart_runner, make_restart_source
+from gateway.run import GatewayRunner
 
+from tests.gateway.restart_test_helpers import make_restart_runner, make_restart_source
 
 # ---------------------------------------------------------------------------
 # Marker contract (drain_control.py)
@@ -130,13 +130,13 @@ class TestMarkerMaxAge:
         # THE #85433 REGRESSION. A drain-gated action completes WITHOUT a
         # machine restart, so the epoch still matches — but the writer never
         # cancelled the drain. The orphan must not wedge the gateway forever.
-        from datetime import datetime, timedelta, timezone
+        from datetime import datetime, timedelta
 
         dc.write_drain_request(principal="nas", suppress_notification=True)
         body = dc.read_drain_request()
         assert body is not None
         body["requested_at"] = (
-            datetime.now(timezone.utc)
+            datetime.now(UTC)
             - timedelta(seconds=dc.DRAIN_REQUEST_MAX_AGE_SECONDS + 60)
         ).isoformat()
         dc.drain_request_path().write_text(json.dumps(body), encoding="utf-8")
@@ -166,10 +166,10 @@ class TestMarkerMaxAge:
 
     def test_naive_timestamp_treated_as_utc(self, home):
         # A writer that stamped a tz-naive ISO string must still expire.
-        from datetime import datetime, timedelta, timezone
+        from datetime import datetime, timedelta
 
         stale_naive = (
-            datetime.now(timezone.utc)
+            datetime.now(UTC)
             - timedelta(seconds=dc.DRAIN_REQUEST_MAX_AGE_SECONDS + 60)
         ).replace(tzinfo=None)
         payload = {
@@ -185,14 +185,14 @@ class TestMarkerMaxAge:
         # once per tick (~86k/day). A refreshed marker that expires again
         # warns again (new requested_at).
         import logging
-        from datetime import datetime, timedelta, timezone
+        from datetime import datetime, timedelta
 
         def _write_expired(offset_seconds):
             dc.write_drain_request(principal="nas")
             body = dc.read_drain_request()
             assert body is not None
             body["requested_at"] = (
-                datetime.now(timezone.utc)
+                datetime.now(UTC)
                 - timedelta(seconds=dc.DRAIN_REQUEST_MAX_AGE_SECONDS + offset_seconds)
             ).isoformat()
             dc.drain_request_path().write_text(json.dumps(body), encoding="utf-8")
@@ -215,13 +215,13 @@ class TestMarkerMaxAge:
     def test_rewrite_refreshes_the_clock(self, home):
         # The sanctioned keep-alive: re-writing the marker bumps requested_at,
         # so a deliberately long drain stays honoured.
-        from datetime import datetime, timedelta, timezone
+        from datetime import datetime, timedelta
 
         dc.write_drain_request(principal="nas")
         body = dc.read_drain_request()
         assert body is not None
         body["requested_at"] = (
-            datetime.now(timezone.utc)
+            datetime.now(UTC)
             - timedelta(seconds=dc.DRAIN_REQUEST_MAX_AGE_SECONDS + 60)
         ).isoformat()
         dc.drain_request_path().write_text(json.dumps(body), encoding="utf-8")

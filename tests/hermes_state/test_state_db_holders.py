@@ -3,9 +3,8 @@
 import os
 from types import SimpleNamespace
 
-import pytest
-
 import hermes_state_holders
+import pytest
 
 
 @pytest.mark.platforms("linux")

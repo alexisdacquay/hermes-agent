@@ -10,11 +10,10 @@ from __future__ import annotations
 import importlib
 import os
 
-import pytest
-
 import agent.secret_scope as ss
 import gateway.platforms._shared as shared
 import hermes_cli.config as cli_config
+import pytest
 
 _ENV_ENABLEMENT_PLUGINS = ("buzz", "google_chat", "irc", "line", "ntfy", "photon", "simplex", "teams")
 

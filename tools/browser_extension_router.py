@@ -21,12 +21,13 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Callable, Dict, Optional, Tuple
+from collections.abc import Callable
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-def _bound_identity() -> Tuple[Optional[str], Optional[str], Optional[str]]:
+def _bound_identity() -> tuple[str | None, str | None, str | None]:
     """(session_id, principal_id, transport_family) from the session context."""
     from gateway.session_context import get_session_env
 
@@ -48,7 +49,10 @@ def extension_controller_available(action: str) -> bool:
     Runs during tool-schema assembly inside the request's session context;
     consults the process-local broker directly and fails closed on any gap."""
     try:
-        from gateway.browser_control_broker import browser_control_enabled, get_browser_control_broker
+        from gateway.browser_control_broker import (
+            browser_control_enabled,
+            get_browser_control_broker,
+        )
 
         if not browser_control_enabled():
             return False
@@ -64,9 +68,9 @@ def extension_controller_available(action: str) -> bool:
 
 
 def route_browser_tool(
-    action: str, args: Dict[str, Any], *, fallback: Callable[[], Any], broker: Any, enabled: bool,
-    session_id: Optional[str] = None, task_id: Optional[str] = None, principal_id: Optional[str] = None,
-    transport_family: Optional[str] = None, tool_call_id: Optional[str] = "",
+    action: str, args: dict[str, Any], *, fallback: Callable[[], Any], broker: Any, enabled: bool,
+    session_id: str | None = None, task_id: str | None = None, principal_id: str | None = None,
+    transport_family: str | None = None, tool_call_id: str | None = "",
 ) -> Any:
     """Route one browser action through the extension-control broker.
 
@@ -110,14 +114,17 @@ def current_tool_call_id() -> str:
 
 
 def routed_browser_handler(
-    action: str, args: Dict[str, Any], *, fallback: Callable[[], Any], task_id: Optional[str] = None,
-    session_id: Optional[str] = None, principal_id: Optional[str] = None,
-    transport_family: Optional[str] = None, tool_call_id: Optional[str] = None,
+    action: str, args: dict[str, Any], *, fallback: Callable[[], Any], task_id: str | None = None,
+    session_id: str | None = None, principal_id: str | None = None,
+    transport_family: str | None = None, tool_call_id: str | None = None,
 ) -> Any:
     """Lazy registry-handler route wrapper for ``browser_*`` tools.
     Feature off (or gateway unimportable) ⇒ the legacy handler runs unchanged."""
     try:
-        from gateway.browser_control_broker import browser_control_enabled, get_browser_control_broker
+        from gateway.browser_control_broker import (
+            browser_control_enabled,
+            get_browser_control_broker,
+        )
     except Exception as exc:  # pragma: no cover - defensive, gateway always present
         logger.debug("browser extension router unavailable (%s); using legacy backend", exc)
         return fallback()

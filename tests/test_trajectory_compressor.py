@@ -4,17 +4,14 @@ import importlib
 import os
 import sys
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch, MagicMock
-
-import pytest
+from unittest.mock import MagicMock, patch
 
 from agent.compression_marker import _COMPRESSION_MARKER_RE
-
 from trajectory_compressor import (
-    CompressionConfig,
-    TrajectoryMetrics,
     AggregateMetrics,
+    CompressionConfig,
     TrajectoryCompressor,
+    TrajectoryMetrics,
 )
 
 

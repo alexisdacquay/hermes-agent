@@ -10,8 +10,8 @@ import sys
 from contextlib import redirect_stderr
 
 import pytest
-
 from hermes_cli._parser import build_top_level_parser
+
 
 def _parse_error(argv: list[str]) -> str:
     parser, subparsers, _chat = build_top_level_parser()

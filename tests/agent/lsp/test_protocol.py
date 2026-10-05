@@ -13,8 +13,8 @@ from __future__ import annotations
 
 import asyncio
 import json
-import pytest
 
+import pytest
 from agent.lsp.protocol import (
     LSPProtocolError,
     classify_message,

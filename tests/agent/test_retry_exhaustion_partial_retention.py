@@ -15,7 +15,6 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
-
 from agent.error_classifier import classify_api_error
 from agent.turn_api_error import settle_unrecovered_error
 

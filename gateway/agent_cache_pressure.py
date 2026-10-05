@@ -12,9 +12,10 @@ from __future__ import annotations
 
 import os
 import sys
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Iterable, List, Optional, Tuple
+from typing import Any
 
 # Shed well under the limit: once cgroup ``memory.high`` throttling kicks in (swap full),
 # a SIGTERM flush cannot finish inside systemd's stop timeout.
@@ -34,9 +35,9 @@ class AgentCacheBounds:
     """Operator-facing bounds.  ``max_size``/``idle_ttl_secs`` are ``None`` when unset
     so ``gateway/run.py`` keeps its defaults; ``memory_high_mb`` ``None`` = pressure eviction off."""
 
-    max_size: Optional[int] = None
-    idle_ttl_secs: Optional[float] = None
-    memory_high_mb: Optional[int] = None
+    max_size: int | None = None
+    idle_ttl_secs: float | None = None
+    memory_high_mb: int | None = None
     max_evictions_per_pass: int = _DEFAULT_MAX_EVICTIONS_PER_PASS
     protect_recent: int = _DEFAULT_PROTECT_RECENT
 
@@ -54,7 +55,7 @@ def _positive(value: Any, cast: Callable[[Any], Any] = int) -> Any:
     return parsed if parsed is not None and parsed > 0 else None
 
 
-def _finite_limit(path: Path) -> Optional[int]:
+def _finite_limit(path: Path) -> int | None:
     """A cgroup memory limit file's value when it is a real cap; None for unreadable, empty,
     ``max``, or the v1 near-2^63 sentinel (all mean unlimited)."""
     try:
@@ -64,7 +65,7 @@ def _finite_limit(path: Path) -> Optional[int]:
     return limit if 0 < limit < (1 << 62) else None
 
 
-def _cgroup_limit_bytes() -> Optional[int]:
+def _cgroup_limit_bytes() -> int | None:
     """Memory limit this process runs under, if cgroup-capped.
 
     Prefers v2 ``memory.high`` (the throttling point) over ``memory.max``, then v1.
@@ -87,7 +88,7 @@ def _cgroup_limit_bytes() -> Optional[int]:
     return None
 
 
-def _total_memory_bytes() -> Optional[int]:
+def _total_memory_bytes() -> int | None:
     try:
         return int(os.sysconf("SC_PAGE_SIZE")) * int(os.sysconf("SC_PHYS_PAGES"))
     except (OSError, ValueError, AttributeError):
@@ -100,7 +101,7 @@ def _total_memory_bytes() -> Optional[int]:
         return None
 
 
-def resolve_memory_high_mb(setting: Any) -> Optional[int]:
+def resolve_memory_high_mb(setting: Any) -> int | None:
     """Absolute MB budget: ``"auto"`` derives from the cgroup limit (or total RAM when
     uncapped); a positive number is literal; anything falsy/off disables the pass."""
     if isinstance(setting, str):
@@ -139,7 +140,7 @@ def resolve_agent_cache_bounds(config: Any) -> AgentCacheBounds:
     )
 
 
-def _cgroup_anon_bytes() -> Optional[int]:
+def _cgroup_anon_bytes() -> int | None:
     """Anonymous memory charged to this process's own cgroup v2 (``memory.stat`` ``anon``), or None.
 
     The budget is derived from the same cgroup's ``memory.high``/``memory.max``, and the kernel
@@ -169,7 +170,7 @@ def _cgroup_anon_bytes() -> Optional[int]:
     return None
 
 
-def read_anon_rss_mb() -> Optional[int]:
+def read_anon_rss_mb() -> int | None:
     """Anonymous memory in MB (where cached transcripts live; file-backed pages are noise),
     or None.  Own cgroup's ``memory.stat`` anon first — the scope the budget is charged
     against, so same-unit child processes count; then ``/proc/self/status``; psutil covers
@@ -208,9 +209,9 @@ def transcript_persistence_caught_up(agent: Any) -> bool:
 
 
 def plan_pressure_evictions(
-    ordered_entries: Iterable[Tuple[str, Any]], *, is_evictable: Callable[[str, Any], bool],
+    ordered_entries: Iterable[tuple[str, Any]], *, is_evictable: Callable[[str, Any], bool],
     max_evictions: int, protect_recent: int = 0,
-) -> List[Tuple[str, Any]]:
+) -> list[tuple[str, Any]]:
     """Choose which cached sessions to shed, least-recently-used first.
 
     ``ordered_entries`` must be LRU→MRU (the cache OrderedDict ``move_to_end``s on
@@ -224,7 +225,7 @@ def plan_pressure_evictions(
     protect = min(max(protect_recent, 0), len(entries) // 2)
     if protect:
         entries = entries[:-protect]
-    plan: List[Tuple[str, Any]] = []
+    plan: list[tuple[str, Any]] = []
     for key, agent in entries:
         if len(plan) >= max_evictions:
             break

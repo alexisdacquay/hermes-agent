@@ -7,7 +7,6 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from gateway.config import GatewayConfig, Platform, PlatformConfig
 from gateway.platforms.event import MessageEvent
 from gateway.session import SessionEntry, SessionSource, build_session_key
@@ -532,8 +531,8 @@ def test_rotated_compress_keeps_atomically_published_foreign_tail(tmp_path, monk
     ``profiles/fitness/state.db`` before the routing index knows the child id.
     """
     import hermes_state
-    from gateway.slash_commands_session import GatewaySessionCommandsMixin
     from gateway.session import AsyncSessionStore, SessionStore
+    from gateway.slash_commands_session import GatewaySessionCommandsMixin
 
     root = tmp_path / "hermes"
     (root / "profiles" / "fitness").mkdir(parents=True)

@@ -6,12 +6,12 @@ import hashlib
 import json
 from pathlib import Path
 from types import SimpleNamespace
-
-import pytest
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
 from gateway.platforms.base import CachedMedia
 from gateway.platforms.event import MessageType
+
 from tests.gateway._plugin_adapter_loader import load_plugin_adapter
 
 # Load plugins/platforms/buzz/adapter.py under a unique module name

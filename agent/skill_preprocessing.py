@@ -6,8 +6,9 @@ import re
 import subprocess
 from pathlib import Path
 
-from agent.compression_marker import elide
 from hermes_cli._subprocess_compat import IS_WINDOWS, windows_hide_flags
+
+from agent.compression_marker import elide
 
 logger = logging.getLogger(__name__)
 

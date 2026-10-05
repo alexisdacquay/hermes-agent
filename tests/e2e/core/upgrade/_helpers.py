@@ -24,8 +24,8 @@ import signal
 import subprocess
 import sys
 import time
+from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import Iterable, Sequence
 
 WORKTREE = Path(__file__).resolve().parents[4]
 REAL_HOME = Path(pwd.getpwuid(os.getuid()).pw_dir)

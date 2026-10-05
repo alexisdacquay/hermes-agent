@@ -37,9 +37,9 @@ import sys
 import time
 import uuid
 from contextlib import contextmanager, suppress
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +51,7 @@ COMMAND_BOUNDARY_STOP_REASON = "completed at command boundary"
 # the outer one, and the boundary finalize must see exactly its own
 # process's receipt. Same pattern as pm.receipt's ContextVars — no
 # manager object.
-_current: contextvars.ContextVar[Optional["UpdateReceipt"]] = contextvars.ContextVar(
+_current: contextvars.ContextVar[UpdateReceipt | None] = contextvars.ContextVar(
     "update_receipt_current", default=None
 )
 
@@ -66,7 +66,7 @@ def update_receipt_scope():
         _current.reset(token)
 
 
-def current_correlation_id() -> Optional[str]:
+def current_correlation_id() -> str | None:
     """The update correlation id in force in this context, or None.
 
     Derived from the OPEN update receipt itself — one source of truth, no
@@ -79,7 +79,7 @@ def current_correlation_id() -> Optional[str]:
 
 
 def _utc_now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _code_identity(refresh: bool = False) -> dict[str, Any]:
@@ -103,7 +103,7 @@ def _str_records(entries: Any, keys: tuple[str, ...], *, pid: bool = False) -> l
     return records
 
 
-def _launcher_correlation_id() -> Optional[str]:
+def _launcher_correlation_id() -> str | None:
     """Correlation id handed in by an external launcher, or None.
 
     Desktop's managed SSH update exports ``HERMES_UPDATE_CORRELATION_ID`` and
@@ -266,7 +266,7 @@ def record_gateway_restart(**kwargs: Any) -> None:
     _record("gateway_restart_result", "gateway restart result", **kwargs)
 
 
-def finalize_update_receipt(outcome: str, fleet: list | None = None, stop_reason: str = "") -> Optional[Path]:
+def finalize_update_receipt(outcome: str, fleet: list | None = None, stop_reason: str = "") -> Path | None:
     """Finalize + persist the receipt (``success``/``partial``/``failed``/``refused``); path or None.
 
     Exactly-once by construction: the context's receipt is popped first, so a second call (e.g. the
@@ -354,7 +354,7 @@ def finalize_update_receipt(outcome: str, fleet: list | None = None, stop_reason
         return None
 
 
-def _collection_enabled_now() -> Optional[bool]:
+def _collection_enabled_now() -> bool | None:
     """Shared-metrics consent via the ALREADY-LOADED config module (never an import: this interpreter
     predates the checkout swap). None when it cannot tell (not loaded, unreadable config)."""
     reader = getattr(sys.modules.get("hermes_cli.config"), "read_raw_config_readonly", None)
@@ -400,6 +400,7 @@ def _publish_shared_metrics(data: dict[str, Any]) -> None:
             # pulled code into it. Park the bounded fields (stdlib + loaded modules only); the next
             # Hermes start records them.
             from hermes_constants import get_hermes_home
+
             from hermes_cli.runtime_state import _atomic_bytes
 
             pending = get_hermes_home() / "telemetry" / "shared_metrics" / "pending_updates"  # = PENDING_DIRNAME
@@ -417,7 +418,7 @@ def _publish_shared_metrics(data: dict[str, Any]) -> None:
         record_update_receipt(data)
 
 
-def finalize_pending_update_receipt(exit_code: Optional[int] = None, stop_reason: str = "") -> Optional[Path]:
+def finalize_pending_update_receipt(exit_code: int | None = None, stop_reason: str = "") -> Path | None:
     """Command-boundary safety net: persist a still-open receipt, if any. Never raises.
 
     ``hermes update`` has many early ``sys.exit`` paths (preflight refusals, venv-holder refusal,
@@ -483,7 +484,7 @@ def settle_latest_receipt_fleet(fleet: list[dict[str, Any]], *, discharges) -> b
         return False
 
 
-def read_latest_receipt() -> Optional[dict[str, Any]]:
+def read_latest_receipt() -> dict[str, Any] | None:
     """Read the most recent update receipt, or None. Never raises."""
     with suppress(Exception):
         path = _receipt_dir() / "latest.json"
@@ -496,7 +497,11 @@ def read_latest_receipt() -> Optional[dict[str, Any]]:
 
 def _profile_homes() -> list[tuple[str, Path]]:
     """``(profile, home)`` for the default home plus every valid named profile dir, sorted."""
-    from hermes_cli.profiles import _get_default_hermes_home, _get_profiles_root, _PROFILE_ID_RE
+    from hermes_cli.profiles import (
+        _PROFILE_ID_RE,
+        _get_default_hermes_home,
+        _get_profiles_root,
+    )
 
     homes: list[tuple[str, Path]] = []
     default_home = _get_default_hermes_home()
@@ -512,7 +517,7 @@ def _profile_homes() -> list[tuple[str, Path]]:
     return homes
 
 
-def _socket_identity(home: Path) -> Optional[tuple[int, dict]]:
+def _socket_identity(home: Path) -> tuple[int, dict] | None:
     """``(pid, identity)`` declared by the gateway owning ``home``'s control socket, else None.
 
     A live ``identify`` answer is authoritative — no PID-reuse or stale-file heuristics. Callers
@@ -533,7 +538,7 @@ def _socket_identity(home: Path) -> Optional[tuple[int, dict]]:
 _CODE_ROOT_MAX_DEPTH = 8
 
 
-def _code_root_for_path(raw: Any) -> Optional[Path]:
+def _code_root_for_path(raw: Any) -> Path | None:
     """Return the Hermes checkout containing an absolute process path."""
     if not isinstance(raw, str) or not raw:
         return None
@@ -547,11 +552,11 @@ def _code_root_for_path(raw: Any) -> Optional[Path]:
     return None
 
 
-def _updater_code_root() -> Optional[Path]:
+def _updater_code_root() -> Path | None:
     return _code_root_for_path(str(Path(__file__).resolve()))
 
 
-def _gateway_code_root(pid: int, home: Path) -> Optional[Path]:
+def _gateway_code_root(pid: int, home: Path) -> Path | None:
     """Resolve the checkout served by a verified live gateway when possible."""
     # Older gateways cannot publish a new identity field, but their pid-guarded
     # status record already carries sys.argv (whose first item is the resolved
@@ -599,9 +604,9 @@ def row_is_external(row: Any) -> bool:
 
 def _fleet_row(
     profile: str, pid: int, code_sha: Any, code_version: Any, expected_sha: Any,
-    state: str = "unknown", code_root: Optional[Path] = None,
-    expected_root: Optional[Path] = None, served_profiles: Any = None,
-    self_restart_pending: Optional[set] = None,
+    state: str = "unknown", code_root: Path | None = None,
+    expected_root: Path | None = None, served_profiles: Any = None,
+    self_restart_pending: set | None = None,
 ) -> dict[str, Any]:
     if state == "unknown" and code_root and expected_root and code_root != expected_root:
         state = EXTERNAL_STATE
@@ -630,7 +635,7 @@ _NOT_EXPECTED_STATES = {"stopped", "startup_failed"}
 
 
 def collect_fleet_versions(
-    *, pre_restart_pids: Optional[list[int]] = None, self_restart_pending: Optional[set] = None,
+    *, pre_restart_pids: list[int] | None = None, self_restart_pending: set | None = None,
 ) -> list[dict[str, Any]]:
     """Snapshot every profile's gateway code identity vs. the current tree.
 

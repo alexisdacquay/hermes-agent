@@ -17,21 +17,22 @@ import threading
 import time
 from contextlib import suppress
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
 from agent.i18n import t
 from agent.interrupt_compat import _accepts_keyword
 from agent.replay_cleanup import canonicalize_replay_history
+from hermes_cli.config import cfg_get
+from utils import is_truthy_value
+
 from gateway.config import Platform
 from gateway.media_repair import repair_explicit_computer_use_media_paths
 from gateway.platforms.base import BasePlatformAdapter
 from gateway.platforms.base_exec_approval import ea_default_reason_text
 from gateway.turn_context import TurnContext
-from hermes_cli.config import cfg_get
-from utils import is_truthy_value
 
 if TYPE_CHECKING:  # string annotations only; never imported at runtime (cycle)
-    from gateway.run import GatewayRunner  # noqa: F401
+    from gateway.run import GatewayRunner
 
 # Log-record parity with the origin module.
 logger = logging.getLogger("gateway.run")
@@ -78,7 +79,7 @@ class _ExecApprovalDeclined(RuntimeError):
 class TurnRunner:
     """Per-turn collaborator carrying ``GatewayRunner._run_agent_inner``'s tool-progress callbacks."""
 
-    def __init__(self, runner: "GatewayRunner", ctx: TurnContext) -> None:
+    def __init__(self, runner: GatewayRunner, ctx: TurnContext) -> None:
         self._runner = runner
         self._ctx = ctx
 
@@ -185,7 +186,10 @@ class TurnRunner:
         from gateway.warning_notifications import render_notification
         status = kwargs.get("status")
         try:
-            from tools.delegate_tool import SUBAGENT_FAILURE_STATUSES, format_subagent_failure_line
+            from tools.delegate_tool import (
+                SUBAGENT_FAILURE_STATUSES,
+                format_subagent_failure_line,
+            )
             if status in SUBAGENT_FAILURE_STATUSES and ctx._run_still_current():
                 line = format_subagent_failure_line(
                     kwargs.get("goal"), status, error=kwargs.get("summary") or preview,
@@ -221,7 +225,12 @@ class TurnRunner:
         ctx = self._ctx
         try:
             if (kwargs.get("duration") or 0) >= ctx._LONG_TOOL_THRESHOLD_S and ctx.progress_mode == "all":
-                from agent.onboarding import TOOL_PROGRESS_FLAG, is_seen, mark_seen, tool_progress_hint_gateway
+                from agent.onboarding import (
+                    TOOL_PROGRESS_FLAG,
+                    is_seen,
+                    mark_seen,
+                    tool_progress_hint_gateway,
+                )
                 cfg = _load_gateway_config()
                 gate_on = is_truthy_value(cfg_get(cfg, "display", "tool_progress_command"), default=False)
                 if gate_on and not is_seen(cfg, TOOL_PROGRESS_FLAG):
@@ -261,7 +270,7 @@ class TurnRunner:
             cmd_short += " ..."
         return f"{header}```\n{cmd_full}\n```", f"{header}```\n{cmd_short}\n```"
 
-    def _progress_build_message(self, tool_name, preview, args) -> Optional[str]:
+    def _progress_build_message(self, tool_name, preview, args) -> str | None:
         """Render the progress line. Verbose mode queues directly (no dedup) and returns None."""
         ctx = self._ctx
         from agent.display import get_tool_emoji
@@ -293,7 +302,12 @@ class TurnRunner:
             return code
         if not preview:
             return t("gateway.progress.tool_pending", emoji=emoji, tool=tool_name)
-        from agent.display import get_tool_verb, prepare_tool_preview, tool_verb_connector, verb_drops_preview
+        from agent.display import (
+            get_tool_verb,
+            prepare_tool_preview,
+            tool_verb_connector,
+            verb_drops_preview,
+        )
         prepared = prepare_tool_preview(tool_name, args, fallback=preview, max_len=self._preview_cap())
         preview = adapter.format_tool_preview(prepared) if adapter is not None else prepared.text
         # Friendly labels: human-phrased line for built-in tools ("🔍 Searching the web for ...")
@@ -328,9 +342,9 @@ class TurnRunner:
     class _TaskCardState:
         """Task-card rail state for ``_send_native_task_card_progress``."""
         adapter: Any
-        tasks: Dict[str, Dict[str, str]] = dataclasses.field(default_factory=dict)
-        task_order: List[str] = dataclasses.field(default_factory=list)
-        fallback_msg_id: Optional[str] = None
+        tasks: dict[str, dict[str, str]] = dataclasses.field(default_factory=dict)
+        task_order: list[str] = dataclasses.field(default_factory=list)
+        fallback_msg_id: str | None = None
         native_failed: bool = False
         # TERMINAL for the turn, distinct from native_failed: no later publication
         # in this turn may deliver task text through the native lane OR the text
@@ -346,7 +360,7 @@ class TurnRunner:
             text = re.sub(r"\s+", " ", str(value or "")).strip()
             return text if len(text) <= limit else text[: limit - 3].rstrip() + "..."
 
-        def visible_tasks(self) -> List[Dict[str, str]]:
+        def visible_tasks(self) -> list[dict[str, str]]:
             return [self.tasks[task_id] for task_id in self.task_order[-8:]]
 
         def fallback_text(self) -> str:
@@ -357,7 +371,7 @@ class TurnRunner:
                      for task in self.visible_tasks()]
             return t("gateway.progress.task_card_title") + "\n" + "\n".join(lines)
 
-        def _upsert(self, call_id: str, title: str) -> Dict[str, str]:
+        def _upsert(self, call_id: str, title: str) -> dict[str, str]:
             if call_id not in self.tasks:
                 self.task_order.append(call_id)
             self.tasks[call_id] = {"id": call_id, "title": self._compact(title), "status": "in_progress"}
@@ -546,7 +560,7 @@ class TurnRunner:
         _PROGRESS_TEXT_LIMIT: int
         _edit_accepts_metadata: bool
 
-    def _progress_edit_state(self, adapter) -> "TurnRunner._ProgressEditState":
+    def _progress_edit_state(self, adapter) -> TurnRunner._ProgressEditState:
         ctx = self._ctx
         len_fn = adapter.message_len_fn if isinstance(adapter, BasePlatformAdapter) else len
         try:
@@ -889,7 +903,11 @@ class TurnRunner:
             logger.debug("Failed to attach session title callback", exc_info=True)
 
     def _status_callback_sync(self, event_type: str, message: str) -> None:
-        from gateway.run import _prepare_gateway_status_message, _redact_gateway_user_facing_secrets, _send_or_update_status_coro
+        from gateway.run import (
+            _prepare_gateway_status_message,
+            _redact_gateway_user_facing_secrets,
+            _send_or_update_status_coro,
+        )
         from gateway.warning_notifications import is_warning_status, render_notification
         ctx = self._ctx
         if ctx.mute_notification_reply or not self._status_live():
@@ -972,7 +990,7 @@ class TurnRunner:
         ]
         stream_delta_cb = None
         if delta_sinks:
-            def stream_delta_cb(text: Optional[str]) -> None:
+            def stream_delta_cb(text: str | None) -> None:
                 if ctx._run_still_current():
                     for sink in delta_sinks:
                         sink.on_delta(text)
@@ -1181,7 +1199,10 @@ class TurnRunner:
         """Credits / out-of-band notices (usage bands, depletion, restored) fire from the agent's
         sync worker thread; hop onto the gateway loop. Fired-once latch lives on the cached agent."""
         from gateway.run import render_notice_line
-        from gateway.warning_notifications import is_diagnostic_notice, render_notification
+        from gateway.warning_notifications import (
+            is_diagnostic_notice,
+            render_notification,
+        )
         if self._ctx.mute_notification_reply or not self._status_live():
             return
         diagnostic = is_diagnostic_notice(notice)
@@ -1349,10 +1370,15 @@ class TurnRunner:
         """Answer the clarify tool's questions (clarify_tool's synchronous contract): one card per
         question, stop at the first the user never answers. The stream/typing re-arm waits for the
         last question — between two cards it only opens a bubble the next boundary closes."""
-        from gateway.run_turn_runner_clarify_delivery import UNDELIVERED, UNDELIVERED_DECLINED, UNDELIVERED_NO_SURFACE
         from tools.clarify_gateway import CANCELLED, SKIPPED
-        answers: Dict[str, Any] = {}
-        reply: Dict[str, Any] = {"answers": answers, "outcome": "submitted"}
+
+        from gateway.run_turn_runner_clarify_delivery import (
+            UNDELIVERED,
+            UNDELIVERED_DECLINED,
+            UNDELIVERED_NO_SURFACE,
+        )
+        answers: dict[str, Any] = {}
+        reply: dict[str, Any] = {"answers": answers, "outcome": "submitted"}
         last = len(questions) - 1
         for index, entry in enumerate(questions):
             question = f"{entry['question']}\n{t('gateway.clarify.skip_hint')}"
@@ -1374,10 +1400,15 @@ class TurnRunner:
     def _ask_clarify_question(self, question, choices, multi_select, rearm: bool = True) -> tuple[str, bool]:
         """One card: register, send, wait, then retire it (no answer) or re-arm (answer).
         Returns ``(response, answered)``; the caller decides what "no answer" means."""
-        from gateway.run_turn_runner_clarify_delivery import (
-            UNDELIVERED_NO_SURFACE, _clarify_send_then_wait, text_fallback_coro)
-        from tools import clarify_gateway as clarify_mod
         import uuid
+
+        from tools import clarify_gateway as clarify_mod
+
+        from gateway.run_turn_runner_clarify_delivery import (
+            UNDELIVERED_NO_SURFACE,
+            _clarify_send_then_wait,
+            text_fallback_coro,
+        )
         ctx = self._ctx
         if not ctx._status_adapter:
             # Nothing can render the question: say so, or the batch's blank answers read as
@@ -1455,7 +1486,12 @@ class TurnRunner:
     def _approval_notify_sync(self, approval_data: dict) -> None:
         """Send the approval request from the agent thread: the adapter's interactive button
         approvals (``send_exec_approval``) when available, else plain text with ``/approve`` steps."""
-        from gateway.run import _approval_send_outcome, _format_exec_approval_fallback, _interim_metadata, _redact_approval_command
+        from gateway.run import (
+            _approval_send_outcome,
+            _format_exec_approval_fallback,
+            _interim_metadata,
+            _redact_approval_command,
+        )
         from gateway.run_turn_runner_approval_settle import register_timeout_notice
         ctx = self._ctx
         adapter = ctx._status_adapter
@@ -1554,7 +1590,9 @@ class TurnRunner:
 
     def _load_turn_history(self, agent, reused_cached_agent):
         from gateway.run import (
-            _build_gateway_agent_history, _collect_history_media_paths, _message_timestamps_enabled,
+            _build_gateway_agent_history,
+            _collect_history_media_paths,
+            _message_timestamps_enabled,
             _select_cached_agent_history,
         )
         ctx = self._ctx
@@ -1617,11 +1655,14 @@ class TurnRunner:
         kept separate from API-only recovery guidance so stale guidance never replays as user text.
         """
         from gateway.run import (
-            _auto_continue_freshness_window, _is_fresh_gateway_interruption,
-            _last_transcript_timestamp, _prepare_resume_pending_message, build_resume_recovery_note,
+            _auto_continue_freshness_window,
+            _is_fresh_gateway_interruption,
+            _last_transcript_timestamp,
+            _prepare_resume_pending_message,
+            build_resume_recovery_note,
         )
         ctx = self._ctx
-        persist_override: Optional[Any] = ctx.persist_user_message
+        persist_override: Any | None = ctx.persist_user_message
         self._prepend_pending_note("_pending_model_notes")
         # Auto-continue: history ending with a tool result means the previous turn was cut off
         # (restart, crash, SIGTERM). Session-level resume_pending (drain-timeout shutdown) uses
@@ -1686,9 +1727,13 @@ class TurnRunner:
                                         persist_user_message_override, persist_user_timestamp_override):
         """Run the turn with the per-session gateway approval callback registered: dangerous-command
         approval blocks the agent thread (mirrors CLI input()); the callback bridges sync→async."""
-        from gateway.run import _wrap_current_message_with_observed_context
         from tools.approval import register_gateway_notify, unregister_gateway_notify
-        from tools.approval_context import reset_current_session_key, set_current_session_key
+        from tools.approval_context import (
+            reset_current_session_key,
+            set_current_session_key,
+        )
+
+        from gateway.run import _wrap_current_message_with_observed_context
         ctx = self._ctx
         session_key = ctx.session_key or ""
         token = set_current_session_key(session_key)
@@ -1889,7 +1934,11 @@ class TurnRunner:
         every rebind. session_key propagates via contextvars (_set_session_env / set_current_session_key)
         — never os.environ["HERMES_SESSION_KEY"], which would misroute approvals across sessions.
         """
-        from gateway.run import _current_max_iterations, _normalize_empty_agent_response, _sanitize_gateway_final_response
+        from gateway.run import (
+            _current_max_iterations,
+            _normalize_empty_agent_response,
+            _sanitize_gateway_final_response,
+        )
         ctx = self._ctx
         runner = self._runner
         # Platform.LOCAL ("local") maps to the "cli" hint key the agent understands.

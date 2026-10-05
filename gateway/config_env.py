@@ -10,20 +10,22 @@ import contextlib
 import json
 import logging
 import os
+from collections.abc import Callable
 from dataclasses import dataclass
 from functools import partial
-from typing import Any, Callable, Dict, Optional
+from typing import Any
+
+from utils import is_truthy_value
 
 from gateway.config import (
+    SHARED_LISTENER_MIRROR_PLATFORMS,
     GatewayConfig,
     HomeChannel,
     Platform,
     PlatformConfig,
     _getenv_str,
     _has_usable_api_server_key,
-    SHARED_LISTENER_MIRROR_PLATFORMS,
 )
-from utils import is_truthy_value
 
 # Logger name parity with the origin module: records stay under "gateway.config".
 logger = logging.getLogger("gateway.config")
@@ -105,7 +107,7 @@ def _truthy_token(value: str) -> bool:
     return value.lower() in {"true", "1", "yes", "on"}
 
 
-def _csv_extras(extra: Dict[str, Any], spec) -> None:
+def _csv_extras(extra: dict[str, Any], spec) -> None:
     """``extra[key] = _csv_list(raw)`` for each ``(key, raw)`` whose list is non-empty."""
     for key, raw in spec:
         items = _csv_list(raw)
@@ -132,7 +134,7 @@ def _env_first(envs) -> str:
 _INT = object()  # spec marker: ``int(value)``, silently skipped when malformed
 
 
-def _env_extras(extra: Dict[str, Any], spec, *, strip: bool = False) -> None:
+def _env_extras(extra: dict[str, Any], spec, *, strip: bool = False) -> None:
     """``extra[key] = fn(value)`` for each ``(key, env[, fn])`` whose env value is truthy.
 
     ``strip=True`` strips BEFORE the truthiness check. ``fn=_INT`` parses an int
@@ -218,13 +220,13 @@ class _Cred:
     """
     platform: Platform
     creds: tuple
-    token: Optional[str] = None
+    token: str | None = None
     fixed: tuple = ()
     optional: tuple = ()
     optional_stripped: tuple = ()
-    warn_missing: Optional[tuple] = None
-    then: Optional[Callable[[GatewayConfig, PlatformConfig], None]] = None
-    home: Optional[str] = None
+    warn_missing: tuple | None = None
+    then: Callable[[GatewayConfig, PlatformConfig], None] | None = None
+    home: str | None = None
     home_strip: bool = False
 
     def __call__(self, config: GatewayConfig) -> None:
@@ -361,7 +363,7 @@ def _qq_home(config: GatewayConfig, qq_config: PlatformConfig) -> None:
         )
 
 
-def _plugin_probe_seed(entry) -> Optional[dict]:
+def _plugin_probe_seed(entry) -> dict | None:
     """``env_enablement_fn()`` result as a non-empty dict, else None."""
     if entry.env_enablement_fn is None:
         return None
@@ -373,7 +375,7 @@ def _plugin_probe_seed(entry) -> Optional[dict]:
     return seed if isinstance(seed, dict) and seed else None
 
 
-def _plugin_is_configured(entry, existing_extra: dict, seed: Optional[dict]) -> bool:
+def _plugin_is_configured(entry, existing_extra: dict, seed: dict | None) -> bool:
     """``entry.is_connected`` on a transient ``enabled=True`` view seeded with env extras (never the real config)."""
     try:
         for k, v in (seed or {}).items():

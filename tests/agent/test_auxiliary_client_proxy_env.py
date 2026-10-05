@@ -9,8 +9,7 @@ keepalive transport that suppresses automatic system-proxy detection.
 from unittest.mock import patch
 
 import httpx
-
-from agent.auxiliary_client import _create_openai_client, _openai_http_client_kwargs
+from agent.auxiliary_client import _create_openai_client
 from agent.process_bootstrap import _get_proxy_for_base_url
 
 

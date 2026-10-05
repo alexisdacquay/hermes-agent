@@ -4,9 +4,7 @@ from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 
 import pytest
-
 from hermes_cli.nous_account import NousPortalAccountInfo
-
 
 TOOLS_DIR = Path(__file__).resolve().parents[2] / "tools"
 
@@ -71,7 +69,7 @@ def _install_fake_tools_package():
             session_id="debug-session",
             log_call=lambda *a, **k: None,
             save=lambda: None,
-            get_session_info=lambda: {},
+            get_session_info=dict,
         )
     )
     sys.modules["tools.managed_tool_gateway"] = _load_tool_module(

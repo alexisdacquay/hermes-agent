@@ -5,7 +5,6 @@ import sys
 from pathlib import Path
 
 import pytest
-
 from scripts.bundles.bytecode import MARKER, bake_bytecode
 
 

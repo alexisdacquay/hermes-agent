@@ -35,12 +35,10 @@ can add one small exercise function + a ``pytest.param`` to ``SURFACES``.
 """
 
 import os
-import sqlite3
 from pathlib import Path
 
-import pytest
-
 import hermes_state
+import pytest
 from hermes_constants import (
     reset_hermes_home_override,
     set_hermes_home_override,

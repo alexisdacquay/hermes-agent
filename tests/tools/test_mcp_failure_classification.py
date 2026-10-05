@@ -12,10 +12,11 @@ import errno
 import logging
 
 import pytest
-
-from tools.mcp_tool_errors import (
-    InvalidMcpUrlError, NonMcpEndpointError, _classify_mcp_failure, _unwrap_exception_group)
 from tools.mcp_tool import MCPServerTask
+from tools.mcp_tool_errors import (
+    _classify_mcp_failure,
+    _unwrap_exception_group,
+)
 
 
 def _group(*excs, msg="unhandled errors in a TaskGroup") -> BaseExceptionGroup:
@@ -152,7 +153,7 @@ def test_permanent_failure_parks_without_retry_ladder(monkeypatch, tmp_path, cap
         task._reconnect_event.set()
         try:
             await asyncio.wait_for(run_task, timeout=15)
-        except (asyncio.TimeoutError, asyncio.CancelledError, Exception):
+        except (TimeoutError, asyncio.CancelledError, Exception):
             run_task.cancel()
 
     asyncio.run(_scenario())
@@ -252,7 +253,7 @@ def test_initial_auth_failure_parks_and_revives_after_relogin(
         task._reconnect_event.set()
         try:
             await asyncio.wait_for(run_task, timeout=15)
-        except (asyncio.TimeoutError, asyncio.CancelledError, Exception):
+        except (TimeoutError, asyncio.CancelledError, Exception):
             run_task.cancel()
 
     asyncio.run(_scenario())

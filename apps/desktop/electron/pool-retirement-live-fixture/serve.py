@@ -5,13 +5,13 @@ cron ledgers, session-token auth, and uvicorn shutdown are production code.
 """
 
 import asyncio
-from contextlib import asynccontextmanager
-from datetime import datetime, timezone
 import os
-from pathlib import Path
 import shutil
 import sys
 import time
+from contextlib import asynccontextmanager
+from datetime import UTC, datetime
+from pathlib import Path
 
 # The installed interpreter supplies dependencies, never the implementation.
 sys.path.insert(0, sys.argv[1])
@@ -26,7 +26,7 @@ if sys.argv[2] == "cron-busy":
     scripts.mkdir(parents=True)
     shutil.copyfile(Path(__file__).with_name("cron_work.py"), scripts / "cron_work.py")
     job = create_job(
-        prompt=None, schedule=datetime.now(timezone.utc).isoformat(),
+        prompt=None, schedule=datetime.now(UTC).isoformat(),
         name="Native pool retirement work", script="cron_work.py", no_agent=True,
         deliver="local", repeat=1, workdir=str(home),
     )

@@ -11,12 +11,11 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
 
-def live_default_gateway_pid() -> Optional[int]:
+def live_default_gateway_pid() -> int | None:
     """PID of the default profile's gateway when a VERIFIED live process owns it, else None.
 
     ``gateway.status.live_gateway_pid_for_home``: pid file + lock, then the runtime record the gateway
@@ -25,17 +24,17 @@ def live_default_gateway_pid() -> Optional[int]:
     recycled by an unrelated process must not make its ``served_profiles`` authoritative. Never key this
     off the record's ``updated_at``: an idle gateway never advances it.
     """
-    from hermes_constants import get_default_hermes_root
     from gateway.status import live_gateway_pid_for_home
+    from hermes_constants import get_default_hermes_root
     return live_gateway_pid_for_home(get_default_hermes_root())
 
 
-def recorded_served_profiles(default_root: Optional[Path] = None) -> Optional[list[str]]:
+def recorded_served_profiles(default_root: Path | None = None) -> list[str] | None:
     """``served_profiles`` the live default gateway recorded, or None when the key is absent (a record
     from before the multiplexer recorded it, or a stopped/absent gateway). Callers fall back to config
     derivation only on None: an empty list is an authoritative "serves nobody else"."""
-    from hermes_constants import get_default_hermes_root
     from gateway.status import read_runtime_status
+    from hermes_constants import get_default_hermes_root
     if live_default_gateway_pid() is None:
         return None
     runtime = read_runtime_status((default_root or get_default_hermes_root()) / "gateway_state.json")
@@ -52,8 +51,8 @@ def served_profile_unserved_platforms(profile: str) -> dict[str, str]:
     """``{platform: reason}`` for a served profile's platforms the multiplexer deliberately does not run
     (unpaired WhatsApp or Relay shared ingress; ``gateway.run_adapters`` stamps
     ``<profile>:<platform>`` as ``disabled`` with a reason and remedy)."""
-    from hermes_constants import get_default_hermes_root
     from gateway.status import read_runtime_status
+    from hermes_constants import get_default_hermes_root
     if not profile or live_default_gateway_pid() is None:
         return {}
     runtime = read_runtime_status(get_default_hermes_root() / "gateway_state.json") or {}
@@ -69,12 +68,12 @@ def served_profile_unserved_platforms(profile: str) -> dict[str, str]:
     }
 
 
-def served_profile_ingress_urls(profile: Optional[str] = None) -> dict[str, dict[str, str]]:
+def served_profile_ingress_urls(profile: str | None = None) -> dict[str, dict[str, str]]:
     """``{profile: {platform: url}}`` for every secondary inbound-port platform the live multiplexer
     serves on its shared listener (``<profile>:<platform>`` entries carrying ``ingress_url``). This is
     what the user pastes into the vendor console (Twilio, LINE, Teams, ...). ``profile`` narrows the map."""
-    from hermes_constants import get_default_hermes_root
     from gateway.status import read_runtime_status, shared_listener_mirror_platforms
+    from hermes_constants import get_default_hermes_root
     if live_default_gateway_pid() is None:
         return {}
     runtime = read_runtime_status(get_default_hermes_root() / "gateway_state.json") or {}
@@ -106,14 +105,14 @@ def format_ingress_url_lines(urls: dict[str, str], indent: str = "  ") -> list[s
     return [f"{indent}{platform}: {url}" for platform, url in sorted(urls.items())]
 
 
-def notify_multiplexer_profiles_changed(profile_name: str, *, timeout: float = 8.0) -> Optional[list[str]]:
+def notify_multiplexer_profiles_changed(profile_name: str, *, timeout: float = 8.0) -> list[str] | None:
     """Tell the live default multiplexer that ``profiles/`` changed (``profile_name`` was created or
     deleted) so it hot-serves / unroutes it now instead of at its next periodic rescan. Returns the
     served-profile list the gateway answered with, or None when no multiplexer answered (no live default
     gateway, single-profile gateway, or a gateway predating the verb). Never raises."""
     try:
-        from hermes_constants import get_default_hermes_root
         from gateway.control_socket import rescan_gateway_profiles
+        from hermes_constants import get_default_hermes_root
         if live_default_gateway_pid() is None:
             return None
         answer = rescan_gateway_profiles(get_default_hermes_root(), timeout=timeout)

@@ -11,7 +11,6 @@ from __future__ import annotations
 import types
 
 import pytest
-
 from gateway.run_turn_runner import TurnRunner
 
 

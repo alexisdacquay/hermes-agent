@@ -13,7 +13,6 @@ import base64
 import datetime
 import uuid
 from pathlib import Path
-from typing import Dict, Optional, Tuple
 from urllib.parse import urljoin
 
 # Generated deliverables live in ``cache/generated/<media>/``, OUTSIDE the transient
@@ -56,8 +55,8 @@ def save_b64(kind: str, b64_data: str, *, prefix: str, extension: str) -> Path:
 
 def save_url(
     kind: str, url: str, *, prefix: str, timeout: float, max_bytes: int, chunk_size: int,
-    content_types: Dict[str, str], url_extensions: Tuple[str, ...], default_extension: str,
-    label: str, empty_error: str, headers: Optional[Dict[str, str]] = None,
+    content_types: dict[str, str], url_extensions: tuple[str, ...], default_extension: str,
+    label: str, empty_error: str, headers: dict[str, str] | None = None,
     require_known_content_type: bool = False, trusted_origin: bool = False,
 ) -> Path:
     """Stream-download *url* into the cache with a size cap.
@@ -81,8 +80,11 @@ def save_url(
     every redirect target is re-validated in full.
     """
     import httpx
-
-    from tools.url_safety import create_ssrf_safe_client, is_always_blocked_url, is_safe_url
+    from tools.url_safety import (
+        create_ssrf_safe_client,
+        is_always_blocked_url,
+        is_safe_url,
+    )
 
     current_url, hop_headers, trusted_hop = url, headers, trusted_origin
     for _ in range(_MAX_SAVE_URL_REDIRECTS + 1):

@@ -16,9 +16,8 @@ import threading
 from unittest.mock import MagicMock, patch
 
 import pytest
-
-from tools.delegate_tool import _summarize_tool_arguments, delegate_task
 from hermes_cli import plugins
+from tools.delegate_tool import delegate_task
 
 
 def _make_parent(depth: int = 0, session_id: str = "parent-1"):

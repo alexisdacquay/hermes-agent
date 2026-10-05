@@ -8,8 +8,9 @@ last Ctrl+S" is a single keystroke.
 from __future__ import annotations
 
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any, List, Optional, Sequence, Tuple
+from typing import Any
 
 # Single-line preview length for the browse panel.
 PREVIEW_WIDTH = 60
@@ -35,7 +36,7 @@ class StashEntry:
     """One parked draft: exact text plus any images that were attached."""
 
     text: str
-    images: List[Any] = field(default_factory=list)
+    images: list[Any] = field(default_factory=list)
     stashed_at: float = 0.0
     preview: str = ""
 
@@ -48,7 +49,7 @@ class PromptStash:
     """Session-scoped stack of parked composer drafts."""
 
     def __init__(self, *, max_items: int = MAX_STASH_ITEMS, clock=None):
-        self._items: List[StashEntry] = []
+        self._items: list[StashEntry] = []
         self._max_items = max(1, int(max_items))
         self._clock = clock or time.monotonic
         self.panel_open = False
@@ -58,11 +59,11 @@ class PromptStash:
         return len(self._items)
 
     @property
-    def items(self) -> List[StashEntry]:
+    def items(self) -> list[StashEntry]:
         """Newest-first list of entries (a copy — mutate via the API)."""
         return list(self._items)
 
-    def panel_rows(self) -> List[dict]:
+    def panel_rows(self) -> list[dict]:
         return [e.as_dict() for e in self._items]
 
     def indicator(self) -> str:
@@ -77,7 +78,7 @@ class PromptStash:
             return f"Ctrl+S to restore: {self._items[0].preview}"
         return f"Ctrl+S to browse {n} stashed drafts" if n else ""
 
-    def stash(self, text: str, images: Optional[Sequence[Any]] = None) -> bool:
+    def stash(self, text: str, images: Sequence[Any] | None = None) -> bool:
         """Push a draft. A blank buffer with no images is a no-op (returns False) so Ctrl+S on an
         empty composer triggers the restore half of the gesture instead of pushing junk.
         """
@@ -91,7 +92,7 @@ class PromptStash:
         self.close_panel()  # a push invalidates any open browse session
         return True
 
-    def pop(self, index: int = 0) -> Optional[Tuple[str, List[Any]]]:
+    def pop(self, index: int = 0) -> tuple[str, list[Any]] | None:
         """Remove and return ``(text, images)`` at ``index``, or None."""
         if not 0 <= index < len(self._items):
             return None
@@ -101,7 +102,7 @@ class PromptStash:
         self.panel_cursor = self._clamp_cursor(self.panel_cursor)
         return entry.text, list(entry.images)
 
-    def peek(self, index: int = 0) -> Optional[StashEntry]:
+    def peek(self, index: int = 0) -> StashEntry | None:
         return self._items[index] if 0 <= index < len(self._items) else None
 
     def clear(self) -> None:
@@ -142,7 +143,7 @@ class PromptStash:
             self.panel_cursor = self._clamp_cursor(idx)
         return True
 
-    def restore_at_cursor(self) -> Optional[Tuple[str, List[Any]]]:
+    def restore_at_cursor(self) -> tuple[str, list[Any]] | None:
         """Pop the highlighted entry and close the panel."""
         if not self._items:
             return None
@@ -160,8 +161,8 @@ ACTION_CLOSE_PANEL = "close_panel"
 
 
 def resolve_ctrl_s(
-    stash: PromptStash, buffer_text: str, images: Optional[Sequence[Any]] = None
-) -> Tuple[str, Optional[Tuple[str, List[Any]]]]:
+    stash: PromptStash, buffer_text: str, images: Sequence[Any] | None = None
+) -> tuple[str, tuple[str, list[Any]] | None]:
     """Decide what one Ctrl+S press does. Returns ``(action, payload)`` where ``payload`` is
     ``(text, images)`` for :data:`ACTION_RESTORED`, else None.
     """

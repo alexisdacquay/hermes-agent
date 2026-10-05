@@ -9,7 +9,6 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
-
 from agent.status_output import StatusOutputMixin
 from gateway.config import Platform, PlatformConfig
 from gateway.platforms.event import MessageEvent, MessageType
@@ -20,6 +19,7 @@ from gateway.run_turn_runner import TurnRunner
 from gateway.session import SessionSource
 from gateway.turn_context import TurnContext
 from plugins.platforms.slack.adapter import SlackAdapter
+
 from tests.gateway.relay.stub_connector import StubConnector
 
 

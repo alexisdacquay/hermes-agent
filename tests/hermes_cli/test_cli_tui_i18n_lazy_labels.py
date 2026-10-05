@@ -11,7 +11,6 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
-
 from agent import i18n
 from cli import HermesCLI
 

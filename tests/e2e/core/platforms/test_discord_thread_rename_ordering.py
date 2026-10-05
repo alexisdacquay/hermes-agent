@@ -13,9 +13,8 @@ from types import SimpleNamespace
 from typing import Any
 from unittest.mock import patch
 
-import pytest
-
 import plugins.platforms.discord.adapter as discord_platform
+import pytest
 from gateway.config import PlatformConfig
 
 

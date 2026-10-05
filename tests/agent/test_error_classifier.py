@@ -3,20 +3,19 @@
 from types import SimpleNamespace
 
 import pytest
-
 from agent.error_classifier import (
+    PROVIDER_STREAM_NON_JSON_ERROR_CODE,
     ClassifiedError,
     FailoverReason,
-    PROVIDER_STREAM_NON_JSON_ERROR_CODE,
-    classify_api_error,
-    is_reasoning_field_rejection,
-    _extract_status_code,
+    _classify_402,
     _extract_error_body,
     _extract_error_code,
-    _classify_402,
+    _extract_status_code,
+    classify_api_error,
+    is_reasoning_field_rejection,
 )
-from tests.hermes_cli.anon_portal import make_jwt
 
+from tests.hermes_cli.anon_portal import make_jwt
 
 # ── Helper: mock API errors ────────────────────────────────────────────
 
@@ -31,7 +30,6 @@ class MockAPIError(Exception):
 
 class MockTransportError(Exception):
     """Simulates a transport-level error with a specific type name."""
-    pass
 
 
 class ReadTimeout(MockTransportError):

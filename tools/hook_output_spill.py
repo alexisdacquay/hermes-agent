@@ -14,7 +14,7 @@ import logging
 import os
 import uuid
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 from tools.tool_output_limits import _coerce_int, _coerce_positive_int
 
@@ -27,9 +27,9 @@ DEFAULT_PREVIEW_TAIL = 500
 DEFAULT_ENABLED = True
 
 
-def get_spill_config() -> Dict[str, Any]:
+def get_spill_config() -> dict[str, Any]:
     """Return resolved hook output-spill config. Never raises."""
-    section: Dict[str, Any] = {}
+    section: dict[str, Any] = {}
     try:
         from hermes_cli.config import load_config
         cfg = load_config() or {}
@@ -50,7 +50,7 @@ def get_spill_config() -> Dict[str, Any]:
     }
 
 
-def _resolve_spill_dir(directory_override: Optional[str], session_id: Optional[str]) -> Path:
+def _resolve_spill_dir(directory_override: str | None, session_id: str | None) -> Path:
     """Per-session spill directory; session id is sanitised so it can't escape ``base``."""
     if directory_override:
         base = Path(os.path.expanduser(directory_override))
@@ -62,7 +62,7 @@ def _resolve_spill_dir(directory_override: Optional[str], session_id: Optional[s
 
 
 def spill_if_oversized(
-    text: str, *, session_id: Optional[str] = None, source: str = "hook", config: Optional[Dict[str, Any]] = None,
+    text: str, *, session_id: str | None = None, source: str = "hook", config: dict[str, Any] | None = None,
 ) -> str:
     """Spill ``text`` to disk if it exceeds the configured cap.
 
@@ -87,7 +87,7 @@ def spill_if_oversized(
 
     # A disk failure must never blow up the turn — fall through to a preview
     # without a saved path.
-    saved_path: Optional[str] = None
+    saved_path: str | None = None
     try:
         spill_dir = _resolve_spill_dir(cfg.get("directory"), session_id)
         from tools.spill_safety import ensure_spill_dir, write_text_exclusive
@@ -113,5 +113,11 @@ def spill_if_oversized(
     return "\n".join(parts)
 
 
-__all__ = ["DEFAULT_MAX_CHARS", "DEFAULT_PREVIEW_HEAD", "DEFAULT_PREVIEW_TAIL", "DEFAULT_ENABLED",
-           "get_spill_config", "spill_if_oversized"]
+__all__ = [
+    "DEFAULT_ENABLED",
+    "DEFAULT_MAX_CHARS",
+    "DEFAULT_PREVIEW_HEAD",
+    "DEFAULT_PREVIEW_TAIL",
+    "get_spill_config",
+    "spill_if_oversized",
+]

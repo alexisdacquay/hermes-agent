@@ -7,12 +7,9 @@ launcher from ``scripts/install.sh``; existing installs get it from
 """
 
 import os
-import stat
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
-
 from hermes_cli.update_cmd import _ensure_acp_launcher
 
 

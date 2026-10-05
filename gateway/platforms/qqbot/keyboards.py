@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field, fields, is_dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 APPROVAL_BUTTON_PREFIX = "approve:"
 UPDATE_PROMPT_PREFIX = "update_prompt:"
@@ -63,12 +63,12 @@ class KeyboardButton(_Serializable):
 
 @dataclass
 class KeyboardRow(_Serializable):
-    buttons: List[KeyboardButton] = field(default_factory=list)
+    buttons: list[KeyboardButton] = field(default_factory=list)
 
 
 @dataclass
 class KeyboardContent(_Serializable):
-    rows: List[KeyboardRow] = field(default_factory=list)
+    rows: list[KeyboardRow] = field(default_factory=list)
 
 
 @dataclass
@@ -77,12 +77,12 @@ class InlineKeyboard(_Serializable):
     content: KeyboardContent = field(default_factory=KeyboardContent)
 
 
-def parse_approval_button_data(button_data: str) -> Optional[tuple[str, str]]:
+def parse_approval_button_data(button_data: str) -> tuple[str, str] | None:
     """Parse approval ``button_data`` into ``(session_key, decision)`` or ``None``."""
     return m.groups() if (m := _APPROVAL_DATA_RE.match(button_data or "")) else None
 
 
-def parse_update_prompt_button_data(button_data: str) -> Optional[str]:
+def parse_update_prompt_button_data(button_data: str) -> str | None:
     """Parse update-prompt ``button_data`` into ``'y'`` / ``'n'`` or ``None``."""
     return m.group(1) if (m := _UPDATE_PROMPT_RE.match(button_data or "")) else None
 
@@ -178,7 +178,7 @@ class InteractionEvent:
 _SCENE_NAMES = {0: "guild", 1: "group", 2: "c2c"}
 
 
-def parse_interaction_event(raw: Dict[str, Any]) -> InteractionEvent:
+def parse_interaction_event(raw: dict[str, Any]) -> InteractionEvent:
     """Parse a raw ``INTERACTION_CREATE`` dispatch payload (``d``)."""
     data_raw = raw.get("data") or {}
     resolved, scene_code = data_raw.get("resolved") or {}, int(raw.get("chat_type", 0) or 0)

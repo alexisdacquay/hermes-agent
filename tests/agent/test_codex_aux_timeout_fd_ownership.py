@@ -18,7 +18,6 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
-
 from agent.auxiliary_client import _CodexCompletionsAdapter
 
 

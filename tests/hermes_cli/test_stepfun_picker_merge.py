@@ -11,7 +11,6 @@ from contextlib import contextmanager
 from unittest.mock import patch
 
 import pytest
-
 from hermes_cli.models import provider_model_ids
 
 STEPFUN_CREDS = {
@@ -69,7 +68,10 @@ class TestStepfunPickerMergesLiveWithCurated:
         """Outage fallback unchanged: the curated list, flagged as placeholder."""
         with step_plan_live_listing([]):
             ids = provider_model_ids("stepfun")
-        from hermes_cli.models_catalog_static import CuratedFallbackModels, _PROVIDER_MODELS
+        from hermes_cli.models_catalog_static import (
+            _PROVIDER_MODELS,
+            CuratedFallbackModels,
+        )
 
         assert list(ids) == list(_PROVIDER_MODELS["stepfun"])
         # The placeholder flag rides on the list subclass, so the disk cache can
@@ -84,7 +86,6 @@ class TestStepfunPickerMergesLiveWithCurated:
 
         def fake_pick(model_list, *args, **kwargs):
             captured["models"] = list(model_list)
-            return None
 
         with patch(
             "hermes_cli.model_setup_flows._ensure_flow_api_key", return_value=(None, "sk-stepfun-test", False)

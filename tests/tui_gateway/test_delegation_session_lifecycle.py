@@ -17,7 +17,6 @@ import threading
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 import tools.async_delegation as ad
 from tui_gateway.server import (
     _finalize_session,

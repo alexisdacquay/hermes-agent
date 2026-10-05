@@ -6,7 +6,6 @@ hardcoded ``"primary"`` that let cron turns land in stores configured to skip th
 from types import SimpleNamespace
 
 import pytest
-
 from agent.agent_init import _GATEWAY_IDENTITY_PARAMS, _memory_provider_init_kwargs
 
 

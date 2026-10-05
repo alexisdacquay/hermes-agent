@@ -9,7 +9,6 @@ for tool-call tag coverage."""
 from functools import partial
 
 import pytest
-
 from agent.agent_runtime_helpers import strip_think_blocks
 from cli import _strip_reasoning_tags
 

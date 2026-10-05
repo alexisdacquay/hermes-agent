@@ -5,10 +5,8 @@ import os
 import sys
 from pathlib import Path
 
-import pytest
-
 import hermes_constants
-from hermes_platform.host import runtime as host_runtime
+import pytest
 from hermes_constants import (
     agent_browser_runnable,
     get_default_hermes_root,
@@ -22,6 +20,7 @@ from hermes_constants import (
     secure_parent_dir,
     set_hermes_home_override,
 )
+from hermes_platform.host import runtime as host_runtime
 
 
 class TestGetDefaultHermesRoot:

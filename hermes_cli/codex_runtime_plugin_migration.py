@@ -8,7 +8,7 @@ import os
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from agent.transports.hermes_tools_mcp_server import HERMES_TOOLS_MCP_SERVER_NAME
 
@@ -26,12 +26,12 @@ MIGRATION_END_MARKER = "# end hermes-agent managed section"
 class MigrationReport:
     """Outcome of a migration pass."""
 
-    target_path: Optional[Path] = None
+    target_path: Path | None = None
     migrated: list[str] = field(default_factory=list)
     skipped_keys_per_server: dict[str, list[str]] = field(default_factory=dict)
     migrated_plugins: list[str] = field(default_factory=list)
-    plugin_query_error: Optional[str] = None
-    wrote_permissions_default: Optional[str] = None
+    plugin_query_error: str | None = None
+    wrote_permissions_default: str | None = None
     preserved_user_servers: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     written: bool = False
@@ -86,7 +86,7 @@ def _str_map(d: dict) -> dict[str, str]:
     return {str(k): str(v) for k, v in d.items()}
 
 
-def _translate_one_server(name: str, hermes_cfg: dict) -> tuple[Optional[dict], list[str]]:
+def _translate_one_server(name: str, hermes_cfg: dict) -> tuple[dict | None, list[str]]:
     """Translate one Hermes MCP server config to codex's inline-table dict.
 
     Returns ``(codex_entry, skipped_keys)``; ``codex_entry`` is None when the config is unusable.
@@ -171,8 +171,8 @@ def _quote_key(key: str) -> str:
 
 
 def render_codex_toml_section(
-    servers: dict[str, dict], plugins: Optional[list[dict]] = None,
-    default_permission_profile: Optional[str] = None) -> str:
+    servers: dict[str, dict], plugins: list[dict] | None = None,
+    default_permission_profile: str | None = None) -> str:
     """Render the managed [mcp_servers.<n>] / [plugins.<id>] / default_permissions block.
 
     ``default_permission_profile`` (e.g. "workspace-write", "read-only", "full-access") is written
@@ -191,7 +191,7 @@ def render_codex_toml_section(
     for name in sorted(servers or ()):
         out += ["", f"[mcp_servers.{_quote_key(name)}]"]
         out += [f"{_quote_key(k)} = {_format_toml_value(v)}" for k, v in servers[name].items()]
-    plugin_sort_key = lambda p: f"{p.get('name','')}@{p.get('marketplace','')}"  # noqa: E731
+    plugin_sort_key = lambda p: f"{p.get('name','')}@{p.get('marketplace','')}"
     for plugin in sorted(plugins or (), key=plugin_sort_key):
         qualified = f"{plugin.get('name') or ''}@{plugin.get('marketplace') or 'openai-curated'}"
         out += ["", f'[plugins.{_quote_key(qualified)}]',
@@ -315,8 +315,8 @@ def _strip_existing_managed_block(toml_text: str) -> str:
 
 
 def _query_codex_plugins(
-    codex_home: Optional[Path] = None, timeout: float = 8.0, codex_bin: str = "codex",
-) -> tuple[list[dict], Optional[str]]:
+    codex_home: Path | None = None, timeout: float = 8.0, codex_bin: str = "codex",
+) -> tuple[list[dict], str | None]:
     """Spawn ``codex app-server`` briefly and return ``(installed plugins, error)`` from
     ``plugin/list``. Any failure yields ``([], error)`` and is non-fatal (servers and
     permissions still write). Plugins codex reports unavailable (broken install, missing OAuth,
@@ -421,8 +421,8 @@ def _write_atomic(target: Path, text: str) -> None:
 
 
 def migrate(
-    hermes_config: dict, *, codex_home: Optional[Path] = None, dry_run: bool = False,
-    discover_plugins: bool = True, default_permission_profile: Optional[str] = ":workspace",
+    hermes_config: dict, *, codex_home: Path | None = None, dry_run: bool = False,
+    discover_plugins: bool = True, default_permission_profile: str | None = ":workspace",
     expose_hermes_tools: bool = True) -> MigrationReport:
     """Translate Hermes mcp_servers config + Codex curated plugins into ~/.codex/config.toml.
 

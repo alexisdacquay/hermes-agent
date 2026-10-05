@@ -13,7 +13,8 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import Any, Callable, Dict, FrozenSet, Generic, List, Optional, TypeVar
+from collections.abc import Callable
+from typing import Any, Generic, TypeVar
 
 from hermes_constants import hermes_home_key, normalize_scope
 
@@ -36,8 +37,8 @@ class ProviderRegistry(Generic[P]):
 
     def __init__(
         self, *, label: str, provider_cls: type, logger: logging.Logger,
-        normalize: Callable[[str], str] = str.strip, builtin_names: FrozenSet[str] = frozenset(),
-        on_builtin_collision: Optional[Callable[[str], None]] = None,
+        normalize: Callable[[str], str] = str.strip, builtin_names: frozenset[str] = frozenset(),
+        on_builtin_collision: Callable[[str], None] | None = None,
     ) -> None:
         self.label = label
         self.provider_cls = provider_cls
@@ -45,15 +46,15 @@ class ProviderRegistry(Generic[P]):
         self.normalize = normalize
         self.builtin_names = builtin_names
         self._on_builtin_collision = on_builtin_collision
-        self._providers: Dict[str, P] = {}
-        self._scoped_providers: Dict[str, Dict[str, P]] = {}
+        self._providers: dict[str, P] = {}
+        self._scoped_providers: dict[str, dict[str, P]] = {}
         self._generation = 0
-        self._scoped_generations: Dict[str, int] = {}
+        self._scoped_generations: dict[str, int] = {}
         self._lock = threading.Lock()
         # "TTS provider" but "Registered browser provider": acronyms keep their case.
         self._log_label = label if label.isupper() else label[0].lower() + label[1:]
 
-    def _target(self, scope: Optional[str], *, create: bool) -> Dict[str, P]:
+    def _target(self, scope: str | None, *, create: bool) -> dict[str, P]:
         scope = normalize_scope(scope)
         if scope is None:
             return self._providers
@@ -61,14 +62,14 @@ class ProviderRegistry(Generic[P]):
             return self._scoped_providers.setdefault(scope, {})
         return self._scoped_providers.get(scope, {})
 
-    def _bump(self, scope: Optional[str]) -> None:
+    def _bump(self, scope: str | None) -> None:
         scope = normalize_scope(scope)
         if scope is None:
             self._generation += 1
         else:
             self._scoped_generations[scope] = self._scoped_generations.get(scope, 0) + 1
 
-    def register(self, provider: P, *, scope: Optional[str] = None) -> None:
+    def register(self, provider: P, *, scope: str | None = None) -> None:
         """Register a provider; same-name re-registration overwrites (hot reload)."""
         if not isinstance(provider, self.provider_cls):
             article = "an" if self.provider_cls.__name__[0] in "AEIOU" else "a"
@@ -76,7 +77,7 @@ class ProviderRegistry(Generic[P]):
                 f"register_provider() expects {article} {self.provider_cls.__name__} "
                 f"instance, got {type(provider).__name__}"
             )
-        raw_name = getattr(provider, "name")
+        raw_name = provider.name
         if not isinstance(raw_name, str) or not raw_name.strip():
             raise ValueError(f"{self.label} provider .name must be a non-empty string")
         key = self.normalize(raw_name)
@@ -98,18 +99,18 @@ class ProviderRegistry(Generic[P]):
                 f"Registered {self._log_label} provider '%s' (%s)", key, type(provider).__name__,
             )
 
-    def merged(self, scope: Optional[str] = None) -> Dict[str, P]:
+    def merged(self, scope: str | None = None) -> dict[str, P]:
         """Global map overlaid with the active profile's scoped map (a copy)."""
         with self._lock:
             merged = dict(self._providers)
             merged.update(self._scoped_providers.get(hermes_home_key(scope), {}))
         return merged
 
-    def list_providers(self, *, scope: Optional[str] = None) -> List[P]:
+    def list_providers(self, *, scope: str | None = None) -> list[P]:
         """Return all registered providers, sorted by name."""
         return sorted(self.merged(scope).values(), key=lambda p: p.name)
 
-    def get_provider(self, name: str, *, scope: Optional[str] = None) -> Optional[P]:
+    def get_provider(self, name: str, *, scope: str | None = None) -> P | None:
         """Return the provider registered under *name* (scoped first), or None."""
         if not isinstance(name, str):
             return None
@@ -120,19 +121,19 @@ class ProviderRegistry(Generic[P]):
                 or self._providers.get(key)
             )
 
-    def registry_generation(self, *, scope: Optional[str] = None) -> tuple:
+    def registry_generation(self, *, scope: str | None = None) -> tuple:
         """Cache fingerprint ``(global_generation, scoped_generation)``."""
         active_scope = hermes_home_key(scope)
         with self._lock:
             return self._generation, self._scoped_generations.get(active_scope, 0)
 
-    def snapshot_registration(self, name: str, *, scope: Optional[str] = None) -> Optional[P]:
+    def snapshot_registration(self, name: str, *, scope: str | None = None) -> P | None:
         """Exact-slot lookup (no global fallback) used to detect plugin ownership."""
         with self._lock:
             return self._target(scope, create=False).get(self.normalize(name))
 
     def restore_registration(
-        self, name: str, current: P, previous: Optional[P], *, scope: Optional[str] = None
+        self, name: str, current: P, previous: P | None, *, scope: str | None = None
     ) -> bool:
         """Restore *previous* only when *current* is still installed under *name*."""
         key = self.normalize(name)
@@ -158,7 +159,7 @@ class ProviderRegistry(Generic[P]):
             self._scoped_generations.clear()
             self._generation += 1
 
-    def export(self, namespace: Dict[str, Any]) -> None:
+    def export(self, namespace: dict[str, Any]) -> None:
         """Bind the historical module-level API (+ ``_providers``/``_scoped_providers``/
         ``_lock`` test hooks) into a ``*_registry`` module namespace."""
         namespace.update(
@@ -176,15 +177,15 @@ def is_available_safe(
     """``bool(provider.is_available())`` that treats a raising provider as unavailable."""
     try:
         return bool(provider.is_available())
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.log(level, fmt, provider.name, exc, exc_info=exc_info)
         return False
 
 
-def configured_provider_name(section: str, logger: logging.Logger) -> Optional[str]:
+def configured_provider_name(section: str, logger: logging.Logger) -> str | None:
     """Read ``<section>.provider`` from config.yaml, mapping the managed Nous
     selection to ``fal`` (the FAL plugin services it via the managed gateway)."""
-    configured: Optional[str] = None
+    configured: str | None = None
     try:
         from hermes_cli.config import load_config_readonly
         cfg = load_config_readonly()

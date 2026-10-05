@@ -16,12 +16,12 @@ import os
 import re
 import threading
 from collections import OrderedDict
+from collections.abc import Mapping
 from contextvars import ContextVar, Token
 from pathlib import Path
-from typing import Dict, Mapping, NamedTuple, Optional, Tuple
+from typing import NamedTuple
 
 from utils import file_signature
-
 
 # Process-global (describes the deployment mode, not a per-task value): set once
 # at gateway startup when gateway.multiplex_profiles is true.
@@ -87,7 +87,7 @@ class _BoundScope(NamedTuple):
     owner scopes)."""
 
     mapping: Mapping[str, str]
-    profile_home: Optional[str]
+    profile_home: str | None
 
 
 def serves_routed_profile() -> bool:
@@ -100,7 +100,11 @@ def serves_routed_profile() -> bool:
     mirror cannot flip this predicate."""
     if is_multiplex_active():
         return True
-    from hermes_constants import get_hermes_home_override, get_routing_process_hermes_home, hermes_home_key
+    from hermes_constants import (
+        get_hermes_home_override,
+        get_routing_process_hermes_home,
+        hermes_home_key,
+    )
     own = hermes_home_key(get_routing_process_hermes_home())
     bound = _SECRET_SCOPE.get()
     if bound is not None and bound.profile_home and hermes_home_key(bound.profile_home) != own:
@@ -109,7 +113,7 @@ def serves_routed_profile() -> bool:
     return override is not None and hermes_home_key(override) != own
 
 
-_SECRET_SCOPE: ContextVar[Optional[_BoundScope]] = ContextVar("_SECRET_SCOPE", default=None)
+_SECRET_SCOPE: ContextVar[_BoundScope | None] = ContextVar("_SECRET_SCOPE", default=None)
 
 
 class UnscopedSecretError(RuntimeError):
@@ -140,7 +144,7 @@ class UnscopedSecretError(RuntimeError):
             self.add_note(developer_detail)
 
 
-def set_secret_scope(secrets: Optional[Mapping[str, str]], *, profile_home: Optional[str] = None) -> Token:
+def set_secret_scope(secrets: Mapping[str, str] | None, *, profile_home: str | None = None) -> Token:
     """Install the active profile's secret mapping; ``None`` clears. Returns a reset token.
 
     ``profile_home`` stamps the home the mapping was built for so
@@ -155,13 +159,13 @@ def reset_secret_scope(token: Token) -> None:
     _SECRET_SCOPE.reset(token)
 
 
-def current_secret_scope() -> Optional[Mapping[str, str]]:
+def current_secret_scope() -> Mapping[str, str] | None:
     """The active secret mapping, or None when no scope is installed."""
     bound = _SECRET_SCOPE.get()
     return bound.mapping if bound is not None else None
 
 
-def current_secret_scope_home() -> Optional[str]:
+def current_secret_scope_home() -> str | None:
     """The home the active scope was stamped with, or None when unstamped/unbound."""
     bound = _SECRET_SCOPE.get()
     return bound.profile_home if bound is not None else None
@@ -211,12 +215,12 @@ def _is_global_env(name: str) -> bool:
     return name in _GLOBAL_ENV_EXACT or name.startswith(_GLOBAL_ENV_PREFIXES)
 
 
-def _environ_or(name: str, default: Optional[str]) -> Optional[str]:
+def _environ_or(name: str, default: str | None) -> str | None:
     val = os.environ.get(name)
     return val if val is not None else default
 
 
-def get_secret(name: str, default: Optional[str] = None) -> Optional[str]:
+def get_secret(name: str, default: str | None = None) -> str | None:
     """Resolve a credential by env-var name, honoring the active profile scope.
 
     Global vars always read ``os.environ``. With a scope installed, a miss returns
@@ -307,12 +311,12 @@ def _parse_env_value(raw_value: str) -> str:
 # symlink repointed mid-read can't file one file's contents under another's identity.
 # ``invalidate_env_file_cache()`` is the explicit knob; ``hermes_cli.config.invalidate_env_cache()``
 # calls it for Hermes's own .env writers.
-_ENV_FILE_CACHE: "OrderedDict[str, Tuple[tuple, Dict[str, str]]]" = OrderedDict()
+_ENV_FILE_CACHE: OrderedDict[str, tuple[tuple, dict[str, str]]] = OrderedDict()
 _ENV_FILE_CACHE_LOCK = threading.Lock()
 _ENV_FILE_CACHE_MAX = 64  # one entry per profile home in practice
 
 
-def invalidate_env_file_cache(env_path: Optional[Path] = None) -> None:
+def invalidate_env_file_cache(env_path: Path | None = None) -> None:
     """Drop one path from the ``load_env_file()`` memo, or all of them."""
     with _ENV_FILE_CACHE_LOCK:
         if env_path is None:
@@ -324,17 +328,16 @@ def invalidate_env_file_cache(env_path: Optional[Path] = None) -> None:
 def _decode_env_bytes(raw: bytes) -> str:
     """BOM stripped; invalid UTF-8 falls back to latin-1 exactly as
     ``env_loader._load_dotenv_with_fallback`` installs it into ``os.environ``."""
-    if raw.startswith(codecs.BOM_UTF8):
-        raw = raw[len(codecs.BOM_UTF8):]
+    raw = raw.removeprefix(codecs.BOM_UTF8)
     try:
         return raw.decode("utf-8")
     except UnicodeDecodeError:
         return raw.decode("latin-1")
 
 
-def _parse_env_text(text: str) -> Dict[str, str]:
+def _parse_env_text(text: str) -> dict[str, str]:
     """Tokenize already-read ``.env`` text. See :func:`load_env_file`."""
-    secrets: Dict[str, str] = {}
+    secrets: dict[str, str] = {}
     for raw_line in text.splitlines():
         line = raw_line.strip()
         if not line or line.startswith("#"):
@@ -348,7 +351,7 @@ def _parse_env_text(text: str) -> Dict[str, str]:
     return secrets
 
 
-def load_env_file(env_path: Path) -> Dict[str, str]:
+def load_env_file(env_path: Path) -> dict[str, str]:
     """THE ``.env`` tokenizer: every reader (profile scope, ``hermes_cli.config.load_env``, the dashboard
     scrub, skill secret capture, managed .env, setup prompts) parses through here so no two boundaries
     disagree on which keys/values a file defines. Dict only — never touches ``os.environ``. ``export``
@@ -388,7 +391,7 @@ def load_env_file(env_path: Path) -> Dict[str, str]:
     return secrets
 
 
-def build_profile_secret_scope(hermes_home: Path) -> Dict[str, str]:
+def build_profile_secret_scope(hermes_home: Path) -> dict[str, str]:
     """Build a profile's secret mapping from ``<home>/.env`` plus its external
     secret sources. Global vars are NOT copied in — ``get_secret`` reads those
     from ``os.environ`` — so the scope holds only profile secrets."""
@@ -413,7 +416,9 @@ def build_profile_secret_scope(hermes_home: Path) -> Dict[str, str]:
     # managed-vs-user collision (#111187 review). Every multiplex-authoritative scope — gateway
     # turn, routed cron fire, external worker — is built here, so managed authority is composed
     # once, not restored by each consumer.
-    from hermes_cli.managed_scope import load_managed_env  # fail-open: {} when no managed scope
+    from hermes_cli.managed_scope import (
+        load_managed_env,  # fail-open: {} when no managed scope
+    )
 
     secrets.update((k, v) for k, v in load_managed_env().items() if not _is_global_env(k))
     return secrets

@@ -13,10 +13,8 @@ never opened.
 """
 
 import os
-import tempfile
 
 import pytest
-
 import tools.terminal_tool as tt
 from tools.environments.local import LocalEnvironment
 

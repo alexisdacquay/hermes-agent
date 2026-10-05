@@ -5,10 +5,9 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-
 from hermes_cli.auth import (
-    AuthError,
     DEFAULT_CODEX_BASE_URL,
+    AuthError,
     _read_codex_tokens,
     _save_codex_tokens,
     refresh_codex_oauth_pure,

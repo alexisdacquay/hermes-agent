@@ -40,10 +40,11 @@ import logging
 import os
 import stat
 import sys
+from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Optional, Sequence
+from typing import Any
 
 from utils import atomic_json_write
 
@@ -86,9 +87,9 @@ class HostRecord:
 
     role: str
     pid: int
-    create_time: Optional[float]
+    create_time: float | None
     host: str
-    port: Optional[int]
+    port: int | None
     protocol_version: int
     token_fingerprint: str
     profiles: tuple[str, ...]
@@ -102,7 +103,7 @@ class HostRecord:
     #: Stable process-start fingerprint. On Linux/WSL this is boot-relative /proc start ticks,
     #: so a wall-clock resync cannot make a live owner look like a recycled PID. Optional for
     #: records written by older Hermes versions, which still fall back to create_time.
-    start_time: Optional[int] = None
+    start_time: int | None = None
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -120,7 +121,7 @@ class HostRecord:
         }
 
     @classmethod
-    def from_json(cls, payload: Any) -> Optional["HostRecord"]:
+    def from_json(cls, payload: Any) -> HostRecord | None:
         if not isinstance(payload, dict):
             return None
         pid = payload.get("pid")
@@ -222,21 +223,21 @@ def token_fingerprint(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8", "replace")).hexdigest()[:16] if token else ""
 
 
-def process_create_time(pid: Optional[int] = None) -> Optional[float]:
+def process_create_time(pid: int | None = None) -> float | None:
     """Creation time of ``pid`` (default: this process); ``None`` when unknowable."""
     from hermes_cli.process_identity import _process_create_time
 
     return _process_create_time(pid)
 
 
-def _pid_incarnation_matches(pid: int, create_time: Optional[float]) -> Optional[bool]:
+def _pid_incarnation_matches(pid: int, create_time: float | None) -> bool | None:
     """Reuse the spawn ledger's proof: True/False when provable, ``None`` when it cannot say."""
     from hermes_cli.process_identity import _pid_alive_matches
 
     return _pid_alive_matches(pid, create_time)
 
 
-def _record_incarnation_matches(record: HostRecord) -> Optional[bool]:
+def _record_incarnation_matches(record: HostRecord) -> bool | None:
     """Whether the record still names the same live process incarnation.
 
     New records prefer the canonical start fingerprint: on Linux/WSL it comes from /proc start
@@ -254,7 +255,7 @@ def _record_incarnation_matches(record: HostRecord) -> Optional[bool]:
     return None if current is None else start_time_fingerprints_match(record.start_time, current)
 
 
-def record_is_stale(record: Optional[HostRecord]) -> bool:
+def record_is_stale(record: HostRecord | None) -> bool:
     """A record nobody may attach to: absent, unknown protocol, dead PID, or PID reuse.
 
     ``None`` from the liveness probe (no psutil, permission denied, an unexpected psutil error)
@@ -282,7 +283,7 @@ def dial_host(record: HostRecord) -> str:
     return "127.0.0.1" if host in ("0.0.0.0", "::", "*", "") else host
 
 
-def probe_owner(record: HostRecord, *, timeout: float = PROBE_TIMEOUT_S) -> Optional[dict]:
+def probe_owner(record: HostRecord, *, timeout: float = PROBE_TIMEOUT_S) -> dict | None:
     """Make the recorded endpoint prove it is this record's owner; ``None`` when it does not.
 
     Two gates, both required: a bounded TCP connect (nothing listening → the owner is gone, even
@@ -311,7 +312,7 @@ def probe_owner(record: HostRecord, *, timeout: float = PROBE_TIMEOUT_S) -> Opti
     request = urllib.request.Request(
         f"http://{host}:{record.port}{HOST_IDENTITY_PATH}", headers=headers)
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310 — fixed http scheme
+        with urllib.request.urlopen(request, timeout=timeout) as response:
             if response.status != 200:
                 return None
             payload = json.loads(response.read(65536).decode("utf-8", "replace"))
@@ -325,7 +326,7 @@ def probe_owner(record: HostRecord, *, timeout: float = PROBE_TIMEOUT_S) -> Opti
     return payload
 
 
-def read_record(role: str, *, include_stale: bool = False) -> Optional[HostRecord]:
+def read_record(role: str, *, include_stale: bool = False) -> HostRecord | None:
     """Published record for ``role``; ``None`` when absent, foreign, corrupt or (by default) stale."""
     path = record_path(role)
     if not _record_is_own(path):
@@ -419,7 +420,7 @@ def _lock_key(role: str) -> tuple[str, str]:
     return (role, str(path))
 
 
-def claim_host_lock(role: str) -> tuple[HostLockOutcome, Optional[OSError]]:
+def claim_host_lock(role: str) -> tuple[HostLockOutcome, OSError | None]:
     """Take the host-wide lock for ``role``. Idempotent per (role, lock path).
 
     Returns the outcome and, for ``COULD_NOT_OPEN``, the OSError that explains it.
@@ -466,11 +467,11 @@ def publish_record(
     role: str,
     *,
     host: str = "",
-    port: Optional[int] = None,
+    port: int | None = None,
     profiles: Sequence[str] = (),
-    token: Optional[str] = None,
+    token: str | None = None,
     home: str = "",
-) -> Optional[HostRecord]:
+) -> HostRecord | None:
     """Publish this process as the host owner of ``role``. ``None`` when the write failed.
 
     ``token`` (serve) is persisted 0600 next to the record and only its fingerprint is published.
@@ -490,7 +491,7 @@ def publish_record(
         protocol_version=HOST_PROTOCOL_VERSION,
         token_fingerprint=token_fingerprint(token or ""),
         profiles=tuple(str(p) for p in profiles),
-        updated_at=datetime.now(timezone.utc).isoformat(),
+        updated_at=datetime.now(UTC).isoformat(),
         home=str(home or ""),
     )
     try:
@@ -622,7 +623,7 @@ def _multiplex_profiles_enabled() -> bool:
     return True
 
 
-def served_profiles(*, multiplex: Optional[bool] = None) -> tuple[str, ...]:
+def served_profiles(*, multiplex: bool | None = None) -> tuple[str, ...]:
     """Profiles this process multiplexes; ``()`` when the roster cannot be read.
 
     ``multiplex`` defaults to what this process's own config says. Hard-coding ``True`` here

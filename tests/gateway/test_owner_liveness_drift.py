@@ -10,7 +10,6 @@ dead/unknown under the same ~1 s same-host drift. All of them now share
 from __future__ import annotations
 
 import pytest
-
 from gateway import status
 
 RECORDED = 178864182760

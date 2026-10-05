@@ -8,10 +8,9 @@ home nor borrow the process home's record / the multiplexer's roster for it.
 
 import json
 
-import pytest
-
-from gateway import status
 import hermes_constants
+import pytest
+from gateway import status
 
 _LIVE_PID = 4242
 

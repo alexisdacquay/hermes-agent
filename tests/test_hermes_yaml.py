@@ -3,9 +3,8 @@
 import io
 from concurrent.futures import ThreadPoolExecutor
 
-import pytest
-
 import hermes_yaml as yaml
+import pytest
 from utils import fast_safe_load
 
 

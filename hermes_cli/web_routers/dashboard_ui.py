@@ -6,21 +6,31 @@ Extracted from ``hermes_cli.web_server``; helpers/state that tests monkeypatch o
 
 import asyncio
 import logging
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, Optional
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
 
-from hermes_cli.web_deps import LateState, late
 from hermes_cli.config import cfg_get
+from hermes_cli.web_deps import LateState, late
+from hermes_cli.web_models import (
+    FontSetBody,
+    ThemeSetBody,
+    _AgentPluginInstallBody,
+    _PluginProvidersPutBody,
+    _PluginVisibilityBody,
+)
 from hermes_cli.web_routers._common import config_scoped_to_thread
 from hermes_cli.web_server_dashboard import (
-    _BUILTIN_DASHBOARD_THEMES, _discover_user_themes, _invalidate_plugins_hub_cache, _merged_plugins_hub,
+    _BUILTIN_DASHBOARD_THEMES,
+    _discover_user_themes,
+    _invalidate_plugins_hub_cache,
+    _merged_plugins_hub,
 )
-from hermes_cli.web_server_memory import _normalize_memory_provider_name, _require_memory_provider_ready
-from hermes_cli.web_models import (
-    FontSetBody, ThemeSetBody, _AgentPluginInstallBody, _PluginProvidersPutBody, _PluginVisibilityBody,
+from hermes_cli.web_server_memory import (
+    _normalize_memory_provider_name,
+    _require_memory_provider_ready,
 )
 
 _log = logging.getLogger("hermes_cli.web_server")
@@ -38,7 +48,7 @@ _config_profile_scope = late("_config_profile_scope", "hermes_cli.web_server_pro
 _CONFIG_MUTATION_LOCK = LateState("_CONFIG_MUTATION_LOCK")
 
 
-def _set_dashboard_key(key: str, value, profile: Optional[str] = None) -> None:
+def _set_dashboard_key(key: str, value, profile: str | None = None) -> None:
     """Write ``dashboard.<key>`` to the profile's config.yaml under the config mutation lock."""
     with _config_profile_scope(profile), _CONFIG_MUTATION_LOCK:
         config = load_config()
@@ -49,7 +59,7 @@ def _set_dashboard_key(key: str, value, profile: Optional[str] = None) -> None:
 
 
 @router.get("/api/dashboard/themes")
-async def get_dashboard_themes(profile: Optional[str] = None):
+async def get_dashboard_themes(profile: str | None = None):
     """Available themes + the active one. Built-ins ship name/label/description only
     (the frontend owns their definitions in `web/src/themes/presets.ts`); user themes
     from `~/.hermes/dashboard-themes/*.yaml` ship their normalised `definition`."""
@@ -69,7 +79,7 @@ async def get_dashboard_themes(profile: Optional[str] = None):
 
 
 @router.put("/api/dashboard/theme")
-async def set_dashboard_theme(body: ThemeSetBody, profile: Optional[str] = None):
+async def set_dashboard_theme(body: ThemeSetBody, profile: str | None = None):
     """Set the active dashboard theme (persists to config.yaml)."""
     await asyncio.to_thread(_set_dashboard_key, "theme", body.name, profile)
     return {"ok": True, "theme": body.name}
@@ -88,7 +98,7 @@ _FONT_CHOICES = frozenset({
 
 
 @router.get("/api/dashboard/font")
-async def get_dashboard_font(profile: Optional[str] = None):
+async def get_dashboard_font(profile: str | None = None):
     """Return the active font override (``"theme"`` = use the theme's font)."""
     def _run():
         font = cfg_get(load_config(), "dashboard", "font", default=_FONT_DEFAULT_ID)
@@ -98,7 +108,7 @@ async def get_dashboard_font(profile: Optional[str] = None):
 
 
 @router.put("/api/dashboard/font")
-async def set_dashboard_font(body: FontSetBody, profile: Optional[str] = None):
+async def set_dashboard_font(body: FontSetBody, profile: str | None = None):
     """Set the font override (config.yaml). Unknown ids coerce to ``"theme"`` rather than
     400 so a stale client can't wedge the picker."""
     font = body.font if body.font in _FONT_CHOICES else _FONT_DEFAULT_ID
@@ -109,7 +119,7 @@ async def set_dashboard_font(body: FontSetBody, profile: Optional[str] = None):
 def _plugin_enable_sets() -> tuple[set, set]:
     """(enabled, disabled) plugin name sets; empty on any failure."""
     try:
-        from hermes_cli.plugins_cmd import _get_enabled_set, _get_disabled_set
+        from hermes_cli.plugins_cmd import _get_disabled_set, _get_enabled_set
         return _get_enabled_set(), _get_disabled_set()
     except Exception:
         return set(), set()
@@ -129,7 +139,7 @@ def _plugin_activated(plugin: dict, enabled_set: set, disabled_set: set) -> bool
 
 
 @router.get("/api/dashboard/plugins")
-async def get_dashboard_plugins(profile: Optional[str] = None):
+async def get_dashboard_plugins(profile: str | None = None):
     """Return discovered dashboard plugins (excludes user-hidden and non-enabled ones)."""
     def _run():
         plugins = _get_dashboard_plugins()
@@ -154,7 +164,7 @@ async def rescan_dashboard_plugins():
 
 
 @router.get("/api/dashboard/plugins/hub")
-async def get_plugins_hub(request: Request, profile: Optional[str] = None):
+async def get_plugins_hub(request: Request, profile: str | None = None):
     """Unified agent plugins + dashboard extension metadata (session protected)."""
     _require_token(request)
     try:
@@ -186,7 +196,11 @@ async def get_plugins_catalog(request: Request):
     _require_token(request)
 
     def _run():
-        from hermes_cli.plugins_cmd import _discover_all_plugins, _get_disabled_set, _get_enabled_set
+        from hermes_cli.plugins_cmd import (
+            _discover_all_plugins,
+            _get_disabled_set,
+            _get_enabled_set,
+        )
         from hermes_cli.plugins_cmd_catalog import installed_catalog_state
         from hermes_cli.web_server_dashboard import _plugin_runtime_status
         enabled, disabled = _get_enabled_set(), _get_disabled_set()
@@ -318,7 +332,7 @@ async def post_agent_plugin_activate(request: Request):
 
 @router.put("/api/dashboard/plugin-providers")
 async def put_plugin_providers(request: Request, body: _PluginProvidersPutBody,
-                               profile: Optional[str] = None):
+                               profile: str | None = None):
     """Persist memory provider / context engine selection (writes config.yaml)."""
     _require_token(request)
     from hermes_cli.plugins_cmd import _save_context_engine, _save_memory_provider
@@ -346,7 +360,7 @@ async def put_plugin_providers(request: Request, body: _PluginProvidersPutBody,
 
 @router.post("/api/dashboard/plugins/{name:path}/visibility")
 async def post_plugin_visibility(request: Request, name: str, body: _PluginVisibilityBody,
-                                 profile: Optional[str] = None):
+                                 profile: str | None = None):
     """Toggle a plugin's sidebar visibility (persists to config.yaml dashboard.hidden_plugins)."""
     _require_token(request)
     name = _validate_plugin_name(name)

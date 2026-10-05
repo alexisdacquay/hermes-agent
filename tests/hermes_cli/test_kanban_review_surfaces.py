@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 
 import pytest
-
 from hermes_cli import kanban as kc
 from hermes_cli import kanban_db as kb
 from hermes_cli import kanban_db_connect as kbc
@@ -323,7 +322,7 @@ def test_goal_mode_review_handoff_cannot_bypass_judge(
     monkeypatch.setenv("HERMES_KANBAN_TASK", cli_task)
     monkeypatch.setenv("HERMES_KANBAN_RUN_ID", str(cli_claimed.current_run_id))
 
-    import agent.auxiliary_client as auxiliary_client
+    from agent import auxiliary_client
     from hermes_cli import goals
 
     monkeypatch.setattr(

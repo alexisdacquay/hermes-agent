@@ -14,13 +14,11 @@ timeout, so the loop is never blocked and a stuck teardown degrades gracefully.
 import asyncio
 import logging
 import threading
-import time
 from datetime import datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from gateway.config import GatewayConfig, Platform, PlatformConfig
 from gateway.platforms.event import MessageEvent
 from gateway.session import SessionEntry, SessionSource, build_session_key
@@ -185,7 +183,7 @@ async def test_reset_completes_when_cleanup_times_out(caplog):
     async def _instant_timeout(aw, timeout=None):
         if asyncio.iscoroutine(aw):
             aw.close()
-        raise asyncio.TimeoutError
+        raise TimeoutError
 
     runner = _make_runner_with_cached_agent(lambda: None)
 

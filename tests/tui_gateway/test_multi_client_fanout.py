@@ -9,7 +9,6 @@ import time
 from contextlib import ExitStack, suppress
 
 import pytest
-
 from tui_gateway import server
 from tui_gateway.transport import FanoutTransport, StdioTransport
 from tui_gateway.ws import WSTransport

@@ -16,8 +16,10 @@ sys.modules.setdefault("fal_client", types.SimpleNamespace())
 
 import httpx
 import openai
-
-from agent.sdk_transform_bypass import ESCAPE_HATCH_ENV, bypass_chat_sdk_request_transform
+from agent.sdk_transform_bypass import (
+    ESCAPE_HATCH_ENV,
+    bypass_chat_sdk_request_transform,
+)
 from openai.resources.chat import completions as _sdk_completions
 
 _SSE = (

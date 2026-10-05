@@ -11,12 +11,11 @@ stale-module ImportError after ``hermes update``.
 import asyncio
 import contextlib
 
-import pytest
-
-from gateway import code_skew
 import hermes_cli.web_routers.models as _rt_models
 import hermes_cli.web_server_config as _web_server_config
 import hermes_cli.web_server_profiles as _web_server_profiles
+import pytest
+from gateway import code_skew
 
 
 @pytest.fixture(autouse=True)
@@ -130,7 +129,7 @@ class TestModelOptionsSkewGuard:
         monkeypatch.setattr(
             _web_server_profiles, "_profile_scope", lambda profile: contextlib.nullcontext()
         )
-        monkeypatch.setattr("hermes_cli.inventory.load_picker_context", lambda: {})
+        monkeypatch.setattr("hermes_cli.inventory.load_picker_context", dict)
 
         payload_calls: list = []
         expected = {"providers": [], "model": {}, "provider": None}

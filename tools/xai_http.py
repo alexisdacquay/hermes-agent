@@ -4,10 +4,8 @@ from __future__ import annotations
 
 import datetime
 import json
-import os
 import uuid
-from typing import Any, Dict, Optional
-
+from typing import Any
 
 DEFAULT_XAI_BASE_URL = "https://api.x.ai/v1"
 MAX_XAI_STORAGE_EXPIRES_AFTER_SECONDS = 30 * 24 * 60 * 60
@@ -58,7 +56,7 @@ def hermes_xai_user_agent() -> str:
         return "Hermes-Agent/unknown"
 
 
-def hermes_xai_default_headers() -> Dict[str, str]:
+def hermes_xai_default_headers() -> dict[str, str]:
     """Default headers for OpenAI-SDK and raw HTTP clients talking to xAI (replaces the SDK User-Agent)."""
     return {"User-Agent": hermes_xai_user_agent()}
 
@@ -75,7 +73,7 @@ def _coerce_bool(value: Any, default: bool) -> bool:
     return default
 
 
-def _coerce_expires_after(value: Any) -> Optional[int]:
+def _coerce_expires_after(value: Any) -> int | None:
     """Normalize an xAI storage TTL: int seconds, or None for permanent storage (omit on the wire)."""
     if value is None:
         return None
@@ -92,7 +90,7 @@ def _coerce_expires_after(value: Any) -> Optional[int]:
     return None if int(value) <= 0 else min(int(value), MAX_XAI_STORAGE_EXPIRES_AFTER_SECONDS)
 
 
-def read_xai_imagine_storage_config(section_name: str) -> Dict[str, Any]:
+def read_xai_imagine_storage_config(section_name: str) -> dict[str, Any]:
     """Read ``<section_name>.xai.storage`` (``image_gen``/``video_gen``) -> {enabled, public_url, expires_after}.
     On by default so xAI returns permanent public URLs, not short-lived CDN ones; null TTL = permanent."""
     try:
@@ -110,14 +108,14 @@ def read_xai_imagine_storage_config(section_name: str) -> Dict[str, Any]:
 
 def build_xai_storage_options(
     section_name: str, *, filename_prefix: str, extension: str,
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     """Return an xAI ``storage_options`` payload, or None when disabled."""
     cfg = read_xai_imagine_storage_config(section_name)
     if not cfg["enabled"]:
         return None
     ts = datetime.datetime.now(datetime.UTC).strftime("%Y%m%d-%H%M%S")
     filename = f"{filename_prefix}-{ts}-{uuid.uuid4().hex[:8]}.{extension.lstrip('.') or 'bin'}"
-    payload: Dict[str, Any] = {"filename": filename, "public_url": bool(cfg["public_url"])}
+    payload: dict[str, Any] = {"filename": filename, "public_url": bool(cfg["public_url"])}
     if cfg["expires_after"] is not None:
         payload["expires_after"] = cfg["expires_after"]
     return payload
@@ -140,7 +138,7 @@ def xai_storage_notice_text(section_name: str) -> str:
     )
 
 
-def maybe_mark_xai_storage_notice_seen(section_name: str) -> Optional[str]:
+def maybe_mark_xai_storage_notice_seen(section_name: str) -> str | None:
     """Return the storage notice once per Hermes home, then mark it seen."""
     notice = xai_storage_notice_text(section_name)
     if not notice:
@@ -175,8 +173,8 @@ def _xai_base_url_override() -> str:
 
 
 def resolve_xai_http_credentials(
-    *, force_refresh: bool = False, api_key_hint: Optional[str] = None, prefer_api_key: bool = False,
-) -> Dict[str, str]:
+    *, force_refresh: bool = False, api_key_hint: str | None = None, prefer_api_key: bool = False,
+) -> dict[str, str]:
     """Resolve bearer credentials for direct xAI HTTP endpoints.
 
     Default order: Hermes-managed xAI OAuth, then ``XAI_API_KEY`` (via ``get_env_value`` so

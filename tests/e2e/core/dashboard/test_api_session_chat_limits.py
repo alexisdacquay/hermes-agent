@@ -16,13 +16,13 @@ from __future__ import annotations
 import secrets
 import sys
 import time
-from pathlib import Path
-from typing import Any, Iterator
+from collections.abc import Iterator
+from typing import Any
 
 import pytest
 
-from tests.e2e.core.dashboard._helpers import Sandbox, make_sandbox
 from tests.e2e.core._pending_fixes import known_gate
+from tests.e2e.core.dashboard._helpers import Sandbox, make_sandbox
 from tests.e2e.core.dashboard._issue_helpers import GatewayApiServer, Issue120937
 
 pytestmark = pytest.mark.skipif(not sys.platform.startswith("linux"), reason="reaper reads /proc")

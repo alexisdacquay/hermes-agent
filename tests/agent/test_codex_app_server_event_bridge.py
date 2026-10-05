@@ -19,7 +19,6 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
-
 from agent.codex_runtime import (
     _codex_item_completion_payload,
     _codex_item_to_args,
@@ -27,6 +26,7 @@ from agent.codex_runtime import (
     _codex_item_to_tool_name,
     make_codex_app_server_event_bridge,
 )
+
 
 def _make_stub_agent() -> SimpleNamespace:
     """Minimal stand-in for AIAgent that records every callback fire."""
@@ -289,6 +289,7 @@ class TestBridgeRobustness:
 def test_real_progress_keeps_watchdog_alive_but_silence_still_aborts(monkeypatch, note):
     """Display hooks are optional; real progress must reach the watchdog regardless."""
     import threading
+
     from agent import activity_tracking, turn_liveness
 
     clock = SimpleNamespace(now=1000.0)

@@ -24,6 +24,7 @@ from typing import Any
 
 import pytest
 
+from tests.e2e.core._pending_fixes import known_gate
 from tests.e2e.core.mcp_plugins._helpers import (
     FINAL,
     HttpMcpServer,
@@ -42,7 +43,6 @@ from tests.e2e.core.mcp_plugins._helpers import (
     tool_results,
 )
 from tests.e2e.core.mcp_plugins._plugin_helpers import reap_tagged, tui_host
-from tests.e2e.core._pending_fixes import known_gate
 from tests.fakes.fake_llm_provider import Text
 
 pytestmark = [
@@ -121,7 +121,7 @@ def test_401_on_tools_call_is_reported_as_an_auth_failure(unauthorized: dict[str
     first = payload(unauthorized["results"][0])
     assert "error" in first, first
     with known_gate(KNOWN, request.node.name, raises=KnownSymptom):
-        symptom(re.search(r"auth|401|sign.?in|credential", json.dumps(first), re.I),
+        symptom(re.search(r"auth|401|sign.?in|credential", json.dumps(first), re.IGNORECASE),
                 f"a 401 on tools/call reached the model without any sign it is an auth failure: {first}")
 
 

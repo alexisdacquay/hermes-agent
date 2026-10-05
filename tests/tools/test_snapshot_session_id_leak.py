@@ -21,15 +21,12 @@ the parent's next command is misread as that child (#90782, #71941).
 import os
 import re
 import subprocess
-import sys
 
 import pytest
-
 from tools.environments.base_session_env import (
     _SNAPSHOT_EXCLUDED_ENV_REGEX,
     _export_dump_excluding_session_vars,
 )
-
 
 # ---------------------------------------------------------------------------
 # Unit: the exclusion regex matches exactly the bridged vars, nothing else.
@@ -56,7 +53,7 @@ def test_regex_matches_bridged_session_vars():
 def test_shared_snapshot_no_cross_session_leak(tmp_path):
     import threading
 
-    from gateway.session_context import _VAR_MAP, _UNSET, set_session_vars
+    from gateway.session_context import _UNSET, _VAR_MAP, set_session_vars
     from tools.environments.local import LocalEnvironment
 
     env = LocalEnvironment(cwd=str(tmp_path), timeout=30)
@@ -120,7 +117,10 @@ def test_export_dump_drops_every_bridged_var_and_the_delegation_marker():
 def test_snapshot_does_not_turn_later_commands_into_delegated_children(tmp_path):
     """A snapshot re-dumped during a delegated child's command must not re-export
     the marker into the parent's next ``source`` (#90782)."""
-    from agent.delegation_context import DELEGATED_CHILD_ENV_MARKER, delegated_child_context
+    from agent.delegation_context import (
+        DELEGATED_CHILD_ENV_MARKER,
+        delegated_child_context,
+    )
     from tools.environments.local import LocalEnvironment
 
     probe = f'printf "[${{{DELEGATED_CHILD_ENV_MARKER}+set}}]"'

@@ -1,10 +1,10 @@
 """Cross-platform unit tests for the venv-holder message classifier (#90778)."""
 
 import pytest
-
 from hermes_cli.update_cmd import (
     _hermes_holder_subcommand,
 )
+
 
 class TestHolderSubcommand:
     @pytest.mark.parametrize(

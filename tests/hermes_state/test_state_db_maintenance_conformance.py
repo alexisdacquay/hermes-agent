@@ -31,15 +31,14 @@ import threading
 import uuid
 from pathlib import Path
 
-import pytest
-
 import hermes_state_repair
-from hermes_state import SessionDB
+import pytest
 from hermes_cli.backup import (
     _safe_copy_db,
     create_quick_snapshot,
     verify_sqlite_integrity,
 )
+from hermes_state import SessionDB
 
 # ---------------------------------------------------------------------------
 # Fixtures — real WAL-mode SessionDB in tmp dirs
@@ -113,7 +112,7 @@ class _LiveWriter:
             if conn is not None:
                 conn.close()
 
-    def __enter__(self) -> "_LiveWriter":
+    def __enter__(self) -> _LiveWriter:
         self.thread.start()
         assert self.ready.wait(timeout=30), "live writer never acquired lock"
         if self.error is not None:

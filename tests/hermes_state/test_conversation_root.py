@@ -5,7 +5,6 @@ stable id per user-facing conversation, surviving context-compression
 session rotation and covering delegate subagent trees.
 """
 import pytest
-
 from hermes_state import SessionDB
 
 

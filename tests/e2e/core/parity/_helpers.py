@@ -24,13 +24,19 @@ import subprocess
 import sys
 import time
 import uuid
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Iterable
+from typing import Any
 
 import hermes_yaml as yaml
 
-from tests.fakes.fake_llm_provider import FakeLLMServer, Text, ToolCall, write_hermes_home
+from tests.fakes.fake_llm_provider import (
+    FakeLLMServer,
+    Text,
+    ToolCall,
+    write_hermes_home,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 FIXTURE_MCP_SERVER = Path(__file__).with_name("fixture_mcp_server.py")
@@ -269,7 +275,7 @@ def _tool_names(body: dict[str, Any]) -> set[str]:
     return {(t.get("function") or {}).get("name") or t.get("name") for t in body.get("tools") or []}
 
 
-_CATALOG_LINE = re.compile(r"^- ([A-Za-z0-9_.:-]+): ", re.M)
+_CATALOG_LINE = re.compile(r"^- ([A-Za-z0-9_.:-]+): ", re.MULTILINE)
 
 
 def offered_tool_names(body: dict[str, Any]) -> set[str]:

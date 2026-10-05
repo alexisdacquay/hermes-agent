@@ -19,7 +19,6 @@ import sys
 from pathlib import Path
 
 import pytest
-
 from hermes_cli import _launchers, post_update
 
 posix_only = pytest.mark.platforms("posix")
@@ -228,8 +227,8 @@ class TestExposeCli:
 
 @pytest.mark.platforms("macos")
 def test_direct_packaged_cli_exposes_shims_before_electron(tmp_path):
-    import subprocess
     import shlex
+    import subprocess
 
     home = tmp_path / "home"
     home.mkdir()

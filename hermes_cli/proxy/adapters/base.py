@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import FrozenSet, Optional
 
 
 @dataclass(frozen=True)
@@ -14,7 +13,7 @@ class UpstreamCredential:
     bearer: str  # token only, no ``Bearer`` prefix
     base_url: str  # e.g. ``https://inference-api.nousresearch.com/v1``
     token_type: str = "Bearer"
-    expires_at: Optional[str] = None  # ISO-8601, informational
+    expires_at: str | None = None  # ISO-8601, informational
 
 
 class UpstreamAdapter(ABC):
@@ -32,7 +31,7 @@ class UpstreamAdapter(ABC):
 
     @property
     @abstractmethod
-    def allowed_paths(self) -> FrozenSet[str]:
+    def allowed_paths(self) -> frozenset[str]:
         """Paths relative to the proxy's ``/v1`` mount (``"/chat/completions"`` ⇒
         ``/v1/chat/completions``); anything else gets a 404 with a helpful body."""
 
@@ -48,7 +47,7 @@ class UpstreamAdapter(ABC):
 
     def get_retry_credential(
         self, *, failed_credential: UpstreamCredential, status_code: int
-    ) -> Optional[UpstreamCredential]:
+    ) -> UpstreamCredential | None:
         """Alternate credential for a one-shot retry after the upstream rejects the first request;
         default is no retry."""
         _ = failed_credential, status_code

@@ -2,10 +2,13 @@ from io import StringIO
 from unittest.mock import patch
 
 import pytest
+from hermes_cli.skills_hub import (
+    do_check,
+    do_install,
+    do_list,
+    do_update,
+)
 from rich.console import Console
-
-from cli import ChatConsole
-from hermes_cli.skills_hub import do_check, do_install, do_list, do_update, handle_skills_slash
 
 
 class _DummyLockFile:
@@ -52,8 +55,7 @@ _BUILTIN_MANIFEST = {"builtin-skill": "abc123"}
 def three_source_env(monkeypatch, hub_env):
     """Populate hub/builtin/local skills for source-classification tests."""
     import tools.skills_hub as hub
-    import tools.skills_sync as skills_sync
-    import tools.skills_tool as skills_tool
+    from tools import skills_sync, skills_tool
 
     monkeypatch.setattr(hub, "HubLockFile", lambda: _DummyLockFile([_HUB_ENTRY]))
     monkeypatch.setattr(skills_tool, "_find_all_skills", lambda **_kwargs: list(_ALL_THREE_SKILLS))
@@ -81,9 +83,9 @@ def _capture_check(monkeypatch, results, name=None) -> str:
 
 
 def _capture_update(monkeypatch, results) -> tuple[str, list[tuple[str, str, bool]]]:
+    import hermes_cli.skills_hub as cli_hub
     import tools.skills_hub as hub
     import tools.skills_hub_install as hub_install
-    import hermes_cli.skills_hub as cli_hub
 
     sink = StringIO()
     console = Console(file=sink, force_terminal=False, color_system=None)
@@ -290,7 +292,6 @@ def test_inspect_reuses_one_ssrf_safe_client_for_metadata_and_bundle(monkeypatch
     import hermes_cli.skills_hub as cli_hub
     import tools.skills_hub as hub
     import tools.skills_hub_search as search
-    import tools.skills_hub_clawhub as clawhub
     from tools.skills_hub_models import SkillBundle, SkillMeta
 
     clients = []
@@ -390,10 +391,10 @@ def _make_url_bundle_fetcher(name="", awaiting_name=True, url="https://example.c
 
 def _install_mocks(monkeypatch, tmp_path, source_factory, category_hint=""):
     """Wire the minimum set of monkeypatches for a do_install dry run."""
+    import tools.skills_guard as guard
     import tools.skills_hub as hub
     import tools.skills_hub_install as hub_install
     import tools.skills_hub_search as hub_search
-    import tools.skills_guard as guard
 
     q_path = tmp_path / "skills" / ".hub" / "quarantine" / "pending"
     q_path.mkdir(parents=True)
@@ -594,7 +595,6 @@ def _stale_env(monkeypatch):
 
 def test_do_install_stale_index_names_the_problem(monkeypatch):
     """Index hit + missing files reads as a stale entry, not a typo (#3259)."""
-    from hermes_cli.skills_hub import do_install
 
     console, sink = _stale_env(monkeypatch)
     do_install("skills-sh/org/gone-skill", console=console, skip_confirm=True)
@@ -611,7 +611,6 @@ def test_do_install_generic_when_no_index_hit_or_rate_limited(monkeypatch, meta_
     generic message (plus the rate-limit hint), never the stale-entry verdict."""
     import hermes_cli.skills_hub as cli_hub
     import tools.skills_hub as hub
-    from hermes_cli.skills_hub import do_install
 
     class ThrottledSource:
         is_rate_limited = meta_hit

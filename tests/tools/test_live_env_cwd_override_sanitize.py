@@ -9,7 +9,6 @@ while terminal commands kept working (their per-command resolver sanitizes).
 """
 
 import pytest
-
 import tools.terminal_tool as tt
 
 

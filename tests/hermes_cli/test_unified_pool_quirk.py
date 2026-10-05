@@ -16,9 +16,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 import hermes_cli.local_runtime.hardware as hw
+import pytest
 
 GIB = 1 << 30
 
@@ -187,8 +186,7 @@ def test_vulkan_device_type_decides_discrete_vs_unified(monkeypatch, tmp_path, d
     """A discrete AMD/Intel card behind a Vulkan engine budgets its own memory with RAM as spill;
     an integrated one (ggml IGPU) keeps the RAM-as-unified budget, never both pools. The engine is
     the one config.yaml names, read through the real config loader."""
-    import hermes_cli.local_runtime.binaries as binaries
-    import hermes_cli.local_runtime.devices as devices
+    from hermes_cli.local_runtime import binaries, devices
 
     total = 16304 << 20
     home = tmp_path / ".hermes"
@@ -232,8 +230,8 @@ def test_smi_resolver_uses_wsl_driver_path_when_path_is_empty(monkeypatch):
 
 
 def test_memory_probe_carries_identity_without_another_process(monkeypatch):
-    from types import SimpleNamespace
     import sys
+    from types import SimpleNamespace
 
     calls = []
     name = "NVIDIA RTX Spark N1X (5120-core Blackwell RTX GPU)"

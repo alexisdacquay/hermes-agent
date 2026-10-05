@@ -12,7 +12,6 @@ import functools
 import logging
 from contextlib import suppress
 from pathlib import Path
-from typing import Tuple
 
 from tools.registry import registry, tool_result
 
@@ -85,7 +84,7 @@ async def _members(adapter, group_code: str) -> list:
     return raw.get("members", [])
 
 
-async def _resolve_dm_recipient(adapter, group_code: str, name: str) -> Tuple[str, str]:
+async def _resolve_dm_recipient(adapter, group_code: str, name: str) -> tuple[str, str]:
     """Resolve ``name`` to (user_id, nickname) via the group member list; >1 partial match raises
     with ``candidates`` for disambiguation instead of guessing."""
     if not group_code:
@@ -183,7 +182,11 @@ async def send_sticker(args) -> dict:
     """向 chat_id（缺省取当前会话 HERMES_SESSION_CHAT_ID）发送一张内置贴纸（TIMFaceElem）。
     ``sticker``: 名称（如 "六六六"）或 sticker_id（如 "278"）；为空时随机发送。
     ``chat_id``: ``direct:{account_id}`` / ``group:{group_code}`` / 裸 account_id。"""
-    from gateway.platforms.yuanbao_sticker import get_sticker_by_id, get_sticker_by_name, get_random_sticker
+    from gateway.platforms.yuanbao_sticker import (
+        get_random_sticker,
+        get_sticker_by_id,
+        get_sticker_by_name,
+    )
 
     target = (args.get("chat_id", "") or "").strip() or _session_env("HERMES_SESSION_CHAT_ID")
     if not target:

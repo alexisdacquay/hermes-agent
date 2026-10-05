@@ -20,12 +20,11 @@ If the descriptor or session-keying only worked for Discord, these fail.
 from __future__ import annotations
 
 import pytest
-
 from gateway.config import Platform, PlatformConfig
 from gateway.platforms.event import MessageEvent, MessageType
-from gateway.session import SessionSource, build_session_key
 from gateway.relay.adapter import RelayAdapter
 from gateway.relay.descriptor import CONTRACT_VERSION, CapabilityDescriptor
+from gateway.session import SessionSource
 
 from tests.gateway.relay.stub_connector import StubConnector
 
@@ -111,4 +110,3 @@ async def test_inbound_telegram_event_reaches_adapter(wired, monkeypatch):
 
 async def _async_capture(sink, event):
     sink.append(event)
-    return None

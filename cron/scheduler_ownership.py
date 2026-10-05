@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import threading
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any
 
 from hermes_constants import get_hermes_home, hermes_home_key
 
@@ -58,14 +58,14 @@ def ticked_homes() -> dict:
         return dict(_ticked_homes)
 
 
-def serves_profile(home: Optional[Union[Path, str]] = None) -> bool:
+def serves_profile(home: Path | str | None = None) -> bool:
     """True when THIS process's cron ticker owns ``home`` (default: the active cron scope)."""
     key = hermes_home_key(home if home is not None else get_hermes_home())
     with _ticked_lock:
         return key in _ticked_homes
 
 
-def owns_cron_tick_for(home: Optional[Union[Path, str]] = None) -> bool:
+def owns_cron_tick_for(home: Path | str | None = None) -> bool:
     """True when this process is the host gateway multiplexer AND ticks ``home``.
 
     The runtime lock alone is not enough: it proves only that this process is the host gateway,
@@ -81,7 +81,7 @@ def owns_cron_tick_for(home: Optional[Union[Path, str]] = None) -> bool:
     return serves_profile(home)
 
 
-def record_serves_profile(record: Any, home: Optional[Union[Path, str]] = None) -> bool:
+def record_serves_profile(record: Any, home: Path | str | None = None) -> bool:
     """True when a gateway runtime-status ``record``'s served set covers ``home``.
 
     The record is read from the holder's own home, so it always proves that home — that is the
@@ -91,7 +91,10 @@ def record_serves_profile(record: Any, home: Optional[Union[Path, str]] = None) 
     if not isinstance(record, dict):
         return False
     from gateway.status import (
-        _get_process_hermes_home, _profile_label_for_home, _same_hermes_home)
+        _get_process_hermes_home,
+        _profile_label_for_home,
+        _same_hermes_home,
+    )
 
     try:
         target = Path(home) if home is not None else get_hermes_home()
@@ -109,7 +112,7 @@ def record_serves_profile(record: Any, home: Optional[Union[Path, str]] = None) 
     return label is not None and label in served
 
 
-def live_gateway_ticking(home: Optional[Union[Path, str]] = None) -> Optional[dict]:
+def live_gateway_ticking(home: Path | str | None = None) -> dict | None:
     """Runtime-status record of ANOTHER live host gateway that ticks ``home``, else None.
 
     ``None`` covers every "we cannot prove it" case: this process holds the lock itself, no lock

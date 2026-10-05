@@ -12,8 +12,9 @@ import logging
 import secrets
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 _OWNER_UNSET = object()
@@ -47,7 +48,7 @@ def browser_control_protocol_supported(value: Any) -> bool:
     return type(value) is int and value == BROWSER_CONTROL_PROTOCOL_VERSION
 
 
-def _extension_control_flag(config: Optional[dict], key: str) -> bool:
+def _extension_control_flag(config: dict | None, key: str) -> bool:
     """Read ``browser.extension_control.<key>`` as a literal ``True`` (default off)."""
     if config is None:
         try:
@@ -61,17 +62,17 @@ def _extension_control_flag(config: Optional[dict], key: str) -> bool:
     return isinstance(extension_control, dict) and extension_control.get(key, False) is True
 
 
-def browser_control_developer_mode(config: Optional[dict] = None) -> bool:
+def browser_control_developer_mode(config: dict | None = None) -> bool:
     """Explicit Developer Mode flag; gates ``browser_evaluate``/raw CDP only."""
     return _extension_control_flag(config, "developer_mode")
 
 
-def browser_control_enabled(config: Optional[dict] = None) -> bool:
+def browser_control_enabled(config: dict | None = None) -> bool:
     """Return the explicit browser-control feature flag (disabled by default)."""
     return _extension_control_flag(config, "enabled")
 
 
-def filter_browser_control_capabilities(value: Any, *, developer_mode: Optional[bool] = None) -> frozenset:
+def filter_browser_control_capabilities(value: Any, *, developer_mode: bool | None = None) -> frozenset:
     """Permitted subset of a capability list (non-list -> empty); developer caps only in Developer Mode."""
     if not isinstance(value, list):
         return frozenset()
@@ -108,12 +109,12 @@ class ControllerRejected(BrowserControlError):
 @dataclass(frozen=True)
 class ControllerScope:
     """Exact controller identity plus capability set; equality is over all fields."""
-    principal_id: Optional[str] = None
-    profile_id: Optional[str] = None
-    session_id: Optional[str] = None
-    controller_id: Optional[str] = None
-    browser_profile_id: Optional[str] = None
-    transport_family: Optional[str] = None
+    principal_id: str | None = None
+    profile_id: str | None = None
+    session_id: str | None = None
+    controller_id: str | None = None
+    browser_profile_id: str | None = None
+    transport_family: str | None = None
     capabilities: frozenset = frozenset()
 
 
@@ -154,7 +155,7 @@ class _Controller:
 class _PendingCommand:
     scope: ControllerScope
     command_id: str
-    tool_call_id: Optional[str]
+    tool_call_id: str | None
     event: threading.Event = field(default_factory=threading.Event)
     done: bool = False
     cancelled: bool = False
@@ -169,19 +170,19 @@ def _cancel_frame(pending: _PendingCommand) -> dict:
 class BrowserControlBroker:
     """Thread-safe broker core; ``clock`` is injectable (default ``time.monotonic``)."""
     def __init__(self, *, ticket_ttl: float = DEFAULT_TICKET_TTL, command_timeout: float = DEFAULT_COMMAND_TIMEOUT,
-                 clock: Optional[Callable[[], float]] = None, developer_mode: Optional[bool] = None) -> None:
+                 clock: Callable[[], float] | None = None, developer_mode: bool | None = None) -> None:
         self._ticket_ttl = ticket_ttl
         self._command_timeout = command_timeout
         self._clock = clock if clock is not None else time.monotonic
         self._lock = threading.RLock()
-        self._tickets: Dict[str, _TicketRecord] = {}
-        self._controllers: Dict[ControllerScope, _Controller] = {}
-        self._pending: Dict[str, _PendingCommand] = {}
+        self._tickets: dict[str, _TicketRecord] = {}
+        self._controllers: dict[ControllerScope, _Controller] = {}
+        self._pending: dict[str, _PendingCommand] = {}
         # None defers to live config on every selection (so flipping developer_mode off REVOKES
         # raw CDP/eval from attached controllers without restart); a bool pins the gate.
-        self._developer_mode_pinned: Optional[bool] = None if developer_mode is None else developer_mode is True
+        self._developer_mode_pinned: bool | None = None if developer_mode is None else developer_mode is True
         # Artifact stores keyed by profile id; ``None`` is the default slot.
-        self._artifact_stores: Dict[Optional[str], Any] = {}
+        self._artifact_stores: dict[str | None, Any] = {}
 
     @property
     def developer_mode(self) -> bool:
@@ -193,7 +194,7 @@ class BrowserControlBroker:
         except Exception:
             return False
 
-    def attach_artifact_store(self, store: Any, *, profile_id: Optional[str] = None) -> None:
+    def attach_artifact_store(self, store: Any, *, profile_id: str | None = None) -> None:
         """Attach a store exposing ``validate(artifact_id, *, scope) -> receipt`` for one profile
         (``None`` = default slot); ``store=None`` clears the slot. Artifact actions fail closed without one."""
         if store is None:
@@ -201,7 +202,7 @@ class BrowserControlBroker:
         else:
             self._artifact_stores[profile_id] = store
 
-    def _artifact_store_for_scope(self, scope: "ControllerScope") -> Any:
+    def _artifact_store_for_scope(self, scope: ControllerScope) -> Any:
         store = self._artifact_stores.get(getattr(scope, "profile_id", None) or None)
         return store if store is not None else self._artifact_stores.get(None)
 
@@ -228,11 +229,11 @@ class BrowserControlBroker:
             record.consumed = True
             return record.scope
 
-    def _controller_for_identity_locked(self, scope: ControllerScope) -> Optional[_Controller]:
+    def _controller_for_identity_locked(self, scope: ControllerScope) -> _Controller | None:
         """Attached controller sharing ``scope``'s stable identity (any capabilities)."""
         return next((c for c in self._controllers.values() if _same_scope_identity(c.scope, scope)), None)
 
-    def _live_controller(self, scope: ControllerScope) -> Optional[_Controller]:
+    def _live_controller(self, scope: ControllerScope) -> _Controller | None:
         with self._lock:
             controller = self._controller_for_identity_locked(scope)
         return controller if controller is not None and controller.connected else None
@@ -286,7 +287,7 @@ class BrowserControlBroker:
                         existing.connected = True
                 return
 
-    def select(self, scope: ControllerScope, capability: str) -> Optional[_Controller]:
+    def select(self, scope: ControllerScope, capability: str) -> _Controller | None:
         """Connected controller matching identity whose *current* negotiated set holds ``capability`` (the
         caller's set is not authoritative); developer capabilities are also gated on LIVE Developer Mode."""
         if capability in BROWSER_CONTROL_DEVELOPER_CAPABILITIES and not self.developer_mode:
@@ -305,12 +306,11 @@ class BrowserControlBroker:
             controller = self._controller_for_identity_locked(scope)
         if controller is None:
             return False
-        with controller.send_lock:
-            with self._lock:
-                owned = owner is _OWNER_UNSET or controller.owner is owner
-                if self._controllers.get(controller.scope) is not controller or not owned:
-                    return False
-                controller.connected, controller.owner = False, None
+        with controller.send_lock, self._lock:
+            owned = owner is _OWNER_UNSET or controller.owner is owner
+            if self._controllers.get(controller.scope) is not controller or not owned:
+                return False
+            controller.connected, controller.owner = False, None
         return True
 
     def detach(self, scope: ControllerScope, *, owner: Any = _OWNER_UNSET, notify_controller: bool = True) -> None:
@@ -333,7 +333,7 @@ class BrowserControlBroker:
                 self._emit_cancel_frames(controller, pendings)
 
     def dispatch(
-        self, scope: ControllerScope, *, action: str, arguments: Optional[dict] = None, tool_call_id: Optional[str] = None,
+        self, scope: ControllerScope, *, action: str, arguments: dict | None = None, tool_call_id: str | None = None,
     ) -> Any:
         """Send one controller command and block for completion; raises ControllerUnavailable/Cancelled/Timeout/
         Rejected. Artifact actions also need an attached store and an approved ``artifact_id`` (only the id travels)."""
@@ -389,7 +389,7 @@ class BrowserControlBroker:
             raise ControllerRejected(f"controller rejected command {command_id!r}: {pending.result!r}")
         return pending.result
 
-    def complete(self, command_id: str, *, scope: Optional[ControllerScope] = None, ok: bool, result: Any = None) -> bool:
+    def complete(self, command_id: str, *, scope: ControllerScope | None = None, ok: bool, result: Any = None) -> bool:
         """Resolve a pending command by id; ``False`` when none is pending. Safe from inside the send callback."""
         with self._lock:
             pending = self._pending.get(command_id)
@@ -400,7 +400,7 @@ class BrowserControlBroker:
             pending.event.set()
         return True
 
-    def cancel(self, scope: ControllerScope, *, tool_call_id: Optional[str]) -> bool:
+    def cancel(self, scope: ControllerScope, *, tool_call_id: str | None) -> bool:
         """Cancel the pending command matching ``scope`` + tool_call_id (one cancel frame); ``False`` if none."""
         controller = self._live_controller(scope)
         if controller is None:
@@ -461,15 +461,15 @@ class BrowserControlBroker:
         with self._lock:
             return [s for s in self._controllers if (s.session_id, s.principal_id, s.transport_family) == key]
 
-    def scope_for_session(self, *, session_id: Optional[str] = None, task_id: Optional[str] = None,
-                          principal_id: Optional[str] = None, transport_family: Optional[str] = None) -> Optional[ControllerScope]:
+    def scope_for_session(self, *, session_id: str | None = None, task_id: str | None = None,
+                          principal_id: str | None = None, transport_family: str | None = None) -> ControllerScope | None:
         """One unambiguous attached scope for a server-owned session (session id is only a hint; the caller
         supplies its server-derived principal + transport family). Missing/ambiguous identity fails closed."""
         matches = self._lane_scopes(session_id, task_id, principal_id, transport_family)
         return matches[0] if len(matches) == 1 else None
 
-    def lane_registered(self, *, session_id: Optional[str] = None, task_id: Optional[str] = None,
-                        principal_id: Optional[str] = None, transport_family: Optional[str] = None) -> bool:
+    def lane_registered(self, *, session_id: str | None = None, task_id: str | None = None,
+                        principal_id: str | None = None, transport_family: str | None = None) -> bool:
         """Whether ANY controller (even offline) registered for this lane: "bound but unavailable" fails closed
         vs "never registered" (caller keeps the legacy backend). Ambiguous lanes report True."""
         return bool(self._lane_scopes(session_id, task_id, principal_id, transport_family))

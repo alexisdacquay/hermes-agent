@@ -70,7 +70,9 @@ def _(rid, params: dict) -> dict:
     # Unconditional, like the wizard: a send key already false may still have an open window.
     _record_send_consent_change(enabled=send)
     if not enabled:
-        from hermes_cli.observability.shared_metrics_desktop import purge_onboarding_latches
+        from hermes_cli.observability.shared_metrics_desktop import (
+            purge_onboarding_latches,
+        )
 
         purge_onboarding_latches()
     if params.get("first_run") is True:
@@ -97,7 +99,9 @@ def _(rid, params: dict) -> dict:
     ready time once per launch; ``launch_id`` latches it here too, so a reconnect to this backend
     never re-counts. A Desktop on a URL/cloud backend has no ``HERMES_DESKTOP`` here, so the
     client's declared surface wins over env detection. Always ``{ok: true}``."""
-    from hermes_cli.observability.shared_metrics_startup import record_rpc_startup_latency
+    from hermes_cli.observability.shared_metrics_startup import (
+        record_rpc_startup_latency,
+    )
 
     record_rpc_startup_latency(
         client_surface=params.get("surface") or _resolve_session_platform(), elapsed_ms=params.get("elapsed_ms"),
@@ -129,7 +133,9 @@ def _(rid, params: dict) -> dict:
 def _(rid, params: dict) -> dict:
     """Desktop reports each area the user opened, at most once per UTC day (latched on both sides).
     Always ``{ok: true}``; a no-op unless shared metrics are on."""
-    from hermes_cli.observability.shared_metrics_desktop import record_desktop_feature_use
+    from hermes_cli.observability.shared_metrics_desktop import (
+        record_desktop_feature_use,
+    )
 
     record_desktop_feature_use(area=params.get("area"))
     return _ok(rid, {"ok": True})
@@ -150,7 +156,9 @@ def _(rid, params: dict) -> dict:
 @_profile_scoped
 def _(rid, params: dict) -> dict:
     """One Desktop first-run step transition, once per (step, event) per profile. Always ``{ok: true}``."""
-    from hermes_cli.observability.shared_metrics_desktop import record_desktop_onboarding
+    from hermes_cli.observability.shared_metrics_desktop import (
+        record_desktop_onboarding,
+    )
 
     record_desktop_onboarding(step=params.get("step"), event=params.get("event"))
     return _ok(rid, {"ok": True})

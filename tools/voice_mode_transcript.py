@@ -4,7 +4,6 @@ stop phrases, and the TTS self-echo guard. No audio dependencies."""
 import difflib
 import re
 from contextlib import suppress
-from typing import Optional
 
 
 def _voice_config() -> dict:
@@ -56,7 +55,7 @@ def _load_voice_stop_phrases() -> tuple:
     return DEFAULT_VOICE_STOP_PHRASES
 
 
-def is_voice_stop_phrase(transcript: str, stop_phrases: Optional[tuple] = None) -> bool:
+def is_voice_stop_phrase(transcript: str, stop_phrases: tuple | None = None) -> bool:
     """True when *transcript* is EXACTLY a configured stop phrase. Deliberately strict: the whole
     utterance — lowercased, surrounding punctuation stripped — must equal a phrase, so "stop doing
     that and try again" still reaches the agent. ``voice.stop_phrases: []`` disables."""
@@ -99,7 +98,7 @@ def is_tts_echo(transcript: str, spoken_text: str,
         return True
     if len(a) < MIN_FRAGMENT_LENGTH_FOR_ECHO or len(a) >= len(b):
         return False
-    return any(_similar(a, b[start : start + len(a)]) for start in range(0, len(b) - len(a) + 1))
+    return any(_similar(a, b[start : start + len(a)]) for start in range(len(b) - len(a) + 1))
 
 
 def voice_stop_hint() -> str:

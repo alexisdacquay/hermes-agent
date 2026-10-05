@@ -9,11 +9,11 @@ from __future__ import annotations
 import logging
 import os
 import re
-import threading
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Any, Mapping, Optional
+from typing import Any
 
 from utils import is_truthy_value
 
@@ -43,8 +43,8 @@ class CreditsState:
     remaining_usd: str = ""
     subscription_micros: int = 0  # SIGNED — the ONLY field allowed negative (debt)
     subscription_usd: str = ""
-    subscription_limit_micros: Optional[int] = None  # PAIRED + OPTIONAL (only when subscription_cap)
-    subscription_limit_usd: Optional[str] = None
+    subscription_limit_micros: int | None = None  # PAIRED + OPTIONAL (only when subscription_cap)
+    subscription_limit_usd: str | None = None
     rollover_micros: int = 0
     purchased_micros: int = 0
     purchased_usd: str = ""
@@ -52,7 +52,7 @@ class CreditsState:
     tool_pool_gated_off: bool = False
     denominator_kind: str = "none"  # "subscription_cap" | "none"
     paid_access: bool = True  # depletion keys off THIS == False, NEVER remaining==0
-    disabled_reason: Optional[str] = None  # header omitted entirely when null
+    disabled_reason: str | None = None  # header omitted entirely when null
     as_of_ms: int = 0
     captured_at: float = 0.0  # time.time() when captured
     from_header: bool = False  # True only when populated by parse_credits_headers()
@@ -72,7 +72,7 @@ class CreditsState:
         return not self.paid_access
 
     @property
-    def used_fraction(self) -> Optional[float]:
+    def used_fraction(self) -> float | None:
         """Fraction of the subscription cap consumed in [0.0, 1.0]; None without a computable
         denominator. Guarded on the LIMIT FIELD (the real denominator), not ``denominator_kind``."""
         lim = self.subscription_limit_micros
@@ -109,9 +109,9 @@ class AgentNotice:
     text: str
     level: str = "info"            # info | warn | error | success
     kind: str = "sticky"           # sticky | ttl
-    ttl_ms: Optional[int] = None   # honored only when kind == "ttl"
-    key: Optional[str] = None      # dedupe / fired-once-latch / clear key
-    id: Optional[str] = None
+    ttl_ms: int | None = None   # honored only when kind == "ttl"
+    key: str | None = None      # dedupe / fired-once-latch / clear key
+    id: str | None = None
 
 
 def _sticky_notice(text: str, level: str, key: str) -> AgentNotice:
@@ -180,7 +180,7 @@ def evaluate_credits_notices(state: CreditsState, latch: dict, *, model_is_free:
     # ("90% used" on $50 of top-up is noise; it used to stick PERMANENTLY beside
     # grant_spent at >=100%) — grant_spent covers the cap-reached case, and a
     # mid-session top-up flips current_band → None so the clear path removes the line.
-    current_band: Optional[tuple[float, str, int]] = None
+    current_band: tuple[float, str, int] | None = None
     if uf is not None and state.purchased_micros <= 0:
         current_band = next((b for b in reversed(CREDITS_USAGE_BANDS) if uf >= b[0]), None)
 
@@ -252,7 +252,7 @@ def _header_name(field: str) -> str:
     return "x-nous-" + ("" if field.startswith("tool_pool_") else "credits-") + field.replace("_", "-")
 
 
-def _parse_field(kind: str, raw: Optional[str], default: Any = _SENTINEL) -> Any:
+def _parse_field(kind: str, raw: str | None, default: Any = _SENTINEL) -> Any:
     """One header value → field value; ``default`` when absent, ``_SENTINEL`` on a contract violation."""
     if raw is None:
         return default
@@ -265,7 +265,7 @@ def _parse_field(kind: str, raw: Optional[str], default: Any = _SENTINEL) -> Any
     return _SENTINEL if flag not in ("true", "false") else flag == "true"
 
 
-def parse_credits_headers(headers: Mapping[str, str], provider: str = "") -> Optional[CreditsState]:
+def parse_credits_headers(headers: Mapping[str, str], provider: str = "") -> CreditsState | None:
     """Parse x-nous-credits-* (and x-nous-tool-pool-*) headers into a CreditsState.
     None (miss) on ANY of: no version header; version != 1 (> 1 also warns once);
     a required field violating ``_HEADER_FIELDS``; unknown ``denominator_kind``;
@@ -308,8 +308,8 @@ def parse_credits_headers(headers: Mapping[str, str], provider: str = "") -> Opt
 # ── Dev fixtures (HERMES_DEV_CREDITS_FIXTURE): throwaway scaffolding to trigger any notice state
 # without real spend. Value is a state NAME or a FILE PATH whose contents are a name (re-read every
 # turn → `echo depleted > /tmp/cf` flips live). Drives per-turn notices, the cold-start seed, and /usage.
-def _fixture(remaining: str, subscription: str, limit: Optional[str] = None, purchased: Optional[str] = None,
-             *, paid: bool = True, reason: Optional[str] = None) -> dict:
+def _fixture(remaining: str, subscription: str, limit: str | None = None, purchased: str | None = None,
+             *, paid: bool = True, reason: str | None = None) -> dict:
     """Fixture spec from *_usd strings; micros derived exactly (Decimal)."""
     d: dict = {}
     for field, usd in (("remaining", remaining), ("subscription", subscription), ("subscription_limit", limit), ("purchased", purchased)):
@@ -335,7 +335,7 @@ _DEV_FIXTURES: dict[str, dict] = {
 }
 
 
-def dev_fixture_credits_state() -> Optional[CreditsState]:
+def dev_fixture_credits_state() -> CreditsState | None:
     """Fixture CreditsState for HERMES_DEV_CREDITS_FIXTURE, or None (unknown name / unset). Prod-leak guard:
     applies ONLY when HERMES_DEV_CREDITS is also on, so a stray fixture env var never surfaces fabricated balances."""
     name = os.environ.get("HERMES_DEV_CREDITS_FIXTURE", "").strip()
@@ -354,7 +354,7 @@ def dev_fixture_credits_state() -> Optional[CreditsState]:
     return CreditsState(**{"version": 1, "purchased_usd": "0.00", **spec}, from_header=True, captured_at=time.time())
 
 
-def _credits_state_from_account(info) -> Optional[CreditsState]:
+def _credits_state_from_account(info) -> CreditsState | None:
     """Map a NousPortalAccountInfo into a header-shaped CreditsState for the seed. Float account dollars →
     micros plus a DISPLAY *_usd (formatting account floats is allowed; parsing a server *_usd is not). Fail-open → None."""
     try:

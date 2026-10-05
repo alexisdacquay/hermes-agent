@@ -11,38 +11,40 @@ from __future__ import annotations
 
 import logging
 import os
-import re
 import sys
 import threading
 import time
 from collections import deque
+from collections.abc import Callable
 from contextlib import suppress
 from datetime import datetime
 from types import SimpleNamespace
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 from urllib.parse import parse_qs, urlparse, urlunparse
 
-from agent.context_compressor import ContextCompressor
-from agent.agent_runtime_helpers import _ra
-from agent.iteration_budget import IterationBudget, normalize_budget_warning_ratio
-from agent.memory_manager import StreamingContextScrubber
-from agent.memory_provider import is_core_memory_provider
-from agent.session_activity import ActivityProvenance
-from agent.model_metadata import (
-    MINIMUM_CONTEXT_LENGTH, fetch_model_metadata, is_local_endpoint, query_ollama_num_ctx
-)
-from agent.process_bootstrap import _install_safe_stdio
-from agent.subdirectory_hints import SubdirectoryHintTracker
-from agent.think_scrubber import StreamingThinkScrubber
-from agent.tool_guardrails import (
-    ToolCallGuardrailConfig, ToolCallGuardrailController
-)
 from hermes_cli.config import DEFAULT_CONFIG, cfg_get
 from hermes_cli.route_identity import normalize_route_base_url
 from hermes_cli.timeouts import get_provider_request_timeout
 from hermes_constants import get_hermes_home
 from hermes_state_ids import new_session_id
 from utils import base_url_host_matches, is_truthy_value
+
+from agent.agent_runtime_helpers import _ra
+from agent.context_compressor import ContextCompressor
+from agent.iteration_budget import IterationBudget, normalize_budget_warning_ratio
+from agent.memory_manager import StreamingContextScrubber
+from agent.memory_provider import is_core_memory_provider
+from agent.model_metadata import (
+    MINIMUM_CONTEXT_LENGTH,
+    fetch_model_metadata,
+    is_local_endpoint,
+    query_ollama_num_ctx,
+)
+from agent.process_bootstrap import _install_safe_stdio
+from agent.session_activity import ActivityProvenance
+from agent.subdirectory_hints import SubdirectoryHintTracker
+from agent.think_scrubber import StreamingThinkScrubber
+from agent.tool_guardrails import ToolCallGuardrailConfig, ToolCallGuardrailController
 
 # Same logger name as run_agent so caplog/patches on "run_agent" see our records.
 logger = logging.getLogger("run_agent")
@@ -106,7 +108,9 @@ def _provider_default_routes(provider: str) -> set[str]:
     with suppress(Exception):
         from hermes_cli.auth import PROVIDER_REGISTRY
         from hermes_cli.models import normalize_provider as normalize_model_provider
-        from hermes_cli.providers import normalize_provider as normalize_registry_provider
+        from hermes_cli.providers import (
+            normalize_provider as normalize_registry_provider,
+        )
         for provider_id, config in PROVIDER_REGISTRY.items():
             if normalize_registry_provider(normalize_model_provider(provider_id)) == provider:
                 add(getattr(config, "inference_base_url", ""))
@@ -138,7 +142,9 @@ def _context_route_mismatch(
         configured_provider = configured_provider.lower()
         active_provider = active_provider.lower()
     with suppress(Exception):
-        from hermes_cli.providers import normalize_provider as normalize_registry_provider
+        from hermes_cli.providers import (
+            normalize_provider as normalize_registry_provider,
+        )
         configured_provider = normalize_registry_provider(configured_provider)
         active_provider = normalize_registry_provider(active_provider)
 
@@ -169,7 +175,7 @@ def _custom_provider_runtime_ids(value: Any) -> set[str]:
 
 
 def _build_codex_gpt5_autoraise_notice(
-    autoraise: Dict[str, Any], context_length: Optional[int] = None
+    autoraise: dict[str, Any], context_length: int | None = None
 ) -> str:
     """One-time notice when Codex gpt-5.x raises compaction (``autoraise``: model/from/to).
 
@@ -194,9 +200,9 @@ def _build_codex_gpt5_autoraise_notice(
 
 
 def _resolve_compression_threshold(
-    global_threshold: float, model_cthresh: Optional[float], *, model: Optional[str] = None,
+    global_threshold: float, model_cthresh: float | None, *, model: str | None = None,
     is_codex_autoraise: bool,
-) -> tuple[float, Optional[Dict[str, Any]]]:
+) -> tuple[float, dict[str, Any] | None]:
     """Global compaction threshold merged with a per-model override.
 
     Returns ``(threshold, autoraise_notice)``; the notice is set only when a Codex autoraise
@@ -217,7 +223,7 @@ def _codex_gpt55_autoraise_notice_marker():
     return get_hermes_home() / ".codex_gpt55_autoraise_notice"
 
 
-def _codex_gpt55_autoraise_notice_state(autoraise: Dict[str, Any]) -> str:
+def _codex_gpt55_autoraise_notice_state(autoraise: dict[str, Any]) -> str:
     """Notice identity keyed on what it displays (model + from→to percentages).
 
     An unchanged threshold stays silent across restarts; a changed global threshold or a
@@ -229,7 +235,7 @@ def _codex_gpt55_autoraise_notice_state(autoraise: Dict[str, Any]) -> str:
     return f"{model}:{from_pct}:{to_pct}"
 
 
-def _codex_gpt55_autoraise_notice_seen(autoraise: Dict[str, Any]) -> bool:
+def _codex_gpt55_autoraise_notice_seen(autoraise: dict[str, Any]) -> bool:
     """True if this exact notice was already shown for this profile (unreadable = unseen)."""
     try:
         current = _codex_gpt55_autoraise_notice_state(autoraise)
@@ -240,7 +246,7 @@ def _codex_gpt55_autoraise_notice_seen(autoraise: Dict[str, Any]) -> bool:
         return False
 
 
-def _record_codex_gpt55_autoraise_notice(autoraise: Dict[str, Any]) -> None:
+def _record_codex_gpt55_autoraise_notice(autoraise: dict[str, Any]) -> None:
     """Persist that the notice was shown. Best-effort: a failure only re-shows it later."""
     with suppress(OSError, KeyError, TypeError, ValueError):
         marker = _codex_gpt55_autoraise_notice_marker()
@@ -254,7 +260,7 @@ def _normalized_custom_base_url(value: Any) -> str:
     return value.strip().rstrip("/")
 
 
-def _custom_provider_model_matches(agent_model: str, entry: Dict[str, Any]) -> bool:
+def _custom_provider_model_matches(agent_model: str, entry: dict[str, Any]) -> bool:
     agent_model_norm = str(agent_model or "").strip().lower()
     # Multi-model entries (`providers.<name>.models` mapping / legacy `models:` list):
     # matching ANY catalog entry counts, else a provider whose `model` differs from the
@@ -268,8 +274,8 @@ def _custom_provider_model_matches(agent_model: str, entry: Dict[str, Any]) -> b
 
 
 def _custom_provider_extra_body_for_agent(
-    *, provider: str, model: str, base_url: str, custom_providers: List[Dict[str, Any]]
-) -> Optional[Dict[str, Any]]:
+    *, provider: str, model: str, base_url: str, custom_providers: list[dict[str, Any]]
+) -> dict[str, Any] | None:
     provider_norm = (provider or "").strip().lower()
     if provider_norm != "custom" and not provider_norm.startswith("custom:"):
         return None
@@ -278,7 +284,7 @@ def _custom_provider_extra_body_for_agent(
     if not target_url:
         return None
 
-    fallback: Optional[Dict[str, Any]] = None
+    fallback: dict[str, Any] | None = None
     for entry in custom_providers or []:
         if not isinstance(entry, dict):
             continue
@@ -301,7 +307,7 @@ def _custom_provider_extra_body_for_agent(
     return fallback
 
 
-def _merge_custom_provider_extra_body(agent, custom_providers: List[Dict[str, Any]]) -> None:
+def _merge_custom_provider_extra_body(agent, custom_providers: list[dict[str, Any]]) -> None:
     extra_body = _custom_provider_extra_body_for_agent(
         provider=agent.provider, model=agent.model, base_url=agent.base_url,
         custom_providers=custom_providers,
@@ -317,7 +323,7 @@ def _merge_custom_provider_extra_body(agent, custom_providers: List[Dict[str, An
     agent.request_overrides = overrides
 
 
-def _normalize_run_budget_seconds(value) -> Optional[float]:
+def _normalize_run_budget_seconds(value) -> float | None:
     """Positive float or None (feature off). ``bool`` rejected: YAML ``true`` → 1s budget."""
     if value is None or isinstance(value, bool):
         return None
@@ -330,7 +336,7 @@ def _normalize_run_budget_seconds(value) -> Optional[float]:
 
 
 def _refuse_checkpoint_required_on_codex_app_server(
-    checkpoint_required: bool, api_mode: Optional[str]
+    checkpoint_required: bool, api_mode: str | None
 ) -> None:
     """Fail closed at init: the codex app-server compacts its own thread without a truthful
     pre-compaction boundary (default "native" mode), so a required checkpoint can't be
@@ -360,12 +366,12 @@ def _parse_config_int(raw: Any, default: int) -> int:
         return default
 
 
-def _cfg_flag(cfg: Dict[str, Any], key: str, default: bool) -> bool:
+def _cfg_flag(cfg: dict[str, Any], key: str, default: bool) -> bool:
     """Legacy string-set truthiness used by the ``compression`` section."""
     return str(cfg.get(key, default)).lower() in {"true", "1", "yes"}
 
 
-def _cfg_dict(cfg: Dict[str, Any], key: str) -> Dict[str, Any]:
+def _cfg_dict(cfg: dict[str, Any], key: str) -> dict[str, Any]:
     """``cfg[key]`` if it is a mapping, else ``{}`` (malformed sections are ignored)."""
     section = cfg.get(key, {})
     return section if isinstance(section, dict) else {}
@@ -384,6 +390,7 @@ _EXPLICIT_API_MODES = {
 def _resolve_api_mode(agent, api_mode, provider_name, base_url):
     """Set ``agent.api_mode`` (and provider rewrites) — ordered ladder, first match wins."""
     from hermes_cli.providers import is_actual_route
+
     from agent.transports import registered_api_modes
     host, url = agent._base_url_hostname, agent._base_url_lower
     if is_actual_route(agent.provider, base_url):
@@ -425,7 +432,9 @@ def _resolve_api_mode(agent, api_mode, provider_name, base_url):
             # BY DESIGN, not provider-name-driven, because user config `providers.meta` may point at any
             # OpenAI-compatible endpoint, and forcing `codex_responses` on the provider name alone would
             # break custom endpoints named "meta" that do not host the Responses API. See #63425.
-            from hermes_cli.providers import host_mandated_api_mode as _host_mandated_api_mode
+            from hermes_cli.providers import (
+                host_mandated_api_mode as _host_mandated_api_mode,
+            )
             _mandated = _host_mandated_api_mode(base_url or "")
         except Exception:
             _mandated = None
@@ -465,7 +474,8 @@ def _finalize_routing(agent, api_mode, credential_pool):
 
     with suppress(Exception):
         from hermes_cli.model_normalize import (
-            _AGGREGATOR_PROVIDERS, normalize_model_for_provider
+            _AGGREGATOR_PROVIDERS,
+            normalize_model_for_provider,
         )
 
         if agent.provider not in _AGGREGATOR_PROVIDERS:
@@ -518,14 +528,14 @@ def _finalize_routing(agent, api_mode, credential_pool):
         ).start()
 
 
-def _set_defaults(agent, table: Dict[str, Any]) -> None:
+def _set_defaults(agent, table: dict[str, Any]) -> None:
     """Assign each ``name -> value`` on ``agent``; callables are factories (fresh per agent)."""
     for name, value in table.items():
         setattr(agent, name, value() if callable(value) else value)
 
 
 # Control-flow state (interrupts / steer / redirect / delegation / background review).
-_CONTROL_STATE: Dict[str, Any] = {
+_CONTROL_STATE: dict[str, Any] = {
     "_executing_tools": False,  # lets _vprint print while tools run with stream consumers on
     "_trim_after_tool_batch": False,  # a >=1 MB tool result was committed; trim once the batch unwinds
     "_tool_guardrails": ToolCallGuardrailController,
@@ -564,7 +574,7 @@ _CONTROL_STATE: Dict[str, Any] = {
 }
 
 # Per-turn bookkeeping: budgets, activity tracking, rate-limit/credits telemetry.
-_TURN_STATE: Dict[str, Any] = {
+_TURN_STATE: dict[str, Any] = {
     # Intermediate pressure warnings made models give up early; ordinary conversations
     # remain opt-in. Dispatcher workers receive a bounded completion checkpoint.
     "_iteration_budget_warning_injected": False,
@@ -594,7 +604,7 @@ _TURN_STATE: Dict[str, Any] = {
 }
 
 # Session persistence state.
-_SESSION_STATE: Dict[str, Any] = {
+_SESSION_STATE: dict[str, Any] = {
     "_session_messages": list,
     # Responses encrypted-reasoning replay. The first ``invalid_encrypted_content`` rejection only
     # strips the stale blobs (a rotated sealing key); a second one means the route cannot round-trip
@@ -635,7 +645,7 @@ _SESSION_STATE: Dict[str, Any] = {
 }
 
 # Streaming delivery state.
-_STREAM_STATE: Dict[str, Any] = {
+_STREAM_STATE: dict[str, Any] = {
     "_stream_callback": None,  # streaming TTS; set early so _vprint can reference it
     "_stream_needs_break": False,  # one "\n\n" before the next real text delta after tools
     # Stateful scrubbers: <memory-context> / thinking spans split across deltas defeat
@@ -681,6 +691,7 @@ def _init_prompt_cache_config(agent):
     agent._cache_ttl = "5m"
     with suppress(Exception):
         from hermes_cli.config import load_config_readonly as _load_pc_cfg
+
         from agent.agent_runtime_helpers import cache_ttl_means_disabled
         from agent.prompt_caching import AUTO_CACHE_TTL, auto_cache_ttl_for_source
         _pc_cfg = _load_pc_cfg().get("prompt_caching", {}) or {}
@@ -690,7 +701,9 @@ def _init_prompt_cache_config(agent):
         elif _ttl == AUTO_CACHE_TTL:
             # Decided once per session from its source (a delegated child is clamped to 5m again
             # in delegate_tool regardless).
-            from run_agent import _session_source_for_agent  # late: run_agent imports this module
+            from run_agent import (
+                _session_source_for_agent,  # late: run_agent imports this module
+            )
             agent._cache_ttl = auto_cache_ttl_for_source(_session_source_for_agent(getattr(agent, "platform", None)))
         elif cache_ttl_means_disabled(_ttl):
             agent._use_prompt_caching = False
@@ -812,7 +825,7 @@ def _init_bedrock_client(agent, base_url):
         print(f"🤖 AI Agent initialized with model: {agent.model} (AWS Bedrock, {agent._bedrock_region}{_gr_label})")
 
 
-def _explicit_client_kwargs(agent, api_key, base_url, _provider_timeout) -> Dict[str, Any]:
+def _explicit_client_kwargs(agent, api_key, base_url, _provider_timeout) -> dict[str, Any]:
     """OpenAI-client kwargs from explicit CLI/gateway credentials (auth already resolved)."""
     _parsed_url = urlparse(base_url)
     client_kwargs = {"api_key": api_key, "base_url": base_url}
@@ -843,7 +856,7 @@ def _explicit_client_kwargs(agent, api_key, base_url, _provider_timeout) -> Dict
     return client_kwargs
 
 
-def _routed_client_kwargs(agent, fallback_model, _provider_timeout) -> Optional[Dict[str, Any]]:
+def _routed_client_kwargs(agent, fallback_model, _provider_timeout) -> dict[str, Any] | None:
     """OpenAI-client kwargs via the centralized provider router (no explicit creds).
 
     Falls through to the init-time fallback chain, then raises with the missing-key /
@@ -939,9 +952,13 @@ def _routed_client_kwargs(agent, fallback_model, _provider_timeout) -> Optional[
             raise ProviderCredentialsExhaustedError(_exhausted_message, provider=_explicit)
     if _explicit and _explicit not in {"auto", "openrouter", "custom"}:
         # Explicit non-OpenRouter provider with no creds and no usable fallback: fail fast.
-        from agent.auxiliary_unavailable import ProviderNotConfiguredError, missing_provider_credentials_message
+        from agent.auxiliary_unavailable import (
+            ProviderNotConfiguredError,
+            missing_provider_credentials_message,
+        )
         raise ProviderNotConfiguredError(missing_provider_credentials_message(_explicit))
     from hermes_constants import profile_cli_selector
+
     from agent.auxiliary_unavailable import ProviderNotConfiguredError
     _sel = profile_cli_selector()
     raise ProviderNotConfiguredError(
@@ -951,7 +968,7 @@ def _routed_client_kwargs(agent, fallback_model, _provider_timeout) -> Optional[
     )
 
 
-def _apply_openai_header_policy(agent, client_kwargs: Dict[str, Any]) -> None:
+def _apply_openai_header_policy(agent, client_kwargs: dict[str, Any]) -> None:
     """Mutate ``client_kwargs`` (== ``agent._client_kwargs``) with header/TLS policy, in order:
     OpenRouter Claude beta header → model.default_headers → custom-provider TLS/extra_headers."""
     # Fine-grained tool streaming for Claude on OpenRouter: without the beta header
@@ -970,7 +987,8 @@ def _apply_openai_header_policy(agent, client_kwargs: Dict[str, Any]) -> None:
     try:
         from hermes_cli.config import (
             apply_custom_provider_extra_headers_to_client_kwargs,
-            apply_custom_provider_tls_to_client_kwargs, get_compatible_custom_providers,
+            apply_custom_provider_tls_to_client_kwargs,
+            get_compatible_custom_providers,
             load_config,
         )
         _cp_entries = get_compatible_custom_providers(load_config())
@@ -1052,7 +1070,7 @@ def _lazy_headers(module: str, name: str, pass_key: bool = False, pass_base: boo
 
 # Host → default_headers factory for explicit base_url client construction. Ordered: first
 # host match wins; no match falls back to the provider profile's declared headers.
-_HOST_DEFAULT_HEADERS: List[tuple[str, Callable[[Any, str], Dict[str, str]]]] = [
+_HOST_DEFAULT_HEADERS: list[tuple[str, Callable[[Any, str], dict[str, str]]]] = [
     ("openrouter.ai", _lazy_headers("agent.auxiliary_client", "build_or_headers")),
     ("integrate.api.nvidia.com",
      _lazy_headers("agent.auxiliary_client", "build_nvidia_nim_headers", pass_base=True)),
@@ -1072,7 +1090,7 @@ def _host_default_headers_factory(base_url: str):
     return None
 
 
-def _client_kwargs_from_routed(client, timeout) -> Dict[str, Any]:
+def _client_kwargs_from_routed(client, timeout) -> dict[str, Any]:
     """OpenAI-client kwargs mirroring a router-resolved client, keeping its provider headers
     (SDK stores them in ``_custom_headers``; older/mocked clients expose ``default_headers``)."""
     kwargs = {"api_key": client.api_key, "base_url": str(client.base_url)}
@@ -1088,7 +1106,7 @@ def _client_kwargs_from_routed(client, timeout) -> Dict[str, Any]:
     return kwargs
 
 
-def _fallback_entries(fallback_model) -> List[Dict[str, Any]]:
+def _fallback_entries(fallback_model) -> list[dict[str, Any]]:
     """Normalize legacy single-dict ``fallback_model`` / list ``fallback_providers``."""
     if isinstance(fallback_model, dict):
         fallback_model = [fallback_model]
@@ -1286,7 +1304,7 @@ def _apply_display_config(agent, _agent_cfg, platform):
         _ra().logger.warning("Tool loop guardrail config ignored: %s", _tlg_err)
 
 
-def _memory_provider_init_kwargs(agent, platform) -> Dict[str, Any]:
+def _memory_provider_init_kwargs(agent, platform) -> dict[str, Any]:
     """Scoping kwargs for ``MemoryManager.initialize_all`` (status_callback is CLI-only:
     gateway status travels a different path and the indicator no-ops without it)."""
     kwargs = {
@@ -1347,7 +1365,9 @@ def _init_memory(agent, _agent_cfg, skip_memory, platform, memory_manager=None):
         # Memory is optional — don't break agent init
         with suppress(Exception):
             from tools.memory_tool import (
-                MemoryStore, get_builtin_memory_config, get_builtin_memory_store_flags,
+                MemoryStore,
+                get_builtin_memory_config,
+                get_builtin_memory_store_flags,
             )
             mem_config = get_builtin_memory_config(_agent_cfg)
             agent._memory_enabled, agent._user_profile_enabled = get_builtin_memory_store_flags(
@@ -1374,8 +1394,9 @@ def _init_memory(agent, _agent_cfg, skip_memory, platform, memory_manager=None):
         try:
             _mem_provider_name = mem_config.get("provider", "") if mem_config else ""
             if not is_core_memory_provider(_mem_provider_name):
-                from agent.memory_manager import MemoryManager as _MemoryManager
                 from plugins.memory import load_memory_provider as _load_mem
+
+                from agent.memory_manager import MemoryManager as _MemoryManager
                 agent._memory_manager = _MemoryManager()
                 _mp = _load_mem(_mem_provider_name)
                 if _mp is None:
@@ -1476,7 +1497,7 @@ def _apply_agent_section(agent, _agent_cfg):
         agent._auto_recovery_cycles = 5
 
 
-def _positive_int(raw: Any, *, reject: tuple = ()) -> Optional[int]:
+def _positive_int(raw: Any, *, reject: tuple = ()) -> int | None:
     """``int(raw)`` when positive, else None. ``reject`` lists types refused outright (bool, float)."""
     if reject and isinstance(raw, reject):
         return None
@@ -1487,7 +1508,7 @@ def _positive_int(raw: Any, *, reject: tuple = ()) -> Optional[int]:
     return parsed if parsed > 0 else None
 
 
-def _compression_threshold(agent, cfg: Dict[str, Any]) -> tuple[float, bool]:
+def _compression_threshold(agent, cfg: dict[str, Any]) -> tuple[float, bool]:
     """Global threshold merged with the per-model override; stashes the autoraise notice.
     Codex gpt-5.4/5.5 raise to 85% (272K cap → 50% would compact at ~136K); the opt-out flag
     restores the global value, and the notice has its own display gate."""
@@ -1498,7 +1519,11 @@ def _compression_threshold(agent, cfg: Dict[str, Any]) -> tuple[float, bool]:
     with suppress(Exception):
         from agent.auxiliary_client import (
             _compression_threshold_for_model as _cthresh_fn,
+        )
+        from agent.auxiliary_client import (
             _is_codex_gpt54_or_gpt55 as _is_codex_gpt54_or_gpt55_fn,
+        )
+        from agent.auxiliary_client import (
             _is_codex_spark as _is_codex_spark_fn,
         )
         _model_cthresh = _cthresh_fn(
@@ -1518,7 +1543,7 @@ def _compression_threshold(agent, cfg: Dict[str, Any]) -> tuple[float, bool]:
     return threshold, notice_enabled
 
 
-def _compression_codex_settings(cfg: Dict[str, Any]) -> tuple[str, bool, Optional[int]]:
+def _compression_codex_settings(cfg: dict[str, Any]) -> tuple[str, bool, int | None]:
     """``codex_app_server_auto`` / ``codex_responses_native`` / ``codex_responses_compact_threshold``."""
     app_server_auto = str(cfg.get("codex_app_server_auto", "native") or "native").lower()
     if app_server_auto not in {"native", "hermes", "off"}:
@@ -1729,7 +1754,7 @@ def _active_route_url(agent, base_url) -> str:
 
 def _scope_context_length_to_default_runtime(
     agent, _agent_cfg, _model_cfg, _custom_providers, _config_context_length, base_url
-) -> Optional[int]:
+) -> int | None:
     """Return ``model.context_length`` only if it describes the active runtime.
 
     It describes the configured default model; a ``--model`` launch has already replaced
@@ -1774,7 +1799,7 @@ def _scope_context_length_to_default_runtime(
     return _config_context_length
 
 
-def set_config_context_length(agent, value: Optional[int]) -> None:
+def set_config_context_length(agent, value: int | None) -> None:
     """Store the durable ``model.context_length`` pin on EVERY cached copy of it.
 
     The pin is read from config exactly once, at construction, then cached twice: on
@@ -1789,7 +1814,7 @@ def set_config_context_length(agent, value: Optional[int]) -> None:
         _compressor._config_context_length = value
 
 
-def config_context_length_for_runtime(agent, config=None) -> Optional[int]:
+def config_context_length_for_runtime(agent, config=None) -> int | None:
     """Re-read the durable ``model.context_length`` pin for ``agent``'s CURRENT runtime, or ``None``.
 
     Single re-derivation point for the cached pin: construction resolves it once, and every live path
@@ -1980,7 +2005,8 @@ def _compressor_max_tokens(agent):
         return agent.max_tokens
     with suppress(Exception):
         from agent.gemini_native_adapter import (
-            GEMINI_DEFAULT_MAX_OUTPUT_TOKENS, is_native_gemini_base_url
+            GEMINI_DEFAULT_MAX_OUTPUT_TOKENS,
+            is_native_gemini_base_url,
         )
         _gemini_provider = str(agent.provider or "").strip().lower() in {
             "gemini", "google", "google-gemini", "google-ai-studio",
@@ -2056,7 +2082,9 @@ def _build_context_engine(agent, _agent_cfg, cs, _custom_providers, _effective_c
         if hasattr(_cc, _attr):
             setattr(_cc, _attr, _value)
     agent.compression_checkpoint_required = cs.checkpoint_required
-    from agent.conversation_compression import _warn_checkpoint_required_without_capable_provider
+    from agent.conversation_compression import (
+        _warn_checkpoint_required_without_capable_provider,
+    )
     _warn_checkpoint_required_without_capable_provider(agent)
     agent.codex_app_server_auto_compaction = cs.codex_app_server_auto
     agent.codex_responses_native_compaction = cs.codex_responses_native
@@ -2331,7 +2359,7 @@ def _init_usage_state(agent):
 
 
 # Per-session usage accounting.
-_USAGE_STATE: Dict[str, Any] = {
+_USAGE_STATE: dict[str, Any] = {
     "_user_turn_count": 0,
     "_is_user_initiated_turn": False,  # Copilot x-initiator: first call of a user turn = "user"
     # Usage anchors (agent/usage_anchor.py): last response's exact usage + transcript
@@ -2393,13 +2421,13 @@ def init_agent(
     agent, base_url: str = None, api_key: str = None, provider: str = None, api_mode: str = None,
     acp_command: str = None, acp_args: list[str] | None = None, command: str = None,
     args: list[str] | None = None, model: str = "", max_iterations: int = sys.maxsize,
-    enabled_toolsets: List[str] = None, disabled_toolsets: List[str] = None,
+    enabled_toolsets: list[str] = None, disabled_toolsets: list[str] = None,
     save_trajectories: bool = False, verbose_logging: bool = False, quiet_mode: bool = False,
     tool_progress_mode: str = "all", ephemeral_system_prompt: str = None,
-    log_prefix_chars: int = 100, log_prefix: str = "", providers_allowed: List[str] = None,
-    providers_ignored: List[str] = None, providers_order: List[str] = None,
+    log_prefix_chars: int = 100, log_prefix: str = "", providers_allowed: list[str] = None,
+    providers_ignored: list[str] = None, providers_order: list[str] = None,
     provider_sort: str = None, provider_require_parameters: bool = False,
-    provider_data_collection: str = None, openrouter_min_coding_score: Optional[float] = None,
+    provider_data_collection: str = None, openrouter_min_coding_score: float | None = None,
     session_id: str = None, tool_progress_callback: callable = None,
     tool_start_callback: callable = None, tool_complete_callback: callable = None,
     thinking_callback: callable = None, reasoning_callback: callable = None,
@@ -2410,22 +2438,22 @@ def init_agent(
     stream_delta_callback: callable = None, interim_assistant_callback: callable = None,
     tool_gen_callback: callable = None, status_callback: callable = None,
     notice_callback: callable = None, notice_clear_callback: callable = None,
-    event_callback: Optional[Callable[[str, dict], None]] = None,
-    reaction_callback: Optional[Callable[[str], None]] = None, max_tokens: int = None,
-    reasoning_config: Dict[str, Any] = None, service_tier: str = None,
-    request_overrides: Dict[str, Any] = None, prefill_messages: List[Dict[str, Any]] = None,
+    event_callback: Callable[[str, dict], None] | None = None,
+    reaction_callback: Callable[[str], None] | None = None, max_tokens: int = None,
+    reasoning_config: dict[str, Any] = None, service_tier: str = None,
+    request_overrides: dict[str, Any] = None, prefill_messages: list[dict[str, Any]] = None,
     platform: str = None, user_id: str = None, user_id_alt: str = None, user_name: str = None,
     chat_id: str = None, chat_name: str = None, chat_type: str = None, thread_id: str = None,
     gateway_session_key: str = None, skip_context_files: bool = False,
     load_soul_identity: bool = False, skip_memory: bool = False,
     skip_background_review: bool = False, session_db=None, parent_session_id: str = None,
-    iteration_budget: "IterationBudget" = None, run_budget_seconds: Optional[float] = None,
-    fallback_model: Dict[str, Any] = None, credential_pool=None, checkpoints_enabled: bool = False,
+    iteration_budget: IterationBudget = None, run_budget_seconds: float | None = None,
+    fallback_model: dict[str, Any] = None, credential_pool=None, checkpoints_enabled: bool = False,
     checkpoint_max_snapshots: int = 20, checkpoint_max_total_size_mb: int = 500,
     checkpoint_max_file_size_mb: int = 10, pass_session_id: bool = False,
-    requested_provider: str = None, capabilities: Optional[Dict[str, bool]] = None, cwd: Optional[str] = None,
+    requested_provider: str = None, capabilities: dict[str, bool] | None = None, cwd: str | None = None,
     side_agent: bool = False, memory_manager=None,
-    tool_result_metadata_callback: Optional[Callable[..., dict]] = None,
+    tool_result_metadata_callback: Callable[..., dict] | None = None,
 ):
     _install_safe_stdio()
 

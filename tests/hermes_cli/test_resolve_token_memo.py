@@ -10,8 +10,7 @@ import json
 import time
 
 import pytest
-
-import hermes_cli.auth as auth
+from hermes_cli import auth
 
 
 @pytest.fixture(autouse=True)

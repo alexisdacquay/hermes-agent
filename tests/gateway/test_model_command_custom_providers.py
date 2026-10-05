@@ -2,9 +2,8 @@
 
 import threading
 
-import pytest
 import hermes_yaml as yaml
-
+import pytest
 from gateway.config import Platform
 from gateway.platforms.event import MessageEvent, MessageType
 from gateway.run import GatewayRunner

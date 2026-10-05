@@ -2,7 +2,6 @@
 import contextvars
 
 import pytest
-
 from pm import receipt
 
 

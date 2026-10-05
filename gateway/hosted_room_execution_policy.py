@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Mapping
 from contextvars import ContextVar, Token
 from dataclasses import asdict, dataclass
-from typing import Any, Mapping
+from typing import Any
 
 from gateway.hosted_rooms_common import bounded_int, compact_json, identifier
 
@@ -38,7 +39,7 @@ class RoomExecutionPolicy:
     policy_digest: str
 
     @classmethod
-    def from_mapping(cls, value: Mapping[str, Any]) -> "RoomExecutionPolicy":
+    def from_mapping(cls, value: Mapping[str, Any]) -> RoomExecutionPolicy:
         if not isinstance(value, Mapping) or set(value) != _POLICY_FIELDS:
             raise RoomExecutionPolicyError("execution policy fields are invalid")
         if value["version"] != POLICY_VERSION:
@@ -74,7 +75,13 @@ def _served_profile_scope(target_profile: str):
     for ``target_profile``, so its config and credentials must be read there, never from the
     launch profile's env or whatever home happens to be active (#116900)."""
     from contextlib import nullcontext
-    from hermes_cli.profiles import get_profile_dir, normalize_profile_name, profile_exists, profile_matches_home
+
+    from hermes_cli.profiles import (
+        get_profile_dir,
+        normalize_profile_name,
+        profile_exists,
+        profile_matches_home,
+    )
     # "default" is the launch home (a `-p x` multiplexer hosts it too), never a switch to ~/.hermes.
     if normalize_profile_name(target_profile) == "default" or profile_matches_home(target_profile):
         return nullcontext()

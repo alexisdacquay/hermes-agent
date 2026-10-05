@@ -7,16 +7,13 @@ to download, cache, and optionally inject text from non-image/audio files.
 
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from types import SimpleNamespace
-from typing import Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from gateway.config import PlatformConfig
 from gateway.platforms.event import MessageType
-
 
 # ---------------------------------------------------------------------------
 # Discord mock setup (copied from test_discord_free_response.py)
@@ -57,9 +54,8 @@ def _ensure_discord_mock():
 
 _ensure_discord_mock()
 
-import plugins.platforms.discord.adapter as discord_platform  # noqa: E402
-from plugins.platforms.discord.adapter import DiscordAdapter  # noqa: E402
-
+import plugins.platforms.discord.adapter as discord_platform
+from plugins.platforms.discord.adapter import DiscordAdapter
 
 # ---------------------------------------------------------------------------
 # Fake channel / thread types
@@ -115,7 +111,7 @@ def adapter(monkeypatch):
 def make_attachment(
     *,
     filename: str,
-    content_type: Optional[str],
+    content_type: str | None,
     size: int = 1024,
     url: str = "https://cdn.discordapp.com/attachments/fake/file",
 ) -> SimpleNamespace:
@@ -134,7 +130,7 @@ def make_message(attachments: list, content: str = "") -> SimpleNamespace:
         attachments=attachments,
         mentions=[],
         reference=None,
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
         channel=FakeDMChannel(),
         author=SimpleNamespace(id=42, display_name="Tester", name="Tester"),
     )

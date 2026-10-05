@@ -14,9 +14,10 @@ import copy
 import sys
 import threading
 
-from rich.markup import escape as _escape
 from agent.i18n import t
+from rich.markup import escape as _escape
 from utils import base_url_host_matches
+
 from hermes_cli.cli_agent_setup_mixin import _retire_agent
 
 # CLI-level fields describing the active model route; snapshotted before a switch / one-turn
@@ -123,7 +124,11 @@ def _print_switch_summary(cli, result, old_model, *, one_turn: bool, strict_cont
     context-resolution errors propagate; the picker path swallows them.
     """
     from cli import _cprint
-    from hermes_cli.model_switch import format_model_for_display, resolve_display_context_length
+
+    from hermes_cli.model_switch import (
+        format_model_for_display,
+        resolve_display_context_length,
+    )
     _display_old = format_model_for_display(old_model)
     _display_new = format_model_for_display(result.new_model)
     cli._pending_model_switch_note = (
@@ -287,6 +292,7 @@ def _commit_model_switch(
 def _show_model_picker(cli, ctx, force_refresh: bool) -> None:
     """``/model`` with no args: open the picker, or print usage when nothing is authed."""
     from cli import _cprint
+
     from hermes_cli.inventory import build_models_payload
     from hermes_cli.providers import get_label
     try:
@@ -354,7 +360,9 @@ class CLIModelSwitchMixin:
 
         try:
             from hermes_cli.model_normalize import (
-                _AGGREGATOR_PROVIDERS, normalize_model_for_provider)
+                _AGGREGATOR_PROVIDERS,
+                normalize_model_for_provider,
+            )
             if resolved_provider not in _AGGREGATOR_PROVIDERS:
                 _adopt(
                     normalize_model_for_provider(current_model, resolved_provider),
@@ -363,7 +371,10 @@ class CLIModelSwitchMixin:
             pass
 
         if resolved_provider == "copilot":
-            from hermes_cli.models import copilot_model_api_mode, normalize_copilot_model_id
+            from hermes_cli.models import (
+                copilot_model_api_mode,
+                normalize_copilot_model_id,
+            )
             return _adopt_with_mode(
                 lambda m: normalize_copilot_model_id(m, api_key=self.api_key),
                 lambda m: copilot_model_api_mode(m, api_key=self.api_key),
@@ -371,7 +382,10 @@ class CLIModelSwitchMixin:
 
         from hermes_cli.models import opencode_provider_family
         if opencode_provider_family(resolved_provider) is not None:
-            from hermes_cli.models import normalize_opencode_model_id, opencode_model_api_mode
+            from hermes_cli.models import (
+                normalize_opencode_model_id,
+                opencode_model_api_mode,
+            )
             return _adopt_with_mode(
                 lambda m: normalize_opencode_model_id(resolved_provider, m),
                 lambda m: opencode_model_api_mode(resolved_provider, m),
@@ -392,7 +406,10 @@ class CLIModelSwitchMixin:
 
         # 2. Replace untouched default with a Codex model
         if self._model_is_default:
-            from hermes_cli.codex_models import DEFAULT_CODEX_MODELS, get_codex_model_ids
+            from hermes_cli.codex_models import (
+                DEFAULT_CODEX_MODELS,
+                get_codex_model_ids,
+            )
 
             fallback_model = DEFAULT_CODEX_MODELS[0]
             try:
@@ -552,7 +569,9 @@ class CLIModelSwitchMixin:
             return True
         try:
             from hermes_cli.model_selection_guards import (
-                combined_selection_warning, selection_context_for_agent)
+                combined_selection_warning,
+                selection_context_for_agent,
+            )
             warning = combined_selection_warning(
                 result.new_model, provider=result.target_provider,
                 base_url=result.base_url or self.base_url or "",
@@ -824,7 +843,11 @@ class CLIModelSwitchMixin:
         Switches are session-scoped unless ``model.persist_switch_by_default`` or ``--global``.
         """
         from cli import _cprint
-        from hermes_cli.model_switch import parse_model_switch_args, resolve_persist_behavior
+
+        from hermes_cli.model_switch import (
+            parse_model_switch_args,
+            resolve_persist_behavior,
+        )
 
         parts = cmd_original.split(None, 1)  # split off '/model'
         request = parse_model_switch_args(parts[1].strip() if len(parts) > 1 else "")
@@ -895,6 +918,7 @@ class CLIModelSwitchMixin:
             /codex-runtime on / off              — synonyms for the above
         """
         from cli import _cprint
+
         from hermes_cli import codex_runtime_switch as crs
 
         parts = cmd_original.split(None, 1)
@@ -933,6 +957,7 @@ class CLIModelSwitchMixin:
         """/moa one-shot: run one prompt through the default MoA preset, then restore the prior
         model (a session-long MoA switch goes through the picker's virtual MoA provider)."""
         from cli import _cprint, _slash_args
+
         from hermes_cli.moa_config import moa_usage, normalize_moa_config
 
         payload = _slash_args(cmd_original)

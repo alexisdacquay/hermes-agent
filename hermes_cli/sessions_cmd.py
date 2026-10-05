@@ -14,9 +14,10 @@ import sys
 from functools import partial
 from pathlib import Path
 
+from hermes_state_errors import SessionActiveWriteGuardError
+
 from hermes_cli.cli_output import print_truncated
 from hermes_cli.sessions_cmd_browse import _relative_time, _session_browse_picker
-from hermes_state_errors import SessionActiveWriteGuardError
 
 
 def get_hermes_home():
@@ -100,7 +101,8 @@ def _write_output(output, text, summary) -> None:
 # -- handlers that must run BEFORE SessionDB() is opened ----------------------
 
 def _cmd_repair(args):
-    from hermes_state import DEFAULT_DB_PATH as db_path, SessionDB
+    from hermes_state import DEFAULT_DB_PATH as db_path
+    from hermes_state import SessionDB
     from hermes_state_repair import _db_opens_cleanly, repair_state_db_schema
     if not db_path.exists():
         print(f"No session database at {db_path} (nothing to repair).")
@@ -145,8 +147,12 @@ def _cmd_repair(args):
 def _cmd_recover(args):
     """Offline recovery: works on a disposable copy of the source; never touches the active database."""
     import sqlite3
+
     from hermes_cli.session_recovery import (
-        SessionRecoveryError, inspect_session_database, recover_session_database, write_recovery_report,
+        SessionRecoveryError,
+        inspect_session_database,
+        recover_session_database,
+        write_recovery_report,
     )
     source, output = args.source, getattr(args, "output", None)
     inspect_only = bool(getattr(args, "inspect_only", False))
@@ -292,9 +298,9 @@ def _cmd_list(db, args):
     def _ws(s):  # repo/dir basename, "—" when unbound
         key = _ws_key(s)
         return ((os.path.basename(key.rstrip("/\\")) or key) if key else "—")[:16]
-    _title = lambda s, n: (s.get("title") or "—")[:n]  # noqa: E731
-    _preview = lambda s, n: s.get("preview", "")[:n]  # noqa: E731
-    _ago = lambda s: _relative_time(s.get("last_active"), session_id=s["id"])  # noqa: E731
+    _title = lambda s, n: (s.get("title") or "—")[:n]
+    _preview = lambda s, n: s.get("preview", "")[:n]
+    _ago = lambda s: _relative_time(s.get("last_active"), session_id=s["id"])
 
     def _src(s):  # current routing platform; "<created>→<current>" when provenance diverged (#56439)
         created = s.get("created_source") or ""
@@ -349,7 +355,10 @@ def _cmd_export(db, args):
         """The transfer projection holds every stored row in memory: the console export's per-session
         ``sessions.max_export_messages`` guard (0 disables) runs before any is loaded. ``None`` = the
         sessions a bare export loads."""
-        from hermes_state import SessionExportTooLargeError, resolved_max_export_messages
+        from hermes_state import (
+            SessionExportTooLargeError,
+            resolved_max_export_messages,
+        )
         if shown:
             return False
         limit = resolved_max_export_messages()
@@ -408,7 +417,10 @@ def _render_only(args, sessions):
 
 def _render_html(args, sessions):
     """One self-contained file (single session, or multi-session with sidebar)."""
-    from hermes_cli.session_export_html import generate_html_export, generate_multi_session_html_export
+    from hermes_cli.session_export_html import (
+        generate_html_export,
+        generate_multi_session_html_export,
+    )
     single = len(sessions) == 1
     content = generate_html_export(sessions[0]) if single else generate_multi_session_html_export(sessions)
     return content, f"Exported {len(sessions)} {'session' if single else 'sessions'} to {args.output} (HTML)"
@@ -454,7 +466,11 @@ def _export_trace(db, args, filters):
         if not session_id:
             print("No session found to export. Pass --session-id.")
             return
-    from agent.trace_upload import TraceRedactionError, build_trace_jsonl, upload_session_trace
+    from agent.trace_upload import (
+        TraceRedactionError,
+        build_trace_jsonl,
+        upload_session_trace,
+    )
     redact_trace = not getattr(args, "no_redact", False)
     if getattr(args, "upload", False):
         if not session_id:
@@ -502,7 +518,10 @@ def _export_trace(db, args, filters):
 
 def _export_markdown(db, args, filters, redact):
     """Markdown / QMD export: one file per session plus a manifest entry."""
-    from hermes_cli.session_export_md import append_manifest_entry, write_session_markdown
+    from hermes_cli.session_export_md import (
+        append_manifest_entry,
+        write_session_markdown,
+    )
     if args.output == "-":
         print("Markdown/QMD export writes files; stdout (-) is only supported with --format jsonl.")
         return
@@ -695,7 +714,11 @@ def _cmd_prune_or_archive(db, args, action):
     prune = action == "prune"
     if prune and getattr(args, "never_active", False):
         return _prune_never_active_keyed(db, args)
-    from hermes_cli.session_filters import build_prune_filters, describe_filters, format_epoch
+    from hermes_cli.session_filters import (
+        build_prune_filters,
+        describe_filters,
+        format_epoch,
+    )
     # Bare `prune` keeps the historical "older than 90 days" default. ANY filter — including --source —
     # suppresses the implicit cutoff (`prune --source cron` matches ALL cron sessions); the preview +
     # confirmation below is the safety net.

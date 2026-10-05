@@ -14,7 +14,6 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from gateway.config import PlatformConfig
 
 
@@ -39,8 +38,7 @@ def _ensure_discord_mock():
 
 _ensure_discord_mock()
 
-from plugins.platforms.discord.adapter import DiscordAdapter  # noqa: E402
-
+from plugins.platforms.discord.adapter import DiscordAdapter
 
 MAX = DiscordAdapter.MAX_MESSAGE_LENGTH
 CAP = DiscordAdapter.MAX_SPLIT_MESSAGES

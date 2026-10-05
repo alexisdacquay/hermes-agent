@@ -3,7 +3,6 @@
 import time
 
 import pytest
-
 from tools import mcp_schema_cache as sc
 
 

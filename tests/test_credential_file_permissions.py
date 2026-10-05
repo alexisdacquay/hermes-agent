@@ -9,10 +9,8 @@ hint; adapters call it on every read path.
 """
 
 import logging
-import os
 
 import pytest
-
 from utils import warn_if_credential_file_broadly_readable
 
 pytestmark = pytest.mark.platforms("posix")  # POSIX permission-bit semantics required

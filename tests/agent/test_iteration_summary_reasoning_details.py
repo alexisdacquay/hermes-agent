@@ -7,8 +7,10 @@ import copy
 import json
 
 import pytest
-
-from agent.chat_completion_helpers import _build_api_kwargs_for_mode, _iteration_summary_api_messages
+from agent.chat_completion_helpers import (
+    _build_api_kwargs_for_mode,
+    _iteration_summary_api_messages,
+)
 from run_agent import AIAgent
 
 _HISTORY = [

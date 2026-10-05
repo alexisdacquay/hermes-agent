@@ -17,8 +17,13 @@ def _toolchain(*, realize: bool = True, explicit: bool = False) -> tuple[Path, P
     writable interpreter so their venv redirectors can run outside the MSIX.
     """
     from pm.install import (
-        _install, _installed_location, _lockfile, _refuse_lazy,
-        ensure, lazy_installs_allowed, sealed,
+        _install,
+        _installed_location,
+        _lockfile,
+        _refuse_lazy,
+        ensure,
+        lazy_installs_allowed,
+        sealed,
     )
 
     if realize:

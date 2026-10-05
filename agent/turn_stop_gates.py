@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 import os
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from agent.message_metadata import append_message
 
@@ -32,10 +32,11 @@ class StopGateVerdict:
     pending_verification_response_previewed: Any
 
 
-def _verify_on_stop_nudge(agent) -> Optional[str]:
+def _verify_on_stop_nudge(agent) -> str | None:
     try:
         from agent.verification_stop import (
-            build_verify_on_stop_nudge, verify_on_stop_enabled
+            build_verify_on_stop_nudge,
+            verify_on_stop_enabled,
         )
 
         if verify_on_stop_enabled():
@@ -49,14 +50,15 @@ def _verify_on_stop_nudge(agent) -> Optional[str]:
     return None
 
 
-def _pre_verify_nudge(agent, final_response, attempt: int) -> Optional[str]:
+def _pre_verify_nudge(agent, final_response, attempt: int) -> str | None:
     """After code edits a registered ``pre_verify`` hook may keep the agent going one
     more turn; no default continuation cost."""
     _edited = sorted(getattr(agent, "_turn_file_mutation_paths", set()) or [])
     try:
-        from agent.verify_hooks import max_verify_nudges
         from hermes_cli.lifecycle import has_hook
         from hermes_cli.plugins import get_pre_verify_continue_message
+
+        from agent.verify_hooks import max_verify_nudges
 
         if _edited and has_hook("pre_verify") and attempt < max_verify_nudges():
             # Posture is fixed for the session — resolve once + cache.
@@ -76,7 +78,7 @@ def _pre_verify_nudge(agent, final_response, attempt: int) -> Optional[str]:
     return None
 
 
-def _kanban_stop_nudge(agent, messages) -> Optional[str]:
+def _kanban_stop_nudge(agent, messages) -> str | None:
     """Workers must end with a terminal board tool (kanban_complete / kanban_block /
     kanban_request_review / kanban_request_changes); a narrated stop is recorded
     as protocol_violation, so nudge once or twice first."""
@@ -103,7 +105,7 @@ def _append_interim_answer(agent, final_msg, messages, conversation_history, flu
 
 
 def apply_stop_gates(
-    agent: Any, final_msg: Dict[str, Any], *, final_response: Any, messages: List[Dict[str, Any]],
+    agent: Any, final_msg: dict[str, Any], *, final_response: Any, messages: list[dict[str, Any]],
     conversation_history: Any, pending_verification_response: Any,
     pending_verification_response_previewed: Any,
 ) -> StopGateVerdict:

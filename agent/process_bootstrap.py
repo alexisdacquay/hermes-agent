@@ -9,15 +9,14 @@ runs sync httpx connects through the process-wide Happy Eyeballs racer
 
 from __future__ import annotations
 
-import socket
 import sys
 import threading
-from typing import Any, Optional
+from typing import Any
 
 from hermes_bootstrap import _happy_eyeballs_create_connection
 from utils import base_url_hostname, normalize_proxy_url
-from agent.proxy_bypass import first_proxy_env_value, should_bypass_proxy
 
+from agent.proxy_bypass import first_proxy_env_value, should_bypass_proxy
 
 _OPENAI_CLS_CACHE = None
 
@@ -47,7 +46,7 @@ class _HappyEyeballsSyncBackend:
             self._fallback = SyncBackend()
         return self._fallback
 
-    def connect_tcp(self, host: str, port: int, timeout: Optional[float] = None, local_address: Optional[str] = None,
+    def connect_tcp(self, host: str, port: int, timeout: float | None = None, local_address: str | None = None,
                     socket_options=None):
         from httpcore import ConnectError, ConnectTimeout
         from httpcore._backends.sync import SyncStream
@@ -55,7 +54,7 @@ class _HappyEyeballsSyncBackend:
         try:
             sock = _happy_eyeballs_create_connection((host, port), timeout, source_address=source_address,
                                                      socket_options=socket_options or ())
-        except socket.timeout as exc:
+        except TimeoutError as exc:
             raise ConnectTimeout(str(exc)) from exc
         except OSError as exc:
             raise ConnectError(str(exc)) from exc
@@ -167,13 +166,13 @@ class _SafeWriter:
         return getattr(self._inner, name)
 
 
-def _get_proxy_from_env() -> Optional[str]:
+def _get_proxy_from_env() -> str | None:
     """First configured proxy URL from HTTPS_PROXY / HTTP_PROXY / ALL_PROXY (any case), or None."""
     value = first_proxy_env_value()
     return normalize_proxy_url(value) if value else None
 
 
-def _get_proxy_for_base_url(base_url: Optional[str]) -> Optional[str]:
+def _get_proxy_for_base_url(base_url: str | None) -> str | None:
     """Env-configured proxy unless NO_PROXY excludes this base URL (same matcher as the
     gateway adapters: CIDR, ``*.`` wildcards and host:port entries all count)."""
     proxy = _get_proxy_from_env()
@@ -202,7 +201,7 @@ def _shared_transport_cls():
         See #10933.
         """
 
-        __slots__ = ("_inner", "_closed")
+        __slots__ = ("_closed", "_inner")
 
         def __init__(self, inner: Any) -> None:
             self._inner = inner
@@ -231,7 +230,7 @@ def _shared_transport_cls():
 _SharedTransport: Any = None
 
 
-def _shared_transport_key(base_url: str, verify: Any, proxy: Optional[str]) -> tuple:
+def _shared_transport_key(base_url: str, verify: Any, proxy: str | None) -> tuple:
     """Identity under which sync direct transports are pooled process-wide."""
     if verify is True or verify is False:
         verify_key: Any = verify
@@ -265,7 +264,7 @@ def close_shared_transports() -> int:
     return len(transports)
 
 
-def build_keepalive_http_client(base_url: str = "", *, async_mode: bool = False, verify: Any = True) -> Optional[Any]:
+def build_keepalive_http_client(base_url: str = "", *, async_mode: bool = False, verify: Any = True) -> Any | None:
     """httpx client for OpenAI SDK calls with env-only proxy policy (None on failure).
 
     Explicit no-proxy mounts disable httpx's ``trust_env`` path so macOS system
@@ -337,7 +336,14 @@ OpenAI = _OpenAIProxy()
 
 
 __all__ = [
-    "OpenAI", "_OpenAIProxy", "_load_openai_cls", "_SafeWriter", "_install_safe_stdio", "_get_proxy_from_env",
-    "_get_proxy_for_base_url", "build_keepalive_http_client", "close_shared_transports",
+    "OpenAI",
+    "_OpenAIProxy",
+    "_SafeWriter",
+    "_get_proxy_for_base_url",
+    "_get_proxy_from_env",
+    "_install_safe_stdio",
+    "_load_openai_cls",
+    "build_keepalive_http_client",
+    "close_shared_transports",
     "enable_happy_eyeballs_on_client",
 ]

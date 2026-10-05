@@ -11,7 +11,6 @@ import time
 from pathlib import Path
 
 import pytest
-
 from gateway import host_rendezvous as hr
 
 _CHILD = """

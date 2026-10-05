@@ -14,34 +14,49 @@ import shlex
 import sys
 import time
 from pathlib import Path
-from typing import Optional
 
 from hermes_cli import kanban_db as kb
 from hermes_cli import kanban_db_connect as kbc
 from hermes_cli import kanban_db_dispatch as kbd
-from hermes_cli import kanban_db_workspace as kbw
 from hermes_cli import kanban_db_notify as kbn
+from hermes_cli import kanban_db_workspace as kbw
 from hermes_cli import kanban_swarm as ks
-from hermes_cli.kanban_output import (
-    _ATTACHMENT_FIELDS, _RUNS_RUN_FIELDS, _SHOW_RUN_FIELDS, _bulk_apply, _err,
-    _fmt_counts, _fmt_task_line, _fmt_ts, _json_out, _obj_dict, _print_json,
-    _task_to_dict,
-)
 from hermes_cli.kanban_boards import _dispatch_boards
 from hermes_cli.kanban_ops import (
-    _cmd_daemon, _kanban_config, _cmd_dispatch, _cmd_gc, _cmd_repair, _cmd_tail, _cmd_watch,
+    _cmd_daemon,
+    _cmd_dispatch,
+    _cmd_gc,
+    _cmd_repair,
+    _cmd_tail,
+    _cmd_watch,
+    _kanban_config,
 )
-from hermes_cli.kanban_parser import build_parser  # noqa: F401  (re-exported: hermes_cli.main, run_slash)
-
+from hermes_cli.kanban_output import (
+    _ATTACHMENT_FIELDS,
+    _RUNS_RUN_FIELDS,
+    _SHOW_RUN_FIELDS,
+    _bulk_apply,
+    _err,
+    _fmt_counts,
+    _fmt_task_line,
+    _fmt_ts,
+    _json_out,
+    _obj_dict,
+    _print_json,
+    _task_to_dict,
+)
+from hermes_cli.kanban_parser import (
+    build_parser,
+)
 
 # --- Flag parsing helpers ---
 
-def _none_profile(value: str) -> Optional[str]:
+def _none_profile(value: str) -> str | None:
     """``none`` / ``-`` / ``null`` mean "unassign"."""
     return None if value.lower() in {"none", "-", "null"} else value
 
 
-def _parse_metadata_flag(raw: Optional[str]) -> tuple[Optional[dict], int]:
+def _parse_metadata_flag(raw: str | None) -> tuple[dict | None, int]:
     """Parse ``--metadata`` JSON; returns ``(dict|None, rc)`` with rc=2 on error."""
     if not raw:
         return None, 0
@@ -54,7 +69,7 @@ def _parse_metadata_flag(raw: Optional[str]) -> tuple[Optional[dict], int]:
     return metadata, 0
 
 
-def _run_state_kwargs(args: argparse.Namespace, cmd: str) -> tuple[Optional[dict[str, str]], int]:
+def _run_state_kwargs(args: argparse.Namespace, cmd: str) -> tuple[dict[str, str] | None, int]:
     """``--state-type``/``--state-name`` must be given together: ``(kwargs, 0)`` or ``(None, 2)``."""
     st = getattr(args, "state_type", None)
     sn = getattr(args, "state_name", None)
@@ -63,7 +78,7 @@ def _run_state_kwargs(args: argparse.Namespace, cmd: str) -> tuple[Optional[dict
     return ({} if st is None else {"state_type": st, "state_name": sn}), 0
 
 
-def _parse_workspace_flag(value: Optional[str]) -> tuple[Optional[str], Optional[str]]:
+def _parse_workspace_flag(value: str | None) -> tuple[str | None, str | None]:
     """``--workspace`` -> ``(kind, path|None)``: ``scratch``, ``worktree``, ``worktree:<p>``, ``dir:<p>``.
     Omitted -> ``(None, None)`` so ``create_task`` can tell "default" from an explicit scratch."""
     if not value:
@@ -82,7 +97,7 @@ def _parse_workspace_flag(value: Optional[str]) -> tuple[Optional[str], Optional
                                      "worktree:<path>, or dir:<path>")
 
 
-def _parse_branch_flag(value: Optional[str]) -> Optional[str]:
+def _parse_branch_flag(value: str | None) -> str | None:
     """Normalize an optional branch name from ``kanban create --branch``."""
     if value is None:
         return None
@@ -96,7 +111,7 @@ def _parse_branch_flag(value: Optional[str]) -> Optional[str]:
     return branch
 
 
-def _check_dispatcher_presence(hermes_home: Optional[Path] = None) -> tuple[bool, str]:
+def _check_dispatcher_presence(hermes_home: Path | None = None) -> tuple[bool, str]:
     """``(running, message)`` for the "will anything dispatch this?" warning: True when a gateway is
     alive for this HERMES_HOME with ``kanban.dispatch_in_gateway`` on, else False + human guidance.
     Fails OPEN (probe/config errors -> ``(True, "")``) — a missed warning beats crying wolf.
@@ -231,12 +246,12 @@ def _is_delegated_child_cli_mutation(args: argparse.Namespace) -> bool:
     return kanban_path_is_fenced(kb.kanban_home()) or kanban_path_is_fenced(kb.kanban_db_path())
 
 
-def _joined_words(words) -> Optional[str]:
+def _joined_words(words) -> str | None:
     """Free-text positional ``nargs="*"`` words -> stripped string, or None when absent."""
     return " ".join(words).strip() if words else None
 
 
-def _stripped_or_none(value: Optional[str]) -> Optional[str]:
+def _stripped_or_none(value: str | None) -> str | None:
     """``None`` stays ``None``; otherwise strip, and treat the empty string as ``None``."""
     return None if value is None else (value.strip() or None)
 
@@ -262,7 +277,7 @@ def _require_ids(args: argparse.Namespace) -> tuple[list[str], int]:
     return ids, 0
 
 
-def _parse_duration(val) -> Optional[int]:
+def _parse_duration(val) -> int | None:
     """``30s`` / ``5m`` / ``2h`` / ``1d`` or a raw integer → seconds; None for empty input;
     ValueError on malformed input."""
     if val is None or val == "":
@@ -628,6 +643,7 @@ def _rows_by_task(conn, table: str, ids: list[str]) -> dict[str, list]:
 def _cmd_diagnostics(args: argparse.Namespace) -> int:
     """List active diagnostics on the board via the same rule engine the dashboard uses."""
     from hermes_cli import kanban_diagnostics as kd
+
     # Honour kanban.default_assignee as the fallback for unassigned ready tasks (#27145),
     # kanban.max_in_progress as the global concurrency cap (#33488), kanban.max_in_progress_per_profile as
     # the per-profile cap (#21582), and kanban.max_spawn as the per-tick spawn limit (#28805). Same
@@ -811,7 +827,7 @@ def _cmd_attach_rm(args: argparse.Namespace) -> int:
     return 0
 
 
-def _worker_run_id_for(task_id: str) -> Optional[int]:
+def _worker_run_id_for(task_id: str) -> int | None:
     env_tid = os.environ.get("HERMES_KANBAN_TASK")
     if env_tid and env_tid != task_id:
         raise ValueError(f"worker is scoped to task {env_tid}; refusing to mutate {task_id}")
@@ -824,7 +840,7 @@ def _worker_run_id_for(task_id: str) -> Optional[int]:
         return None
 
 
-def _goal_mode_handoff_rejection(task: Optional[kb.Task], evidence: str):
+def _goal_mode_handoff_rejection(task: kb.Task | None, evidence: str):
     """Goal judge for every terminal worker handoff (including review).
 
     Returns ``(verdict, reason_or_None)``: ``"done"`` allows; ``"blocked"`` = judge ruled the goal
@@ -853,7 +869,11 @@ def _goal_mode_handoff_rejection(task: Optional[kb.Task], evidence: str):
     try:
         # Headless handoff checks run outside any agent turn: bind the per-task relay-affinity
         # scope (mirrors kanban_specify) so the relay does not reject the judge call (#113669).
-        from agent.portal_tags import get_affinity_scope, reset_affinity_scope, set_affinity_scope
+        from agent.portal_tags import (
+            get_affinity_scope,
+            reset_affinity_scope,
+            set_affinity_scope,
+        )
         affinity_token = None if get_affinity_scope() else set_affinity_scope(f"kanban:{task.id}")
         try:
             verdict, reason, _, _, transport_failed = judge_goal(
@@ -878,7 +898,7 @@ def _goal_mode_handoff_rejection(task: Optional[kb.Task], evidence: str):
 
 
 def _goal_gate_error(conn, tid: str, evidence: str, handoff: str, blocked_hint: str,
-                     continue_hint: str) -> Optional[str]:
+                     continue_hint: str) -> str | None:
     """Goal-mode judge gate shared by ``complete`` / ``request-review`` (mirrors tools/kanban_tools.py);
     applied to every terminal handoff so request-review can't bypass it. Returns the error line, or
     None to allow."""
@@ -969,7 +989,7 @@ def _cmd_edit(args: argparse.Namespace) -> int:
     )
 
 
-def _commented(conn, reason: Optional[str], author, prefix: str, op):
+def _commented(conn, reason: str | None, author, prefix: str, op):
     """Wrap a per-task ``op`` so a ``reason`` is first recorded as a ``PREFIX: reason`` comment."""
     def run(tid):
         if reason:

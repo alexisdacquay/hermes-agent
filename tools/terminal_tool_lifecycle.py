@@ -8,13 +8,14 @@ so ``tools.terminal_tool.<name>`` keeps resolving (and monkeypatching) as before
 """
 
 import glob
-import logging
 import inspect
+import logging
 import shutil
 import threading
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
+
 from tools.environments.singularity import _get_scratch_dir
 from tools.terminal_tool_backends import (
     _container_config_from_config,
@@ -64,8 +65,8 @@ def _check_disk_usage_warning():
 
 
 def _create_configured_env(
-    config: Dict[str, Any], env_type: str, *, image: str, cwd: str, timeout: int,
-    task_id: str, host_cwd: Optional[str], local_config: Optional[dict] = None,
+    config: dict[str, Any], env_type: str, *, image: str, cwd: str, timeout: int,
+    task_id: str, host_cwd: str | None, local_config: dict | None = None,
 ):
     """``_create_environment`` with the ssh/container kwargs shaped from *config*
     (shared by the terminal tool and the lazy :func:`ensure_task_env` bring-up)."""
@@ -81,7 +82,7 @@ def _create_configured_env(
     )
 
 
-def _cleanup_env(env: Any, *, force_remove: Optional[bool] = None) -> None:
+def _cleanup_env(env: Any, *, force_remove: bool | None = None) -> None:
     """Tear down one environment via cleanup()/stop()/terminate(), whichever it has.
 
     ``force_remove`` is forwarded to ``cleanup()`` only when given and the backend's
@@ -100,7 +101,7 @@ def _cleanup_env(env: Any, *, force_remove: Optional[bool] = None) -> None:
         env.terminate()
 
 
-def _teardown_env(env: Any, task_id: str, *, force_remove: Optional[bool] = None, done_msg: str = "Cleaned up inactive environment for task: %s") -> None:
+def _teardown_env(env: Any, task_id: str, *, force_remove: bool | None = None, done_msg: str = "Cleaned up inactive environment for task: %s") -> None:
     """``_cleanup_env`` plus outcome logging. A 404/"not found" error means the
     sandbox is already gone — logged at info."""
     try:
@@ -129,7 +130,10 @@ def _unregister_env(task_id: str):
     Modal/Docker teardown can block 10-15s and would stall every concurrent
     terminal/file tool call."""
     from tools.terminal_tool import (
-        _active_environments, _creation_locks, _creation_locks_lock, _env_lock,
+        _active_environments,
+        _creation_locks,
+        _creation_locks_lock,
+        _env_lock,
         _last_activity,
     )
     with _env_lock:
@@ -143,7 +147,10 @@ def _unregister_env(task_id: str):
 def _cleanup_inactive_envs(lifetime_seconds: int = 300):
     """Clean up environments that have been inactive for longer than lifetime_seconds."""
     from tools.terminal_tool import (
-        _active_environments, _creation_locks, _creation_locks_lock, _env_lock,
+        _active_environments,
+        _creation_locks,
+        _creation_locks_lock,
+        _env_lock,
         _last_activity,
     )
     current_time = time.time()
@@ -175,13 +182,17 @@ def _cleanup_inactive_envs(lifetime_seconds: int = 300):
 
 def get_active_env(task_id: str):
     """Return the active BaseEnvironment for *task_id*, or None."""
-    from tools.terminal_tool import _active_environments, _env_lock, _resolve_container_task_id
+    from tools.terminal_tool import (
+        _active_environments,
+        _env_lock,
+        _resolve_container_task_id,
+    )
     lookup = _resolve_container_task_id(task_id)
     with _env_lock:
         return _active_environments.get(lookup) or _active_environments.get(task_id)
 
 
-def ensure_task_env(task_id: Optional[str] = None):
+def ensure_task_env(task_id: str | None = None):
     """Lazily create and cache the sandbox env for *task_id* if none is active.
 
     Lets non-terminal callers (``tools.image_source`` reading container-only
@@ -196,9 +207,17 @@ def ensure_task_env(task_id: Optional[str] = None):
     bring the env up on demand, reusing the same creation machinery as the terminal tool.
     """
     from tools.terminal_tool import (
-        _active_environments, _creation_locks, _creation_locks_lock, _env_lock,
-        _get_env_config, _last_activity, _resolve_container_task_id,
-        _resolve_task_host_cwd, _select_image, _start_cleanup_thread, resolve_task_overrides,
+        _active_environments,
+        _creation_locks,
+        _creation_locks_lock,
+        _env_lock,
+        _get_env_config,
+        _last_activity,
+        _resolve_container_task_id,
+        _resolve_task_host_cwd,
+        _select_image,
+        _start_cleanup_thread,
+        resolve_task_overrides,
     )
     config = _get_env_config()
     env_type = config["env_type"]
@@ -310,11 +329,14 @@ def cleanup_vm(task_id: str, *, force_remove: bool = False):
     )
 
 
-def _evict_environment_for_task(task_id: Optional[str]) -> None:
+def _evict_environment_for_task(task_id: str | None) -> None:
     """Drop any cached env for *task_id* (and its collapsed key) after an
     infrastructure failure, so later calls don't reuse a dead connection."""
     from tools.terminal_tool import (
-        _active_environments, _env_lock, _last_activity, _resolve_container_task_id,
+        _active_environments,
+        _env_lock,
+        _last_activity,
+        _resolve_container_task_id,
     )
     keys = {_resolve_container_task_id(task_id)}
     if task_id:

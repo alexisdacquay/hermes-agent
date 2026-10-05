@@ -5,7 +5,7 @@ import asyncio
 import json
 import logging
 import os
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from agent.i18n import t
 from gateway.platforms.base import SendResult
@@ -41,8 +41,8 @@ class DiscordMediaMixin:
         return _DISCORD_DEFAULT_UPLOAD_LIMIT_BYTES
 
     async def _reject_oversized_upload(
-        self, channel: Any, file_path: str, filename: str, *, caption: Optional[str] = None,
-    ) -> Optional[SendResult]:
+        self, channel: Any, file_path: str, filename: str, *, caption: str | None = None,
+    ) -> SendResult | None:
         """Preflight ``file_path`` against the channel's upload cap (#50846): a doomed
         ``413`` round-trip is skipped and the user gets a notice naming the size and the
         limit. Returns the failed result, or ``None`` when the file may be uploaded."""
@@ -77,8 +77,8 @@ class DiscordMediaMixin:
         return SendResult(success=False, error=error)
 
     async def _send_file_attachment(
-        self, chat_id: str, file_path: str, caption: Optional[str] = None,
-        file_name: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None,
+        self, chat_id: str, file_path: str, caption: str | None = None,
+        file_name: str | None = None, metadata: dict[str, Any] | None = None,
     ) -> SendResult:
         """Send a local file as a Discord attachment (forum channels get a new thread). Path-based
         ``discord.File`` only: the open-handle form can race the multipart encoder after an image
@@ -129,21 +129,27 @@ class DiscordMediaMixin:
 
 
     async def send_multiple_images(
-        self, chat_id: str, images: List[Tuple[str, str]],
-        metadata: Optional[Dict[str, Any]] = None, human_delay: float = 0.0,
+        self, chat_id: str, images: list[tuple[str, str]],
+        metadata: dict[str, Any] | None = None, human_delay: float = 0.0,
     ) -> SendResult:
         """Send images as one Discord message (<=10 attachments): URLs are downloaded and uploaded
         inline (bare links don't render); on chunk failure the remainder uses the per-image loop."""
-        from plugins.platforms.discord.adapter import _prompt_target_id, _image_ext_from_content_type, _read_url_image_with_redirect_guard, is_safe_url
+        from plugins.platforms.discord.adapter import (
+            _image_ext_from_content_type,
+            _prompt_target_id,
+            _read_url_image_with_redirect_guard,
+            is_safe_url,
+        )
 
         if not self._client:
             return SendResult(success=False, error="Not connected")
         if not images:
             return SendResult(success=False, error="no images to send")
         try:
-            import discord as _discord_mod
             import io as _io
             from urllib.parse import unquote as _unquote
+
+            import discord as _discord_mod
         except Exception:  # pragma: no cover
             return await super().send_multiple_images(chat_id, images, metadata, human_delay)
         try:
@@ -160,9 +166,9 @@ class DiscordMediaMixin:
         for chunk_idx, chunk in enumerate(chunks):
             if human_delay > 0 and chunk_idx > 0:
                 await asyncio.sleep(human_delay)
-            files: List[Any] = []
-            captions: List[str] = []
-            skip_notices: List[str] = []
+            files: list[Any] = []
+            captions: list[str] = []
+            skip_notices: list[str] = []
             aiohttp_session = None
             try:
                 for image_url, alt_text in chunk:
@@ -205,7 +211,10 @@ class DiscordMediaMixin:
                         # Download to BytesIO so it renders inline
                         try:
                             import aiohttp as _aiohttp
-                            from gateway.platforms.base import resolve_proxy_url, proxy_kwargs_for_aiohttp
+                            from gateway.platforms.base import (
+                                proxy_kwargs_for_aiohttp,
+                                resolve_proxy_url,
+                            )
                             _proxy = resolve_proxy_url(platform_env_var="DISCORD_PROXY")
                             _sess_kw, _req_kw = proxy_kwargs_for_aiohttp(_proxy)
                             if aiohttp_session is None:
@@ -275,8 +284,8 @@ class DiscordMediaMixin:
 
 
     async def send_voice(
-        self, chat_id: str, audio_path: str, caption: Optional[str] = None,
-        reply_to: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None, **kwargs,
+        self, chat_id: str, audio_path: str, caption: str | None = None,
+        reply_to: str | None = None, metadata: dict[str, Any] | None = None, **kwargs,
     ) -> SendResult:
         """Send audio as a Discord file attachment."""
         from plugins.platforms.discord.adapter import _prompt_target_id, discord
@@ -358,8 +367,8 @@ class DiscordMediaMixin:
 
 
     async def send_image_file(
-        self, chat_id: str, image_path: str, caption: Optional[str] = None,
-        reply_to: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None,
+        self, chat_id: str, image_path: str, caption: str | None = None,
+        reply_to: str | None = None, metadata: dict[str, Any] | None = None,
     ) -> SendResult:
         """Send a local image file natively as a Discord file attachment."""
         return await self._send_local_file(
@@ -369,12 +378,17 @@ class DiscordMediaMixin:
 
 
     async def _send_url_media(
-        self, chat_id: str, url: str, caption: Optional[str], *, kind: str,
-        filename_for, fallback, metadata: Optional[dict], error_metadata: Optional[dict],
+        self, chat_id: str, url: str, caption: str | None, *, kind: str,
+        filename_for, fallback, metadata: dict | None, error_metadata: dict | None,
     ) -> SendResult:
         """Download ``url`` and post it as a native attachment (Discord renders those inline).
         ``fallback(metadata)`` is the base-adapter URL send (``error_metadata`` after download failure)."""
-        from plugins.platforms.discord.adapter import _prompt_target_id, _read_url_image_with_redirect_guard, discord, is_safe_url
+        from plugins.platforms.discord.adapter import (
+            _prompt_target_id,
+            _read_url_image_with_redirect_guard,
+            discord,
+            is_safe_url,
+        )
 
         if not self._client:
             return SendResult(success=False, error="Not connected")
@@ -386,7 +400,10 @@ class DiscordMediaMixin:
             channel = await self._resolve_channel(_prompt_target_id(chat_id, metadata))
             if not channel:
                 return SendResult(success=False, error=f"Channel {chat_id} not found")
-            from gateway.platforms.base import resolve_proxy_url, proxy_kwargs_for_aiohttp
+            from gateway.platforms.base import (
+                proxy_kwargs_for_aiohttp,
+                resolve_proxy_url,
+            )
             _sess_kw, _req_kw = proxy_kwargs_for_aiohttp(resolve_proxy_url(platform_env_var="DISCORD_PROXY"))
             async with aiohttp.ClientSession(**_sess_kw) as session:
                 status, data, headers = await _read_url_image_with_redirect_guard(
@@ -409,11 +426,13 @@ class DiscordMediaMixin:
 
 
     async def send_image(
-        self, chat_id: str, image_url: str, caption: Optional[str] = None,
-        reply_to: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None,
+        self, chat_id: str, image_url: str, caption: str | None = None,
+        reply_to: str | None = None, metadata: dict[str, Any] | None = None,
     ) -> SendResult:
         """Send an image natively as a Discord file attachment."""
-        from plugins.platforms.discord.adapter import _prompt_target_id, _image_ext_from_content_type
+        from plugins.platforms.discord.adapter import (
+            _image_ext_from_content_type,
+        )
 
         return await self._send_url_media(
             chat_id, image_url, caption, kind="image",
@@ -424,8 +443,8 @@ class DiscordMediaMixin:
 
 
     async def send_animation(
-        self, chat_id: str, animation_url: str, caption: Optional[str] = None,
-        reply_to: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None,
+        self, chat_id: str, animation_url: str, caption: str | None = None,
+        reply_to: str | None = None, metadata: dict[str, Any] | None = None,
     ) -> SendResult:
         """Send an animated GIF natively as a Discord file attachment."""
         return await self._send_url_media(
@@ -436,8 +455,8 @@ class DiscordMediaMixin:
 
 
     async def send_video(
-        self, chat_id: str, video_path: str, caption: Optional[str] = None,
-        reply_to: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None,
+        self, chat_id: str, video_path: str, caption: str | None = None,
+        reply_to: str | None = None, metadata: dict[str, Any] | None = None,
     ) -> SendResult:
         """Send a local video file natively as a Discord attachment."""
         return await self._send_local_file(
@@ -447,9 +466,9 @@ class DiscordMediaMixin:
 
 
     async def send_document(
-        self, chat_id: str, file_path: str, caption: Optional[str] = None,
-        file_name: Optional[str] = None, reply_to: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        self, chat_id: str, file_path: str, caption: str | None = None,
+        file_name: str | None = None, reply_to: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> SendResult:
         """Send an arbitrary file natively as a Discord attachment."""
         return await self._send_local_file(

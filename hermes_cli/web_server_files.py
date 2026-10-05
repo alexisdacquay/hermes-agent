@@ -5,10 +5,10 @@ import mimetypes
 import os
 import urllib.request
 from dataclasses import dataclass
-from fastapi import HTTPException, Request
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
+from fastapi import HTTPException, Request
 
 _MANAGED_FILES_ROOT_ENV = "HERMES_DASHBOARD_FILES_ROOT"
 _HOSTED_MANAGED_FILES_ROOT = Path("/opt/data")
@@ -121,8 +121,8 @@ def _dashboard_local_update_managed_externally() -> bool:
     the update button is the correct path. pip stays blocked in containers: its
     apply path mutates the running container filesystem.
     """
-    from hermes_cli.web_server import PROJECT_ROOT
     from hermes_cli.config import detect_install_method
+    from hermes_cli.web_server import PROJECT_ROOT
     if _default_hermes_root_is_opt_data():
         return True
     try:
@@ -192,12 +192,12 @@ def _resolve_managed_path(
     return policy, resolved, str(resolved)
 
 
-def _managed_response_meta(policy: ManagedFilesPolicy) -> Dict[str, Any]:
+def _managed_response_meta(policy: ManagedFilesPolicy) -> dict[str, Any]:
     locked_root = str(policy.locked_root) if policy.locked_root is not None else None
     return {"root": locked_root, "locked_root": locked_root, "can_change_path": policy.can_change_path}
 
 
-def _managed_file_entry(policy: ManagedFilesPolicy, target: Path) -> Dict[str, Any]:
+def _managed_file_entry(policy: ManagedFilesPolicy, target: Path) -> dict[str, Any]:
     try:
         resolved = target.resolve()
     except (OSError, RuntimeError):

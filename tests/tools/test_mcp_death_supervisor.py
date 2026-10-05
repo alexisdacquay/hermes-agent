@@ -18,7 +18,6 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from tools import mcp_death_supervisor, mcp_tool
 from tools import mcp_tool_lifecycle as _mcp_lifecycle
 

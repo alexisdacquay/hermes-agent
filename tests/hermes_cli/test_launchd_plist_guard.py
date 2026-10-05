@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Regression tests for the launchd plist scan's malformed-file tolerance.
 
 ``_loaded_launchd_backend_jobs`` documents that unreadable or
@@ -11,7 +10,6 @@ import os
 from unittest import mock
 
 import pytest
-
 from hermes_cli import main_dashboard
 
 # ``_loaded_launchd_backend_jobs`` reads ``sys.platform`` directly (no host seam), so

@@ -11,7 +11,8 @@ import sys
 import tempfile
 import threading
 import time
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Any
 
 # Modifier aliases mirrored from the TUI parser (``ui-tui/src/lib/platform.ts`` ``_MOD_ALIASES``)
 # so one config value binds the same shortcut in both runtimes. ``super``/``win``/``windows`` are
@@ -109,8 +110,12 @@ def format_voice_record_key_for_status(raw: Any) -> str:
     return prefix + key[0].upper() + key[1:]
 
 
+from tools.voice_mode import (
+    create_audio_recorder,
+    play_audio_file,
+    transcribe_recording,
+)
 from tools.voice_mode_transcript import is_voice_stop_phrase, is_whisper_hallucination
-from tools.voice_mode import create_audio_recorder, play_audio_file, transcribe_recording
 
 logger = logging.getLogger(__name__)
 
@@ -127,8 +132,9 @@ def _debug(msg: str) -> None:
 def _beeps_enabled() -> bool:
     """CLI parity: voice.beep_enabled in config.yaml (default True)."""
     try:
-        from hermes_cli.config import load_config
         from utils import is_truthy_value
+
+        from hermes_cli.config import load_config
 
         voice_cfg = load_config().get("voice", {})
         if isinstance(voice_cfg, dict):
@@ -154,7 +160,7 @@ def _play_beep(frequency: int, count: int = 1) -> None:
         _debug(f"beep {frequency}Hz failed: {e}")
 
 
-def _safe_call(cb: Optional[Callable], *args: Any, warn: Optional[str] = None) -> None:
+def _safe_call(cb: Callable | None, *args: Any, warn: str | None = None) -> None:
     """Invoke an optional callback, swallowing its exceptions. ``warn`` is a ``logger.warning``
     format with one ``%s`` slot; without it failures are silent (status callbacks are fire-and-forget)."""
     if not cb:
@@ -166,7 +172,7 @@ def _safe_call(cb: Optional[Callable], *args: Any, warn: Optional[str] = None) -
             logger.warning(warn, e)
 
 
-def _transcribe_wav(wav_path: str, fail_msg: str, debug_prefix: Optional[str] = None) -> Optional[str]:
+def _transcribe_wav(wav_path: str, fail_msg: str, debug_prefix: str | None = None) -> str | None:
     """Transcribe ``wav_path``, unlink it, and return the cleaned transcript (or None).
 
     transcribe_recording returns {"success", "transcript", "error"?} — NOT {"text"}; the wrong key
@@ -192,7 +198,7 @@ def _transcribe_wav(wav_path: str, fail_msg: str, debug_prefix: Optional[str] = 
     return None
 
 
-def _deactivate(on_status: Optional[Callable[[str], None]] = None) -> None:
+def _deactivate(on_status: Callable[[str], None] | None = None) -> None:
     """Mark the continuous loop inactive and (optionally) report ``"idle"``."""
     global _continuous_active
     with _continuous_lock:
@@ -221,10 +227,10 @@ _tts_playing.set()  # initially "not playing"
 # Silence-count hold: while the agent is mid-turn (possibly minutes) or TTS plays, the user is
 # CORRECTLY silent — those cycles must not count toward the no-speech limit or a long tool run
 # ends the voice chat under the user. The host surface registers a probe reporting "agent busy".
-_voice_busy_probe: Optional[Callable[[], bool]] = None
+_voice_busy_probe: Callable[[], bool] | None = None
 
 
-def set_voice_busy_probe(probe: Optional[Callable[[], bool]]) -> None:
+def set_voice_busy_probe(probe: Callable[[], bool] | None) -> None:
     """Register a callable returning True while the agent is mid-turn; ``None`` clears it.
     Must be cheap and thread-safe — it runs on the silence-callback thread."""
     global _voice_busy_probe
@@ -253,8 +259,8 @@ _CONTINUOUS_NO_SPEECH_LIMIT = 3
 
 
 def _turn_transcript(
-    wav_path: Optional[str], fail_msg: str, where: str, tail: str, trace: bool = False
-) -> tuple[Optional[str], bool, str]:
+    wav_path: str | None, fail_msg: str, where: str, tail: str, trace: bool = False
+) -> tuple[str | None, bool, str]:
     """Transcribe a finished capture → (deliverable text, is_stop_phrase, stop_text).
 
     A bare stop phrase ("stop") is explicit user intent to end the voice chat: it is never sent
@@ -308,7 +314,7 @@ def start_recording() -> None:
         _recorder = rec
 
 
-def stop_and_transcribe() -> Optional[str]:
+def stop_and_transcribe() -> str | None:
     """Stop the active push-to-talk recording, transcribe, return text."""
     global _recorder
     with _recorder_lock:
@@ -325,13 +331,13 @@ def stop_and_transcribe() -> Optional[str]:
 
 def start_continuous(
     on_transcript: Callable[[str], None],
-    on_status: Optional[Callable[[str], None]] = None,
-    on_silent_limit: Optional[Callable[[], None]] = None,
+    on_status: Callable[[str], None] | None = None,
+    on_silent_limit: Callable[[], None] | None = None,
     silence_threshold: int = 200,
     silence_duration: float = 3.0,
     auto_restart: bool = True,
     max_recording_seconds: float = 0.0,
-    on_stop_phrase: Optional[Callable[[str], None]] = None,
+    on_stop_phrase: Callable[[str], None] | None = None,
 ) -> bool:
     """Start a VAD-driven continuous recording loop.
 
@@ -422,7 +428,7 @@ def stop_continuous(force_transcribe: bool = False) -> None:
     _finish_stop(on_status)
 
 
-def _finish_forced_stop(wav_path: Optional[str], callbacks: tuple, track_no_speech: bool) -> None:
+def _finish_forced_stop(wav_path: str | None, callbacks: tuple, track_no_speech: bool) -> None:
     """Background tail of ``stop_continuous(force_transcribe=True)``: transcribe, deliver, tally."""
     on_transcript, on_status, on_silent_limit, on_stop_phrase = callbacks
     # With auto_restart=False the CLIENT drives the loop, so a stop phrase must fire the stop
@@ -557,7 +563,7 @@ _LEGACY_TTS_STRIP = [
 ]
 
 
-def _speak_streaming(text: str, stop_event: Optional[threading.Event]) -> bool:
+def _speak_streaming(text: str, stop_event: threading.Event | None) -> bool:
     """Speak via the CLI's ``stream_tts_to_speaker`` pipeline when the configured provider has a
     chunked streamer (audio starts on sentence one); False → caller uses the whole-file path.
 
@@ -577,7 +583,7 @@ def _speak_streaming(text: str, stop_event: Optional[threading.Event]) -> bool:
 
     if resolve_streaming_provider(_load_tts_config()) is None:
         return False
-    text_queue: "queue.Queue" = queue.Queue()
+    text_queue: queue.Queue = queue.Queue()
     text_queue.put(text)
     text_queue.put(None)  # end-of-text sentinel
     done_event = threading.Event()
@@ -629,7 +635,7 @@ def _speak_whole_file(text: str) -> None:
         _debug(f"speak_text: TTS tool produced no audio at {mp3_path}")
 
 
-def speak_text(text: str, stop_event: Optional[threading.Event] = None) -> None:
+def speak_text(text: str, stop_event: threading.Event | None = None) -> None:
     """Synthesize ``text`` with the configured TTS provider and play it.
 
     While playback is in flight ``_tts_playing`` is cleared so the continuous loop waits before

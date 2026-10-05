@@ -23,7 +23,7 @@ import time
 from collections import OrderedDict
 from contextlib import nullcontext, suppress
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -31,18 +31,22 @@ logger = logging.getLogger(__name__)
 class ApiServerMemorySessions:
     """Session-keyed ``MemoryManager`` registry with exclusive check-out/check-in."""
 
-    def __init__(self, *, max_size: Optional[int] = None, idle_ttl_secs: Optional[float] = None) -> None:
-        self._entries: "OrderedDict[Tuple[str, str], Tuple[Any, Optional[Path], float]]" = OrderedDict()
+    def __init__(self, *, max_size: int | None = None, idle_ttl_secs: float | None = None) -> None:
+        self._entries: OrderedDict[tuple[str, str], tuple[Any, Path | None, float]] = OrderedDict()
         self._lock = threading.Lock()
         self._max_size = max_size
         self._idle_ttl_secs = idle_ttl_secs
 
     # -- bounds (same knobs as the gateway agent cache, resolved lazily) -------------------------
 
-    def _bounds(self) -> Tuple[int, float]:
+    def _bounds(self) -> tuple[int, float]:
         if self._max_size is None or self._idle_ttl_secs is None:
-            from gateway.run import _AGENT_CACHE_IDLE_TTL_SECS, _AGENT_CACHE_MAX_SIZE, _load_gateway_config
             from gateway.agent_cache_pressure import resolve_agent_cache_bounds
+            from gateway.run import (
+                _AGENT_CACHE_IDLE_TTL_SECS,
+                _AGENT_CACHE_MAX_SIZE,
+                _load_gateway_config,
+            )
             configured = None
             with suppress(Exception):
                 configured = resolve_agent_cache_bounds(_load_gateway_config())
@@ -53,7 +57,7 @@ class ApiServerMemorySessions:
         return self._max_size, self._idle_ttl_secs
 
     @staticmethod
-    def _owner_home() -> Tuple[str, Optional[Path]]:
+    def _owner_home() -> tuple[str, Path | None]:
         """(registry key, profile home to re-enter on eviction) for the CURRENT scope. Callers run
         inside ``_profile_scope`` (or a single-profile gateway), so the ambient home is the owner's."""
         from hermes_constants import get_hermes_home, hermes_home_key
@@ -62,7 +66,7 @@ class ApiServerMemorySessions:
 
     # -- check-out / check-in ----------------------------------------------------------------
 
-    def checkout(self, session_id: Optional[str]) -> Optional[Any]:
+    def checkout(self, session_id: str | None) -> Any | None:
         """The manager a previous request on ``session_id`` checked in, or None (build a new one)."""
         if not session_id:
             return None
@@ -81,7 +85,7 @@ class ApiServerMemorySessions:
         home_key, home = self._owner_home()
         max_size, idle_ttl = self._bounds()
         now = time.monotonic()
-        doomed: List[Tuple[Any, Optional[Path]]] = []
+        doomed: list[tuple[Any, Path | None]] = []
         with self._lock:
             displaced = self._entries.pop((home_key, session_id), None)
             if displaced is not None and displaced[0] is not manager:
@@ -106,13 +110,13 @@ class ApiServerMemorySessions:
 
     # -- teardown -------------------------------------------------------------------------------
 
-    def _shutdown_async(self, manager: Any, owner: Optional[Path]) -> None:
+    def _shutdown_async(self, manager: Any, owner: Path | None) -> None:
         """Eviction runs inside a request's own turn: never make that reply wait on a provider drain."""
         from agent.memory_provider import spawn_context_thread
         spawn_context_thread(self._shutdown, args=(manager, owner), name="api-server-memory-evict").start()
 
     @staticmethod
-    def _shutdown(manager: Any, owner: Optional[Path]) -> None:
+    def _shutdown(manager: Any, owner: Path | None) -> None:
         """Bounded drain then provider shutdown, under the OWNING profile's scope: eviction runs inside
         whichever request happened to trigger it, and a provider reads its home/credentials at call time."""
         scope: Any = nullcontext()
@@ -131,6 +135,6 @@ class ApiServerMemorySessions:
 
     # -- introspection (tests) --------------------------------------------------------------------
 
-    def parked(self) -> Dict[Tuple[str, str], Any]:
+    def parked(self) -> dict[tuple[str, str], Any]:
         with self._lock:
             return {key: entry[0] for key, entry in self._entries.items()}

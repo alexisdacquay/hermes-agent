@@ -9,7 +9,6 @@ Both are checked against real modules on the current tree, so they also pin the 
 from pathlib import Path
 
 import pytest
-
 from evals.codebase_navigability import bench
 
 ROOT = Path(__file__).resolve().parents[2]

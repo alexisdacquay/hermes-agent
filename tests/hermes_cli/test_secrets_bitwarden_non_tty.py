@@ -6,9 +6,6 @@ because getpass.getpass() and console.input() require an interactive terminal.
 from __future__ import annotations
 
 import argparse
-from unittest.mock import patch
-
-import pytest
 
 
 class TestCmdSetupNonTtyGuard:
@@ -62,7 +59,7 @@ class TestCmdSetupNonTtyGuard:
         monkeypatch.setattr(
             "hermes_cli.secrets_cli._bws_version", lambda _: "2.0.0"
         )
-        monkeypatch.setattr("hermes_cli.secrets_cli.load_config", lambda: {})
+        monkeypatch.setattr("hermes_cli.secrets_cli.load_config", dict)
         monkeypatch.setattr("hermes_cli.secrets_cli.save_env_value", lambda *a: None)
         monkeypatch.setattr("hermes_cli.secrets_cli.get_env_path", lambda: "/tmp/.env")
         monkeypatch.setattr(

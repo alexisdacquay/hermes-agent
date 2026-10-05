@@ -35,7 +35,6 @@ from unittest.mock import MagicMock
 
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # Fix A: prelude error surfacing via wire `error` events
 #
@@ -214,8 +213,8 @@ def test_classify_api_error_stream_event_grok_subscription_is_auth():
     skipped.  The explicit pattern added at step 1 must fire first and
     return auth/non-retryable so _is_entitlement_failure can stop the loop.
     """
+    from agent.error_classifier import FailoverReason, classify_api_error
     from run_agent import _StreamErrorEvent
-    from agent.error_classifier import classify_api_error, FailoverReason
 
     err = _StreamErrorEvent(
         "You have either run out of available resources or do not have an "
@@ -443,7 +442,7 @@ def test_recover_with_credential_pool_rotates_on_xai_spending_limit_403():
     error = _SpendingLimitError("Error code: 403")
     classified = classify_api_error(error, provider="xai-oauth", model="grok-4.5")
     error_context = agent._extract_api_error_context(error)
-    setattr(agent, "_credential_pool", _FakePool())
+    agent._credential_pool = _FakePool()
     agent._swap_credential = MagicMock()
 
     recovered, retried_429 = agent._recover_with_credential_pool(

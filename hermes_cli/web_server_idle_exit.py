@@ -27,7 +27,7 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from typing import Callable, Optional
+from collections.abc import Callable
 
 _log = logging.getLogger(__name__)
 
@@ -101,7 +101,7 @@ def _session_work_in_flight(session: dict) -> bool:
                if (thread := session.get(key)) is not None)
 
 
-def busy_ledger() -> Optional[str]:
+def busy_ledger() -> str | None:
     """Name the ledger that holds work — ``"retirement_admission"``, ``"session:<id>"``,
     ``"delegation"``, ``"cron:<job ids>"`` — ``""`` when every ledger is empty, ``None`` when one
     cannot be read. The Desktop's idle probe reports this so a backend that will not retire says
@@ -115,6 +115,7 @@ def busy_ledger() -> Optional[str]:
     global _probe_failure_logged
     try:
         import tui_gateway.server as gateway
+
         from hermes_cli.backend_retirement import retirement
 
         if retirement.active_count():
@@ -123,8 +124,8 @@ def busy_ledger() -> Optional[str]:
             busy_sessions = [sid for sid, s in gateway._sessions.items() if _session_work_in_flight(s)]
         if busy_sessions:
             return "session:" + ",".join(str(sid) for sid in busy_sessions)
-        from tools.async_delegation import active_count
         from cron.scheduler import get_running_job_ids
+        from tools.async_delegation import active_count
         if active_count():
             return "delegation"
         running_jobs = get_running_job_ids()
@@ -136,7 +137,7 @@ def busy_ledger() -> Optional[str]:
         return None
 
 
-def turn_in_flight() -> Optional[bool]:
+def turn_in_flight() -> bool | None:
     """Bool view of :func:`busy_ledger`, kept so ``should_exit_idle`` / the idle watchdog and injected
     test probes keep their ``Optional[bool]`` contract; None when the ledgers cannot be read."""
     ledger = busy_ledger()
@@ -144,14 +145,14 @@ def turn_in_flight() -> Optional[bool]:
 
 
 def should_exit_idle(tracker: IdleClientTracker, grace_s: float,
-                     probe: Callable[[], Optional[bool]] = turn_in_flight) -> bool:
+                     probe: Callable[[], bool | None] = turn_in_flight) -> bool:
     """Exit only when no client has been connected for ``grace_s`` AND no turn is provably running.
     A probe that cannot answer keeps the process (fail closed)."""
     return tracker.idle_for() >= grace_s and probe() is False  # idle_for() is 0 while a client is connected
 
 
 def start_idle_watchdog(server, tracker: IdleClientTracker, *, grace_s: float = DEFAULT_IDLE_GRACE_S,
-                        poll_s: float = 15.0, probe: Callable[[], Optional[bool]] = turn_in_flight) -> threading.Thread:
+                        poll_s: float = 15.0, probe: Callable[[], bool | None] = turn_in_flight) -> threading.Thread:
     """Daemon thread that sets ``server.should_exit`` once :func:`should_exit_idle` holds."""
 
     poll_s = min(poll_s, max(0.5, grace_s / 4))

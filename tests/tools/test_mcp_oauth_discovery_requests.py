@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import pytest
 
-
 pytest.importorskip("mcp.client.auth.oauth2", reason="MCP SDK 1.26.0+ required")
 
 
@@ -32,9 +31,12 @@ async def _noop_callback():
 async def _make_flow(tmp_path, monkeypatch, *, registered=True):
     from tools.mcp_tool import sdk_httpx
     httpx = sdk_httpx()
-    from mcp.shared.auth import OAuthClientInformationFull, OAuthClientMetadata, OAuthToken
+    from mcp.shared.auth import (
+        OAuthClientInformationFull,
+        OAuthClientMetadata,
+        OAuthToken,
+    )
     from pydantic import AnyUrl
-
     from tools.mcp_oauth import HermesTokenStorage
     from tools.mcp_oauth_manager import _HERMES_PROVIDER_CLS, reset_manager_for_tests
 

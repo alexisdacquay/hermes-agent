@@ -13,7 +13,6 @@ import threading
 from types import SimpleNamespace
 
 import pytest
-
 from acp_adapter.server import HermesACPAgent
 from acp_adapter.session import SessionState
 

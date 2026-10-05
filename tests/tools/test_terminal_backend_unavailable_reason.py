@@ -4,9 +4,8 @@ CLI startup notice / doctor can tell the user WHY the terminal tool is missing (
 import subprocess
 
 import pytest
-
-import tools.terminal_tool as terminal_tool
 import tools.terminal_tool_backends as backends
+from tools import terminal_tool
 
 
 @pytest.fixture(autouse=True)

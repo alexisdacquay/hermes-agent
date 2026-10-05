@@ -9,9 +9,10 @@ pattern source; fails CLOSED so a broken redactor never emits the raw string), t
 from __future__ import annotations
 
 import re
-from typing import Any, Optional
+from typing import Any
 
-from agent.redact import REDACTION_UNAVAILABLE as UNAVAILABLE, redact_for_egress
+from agent.redact import REDACTION_UNAVAILABLE as UNAVAILABLE
+from agent.redact import redact_for_egress
 
 # ── PII shapes ───────────────────────────────────────────────────────────────
 _EMAIL_RE = re.compile(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}")
@@ -22,7 +23,7 @@ _PHONE_RE = re.compile(
 _UUID_RE = re.compile(r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b")
 
 
-def redact_for_export(text: Optional[str]) -> Optional[str]:
+def redact_for_export(text: str | None) -> str | None:
     """Scrub a string for egress: secrets, then PII. Unconditional."""
     if text is None:
         return None
@@ -42,4 +43,4 @@ def redact_bounded(raw: Any, *, limit: int = 500, empty: str = "[redacted]", una
         return unavailable
 
 
-__all__ = ["redact_for_export", "redact_bounded"]
+__all__ = ["redact_bounded", "redact_for_export"]

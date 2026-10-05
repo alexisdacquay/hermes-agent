@@ -7,36 +7,35 @@ dollars-only / topup-split invariants the billing UX requires.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 import pytest
-
-from agent.billing_usage import LOW_BALANCE_THRESHOLD_USD, UsageBar, usage_model_from_account
-
+from agent.billing_usage import (
+    usage_model_from_account,
+)
 
 # ── Lightweight stand-ins for the NousPortalAccountInfo shape ────────────────
 
 
 @dataclass
 class _Access:
-    subscription_credits_remaining: Optional[float] = None
-    purchased_credits_remaining: Optional[float] = None
-    total_usable_credits: Optional[float] = None
+    subscription_credits_remaining: float | None = None
+    purchased_credits_remaining: float | None = None
+    total_usable_credits: float | None = None
 
 
 @dataclass
 class _Sub:
-    plan: Optional[str] = None
-    monthly_credits: Optional[float] = None
-    current_period_end: Optional[str] = None
+    plan: str | None = None
+    monthly_credits: float | None = None
+    current_period_end: str | None = None
 
 
 @dataclass
 class _Account:
     logged_in: bool = True
-    paid_service_access: Optional[bool] = None
-    paid_service_access_info: Optional[_Access] = None
-    subscription: Optional[_Sub] = None
+    paid_service_access: bool | None = None
+    paid_service_access_info: _Access | None = None
+    subscription: _Sub | None = None
 
 
 def _acct(**over):

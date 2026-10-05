@@ -20,16 +20,15 @@ import base64
 import json
 import time
 import urllib.parse
-from typing import Any, Dict
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import httpx
 import jwt
+import plugins.dashboard_auth.nous as nous_plugin
 import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
-
-import plugins.dashboard_auth.nous as nous_plugin
 from hermes_cli.dashboard_auth import (
     InvalidCodeError,
     ProviderError,
@@ -42,7 +41,7 @@ from hermes_cli.dashboard_auth import (
 # ---------------------------------------------------------------------------
 
 @pytest.fixture(scope="module")
-def rsa_keypair() -> Dict[str, Any]:
+def rsa_keypair() -> dict[str, Any]:
     """Generate an RS256 keypair + matching JWK for verify_session tests."""
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     private_pem = key.private_bytes(
@@ -73,7 +72,7 @@ def rsa_keypair() -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 def _mint_token(
-    rsa_keypair: Dict[str, Any],
+    rsa_keypair: dict[str, Any],
     *,
     iss: str = "https://portal.example.com",
     aud: str = "agent:inst123",
@@ -83,7 +82,7 @@ def _mint_token(
     org_id: str | None = "org_xyz",
     scope: str = "agent_dashboard:access",
     ttl_seconds: int = 900,
-    extra_claims: Dict[str, Any] | None = None,
+    extra_claims: dict[str, Any] | None = None,
 ) -> str:
     now = int(time.time())
     claims = {
@@ -199,7 +198,7 @@ class TestConfigYamlSource:
         with a stub returning the given dict. Tests pass the intended
         ``dashboard.oauth`` block; the stub returns the wrapping structure."""
 
-        def _set(oauth_block: Dict[str, Any] | None) -> None:
+        def _set(oauth_block: dict[str, Any] | None) -> None:
             cfg = {}
             if oauth_block is not None:
                 cfg = {"dashboard": {"oauth": oauth_block}}
@@ -416,12 +415,11 @@ class TestCompleteLogin:
         with patch(
             "plugins.dashboard_auth._shared.httpx.post",
             side_effect=httpx.ConnectError("conn refused"),
-        ):
-            with pytest.raises(ProviderError, match="unreachable"):
-                provider.complete_login(
-                    code="x", state="s", code_verifier="v",
-                    redirect_uri="https://hermes.fly.dev/auth/callback",
-                )
+        ), pytest.raises(ProviderError, match="unreachable"):
+            provider.complete_login(
+                code="x", state="s", code_verifier="v",
+                redirect_uri="https://hermes.fly.dev/auth/callback",
+            )
 
 # ---------------------------------------------------------------------------
 # verify_session

@@ -12,18 +12,17 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from agent.auxiliary_client import (
-    _AnthropicCompletionsAdapter,
-    _ChatStreamAccumulator,
-    _CodexCompletionsAdapter,
     _acreate_with_progress,
     _acreate_with_stream,
     _aggregate_chat_stream,
     _aggregate_chat_stream_async,
     _anthropic_event_has_content,
+    _AnthropicCompletionsAdapter,
     _aux_dispatch,
     _aux_thread_local_hook,
+    _ChatStreamAccumulator,
+    _CodexCompletionsAdapter,
     _create_with_progress,
     _create_with_progress_once,
     _notify_aux_progress,
@@ -32,7 +31,6 @@ from agent.auxiliary_client import (
 )
 from agent.codex_runtime import _codex_event_has_content
 from agent.conversation_compression import CompressionCommitFence
-
 
 # ---------------------------------------------------------------------------
 # Helpers

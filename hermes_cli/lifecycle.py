@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, List
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -17,19 +17,19 @@ def _observe(hook_name: str, **kwargs: Any) -> None:
         logger.warning("Built-in observability hook failed", exc_info=True)
 
 
-def _plugin_hooks(hook_name: str, **kwargs: Any) -> List[Any]:
+def _plugin_hooks(hook_name: str, **kwargs: Any) -> list[Any]:
     from hermes_cli import plugins
 
     return plugins.invoke_hook(hook_name, **kwargs)
 
 
-def invoke_hook(hook_name: str, **kwargs: Any) -> List[Any]:
+def invoke_hook(hook_name: str, **kwargs: Any) -> list[Any]:
     """Notify first-party observers, then invoke compatibility plugin hooks."""
     _observe(hook_name, **kwargs)
     return _plugin_hooks(hook_name, **kwargs)
 
 
-async def ainvoke_hook(hook_name: str, **kwargs: Any) -> List[Any]:
+async def ainvoke_hook(hook_name: str, **kwargs: Any) -> list[Any]:
     """:func:`invoke_hook` for callers on an event loop: same observers-then-plugins
     composition, with ``async def`` plugin callbacks awaited on that loop."""
     _observe(hook_name, **kwargs)
@@ -53,7 +53,7 @@ def has_hook(hook_name: str) -> bool:
     return plugins.has_hook(hook_name)
 
 
-def finalize_session(**kwargs: Any) -> List[Any]:
+def finalize_session(**kwargs: Any) -> list[Any]:
     """Notify observers and hard-close one core-owned Relay conversation."""
     _observe("on_session_finalize", **kwargs)
 

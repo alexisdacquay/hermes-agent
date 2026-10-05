@@ -8,7 +8,6 @@ card, so ``_presence()`` must clear the trio and let the gate resolve from
 """
 
 import pytest
-
 from tools import approval as approval_mod
 
 

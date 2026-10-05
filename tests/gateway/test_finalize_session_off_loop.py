@@ -21,6 +21,7 @@ import time
 
 from gateway.run import GatewayRunner
 
+
 def _make_runner():
     runner = object.__new__(GatewayRunner)
     return runner
@@ -38,7 +39,7 @@ def test_finalize_off_loop_keeps_loop_alive_and_bounds_wedged_hook(monkeypatch):
         # Simulates a multi-minute trace export.
         release.wait(timeout=30)
 
-    import hermes_cli.lifecycle as lifecycle
+    from hermes_cli import lifecycle
 
     monkeypatch.setattr(lifecycle, "finalize_session", _wedged_finalize)
 
@@ -78,7 +79,7 @@ def test_finalize_off_loop_swallows_hook_exceptions(monkeypatch):
     def _raising_finalize(**kwargs):
         raise RuntimeError("exporter blew up")
 
-    import hermes_cli.lifecycle as lifecycle
+    from hermes_cli import lifecycle
 
     monkeypatch.setattr(lifecycle, "finalize_session", _raising_finalize)
 

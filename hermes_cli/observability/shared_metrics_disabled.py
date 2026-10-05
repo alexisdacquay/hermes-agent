@@ -25,8 +25,9 @@ import copy
 import functools
 import logging
 import threading
+from collections.abc import Iterable, Iterator
 from contextvars import ContextVar
-from typing import Any, Iterable, Iterator
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +99,10 @@ def default_on_settings() -> frozenset[str]:
     """Dotted ``DEFAULT_CONFIG`` paths whose shipped value is ``True`` (the closed setting vocabulary)."""
     from hermes_cli.config import DEFAULT_CONFIG
 
-    from .shared_metrics_contract import FEATURE_DISABLED_NAME_MAX_LENGTH, _metric_identifier
+    from .shared_metrics_contract import (
+        FEATURE_DISABLED_NAME_MAX_LENGTH,
+        _metric_identifier,
+    )
 
     paths: set[str] = set()
 
@@ -159,7 +163,11 @@ def _names(config: Any, section: str, key: str, *, per_platform: str | None = No
 
 def _plugin_kind(name: str) -> str:
     """A messaging-platform plugin (bundled or catalog) reports as a platform, other plugins as plugins."""
-    from .shared_metrics_catalog import _safe, bundled_platform_names, catalog_platform_names
+    from .shared_metrics_catalog import (
+        _safe,
+        bundled_platform_names,
+        catalog_platform_names,
+    )
 
     platforms = _safe(bundled_platform_names) | _safe(catalog_platform_names)
     return "platform" if name.strip().lower().rsplit("/", 1)[-1] in platforms else "plugin"

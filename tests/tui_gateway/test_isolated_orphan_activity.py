@@ -4,7 +4,6 @@ import threading
 import time
 
 import pytest
-
 from tui_gateway import server
 
 

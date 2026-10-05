@@ -26,8 +26,8 @@ from __future__ import annotations
 
 import io
 
-from tui_gateway import entry
 from hermes_cli import model_switch_providers
+from tui_gateway import entry
 
 
 def _run_main(monkeypatch, events, *, prewarm=None):
@@ -57,7 +57,6 @@ def _run_main(monkeypatch, events, *, prewarm=None):
     if prewarm is None:
         def prewarm():
             events.append(("prewarm",))
-            return None  # fire-and-forget handle; never blocks
 
     monkeypatch.setattr(model_switch_providers, "prewarm_picker_cache_async", prewarm)
 

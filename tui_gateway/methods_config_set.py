@@ -238,7 +238,11 @@ def _set_verbose(rid, params, key, value, session):
 
 def _set_focus(rid, params, key, value, session):
     # /focus: enabling stashes the configured tool_progress mode and pins it "off"; disabling restores.
-    from hermes_cli.focus_view import FOCUS_TOOL_PROGRESS_MODE, normalize_tool_progress_mode, resolve_focus_arg
+    from hermes_cli.focus_view import (
+        FOCUS_TOOL_PROGRESS_MODE,
+        normalize_tool_progress_mode,
+        resolve_focus_arg,
+    )
     d_f = _display_cfg()
     cur_focus = bool(d_f.get("focus_view", False))
     action, target = resolve_focus_arg(str(value or ""), cur_focus)
@@ -272,7 +276,11 @@ def _set_yolo(rid, params, key, value, session):
     # scope="session" (default; Shift+Tab) toggles ONLY this session's flag; scope="global"
     # (Shift+click the zap) flips persistent approvals.mode between "off" and "manual".
     scope = _word(params.get("scope") or "session")
-    from tools.approval import disable_session_yolo, enable_session_yolo, is_session_yolo_enabled
+    from tools.approval import (
+        disable_session_yolo,
+        enable_session_yolo,
+        is_session_yolo_enabled,
+    )
     raw = _word(value)
     if scope == "global":
         from tools.approval_context import _normalize_approval_mode

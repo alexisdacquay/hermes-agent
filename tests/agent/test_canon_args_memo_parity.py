@@ -23,9 +23,8 @@ import copy
 import json
 import random
 
-import pytest
-
 import agent.conversation_loop as cl
+import pytest
 from agent.message_sanitization import _repair_tool_call_arguments
 
 random.seed(1234)

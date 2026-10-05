@@ -8,11 +8,9 @@ configured/enabled`` and overwrite the job's ``last_status`` with ``delivery_fai
 """
 
 import json
-from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
-
 from hermes_cli.cron import _run_outcome
 
 ROUTED_TARGET = "telegram:-1004306455751:14"

@@ -23,9 +23,8 @@ import sys
 import time
 from unittest.mock import MagicMock
 
-import pytest
-
 import agent.deadline as deadline_mod
+import pytest
 
 
 class _FakeProc:
@@ -112,7 +111,6 @@ def test_e2e_setsid_grandchild_killed_via_compat_wrapper(tmp_path):
     """
     pytest.importorskip("psutil")
     import psutil
-
     from hermes_cli._subprocess_compat import kill_process_tree
 
     started = tmp_path / "grandchild_started"

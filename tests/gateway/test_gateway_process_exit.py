@@ -1,9 +1,8 @@
 from types import SimpleNamespace
 from unittest.mock import Mock
 
-import pytest
-
 import gateway.run as gateway_run
+import pytest
 
 
 class _ExitCalled(Exception):

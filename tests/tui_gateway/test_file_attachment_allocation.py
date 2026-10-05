@@ -1,12 +1,11 @@
 """File attachment uploads retain their bytes in the shared profile namespace."""
 
 import base64
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-import threading
 
 import pytest
-
 from tui_gateway import server
 
 

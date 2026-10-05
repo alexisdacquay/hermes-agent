@@ -8,14 +8,14 @@ redirect ``_model_request_active`` bracket and the response-vs-redirect crossing
 
 from __future__ import annotations
 
-from contextlib import nullcontext
-from dataclasses import dataclass
 import logging
 import time
-from typing import Any, Dict, Optional
+from contextlib import nullcontext
+from dataclasses import dataclass
+from typing import Any
 
-from agent.error_classifier import FailoverReason
 from agent.agent_runtime_helpers import _INTERRUPTED_PLACEHOLDER
+from agent.error_classifier import FailoverReason
 from agent.message_metadata import append_message
 from agent.repetition_guard import REPETITION_LOOP_INTERRUPTED, is_runaway_repetition
 from agent.turn_failure_copy import site_copy, stamp_failure
@@ -30,7 +30,6 @@ def stop_thinking_spinner(agent: Any, thinking_spinner: Any) -> None:
         thinking_spinner.stop("")
     if agent.thinking_callback:
         agent.thinking_callback("")
-    return None
 
 
 @dataclass
@@ -223,7 +222,7 @@ class NousRateGuardVerdict:
     active_system_prompt: Any
     retry_count: Any
     compression_attempts: Any
-    result: Optional[Dict[str, Any]] = None
+    result: dict[str, Any] | None = None
 
 
 def nous_rate_limit_guard(
@@ -234,7 +233,7 @@ def nous_rate_limit_guard(
     SDK retries) counts against RPH. Never lets the guard itself break the agent loop."""
     from agent.conversation_loop import _arm_fallback_restart
 
-    def _verdict(action: str, result: Optional[Dict[str, Any]] = None) -> NousRateGuardVerdict:
+    def _verdict(action: str, result: dict[str, Any] | None = None) -> NousRateGuardVerdict:
         return NousRateGuardVerdict(
             action=action, active_system_prompt=active_system_prompt, retry_count=retry_count,
             compression_attempts=compression_attempts, result=result,
@@ -249,10 +248,10 @@ def nous_rate_limit_guard(
         except Exception:
             pass
         try:
-            from agent.nous_rate_guard import (
-                nous_rate_limit_remaining, format_remaining as _fmt_nous_remaining
-            )
             from hermes_cli import anon_auth
+
+            from agent.nous_rate_guard import format_remaining as _fmt_nous_remaining
+            from agent.nous_rate_guard import nous_rate_limit_remaining
             _anonymous = anon_auth.is_anonymous_agent(agent)
             _nous_remaining = nous_rate_limit_remaining(anonymous=_anonymous)
             if _nous_remaining is not None and _nous_remaining > 0:

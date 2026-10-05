@@ -1,7 +1,6 @@
-import pytest
-
-from providers.base import ProviderProfile
 import providers
+import pytest
+from providers.base import ProviderProfile
 
 
 @pytest.fixture(autouse=True)

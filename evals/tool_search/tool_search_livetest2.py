@@ -11,9 +11,14 @@ Runs each scenario N_REPS times in each mode (on/off). Output:
 """
 from __future__ import annotations
 
-import json, os, shutil, sys, tempfile, time, traceback
+import json
+import os
+import shutil
+import sys
+import time
+import traceback
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 _THIS_DIR = Path(__file__).resolve().parent
 _WORKTREE_ROOT = _THIS_DIR.parents[1]
@@ -24,7 +29,7 @@ import tool_search_livetest as base  # fixtures + helpers
 
 N_REPS = int(os.environ.get("TS_BENCH_REPS", "3"))
 
-SCENARIOS: List[Dict[str, Any]] = base.SCENARIOS + [
+SCENARIOS: list[dict[str, Any]] = base.SCENARIOS + [
     {
         "id": "F_paraphrase_hard",
         "description": "Deferred tool, zero name-word overlap (retrieval stress)",
@@ -56,7 +61,7 @@ SCENARIOS: List[Dict[str, Any]] = base.SCENARIOS + [
 ]
 
 
-def run_one(scenario: Dict[str, Any], mode: str, rep: int, out_dir: Path) -> Dict[str, Any]:
+def run_one(scenario: dict[str, Any], mode: str, rep: int, out_dir: Path) -> dict[str, Any]:
     """mode: 'enabled' (bare bridge) | 'listing' (bridge + catalog listing) | 'disabled' (eager)."""
     enabled = mode in ("enabled", "listing")
     hermes_home = base.setup_isolated_home(enabled, listing=("auto" if mode == "listing" else "off"))
@@ -70,7 +75,7 @@ def run_one(scenario: Dict[str, Any], mode: str, rep: int, out_dir: Path) -> Dic
     from tools.registry import registry
     original_dispatch = registry.dispatch
 
-    tool_call_log: List[Dict[str, Any]] = []
+    tool_call_log: list[dict[str, Any]] = []
     def logging_dispatch(name, args, **kw):
         tool_call_log.append({"name": name})
         return original_dispatch(name, args, **kw)
@@ -80,7 +85,7 @@ def run_one(scenario: Dict[str, Any], mode: str, rep: int, out_dir: Path) -> Dic
     # it fires on both streaming and non-streaming paths with normalized
     # usage. NOTE: registered AFTER AIAgent construction because plugin
     # discovery during init calls _hooks.clear().
-    usage_log: List[Dict[str, Any]] = []
+    usage_log: list[dict[str, Any]] = []
     def usage_hook(**kw):
         u = kw.get("usage") or {}
         if u:
@@ -93,7 +98,7 @@ def run_one(scenario: Dict[str, Any], mode: str, rep: int, out_dir: Path) -> Dic
     started = time.time()
     error = None
     final_response = ""
-    messages_out: List[Dict[str, Any]] = []
+    messages_out: list[dict[str, Any]] = []
     pm = None
     try:
         from run_agent import AIAgent
@@ -103,7 +108,7 @@ def run_one(scenario: Dict[str, Any], mode: str, rep: int, out_dir: Path) -> Dic
             skip_context_files=True, skip_memory=True,
             platform="cli", max_iterations=15,
         )
-        from hermes_cli.plugins import get_plugin_manager, discover_plugins
+        from hermes_cli.plugins import discover_plugins, get_plugin_manager
         discover_plugins()  # idempotent; ensures no later clear wipes our hook
         pm = get_plugin_manager()
         pm._hooks.setdefault("post_api_request", []).append(usage_hook)

@@ -4,14 +4,15 @@ peer). Mixin split out of ``gateway/session.py``; bound onto ``SessionStore`` vi
 
 from __future__ import annotations
 
-import logging
 import json
+import logging
 import math
 import threading
 from dataclasses import replace
 from datetime import datetime
+from typing import TYPE_CHECKING, Any
+
 from gateway.config import Platform
-from typing import TYPE_CHECKING, Any, Dict, Optional
 
 if TYPE_CHECKING:
     from gateway.session import SessionEntry, SessionSource
@@ -20,7 +21,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger("gateway.session")
 
 
-def _origin_json(source) -> Optional[str]:
+def _origin_json(source) -> str | None:
     """``source.to_dict()`` as JSON, or None when absent/unserializable."""
     if source is None:
         return None
@@ -33,7 +34,7 @@ def _origin_json(source) -> Optional[str]:
 class SessionRecoveryMixin:
     """SessionStore durable-row recovery and the SQLite side of routing transitions."""
 
-    def _resolve_profile_for_key(self, source: Optional[SessionSource] = None) -> Optional[str]:
+    def _resolve_profile_for_key(self, source: SessionSource | None = None) -> str | None:
         """Profile namespace for session keys: None when multiplexing is off (legacy
         ``agent:main``), else the pinned identity's runtime profile, ``source.profile`` or the
         active profile."""
@@ -52,7 +53,7 @@ class SessionRecoveryMixin:
             return None
 
     @staticmethod
-    def _profile_from_session_key(session_key: Optional[str]) -> Optional[str]:
+    def _profile_from_session_key(session_key: str | None) -> str | None:
         """Extract the profile namespace encoded in a gateway session key."""
         if not session_key:
             return None
@@ -71,7 +72,7 @@ class SessionRecoveryMixin:
             return "default"
 
     def _recovered_row_allowed_for_active_profile(
-        self, *, requested_session_key: str, recovered: Dict[str, Any]
+        self, *, requested_session_key: str, recovered: dict[str, Any]
     ) -> bool:
         """Prevent a gateway from reviving another profile's row. Single-profile: the row's
         namespace must match the ACTIVE profile. Multiplexed: it must match the requested key's
@@ -93,7 +94,7 @@ class SessionRecoveryMixin:
             return requested_profile is None or recovered_profile == requested_profile
         return recovered_profile == self._active_profile_name()
 
-    def _generate_session_key(self, source: SessionSource, key_source: Optional[SessionSource] = None) -> str:
+    def _generate_session_key(self, source: SessionSource, key_source: SessionSource | None = None) -> str:
         """Session key for *source* (profile from *source*; key from *key_source* if given)."""
         from gateway.session import build_session_key
         return build_session_key(
@@ -102,14 +103,14 @@ class SessionRecoveryMixin:
             thread_sessions_per_user=getattr(self.config, "thread_sessions_per_user", False),
             profile=self._resolve_profile_for_key(source))
 
-    def _legacy_slack_session_key(self, source: SessionSource) -> Optional[str]:
+    def _legacy_slack_session_key(self, source: SessionSource) -> str | None:
         """Pre-workspace Slack key for an explicitly scoped source. Deliberately Slack-only: an
         unscoped Slack session may be claimed by only one workspace (old key cannot tell teams)."""
         if source.platform != Platform.SLACK or not source.scope_id:
             return None
         return self._generate_session_key(source, replace(source, scope_id=None, guild_id=None))
 
-    def _claim_legacy_slack_key(self, legacy_key: Optional[str]) -> bool:
+    def _claim_legacy_slack_key(self, legacy_key: str | None) -> bool:
         """Atomically reserve one ambiguous legacy Slack key for migration."""
         if not legacy_key:
             return False
@@ -122,7 +123,7 @@ class SessionRecoveryMixin:
 
     @staticmethod
     def _recovered_row_matches_source_scope(
-        recovered: Dict[str, Any], source: SessionSource
+        recovered: dict[str, Any], source: SessionSource
     ) -> bool:
         """Reject recovered rows whose origin belongs to another workspace: a workspace-scoped Slack
         lookup adopts a row only if its origin_json names the same scope_id; rows without a
@@ -138,7 +139,7 @@ class SessionRecoveryMixin:
         return origin.get("scope_id", origin.get("guild_id")) == source.scope_id
 
     def _create_entry_from_recovered_row(
-        self, *, row: Dict[str, Any], session_key: str, source: SessionSource, now: datetime,
+        self, *, row: dict[str, Any], session_key: str, source: SessionSource, now: datetime,
     ) -> SessionEntry:
         from gateway.session import SessionEntry
 
@@ -165,7 +166,7 @@ class SessionRecoveryMixin:
 
     def _find_gateway_session_row(
         self, *, session_key: str, source: SessionSource, allow_peer_fallback: bool,
-        raise_on_lookup_error: bool = False) -> Optional[Dict[str, Any]]:
+        raise_on_lookup_error: bool = False) -> dict[str, Any] | None:
         """Query one durable gateway session row. Scoped Slack lookups disable SessionDB's
         platform/chat/user fallback: that tuple has no workspace id and could revive another team's
         session; the caller performs one explicit exact lookup of the old unscoped key instead."""
@@ -178,7 +179,7 @@ class SessionRecoveryMixin:
 
     @staticmethod
     def _peer_row(db, *, source: str, session_key: str, raise_on_lookup_error: bool = False,
-                  **peer: Any) -> Optional[Dict[str, Any]]:
+                  **peer: Any) -> dict[str, Any] | None:
         """``db.find_latest_gateway_session_for_peer`` guarded for a missing store, a SessionDB
         without the finder, and a failing lookup (debug-logged -> None unless *raise_on_lookup_error*).
         Extra keyword arguments (user_id/chat_id/chat_type/thread_id) pass through to the finder."""
@@ -194,8 +195,8 @@ class SessionRecoveryMixin:
             return None
 
     def resolve_session_id_for_key(
-        self, session_key: str, *, not_after: Optional[float] = None,
-    ) -> Optional[tuple[str, Any]]:
+        self, session_key: str, *, not_after: float | None = None,
+    ) -> tuple[str, Any] | None:
         """Resolve a gateway session key to ``(session_id, db)`` for shutdown-flush recovery.
 
         The routing map (``peek_session_id``) is authoritative: it names the session the message
@@ -236,7 +237,7 @@ class SessionRecoveryMixin:
 
     def _recover_session_from_db(
         self, *, session_key: str, source: SessionSource, now: datetime,
-        raise_on_lookup_error: bool = False) -> Optional[SessionEntry]:
+        raise_on_lookup_error: bool = False) -> SessionEntry | None:
         """Rebuild a missing session-key mapping from a recoverable durable row."""
         entry, migrated_legacy = self._query_recoverable_row(
             # The legacy (pre-workspace) Slack key fallback happens INSIDE _query_recoverable_session
@@ -265,7 +266,7 @@ class SessionRecoveryMixin:
 
     def _query_recoverable_row(
         self, *, session_key, source, now, raise_on_lookup_error=False,
-    ) -> tuple[Optional[SessionEntry], bool]:
+    ) -> tuple[SessionEntry | None, bool]:
         """Find and gate a recoverable row -> (entry or None, migrated_legacy). The legacy
         (pre-workspace) Slack key fallback lives here: exact-key lookup, claimed once per process;
         ``migrated_legacy`` tells the caller to rewrite the peer row to the scoped key."""
@@ -324,9 +325,9 @@ class SessionRecoveryMixin:
                 logger.debug("Gateway session DB reopen failed for %s: %s", session_key, exc)
 
     def _record_gateway_session_peer(
-        self, session_id: str, session_key: str, source: Optional[SessionSource],
-        display_name: Optional[str] = None, include_compression_ancestors: bool = False,
-        transport_profile: Optional[str] = None) -> None:
+        self, session_id: str, session_key: str, source: SessionSource | None,
+        display_name: str | None = None, include_compression_ancestors: bool = False,
+        transport_profile: str | None = None) -> None:
         """Persist the routing peer for an existing gateway session row. ``transport_profile`` is the
         entry's persisted receiving-bot profile; when the caller has no entry it is read off the
         source's pinned identity (None = unknown, the column keeps whatever an earlier writer set)."""
@@ -362,7 +363,7 @@ class SessionRecoveryMixin:
         legacy_key = self._legacy_slack_session_key(source)
         if not legacy_key:
             return
-        migrated: Optional[SessionEntry] = None
+        migrated: SessionEntry | None = None
         with self._lock:
             self._ensure_loaded_locked()
             legacy_entry = self._entries.get(legacy_key)
@@ -385,9 +386,9 @@ class SessionRecoveryMixin:
                 migrated.session_id, session_key, source, display_name=migrated.display_name)
 
     def _finish_route_transition(
-        self, session_key: str, *, end_session_id: Optional[str], end_reason: str,
-        create_kwargs: Optional[Dict[str, Any]], origin: Optional[SessionSource],
-        display_name: Optional[str], during: str = "") -> None:
+        self, session_key: str, *, end_session_id: str | None, end_reason: str,
+        create_kwargs: dict[str, Any] | None, origin: SessionSource | None,
+        display_name: str | None, during: str = "") -> None:
         """SQLite side of a routing transition, outside ``_lock``: promote the predecessor row to an
         explicit reset boundary (with the specific reason so state.db is auditable, e.g.
         ``suspended`` vs plain ``session_reset``), then INSERT the new row + routing
@@ -416,7 +417,7 @@ class SessionRecoveryMixin:
     @staticmethod
     def _session_create_kwargs(
         *, session_id, session_key, origin, source_value, display_name, parent_session_id,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """kwargs for ``SessionDB.create_session``. Identity (origin_json) and lineage
         (parent/_reset_from) land atomically in the INSERT so a crash right after cannot strand the
         row unroutable."""

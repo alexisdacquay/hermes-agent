@@ -11,7 +11,6 @@ import json
 import logging
 import os
 import re
-import shlex
 import shutil
 import subprocess
 import sys
@@ -20,22 +19,40 @@ import threading
 import time
 import uuid
 from pathlib import Path
-from typing import Optional
 
 from hermes_constants import get_hermes_home
-from tools.environments.base import BaseEnvironment, EnvironmentConnectionError, _SHELL_ENV_NAME_RE
-from tools.terminal_tool_config import (
-    _host_path_key, _is_windows_drive_path, cwd_follows_host_mount,
+
+from tools.environments.base import (
+    _SHELL_ENV_NAME_RE,
+    BaseEnvironment,
+    EnvironmentConnectionError,
 )
 from tools.environments.base_output import _popen_bash
 from tools.environments.docker_egress import (
-    _EGRESS_LABEL_KEY, _critical_egress_env_names, _egress_enforce_on_docker, _egress_proxy_args_for_docker,
-    _egress_reuse_fingerprint, check_docker_env_collisions, check_extra_args_collisions,
-    check_forward_env_collisions, merge_egress_env,
+    _EGRESS_LABEL_KEY,
+    _critical_egress_env_names,
+    _egress_enforce_on_docker,
+    _egress_proxy_args_for_docker,
+    _egress_reuse_fingerprint,
+    check_docker_env_collisions,
+    check_extra_args_collisions,
+    check_forward_env_collisions,
+    merge_egress_env,
 )
 from tools.environments.path_utils import sanitize_task_id_for_path
 from tools.environments.remote_common import (
-    bash_argv, client_env_with, load_hermes_env_vars, prepend_unset, resolve_passthrough_env, run_capture)
+    bash_argv,
+    client_env_with,
+    load_hermes_env_vars,
+    prepend_unset,
+    resolve_passthrough_env,
+    run_capture,
+)
+from tools.terminal_tool_config import (
+    _host_path_key,
+    _is_windows_drive_path,
+    cwd_follows_host_mount,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +62,7 @@ _DOCKER_SEARCH_PATHS = [
     "/usr/local/bin/docker", "/opt/homebrew/bin/docker", "/Applications/Docker.app/Contents/Resources/bin/docker",
 ]
 
-_docker_executable: Optional[str] = None  # resolved once, cached
+_docker_executable: str | None = None  # resolved once, cached
 _ENV_VAR_NAME_RE = _SHELL_ENV_NAME_RE
 _ENVIRONMENT_LABEL_KEY = "hermes-environment"
 
@@ -195,7 +212,7 @@ def reap_orphan_containers(
         return 0
 
     # Per-container inspect keeps the failure blast radius to one container.
-    now = datetime.datetime.now(datetime.timezone.utc)
+    now = datetime.datetime.now(datetime.UTC)
     removed = 0
     for cid in (ln.strip() for ln in listing.stdout.splitlines() if ln.strip()):
         finished_at = _container_finished_at(docker, cid)
@@ -261,7 +278,7 @@ def _docker_query(
     return result
 
 
-def find_docker() -> Optional[str]:
+def find_docker() -> str | None:
     """Locate the docker/podman CLI (cached): ``HERMES_DOCKER_BINARY`` override, ``docker``
     on PATH, ``podman`` on PATH, then macOS Docker Desktop locations; ``None`` if absent."""
     global _docker_executable
@@ -343,7 +360,7 @@ def _extra_args_set_shm_size(extra_args: list) -> bool:
 _NETWORK_FLAGS = ("--network", "--net")
 
 
-def _extra_args_network_mode(extra_args: list) -> Optional[str]:
+def _extra_args_network_mode(extra_args: list) -> str | None:
     """Network mode requested by ``docker_extra_args`` (``--network none`` / ``--network=none`` /
     ``--net``), or None when the operator set no network flag. Docker rejects a repeated
     ``--network`` outright (exit 125), so the implicit ``docker_network: false`` flag and an
@@ -411,7 +428,7 @@ def _image_uses_init_entrypoint(docker_exe: str, image: str) -> bool:
     return str(entrypoint[0]).strip() in _S6_INIT_ENTRYPOINTS
 
 
-def _resolve_host_user_spec() -> Optional[str]:
+def _resolve_host_user_spec() -> str | None:
     """``<uid>:<gid>`` of the host user, or ``None`` without POSIX ids. Uses os.getuid/getgid
     directly (not pwd/getpass) so nameless UIDs inside sandboxed launchers never raise."""
     get_uid = getattr(os, "getuid", None)
@@ -424,8 +441,8 @@ def _resolve_host_user_spec() -> Optional[str]:
         return None
 
 
-_storage_opt_ok: Optional[bool] = None  # cached result across instances
-_cgroup_limits_ok: Optional[bool] = None  # cached result across instances
+_storage_opt_ok: bool | None = None  # cached result across instances
+_cgroup_limits_ok: bool | None = None  # cached result across instances
 
 
 def _cgroup_limits_available(image: str) -> bool:
@@ -646,7 +663,7 @@ class DockerEnvironment(BaseEnvironment):
         forward_env: list[str] | None = None,
         env: dict | None = None,
         network: bool = True,
-        host_cwd: Optional[str] = None,
+        host_cwd: str | None = None,
         auto_mount_cwd: bool = False,
         run_as_host_user: bool = False,
         extra_args: list = None,
@@ -667,10 +684,10 @@ class DockerEnvironment(BaseEnvironment):
         self._forward_env = _normalize_forward_env_names(forward_env)
         self._env = _normalize_env_dict(env)
         self._init_unset_passthrough_names: tuple[str, ...] = ()
-        self._container_id: Optional[str] = None
+        self._container_id: str | None = None
         self._init_env_values: dict[str, str] = {}
-        self._workspace_dir: Optional[str] = None
-        self._home_dir: Optional[str] = None
+        self._workspace_dir: str | None = None
+        self._home_dir: str | None = None
         logger.info("DockerEnvironment volumes: %s", volumes)
         if volumes is not None and not isinstance(volumes, list):
             logger.warning("docker_volumes config is not a list: %r", volumes)
@@ -1194,7 +1211,7 @@ class DockerEnvironment(BaseEnvironment):
         logger.debug("Docker --storage-opt support: %s", _storage_opt_ok)
         return _storage_opt_ok or False
 
-    def _container_image(self, container_id: str) -> Optional[str]:
+    def _container_image(self, container_id: str) -> str | None:
         """The image reference a container was created from (``Config.Image``: the tag as given
         to ``docker run``, so it compares directly with ``docker_image``), or ``None`` when
         inspection fails (callers then keep the container: a failed probe must not churn)."""
@@ -1203,7 +1220,7 @@ class DockerEnvironment(BaseEnvironment):
             fail="docker inspect Image failed: %s", nonzero="docker inspect Image returned %d: %s")
         return (result.stdout.strip() or None) if result is not None else None
 
-    def _container_network_mode(self, container_id: str) -> Optional[str]:
+    def _container_network_mode(self, container_id: str) -> str | None:
         """``HostConfig.NetworkMode`` of a container, or ``None`` when inspection fails (callers
         treat ``None`` as a mismatch under lockdown, so a failed inspect fails closed)."""
         result = _docker_query(
@@ -1212,7 +1229,7 @@ class DockerEnvironment(BaseEnvironment):
         return (result.stdout.strip() or None) if result is not None else None
 
     def _find_reusable_container(
-        self, task_label: str, profile_label: str, egress_label: str) -> Optional[tuple[str, str]]:
+        self, task_label: str, profile_label: str, egress_label: str) -> tuple[str, str] | None:
         """``(container_id, state)`` of an existing container labeled for this task/profile/
         egress posture and immutable environment, or ``None`` on miss or any failure.
         Explicit shared keys opt out of the environment filter. The egress posture is a label

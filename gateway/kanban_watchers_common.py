@@ -10,9 +10,10 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+from collections.abc import Callable
 from contextvars import Context
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any
 
 # Keep the logger name run.py used so extracted log records are unchanged.
 logger = logging.getLogger("gateway.run")
@@ -46,7 +47,7 @@ def _board_slugs(kb: Any) -> list:
     return [b.get("slug") or kb.DEFAULT_BOARD for b in _list_boards(kb)]
 
 
-def _positive_int_setting(kanban_cfg: dict, key: str) -> Optional[int]:
+def _positive_int_setting(kanban_cfg: dict, key: str) -> int | None:
     """Parse an optional ``kanban.<key>`` int cap; None when unset or invalid (< 1 is invalid)."""
     raw = kanban_cfg.get(key)
     if raw is None:
@@ -63,7 +64,7 @@ def _positive_int_setting(kanban_cfg: dict, key: str) -> Optional[int]:
     return value
 
 
-def _resolve_auto_decompose_settings(load_config: Callable[[], Any]) -> "tuple[bool, int]":
+def _resolve_auto_decompose_settings(load_config: Callable[[], Any]) -> tuple[bool, int]:
     """Live (enabled, per_tick) auto-decompose settings, re-read every dispatcher tick.
 
     Fails safe: a config read error returns ``(False, 3)`` rather than
@@ -110,7 +111,7 @@ def _kanban_dispatch_allowed() -> bool:
     return not check_paused("kanban", logger)
 
 
-def _acquire_singleton_lock(lock_path) -> "tuple[Optional[object], str]":
+def _acquire_singleton_lock(lock_path) -> tuple[object | None, str]:
     """Take the exclusive, non-blocking advisory lock for the sole dispatcher.
 
     Only one gateway machine-wide may run the embedded dispatcher: concurrent

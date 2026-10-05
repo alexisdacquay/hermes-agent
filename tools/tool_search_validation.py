@@ -6,7 +6,7 @@ import copy
 import json
 import logging
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from tools.registry import tool_error
 from tools.tool_search_catalog import BRIDGE_TOOL_NAMES, _registry_entry
@@ -71,7 +71,7 @@ def _validation_error(message: str, *, path: str, constraint: str, parameters: A
         hint="Retry tool_call with 'arguments' matching the parameters schema above.")
 
 
-def validate_deferred_call_args(name: str, args: Dict[str, Any]) -> Optional[str]:
+def validate_deferred_call_args(name: str, args: dict[str, Any]) -> str | None:
     """Validate ``tool_call`` arguments against the deferred tool's schema. Models invoke
     deferred tools "blind" (schema unseen) and omit required args; without this, the opaque
     downstream failure makes cheap models loop. Required-field probe first, then the same
@@ -136,7 +136,7 @@ def validate_deferred_call_args(name: str, args: Dict[str, Any]) -> Optional[str
         return None
 
 
-def normalize_tool_call_entries(args: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], Optional[str]]:
+def normalize_tool_call_entries(args: dict[str, Any]) -> tuple[list[dict[str, Any]], str | None]:
     """Normalize ``tool_call`` arguments into a ``calls[]`` list of entries.
 
     Accepts the advertised batch shape ``{"calls": [{"name", "arguments"}, ...]}``
@@ -163,7 +163,7 @@ def normalize_tool_call_entries(args: Dict[str, Any]) -> Tuple[List[Dict[str, An
     if not isinstance(raw_calls, list) or not raw_calls:
         return [], "tool_call 'calls' must be a non-empty array of {name, arguments}"
 
-    entries: List[Dict[str, Any]] = []
+    entries: list[dict[str, Any]] = []
     for position, raw in enumerate(raw_calls):
         if not isinstance(raw, dict):
             return [], f"tool_call calls[{position}] must be an object with 'name' and 'arguments'"
@@ -193,7 +193,7 @@ def normalize_tool_call_entries(args: Dict[str, Any]) -> Tuple[List[Dict[str, An
 _ECHO_ARGS_MAX_CHARS = 1500
 
 
-def local_batch_error(entries: List[Dict[str, Any]]) -> str:
+def local_batch_error(entries: list[dict[str, Any]]) -> str:
     """Rejection for a multi-entry batch that names a local tool. Restates the valid
     shape with the caller's OWN first entry: small models re-send an identical batch
     when told only the constraint, and the echoed payload is what gets them unstuck."""
@@ -216,7 +216,9 @@ def not_deferrable_error(name: str) -> str:
     tool (call it without the bridge) vs. an unknown name — typically a deferred MCP tool
     cited by its bare suffix instead of the full ``mcp__<server>__{tool}`` name. Telling
     the second group 'call it directly' is the opposite of what they must do."""
-    from tools.tool_search import _core_tool_names  # late: tool_search imports this module
+    from tools.tool_search import (
+        _core_tool_names,  # late: tool_search imports this module
+    )
     if name in _core_tool_names() or _registry_entry(name) is not None:
         return (f"'{name}' is a directly-listed tool, not a deferred one. "
                 "Call it directly instead of via tool_call.")

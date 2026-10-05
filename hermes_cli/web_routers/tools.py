@@ -9,19 +9,31 @@ import asyncio
 import shutil
 import subprocess
 import sys
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from fastapi import APIRouter, HTTPException
+from starlette.concurrency import run_in_threadpool
 
 from hermes_cli.web_deps import late
-from hermes_cli.web_server_profiles import _plugin_terminal_backend_rows
-from starlette.concurrency import run_in_threadpool
 from hermes_cli.web_models import (
-    TerminalBackendSelect, ToolsetEnvUpdate, ToolsetModelSelect, ToolsetPostSetup,
-    ToolsetProviderSelect, ToolsetToggle)
+    TerminalBackendSelect,
+    ToolsetEnvUpdate,
+    ToolsetModelSelect,
+    ToolsetPostSetup,
+    ToolsetProviderSelect,
+    ToolsetToggle,
+)
 from hermes_cli.web_routers._common import (
-    _CONFIG_MUTATION_LOCK, _profile_cli_args, _profile_scope, _spawn_hermes_action,
-    config_write_scope, log as _log, scoped_to_thread, spawn_profile_action)
+    _CONFIG_MUTATION_LOCK,
+    _profile_cli_args,
+    _profile_scope,
+    _spawn_hermes_action,
+    config_write_scope,
+    scoped_to_thread,
+    spawn_profile_action,
+)
+from hermes_cli.web_routers._common import log as _log
+from hermes_cli.web_server_profiles import _plugin_terminal_backend_rows
 
 router = APIRouter()
 
@@ -47,7 +59,7 @@ def _terminal_cfg_value(terminal_cfg: dict, key: str, env_var: str) -> str:
     return _env_value(env_var).strip()
 
 
-def _terminal_backend_rows() -> List[Dict[str, str]]:
+def _terminal_backend_rows() -> list[dict[str, str]]:
     """Built-in picker rows plus plugin-registered backends, computed per request
     so a plugin installed after server start still shows up."""
     from hermes_cli.web_server_profiles import _TERMINAL_BACKENDS
@@ -62,7 +74,11 @@ def _probe_docker_backend(_cfg) -> tuple:
     because Podman has no ServerVersion field and the agent already probes with
     ``version``.
     """
-    from tools.environments.docker import docker_runtime_name, docker_runtime_start_hint, find_docker
+    from tools.environments.docker import (
+        docker_runtime_name,
+        docker_runtime_start_hint,
+        find_docker,
+    )
     from tools.environments.remote_common import run_capture
 
     docker_exe = find_docker()
@@ -157,7 +173,7 @@ def _probe_terminal_backend(name: str, terminal_cfg: dict) -> tuple:
 _MODEL_CATALOG_TOOLSETS = {"image_gen": "image_gen", "video_gen": "video_gen"}
 
 
-def _resolve_toolset_model_plugin(ts_key: str, provider_row: dict) -> Optional[str]:
+def _resolve_toolset_model_plugin(ts_key: str, provider_row: dict) -> str | None:
     """Map a provider picker row to its model-catalog plugin name.
 
     Plugin-backed rows carry ``image_gen_plugin_name`` / ``video_gen_plugin_name``;
@@ -173,7 +189,11 @@ def _resolve_toolset_model_plugin(ts_key: str, provider_row: dict) -> Optional[s
 def _toolset_model_catalog(ts_key: str, plugin_name: str, config: dict):
     """Return ``(catalog_dict, default_model)`` for a toolset's plugin backend or, for an image row's
     ``imagegen_backend`` (``fal``, the managed ``nous`` union), that backend's catalog."""
-    from hermes_cli.tools_config import IMAGEGEN_BACKENDS, _plugin_image_gen_catalog, _plugin_video_gen_catalog
+    from hermes_cli.tools_config import (
+        IMAGEGEN_BACKENDS,
+        _plugin_image_gen_catalog,
+        _plugin_video_gen_catalog,
+    )
 
     if ts_key == "image_gen":
         backend = IMAGEGEN_BACKENDS.get(plugin_name)
@@ -192,7 +212,7 @@ def _category_providers(ts_key: str, config: dict) -> list:
 
 
 def _find_toolset_provider_row(
-    ts_key: str, config: dict, provider: Optional[str]) -> Optional[dict]:
+    ts_key: str, config: dict, provider: str | None) -> dict | None:
     """Resolve a provider picker row by name, or the active row when omitted."""
     from hermes_cli.tools_config import _is_provider_active
 
@@ -228,14 +248,20 @@ def _no_models(name: str) -> dict:
 
 
 @router.get("/api/tools/toolsets")
-async def get_toolsets(profile: Optional[str] = None):
-    from hermes_cli.tools_config import (
-        _CONFIG_ONLY_TOOLSETS, _get_effective_configurable_toolsets, _get_platform_tools,
-        _toolset_configuration_platform, _toolset_has_keys, get_nous_subscription_features,
-        gui_toolset_label)
-    from hermes_cli.platforms import platform_label
+async def get_toolsets(profile: str | None = None):
     from toolsets import resolve_toolset
     from utils import is_truthy_value
+
+    from hermes_cli.platforms import platform_label
+    from hermes_cli.tools_config import (
+        _CONFIG_ONLY_TOOLSETS,
+        _get_effective_configurable_toolsets,
+        _get_platform_tools,
+        _toolset_configuration_platform,
+        _toolset_has_keys,
+        get_nous_subscription_features,
+        gui_toolset_label,
+    )
 
     def _read():
         with _profile_scope(profile):
@@ -278,13 +304,16 @@ async def get_toolsets(profile: Optional[str] = None):
 
 
 @router.put("/api/tools/toolsets/{name}")
-async def toggle_toolset(name: str, body: ToolsetToggle, profile: Optional[str] = None):
+async def toggle_toolset(name: str, body: ToolsetToggle, profile: str | None = None):
     """Enable/disable a configurable toolset for its configuration platform
     (``platform_toolsets.cli`` for most; platform-restricted toolsets target
     their own platform) via the same ``_save_platform_tools`` the CLI uses."""
     from hermes_cli.tools_config import (
-        _CONFIG_ONLY_TOOLSETS, _get_platform_tools, _save_platform_tools,
-        _toolset_configuration_platform)
+        _CONFIG_ONLY_TOOLSETS,
+        _get_platform_tools,
+        _save_platform_tools,
+        _toolset_configuration_platform,
+    )
 
     _require_known_toolset(name)
     target_platform = _toolset_configuration_platform(name)
@@ -313,11 +342,14 @@ async def toggle_toolset(name: str, body: ToolsetToggle, profile: Optional[str] 
     # UNSATISFIED (cua-driver binary missing, etc.) gets the same background
     # install `hermes tools` runs — otherwise the toggle "saves" but the tool
     # never appears.  Best-effort: a spawn failure never fails the toggle.
-    post_setup_started: Optional[str] = None
+    post_setup_started: str | None = None
     if body.enabled and name not in _CONFIG_ONLY_TOOLSETS:
-        def _pending_install_key() -> Optional[str]:
+        def _pending_install_key() -> str | None:
             from hermes_cli.tools_config import (
-                TOOL_CATEGORIES, _post_setup_already_installed, _visible_providers)
+                TOOL_CATEGORIES,
+                _post_setup_already_installed,
+                _visible_providers,
+            )
 
             cat = TOOL_CATEGORIES.get(name)
             if not cat:
@@ -343,14 +375,18 @@ async def toggle_toolset(name: str, body: ToolsetToggle, profile: Optional[str] 
 
 
 @router.get("/api/tools/toolsets/{name}/config")
-async def get_toolset_config(name: str, profile: Optional[str] = None):
+async def get_toolset_config(name: str, profile: str | None = None):
     """Provider matrix + key status for a toolset's config panel (the CLI picker
     rows, each env var annotated ``is_set``); no category -> ``has_category: false``."""
-    from hermes_cli.tools_config import (
-        TOOL_CATEGORIES, _is_provider_active, _visible_providers, provider_readiness_status,
-        web_provider_capabilities)
     from hermes_cli.config import get_env_value
     from hermes_cli.nous_subscription import get_nous_subscription_features
+    from hermes_cli.tools_config import (
+        TOOL_CATEGORIES,
+        _is_provider_active,
+        _visible_providers,
+        provider_readiness_status,
+        web_provider_capabilities,
+    )
 
     _require_known_toolset(name)
 
@@ -405,7 +441,10 @@ async def get_toolset_config(name: str, profile: Optional[str] = None):
                 # Resolve active backends exactly as the web_search/web_extract
                 # dispatchers do, so badges reflect what a call would hit now.
                 try:
-                    from tools.web_tools import _get_extract_backend, _get_search_backend
+                    from tools.web_tools import (
+                        _get_extract_backend,
+                        _get_search_backend,
+                    )
 
                     search_backend = _get_search_backend()
                     extract_backend = _get_extract_backend()
@@ -420,7 +459,7 @@ async def get_toolset_config(name: str, profile: Optional[str] = None):
 
 @router.get("/api/tools/toolsets/{name}/models")
 async def get_toolset_models(
-    name: str, provider: Optional[str] = None, profile: Optional[str] = None):
+    name: str, provider: str | None = None, profile: str | None = None):
     """Model catalog for a toolset backend (image/video gen) — the GUI
     counterpart of the CLI model picker.  ``provider`` names a picker row
     (default: the active provider); no catalog -> ``has_models: false``."""
@@ -460,7 +499,7 @@ async def get_toolset_models(
 
 @router.put("/api/tools/toolsets/{name}/model")
 async def select_toolset_model(
-    name: str, body: ToolsetModelSelect, profile: Optional[str] = None):
+    name: str, body: ToolsetModelSelect, profile: str | None = None):
     """Persist a backend model selection (``image_gen.model`` /
     ``video_gen.model``), validated against the resolved backend's catalog."""
     section = _MODEL_CATALOG_TOOLSETS.get(name)
@@ -492,7 +531,7 @@ async def select_toolset_model(
 
 @router.put("/api/tools/toolsets/{name}/provider")
 async def select_toolset_provider(
-    name: str, body: ToolsetProviderSelect, profile: Optional[str] = None):
+    name: str, body: ToolsetProviderSelect, profile: str | None = None):
     """Persist a provider selection via ``apply_provider_selection`` (shared with
     ``hermes tools``, so both write identical keys).
 
@@ -502,9 +541,14 @@ async def select_toolset_provider(
     entitlement (``needs_nous_auth`` + ``feature``): the GUI has no inline
     login, so an unentitled selection would write config and never activate.
     """
-    from hermes_cli.tools_config import apply_provider_selection, web_provider_capabilities
     from hermes_cli.nous_subscription import (
-        MANAGED_FEATURE_COVERAGE_CATEGORY, get_nous_subscription_features)
+        MANAGED_FEATURE_COVERAGE_CATEGORY,
+        get_nous_subscription_features,
+    )
+    from hermes_cli.tools_config import (
+        apply_provider_selection,
+        web_provider_capabilities,
+    )
 
     _require_known_toolset(name)
 
@@ -543,7 +587,7 @@ async def select_toolset_provider(
                     except KeyError as exc:
                         raise _bad_request(str(exc).strip('"'))
                 save_config(config)
-                response: Dict[str, Any] = {"ok": True, "name": name, "provider": body.provider}
+                response: dict[str, Any] = {"ok": True, "name": name, "provider": body.provider}
                 if body.capability is not None:
                     response["capability"] = body.capability
 
@@ -572,7 +616,7 @@ async def select_toolset_provider(
 
 
 @router.put("/api/tools/toolsets/{name}/env")
-async def save_toolset_env(name: str, body: ToolsetEnvUpdate, profile: Optional[str] = None):
+async def save_toolset_env(name: str, body: ToolsetEnvUpdate, profile: str | None = None):
     """Persist API keys to ``.env`` via ``save_env_value``.  Keys are validated
     against the union of the category's visible-provider ``env_vars`` so this
     can't write arbitrary env vars; a blank value means "leave unchanged"."""
@@ -593,8 +637,8 @@ async def save_toolset_env(name: str, body: ToolsetEnvUpdate, profile: Optional[
                 raise _bad_request(
                     f"Unknown env var(s) for toolset {name}: {', '.join(sorted(unknown))}")
 
-            saved: List[str] = []
-            skipped: List[str] = []
+            saved: list[str] = []
+            skipped: list[str] = []
             for key, value in body.env.items():
                 if value and value.strip():
                     try:
@@ -614,7 +658,7 @@ async def save_toolset_env(name: str, body: ToolsetEnvUpdate, profile: Optional[
 
 @router.post("/api/tools/toolsets/{name}/post-setup")
 async def run_toolset_post_setup(
-    name: str, body: ToolsetPostSetup, profile: Optional[str] = None):
+    name: str, body: ToolsetPostSetup, profile: str | None = None):
     """Spawn ``hermes tools post-setup <key>`` (long-running installs) as a
     background action tailed via ``GET /api/actions/tools-post-setup/status``;
     ``profile`` is threaded so hooks see the drawer's HERMES_HOME."""
@@ -632,7 +676,7 @@ async def run_toolset_post_setup(
 
 
 @router.get("/api/tools/terminal/backends")
-async def get_terminal_backends(profile: Optional[str] = None):
+async def get_terminal_backends(profile: str | None = None):
     """Terminal backend rows with health probes: ``status`` is ``ready`` /
     ``needs_setup`` / ``unavailable``; a probe failure is a status, never an
     error response."""
@@ -660,7 +704,7 @@ async def get_terminal_backends(profile: Optional[str] = None):
 
 @router.put("/api/tools/terminal/backend")
 async def select_terminal_backend(
-    body: TerminalBackendSelect, profile: Optional[str] = None):
+    body: TerminalBackendSelect, profile: str | None = None):
     """Persist ``terminal.backend``.  A backend that still needs setup is
     allowed — the picker shows guidance instead of blocking, like the CLI."""
     backend = (body.backend or "").strip().lower()
@@ -681,7 +725,7 @@ async def select_terminal_backend(
 
 
 @router.get("/api/tools/computer-use/status")
-async def get_computer_use_status(profile: Optional[str] = None):
+async def get_computer_use_status(profile: str | None = None):
     """Computer Use readiness for the desktop card (payload shape: see
     ``tools.computer_use.permissions.computer_use_status``)."""
     from tools.computer_use.permissions import computer_use_status
@@ -690,7 +734,7 @@ async def get_computer_use_status(profile: Optional[str] = None):
 
 
 @router.post("/api/tools/computer-use/permissions/grant")
-async def grant_computer_use_permissions(profile: Optional[str] = None):
+async def grant_computer_use_permissions(profile: str | None = None):
     """Spawn ``hermes computer-use permissions grant`` (macOS-only: launches
     CuaDriver via LaunchServices so the TCC dialog is attributed correctly).
     The frontend polls ``GET /api/actions/computer-use-grant/status``."""

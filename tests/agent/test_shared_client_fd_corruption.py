@@ -32,6 +32,7 @@ import pytest
 
 from tests.agent.test_streaming import _make_stream_chunk
 
+
 def _make_agent():
     from run_agent import AIAgent
 
@@ -214,9 +215,8 @@ class TestReplacePrimaryRetiresInsteadOfClosing:
         with patch.object(
             agent, "_force_close_tcp_sockets",
             side_effect=lambda c: shutdown_calls.append(c) or 1,
-        ):
-            with patch("agent.process_bootstrap.OpenAI", MagicMock()):
-                ok = agent._replace_primary_openai_client(reason="test_rotate")
+        ), patch("agent.process_bootstrap.OpenAI", MagicMock()):
+            ok = agent._replace_primary_openai_client(reason="test_rotate")
 
         assert ok
         # Sockets were shut down (FD-safe from any thread)…

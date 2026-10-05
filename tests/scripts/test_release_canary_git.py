@@ -1,10 +1,9 @@
 """Canary policy on real Git refs; GitHub publication stays an inert boundary."""
-from datetime import datetime, timezone
-from types import SimpleNamespace
 import subprocess
+from datetime import UTC, datetime
+from types import SimpleNamespace
 
 import pytest
-
 from tests.scripts.test_release_tags import release, release_repo  # noqa: F401
 
 
@@ -142,7 +141,7 @@ def test_tag_shape_and_prune_use_canonical_receipts(canary_repo, monkeypatch, ca
     class Clock(datetime):
         @classmethod
         def now(cls, tz=None):
-            return cls(2026, 8, 18, tzinfo=timezone.utc)
+            return cls(2026, 8, 18, tzinfo=UTC)
 
     monkeypatch.setattr(release, "datetime", Clock)
     release.prune_old_canaries(SimpleNamespace(remote="origin", publish=False))

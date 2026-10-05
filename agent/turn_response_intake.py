@@ -6,16 +6,19 @@ continuation guards. Nothing here imports ``agent.conversation_loop`` at module 
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import json
 import logging
 import re
-from typing import Any, Dict, Optional
+from dataclasses import dataclass
+from typing import Any
 
 from agent.provider_projection import splice_provider_projection
 from agent.trajectory import has_incomplete_scratchpad
 from agent.turn_truncation import (
-    CODEX_FALLBACK_ACTIVATED, continue_codex_incomplete, normalize_response_for_agent, partial_result,
+    CODEX_FALLBACK_ACTIVATED,
+    continue_codex_incomplete,
+    normalize_response_for_agent,
+    partial_result,
 )
 
 logger = logging.getLogger("agent.conversation_loop")
@@ -33,7 +36,7 @@ class ResponseIntakeVerdict:
     action: str
     assistant_message: Any
     finish_reason: Any
-    result: Optional[Dict[str, Any]] = None
+    result: dict[str, Any] | None = None
     active_system_prompt: Any = None
 
 
@@ -63,7 +66,8 @@ def _fire_post_api_request_hook(
     from agent.conversation_loop import _moa_reference_metrics_for_hook
 
     try:
-        from hermes_cli.lifecycle import has_hook, invoke_hook as _invoke_hook
+        from hermes_cli.lifecycle import has_hook
+        from hermes_cli.lifecycle import invoke_hook as _invoke_hook
         if has_hook("post_api_request"):
             _invoke_hook(
                 "post_api_request",
@@ -127,7 +131,7 @@ def normalize_model_response(
     assistant_message = normalize_response_for_agent(agent, response)
     finish_reason = assistant_message.finish_reason
 
-    def _verdict(action: str, result: Optional[Dict[str, Any]] = None) -> ResponseIntakeVerdict:
+    def _verdict(action: str, result: dict[str, Any] | None = None) -> ResponseIntakeVerdict:
         return ResponseIntakeVerdict(
             action=action, assistant_message=assistant_message, finish_reason=finish_reason,
             result=result, active_system_prompt=active_system_prompt,

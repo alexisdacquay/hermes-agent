@@ -9,8 +9,6 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
-
-from gateway.config import GatewayConfig
 from gateway.session import SessionStore
 from hermes_state import SessionDB
 from hermes_state_rewind import RewindTargetUnavailableError

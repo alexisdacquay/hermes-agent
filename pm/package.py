@@ -5,8 +5,8 @@ from __future__ import annotations
 
 import os
 import subprocess
-from pathlib import Path, PurePosixPath
-from typing import TYPE_CHECKING, Optional
+from pathlib import Path
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from pm.store import Store
@@ -20,7 +20,7 @@ class InstallError(RuntimeError):
         super().__init__(f"{package}: {cause} — {self.remedy}")
 
 
-def compose_env(diffs: list[dict], base: Optional[dict] = None) -> dict[str, str]:
+def compose_env(diffs: list[dict], base: dict | None = None) -> dict[str, str]:
     """Dependents win over their dependencies for every key: diffs arrive
     deps-first, later ones take precedence — npm's pinned shim must shadow
     the npm bundled inside node, and a package's exports beat inherited env.
@@ -85,10 +85,10 @@ class Package:
     # The arch guard accepts the x64 PE on these targets.
     emulated_arch_targets: frozenset[str] = frozenset()
 
-    def missing_reason(self, target: str) -> Optional[str]:
+    def missing_reason(self, target: str) -> str | None:
         return self.gaps.get(target)
 
-    def latest_versions(self, target: str, locked: Optional[str] = None) -> list[str]:
+    def latest_versions(self, target: str, locked: str | None = None) -> list[str]:
         """Newest-first candidate versions for `target` — the "how do I find
         latest" hook for `hermes pm update`. Empty list = this package has
         no auto-update source (chromium follows agent-browser; venv is a
@@ -117,7 +117,7 @@ class Package:
     def store_entry(self, version: str, target: str) -> str:
         return f"{self.name}-{version}-{target}"
 
-    def known_sha256(self, version: str, url: str) -> Optional[str]:
+    def known_sha256(self, version: str, url: str) -> str | None:
         """A digest the upstream already publishes, so `pm lock` does not
         have to stream the artifact to learn it. Override where a release
         API serves digests (GitHub's does); returning None means hash it."""
@@ -135,10 +135,10 @@ class Package:
 
         extract(archive, staged)
 
-    def stage(self, store: "Store", staged: Path, version: str, target: str) -> None:
+    def stage(self, store: Store, staged: Path, version: str, target: str) -> None:
         """Post-unpack fixups inside the scratch dir. Default: nothing."""
 
-    def binary(self, entry: Path, target: str) -> Optional[Path]:
+    def binary(self, entry: Path, target: str) -> Path | None:
         return None
 
     def verify(self, entry: Path, target: str) -> str:
@@ -310,7 +310,7 @@ class StatePackage(Package):
         raise NotImplementedError
 
 
-def machine_matches_binary(binary: Path, target: str) -> Optional[bool]:
+def machine_matches_binary(binary: Path, target: str) -> bool | None:
     """Does this executable's architecture match the target? Reads the
     PE/ELF/Mach-O header directly. None = unknown format (scripts, shims),
     which is not a mismatch."""
@@ -358,7 +358,7 @@ def _missing_reason(binary: Path, entry: Path) -> str:
     return f"{rel} missing under {entry}; {_entry_listing(entry)}"
 
 
-def _probe_reason(binary: Path, proc: "subprocess.CompletedProcess") -> str:
+def _probe_reason(binary: Path, proc: subprocess.CompletedProcess) -> str:
     """Why a --version probe failed: the exit code plus output tail."""
     out = (proc.stdout or b"") + (proc.stderr or b"")
     tail = out.decode(errors="replace").strip()[-300:]

@@ -11,9 +11,8 @@ import logging
 from pathlib import Path
 from types import SimpleNamespace
 
-import pytest
-
 import hermes_logging
+import pytest
 from hermes_constants import reset_hermes_home_override, set_hermes_home_override
 from hermes_logging import RotatingFileHandler, _ProfileRoutingFileHandler
 

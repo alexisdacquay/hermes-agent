@@ -1,7 +1,6 @@
 """Regression tests for Desktop-owned ``hermes serve`` lifecycle tracking."""
 
 import pytest
-
 from hermes_cli.web_server_lifecycle import (
     _is_serve_orphaned,
     _parent_start_marker_mismatch_is_conclusive,

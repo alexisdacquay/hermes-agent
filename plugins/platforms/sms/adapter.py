@@ -18,15 +18,15 @@ import hmac
 import logging
 import re
 import urllib.parse
-from typing import Any, Dict, Optional
+from typing import Any
 
 from gateway.config import Platform, PlatformConfig
-from gateway.platforms.base import gateway_trust_env, BasePlatformAdapter, SendResult
+from gateway.platforms._shared import env_is_connected as _env_is_connected
+from gateway.platforms._shared import get_scoped_secret as _get_scoped_secret
+from gateway.platforms._shared import send_error
+from gateway.platforms.base import BasePlatformAdapter, SendResult, gateway_trust_env
 from gateway.platforms.event import MessageEvent, MessageType
 from gateway.platforms.helpers import redact_phone, send_chunks, strip_markdown
-from gateway.platforms._shared import (
-    env_is_connected as _env_is_connected, get_scoped_secret as _get_scoped_secret, send_error
-)
 
 try:
     import aiohttp
@@ -102,7 +102,7 @@ class SmsAdapter(BasePlatformAdapter):
         self._webhook_host: str = _get_scoped_secret("SMS_WEBHOOK_HOST", DEFAULT_WEBHOOK_HOST)
         self._webhook_url: str = _get_scoped_secret("SMS_WEBHOOK_URL", "").strip()
         self._runner = None
-        self._http_session: Optional[aiohttp.ClientSession] = None
+        self._http_session: aiohttp.ClientSession | None = None
 
     # -- Lifecycle -----------------------------------------------------------
 
@@ -159,7 +159,7 @@ class SmsAdapter(BasePlatformAdapter):
     # -- Outbound ------------------------------------------------------------
 
     async def send(
-        self, chat_id: str, content: str, reply_to: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None,
+        self, chat_id: str, content: str, reply_to: str | None = None, metadata: dict[str, Any] | None = None,
     ) -> SendResult:
         url, headers = _messages_endpoint(self._account_sid, self._auth_token)
         session = self._http_session or _new_session(trust_env=gateway_trust_env())
@@ -183,7 +183,7 @@ class SmsAdapter(BasePlatformAdapter):
             if not self._http_session and session:  # close only a fallback session we created
                 await session.close()
 
-    async def get_chat_info(self, chat_id: str) -> Dict[str, Any]:
+    async def get_chat_info(self, chat_id: str) -> dict[str, Any]:
         return {"name": chat_id, "type": "dm"}
 
     def format_message(self, content: str) -> str:
@@ -308,7 +308,7 @@ async def _standalone_send(pconfig, chat_id, message, *, thread_id=None, media_f
         return send_error("SMS not configured (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER required)")
     message = _strip_markdown_for_sms(message)
     try:
-        from gateway.platforms.base import resolve_proxy_url, proxy_kwargs_for_aiohttp
+        from gateway.platforms.base import proxy_kwargs_for_aiohttp, resolve_proxy_url
         _sess_kw, _req_kw = proxy_kwargs_for_aiohttp(resolve_proxy_url())
         url, headers = _messages_endpoint(account_sid, auth_token)
         async with _new_session(**_sess_kw) as session:

@@ -7,10 +7,9 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict
-from typing import Optional
 
 
-def _fmt_size(size_mb: Optional[int]) -> str:
+def _fmt_size(size_mb: int | None) -> str:
     if size_mb is None:
         return "?"
     return f"{size_mb / 1024:.1f}G" if size_mb >= 1024 else f"{size_mb}M"

@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-
-
 from gateway.config import GatewayConfig
 from gateway.run import GatewayRunner
 
 
 class _FakeWatchdog:
-    instances: list["_FakeWatchdog"] = []
+    instances: list[_FakeWatchdog] = []
 
     def __init__(self, *, config_enabled: bool = True):
         self.config_enabled = config_enabled

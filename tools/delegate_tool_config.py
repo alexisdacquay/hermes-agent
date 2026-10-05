@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Any, Dict, List, Optional
-from utils import base_url_hostname, is_truthy_value
+from typing import Any
+
 from hermes_cli.fallback_config import scoped_fallback_chain
+from utils import base_url_hostname, is_truthy_value
 
 logger = logging.getLogger("tools.delegate_tool")  # log-record parity with the origin module
 
@@ -24,7 +25,7 @@ _LEGACY_MAX_ASYNC_WARNED = False
 # No default wall-clock cap on children: legitimate heavy work (deep reviews, research fan-outs, slow reasoning
 # models) was being killed mid-task. Stuck-child detection is the heartbeat staleness monitor;
 # delegation.child_timeout_seconds opts back in.
-DEFAULT_CHILD_TIMEOUT: Optional[float] = None
+DEFAULT_CHILD_TIMEOUT: float | None = None
 
 def _cfg() -> dict:
     """The ``delegation`` section, read through the origin so tests can patch it."""
@@ -58,7 +59,7 @@ def _get_subagent_approval_callback():
         return _subagent_auto_approve
     return _subagent_auto_deny
 
-def _knob(key: str, env_var: Optional[str], parse, default, invalid_msg: str):
+def _knob(key: str, env_var: str | None, parse, default, invalid_msg: str):
     """delegation.<key> > <env_var> > default. A config value that fails ``parse`` logs ``invalid_msg`` (``%r`` = the
     value) and yields the default; an env value that fails is silently ignored."""
     val = _cfg().get(key)
@@ -131,12 +132,12 @@ def _get_max_async_children() -> int:
         )
     return _get_max_concurrent_children()
 
-def _parse_timeout(raw: Any) -> Optional[float]:
+def _parse_timeout(raw: Any) -> float | None:
     """Seconds → None (<= 0 disables) or max(30, value). Raises on non-numeric."""
     parsed = float(raw)
     return None if parsed <= 0 else max(30.0, parsed)
 
-def _get_child_timeout() -> Optional[float]:
+def _get_child_timeout() -> float | None:
     """Inactivity cap for one child (seconds of NO progress), or None (default: no cap). Failures should come from
     what the child does (API/tool errors, iteration budget), not a stopwatch: the cap restarts on every sign of
     progress — a completed call, a tool change, an activity-clock tick — so a slow provider serving multi-minute
@@ -179,7 +180,7 @@ def _get_inherit_mcp_toolsets() -> bool:
 def _normalized_runtime_url(value: Any) -> str:
     return str(value or "").strip().rstrip("/")
 
-def _inherit_parent_capabilities(parent_agent, override_provider, override_base_url) -> Optional[dict]:
+def _inherit_parent_capabilities(parent_agent, override_provider, override_base_url) -> dict | None:
     """Parent's endpoint-trust capability map for a child, or None. ``agent.capabilities`` is a trust decision scoped
     to one provider+endpoint: inherited ONLY when the child runs the parent's exact route; any provider or base_url
     override stays DEFAULT-DENY (matches the /model switch posture).
@@ -193,7 +194,7 @@ def _inherit_parent_capabilities(parent_agent, override_provider, override_base_
         return None
     return {key: value for key, value in parent_caps.items() if isinstance(key, str) and isinstance(value, bool)}
 
-def _inherit_parent_endpoint(parent_agent, surface_base_url: Optional[str], surface_api_key: Any) -> tuple:
+def _inherit_parent_endpoint(parent_agent, surface_base_url: str | None, surface_api_key: Any) -> tuple:
     """``(base_url, api_key)`` the parent is actually calling, taken from ONE source. ``parent_agent.base_url`` /
     ``api_key`` can lag the live client (old OpenRouter URL vs local Ollama; a fallback runtime the surface attributes
     have not caught up with), and pairing the live endpoint with the surface key hands the child a (base_url, key)
@@ -219,10 +220,13 @@ def _loaded_pool(key: Any):
     pool = load_pool(key)
     return pool if pool is not None and pool.has_credentials() else None
 
-def _pool_serves_endpoint(pool: Any, provider: Optional[str], base_url: Optional[str]) -> bool:
+def _pool_serves_endpoint(pool: Any, provider: str | None, base_url: str | None) -> bool:
     """Provider identity AND at least one entry for the child's endpoint; pools without entry metadata pass."""
     from agent.credential_pool import (
-        credential_pool_entry_serves_endpoint as _entry_serves_endpoint, credential_pool_matches_provider,
+        credential_pool_entry_serves_endpoint as _entry_serves_endpoint,
+    )
+    from agent.credential_pool import (
+        credential_pool_matches_provider,
     )
     if not credential_pool_matches_provider(pool, provider, base_url=base_url):
         return False
@@ -233,8 +237,8 @@ def _pool_serves_endpoint(pool: Any, provider: Optional[str], base_url: Optional
     return not isinstance(entries, list) or any(_entry_serves_endpoint(entry, base_url) for entry in entries)
 
 def _resolve_child_credential_pool(
-    effective_provider: Optional[str], parent_agent, effective_base_url: Optional[str] = None,
-    effective_requested_provider: Optional[str] = None,
+    effective_provider: str | None, parent_agent, effective_base_url: str | None = None,
+    effective_requested_provider: str | None = None,
 ):
     """Credential pool for the child: parent's pool (same provider), that provider's own pool, or None (child keeps
     its fixed credential). Custom endpoints all collapse to ``provider="custom"``, so they are matched by endpoint
@@ -316,7 +320,7 @@ def _merge_request_overrides(runtime_overrides, explicit_overrides):
 _NATIVE_SDK_PROVIDERS = frozenset({"bedrock", "vertex", "google", "google-genai"})
 _EXPLICIT_API_MODES = frozenset({"chat_completions", "codex_responses", "anthropic_messages"})
 
-def _require_pinned_command(command: Optional[str], message: str) -> None:
+def _require_pinned_command(command: str | None, message: str) -> None:
     """A pinned ACP transport command must exist on PATH — refuse loudly rather
     than let the child silently fall back to another transport."""
     import shutil as _shutil
@@ -470,7 +474,7 @@ _ROUTING_FILTER_DEFAULTS = (
 _NOUS_PROVIDERS = frozenset({"nous", "nous-portal", "nousresearch"})
 
 
-def _resolve_child_fallback_chain(parent_agent, routing_cfg: Any, pinned: bool) -> Optional[List[Dict[str, Any]]]:
+def _resolve_child_fallback_chain(parent_agent, routing_cfg: Any, pinned: bool) -> list[dict[str, Any]] | None:
     """Fallback chain for a child, owned by the same config block as its route.
 
     Pinned children (provider, endpoint or model override) never borrow the parent chain;
@@ -485,11 +489,11 @@ def _resolve_child_fallback_chain(parent_agent, routing_cfg: Any, pinned: bool) 
 
 
 def _resolve_child_runtime(
-    parent_agent, delegation_cfg: dict, parent_api_key: Any, *, model: Optional[str], override_provider: Optional[str],
-    override_base_url: Optional[str], override_api_key: Optional[str], override_api_mode: Optional[str],
-    override_acp_command: Optional[str], override_acp_args: Optional[List[str]],
-    routing_cfg: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+    parent_agent, delegation_cfg: dict, parent_api_key: Any, *, model: str | None, override_provider: str | None,
+    override_base_url: str | None, override_api_key: str | None, override_api_mode: str | None,
+    override_acp_command: str | None, override_acp_args: list[str] | None,
+    routing_cfg: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Child credentials, transport and routing (config override > parent inherit) as ``AIAgent`` kwargs. Rules that
     are easy to break: api_mode is re-derived (not inherited) when the child's provider differs from the parent's
     or is Nous Portal (dual-wire); a pinned ``delegation.command`` must exist on PATH or the spawn fails loudly;
@@ -579,7 +583,7 @@ def _resolve_child_runtime(
     except Exception as exc:
         logger.debug("Could not load delegation reasoning_effort: %s", exc)
 
-    kwargs: Dict[str, Any] = {
+    kwargs: dict[str, Any] = {
         "base_url": effective_base_url, "api_key": override_api_key or parent_api_key, "model": effective_model,
         "provider": effective_provider, "requested_provider": effective_requested_provider,
         "capabilities": _inherit_parent_capabilities(parent_agent, override_provider, override_base_url),

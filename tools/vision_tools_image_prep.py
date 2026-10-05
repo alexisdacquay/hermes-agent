@@ -11,9 +11,7 @@ import logging
 import uuid
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Optional
-
-from hermes_constants import get_hermes_dir
+from typing import Any
 
 logger = logging.getLogger("tools.vision_tools")
 
@@ -32,7 +30,7 @@ _EXTENSION_MIME_TYPES = {
 _ANTHROPIC_SUPPORTED_MEDIA_TYPES = frozenset({"image/jpeg", "image/png", "image/gif", "image/webp"})
 
 
-def unsupported_inline_image_media_type(url: str) -> Optional[str]:
+def unsupported_inline_image_media_type(url: str) -> str | None:
     """``image/<subtype>`` of a ``data:image/...`` URL the inline-image wire paths reject
     (``image/jpg`` counts as JPEG); None for accepted rasters and for non-data URLs (the
     provider owns remote-URL validation)."""
@@ -54,7 +52,7 @@ def _determine_mime_type(image_path: Path) -> str:
     return _EXTENSION_MIME_TYPES.get(image_path.suffix.lower(), "image/jpeg")
 
 
-def _detect_image_mime_type_from_bytes(data: bytes) -> Optional[str]:
+def _detect_image_mime_type_from_bytes(data: bytes) -> str | None:
     """Magic-byte MIME sniff (authoritative; no extension trust). ``None`` for anything without a
     recognized header — including SVG, which has none (the resolver sniffs ``<svg`` itself)."""
     header = data[:64]
@@ -109,7 +107,10 @@ def _supported_media_types() -> frozenset:
     so the set is narrowed there and normalization converts those formats to PNG."""
     try:
         from agent.auxiliary_client import _runtime_main_value as _v
-        from hermes_cli.local_runtime.capabilities import ACCEPTED_IMAGE_MIMES, is_managed_provider
+        from hermes_cli.local_runtime.capabilities import (
+            ACCEPTED_IMAGE_MIMES,
+            is_managed_provider,
+        )
         if is_managed_provider(str(_v("provider") or ""), str(_v("base_url") or "")):
             return ACCEPTED_IMAGE_MIMES
     except Exception:  # best-effort narrowing only
@@ -130,8 +131,8 @@ def _rasterize_svg_to_png(svg_path: Path, out_path: Path) -> bool:
     except Exception:
         pass
     try:
-        from svglib.svglib import svg2rlg  # type: ignore
         from reportlab.graphics import renderPM  # type: ignore
+        from svglib.svglib import svg2rlg  # type: ignore
         drawing = svg2rlg(str(svg_path))
         if drawing is not None:
             renderPM.drawToFile(drawing, str(out_path), fmt="PNG")
@@ -153,7 +154,7 @@ def _rasterize_svg_to_png(svg_path: Path, out_path: Path) -> bool:
     return False
 
 
-def rasterize_svg_data_url(url: str) -> Optional[str]:
+def rasterize_svg_data_url(url: str) -> str | None:
     """``data:image/svg+xml[;base64],...`` → ``data:image/png;base64,...`` through the same
     soft-dependency rasterizers vision_analyze uses; None when the payload does not decode or no
     rasterizer is available. Request-path callers decide the fallback (Responses backends 400 on
@@ -166,7 +167,7 @@ def rasterize_svg_data_url(url: str) -> Optional[str]:
         raw = base64.b64decode(payload) if ";base64" in header.lower() else unquote(payload).encode()
     except Exception:
         return None
-    from tools.vision_tools import _secure_cache_dir, _write_private_bytes
+    from tools.vision_tools import _secure_cache_dir
     out_dir = _secure_cache_dir("cache/vision", "temp_vision_images")
     stem = out_dir / f"inline_{uuid.uuid4()}"
     svg_path, png_path = stem.with_suffix(".svg"), stem.with_suffix(".png")
@@ -182,7 +183,7 @@ def rasterize_svg_data_url(url: str) -> Optional[str]:
 
 
 def _normalize_to_supported_image(
-    image_path: Path, detected_mime: str) -> tuple[Optional[Path], Optional[str], Optional[str]]:
+    image_path: Path, detected_mime: str) -> tuple[Path | None, str | None, str | None]:
     """Ensure an image is in a provider-supported format. Returns ``(path, mime, error)``: the input
     unchanged when supported; ``(new_png_path, "image/png", None)`` after conversion — a temp file
     the CALLER must clean up; ``(None, None, message)`` when impossible. SVG is rasterized; other
@@ -251,12 +252,13 @@ _VISION_MAX_VALIDATED_AGGREGATE_PIXELS = 100_000_000
 def _validate_raster_image_decodable(
     image_path: Path,
     max_frames: int = _VISION_MAX_VALIDATED_FRAME_COUNT,
-    max_pixels: int = _VISION_MAX_VALIDATED_AGGREGATE_PIXELS) -> Optional[str]:
+    max_pixels: int = _VISION_MAX_VALIDATED_AGGREGATE_PIXELS) -> str | None:
     """Return an error unless Pillow can fully decode every frame. Header sniffing and ``Image.open``
     only inspect containers: a timed-out download can look like a valid PNG with a truncated pixel
     stream. Without Pillow the image passes unvalidated rather than rejecting everything."""
     try:
-        from PIL import Image as _PILImage, ImageSequence as _PILImageSequence
+        from PIL import Image as _PILImage
+        from PIL import ImageSequence as _PILImageSequence
     except ImportError:
         return None
     try:
@@ -297,8 +299,8 @@ def _image_exceeds_dimension(image_path: Path, max_dimension: int) -> bool:
 
 
 def _crop_image_region(
-    image_path: Path, region: Any, offset_out: Optional[dict] = None
-) -> tuple[Optional[Path], Optional[str], Optional[str]]:
+    image_path: Path, region: Any, offset_out: dict | None = None
+) -> tuple[Path | None, str | None, str | None]:
     """Crop to ``region`` = [x1, y1, x2, y2] (original-image pixels), BEFORE downscaling so the crop
     gets the full resolution budget. Coordinates clamp to the image bounds; a zero-area/inverted
     region is rejected with an error naming the real dimensions. Returns ``(cropped_temp_path,

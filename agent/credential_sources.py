@@ -17,8 +17,8 @@ from __future__ import annotations
 
 import logging
 import os
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -59,8 +59,8 @@ class RemovalResult:
     ``load_pool`` skips the source; only ``manual`` entries legitimately use False.
     """
 
-    cleaned: List[str] = field(default_factory=list)
-    hints: List[str] = field(default_factory=list)
+    cleaned: list[str] = field(default_factory=list)
+    hints: list[str] = field(default_factory=list)
     suppress: bool = True
 
 
@@ -76,7 +76,7 @@ class RemovalStep:
     provider: str
     source_id: str
     remove_fn: Callable[..., RemovalResult]
-    match_fn: Optional[Callable[[str], bool]] = None
+    match_fn: Callable[[str], bool] | None = None
     description: str = ""
 
     def matches(self, provider: str, source: str) -> bool:
@@ -87,7 +87,7 @@ class RemovalStep:
         return source == self.source_id
 
 
-def find_removal_step(provider: str, source: str) -> Optional[RemovalStep]:
+def find_removal_step(provider: str, source: str) -> RemovalStep | None:
     """First matching RemovalStep, or None (``manual``: nothing external to clean)."""
     return next((step for step in _REGISTRY if step.matches(provider, source)), None)
 
@@ -224,7 +224,7 @@ def _suppress_only(*hints: str) -> Callable[..., RemovalResult]:
 # ORDER MATTERS — ``find_removal_step`` returns the first match. Provider-
 # specific steps precede the generic ``env:*`` step so copilot's ``env:GH_TOKEN``
 # takes the copilot path (no .env edits) rather than the generic env-var removal.
-_REGISTRY: List[RemovalStep] = [
+_REGISTRY: list[RemovalStep] = [
     RemovalStep(
         provider="copilot", source_id="gh_cli",
         match_fn=lambda src: src == "gh_cli" or src.startswith("env:"),

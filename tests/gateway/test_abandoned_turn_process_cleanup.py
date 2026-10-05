@@ -5,7 +5,6 @@ import threading
 from contextvars import copy_context
 
 import pytest
-
 from gateway.run import (
     GatewayRunner,
     _abandon_timed_out_gateway_turn,

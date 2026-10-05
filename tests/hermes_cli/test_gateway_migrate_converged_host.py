@@ -15,11 +15,9 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
-
-import pytest
 
 import hermes_constants
+import pytest
 from hermes_cli import gateway_migrate as gm
 
 
@@ -55,8 +53,8 @@ def converged_host(tmp_path, monkeypatch):
         (home / "gateway_state.json").write_text(json.dumps(
             {"pid": pid, "hermes_home": str(home), "gateway_state": "running"}))
 
-    import gateway.status as status
-    from gateway import host_attach, host_rendezvous as hr
+    from gateway import host_attach, status
+    from gateway import host_rendezvous as hr
     monkeypatch.setattr(status, "_read_process_cmdline", lambda p: "hermes gateway run")
     # The WIRE only: the owner's control socket answer. Everything that reads it is real.
     monkeypatch.setattr("gateway.control_socket.identify_gateway",

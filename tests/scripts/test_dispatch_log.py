@@ -3,7 +3,6 @@ import json
 import shlex
 
 import pytest
-
 from scripts.releases import dispatch_log
 from scripts.releases.bundle_env import parse_assignments
 from scripts.releases.channel_build import dispatch_command as channel_dispatch

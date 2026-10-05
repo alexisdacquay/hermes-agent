@@ -1,10 +1,10 @@
 """Real-process deadline regression; the probe owns and reaps its whole subtree."""
 import os
-from pathlib import Path
-import subprocess
 import signal
+import subprocess
 import sys
 import time
+from pathlib import Path
 
 import pytest
 

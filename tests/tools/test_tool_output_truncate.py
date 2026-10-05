@@ -5,7 +5,6 @@ head/tail algorithm — 40% head / 60% tail, exactly one notice, kept text equal
 import re
 
 import pytest
-
 from tools.tool_output_truncate import HEAD_RATIO, truncate_head_tail
 
 _NOTICE = re.compile(r"\n\n\.\.\. \[(?P<label>[A-Z ]+) TRUNCATED - (?P<omitted>[\d,]+) (?P<unit>chars|bytes) "

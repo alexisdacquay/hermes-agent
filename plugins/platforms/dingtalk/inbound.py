@@ -1,7 +1,7 @@
 """Pure parsers for inbound DingTalk ``ChatbotMessage`` payloads (no I/O, no adapter state)."""
 
 import json
-from typing import Any, List, Optional, Tuple
+from typing import Any
 
 from gateway.platforms.event import MessageType
 
@@ -26,13 +26,13 @@ def _extensions(message: Any) -> Any:
     return getattr(message, "extensions", {}) or {}
 
 
-def _ext_content(message: Any) -> Optional[dict]:
+def _ext_content(message: Any) -> dict | None:
     """``extensions['content']`` when it is a dict, else None."""
     content = _extensions(message).get("content", {})
     return content if isinstance(content, dict) else None
 
 
-def _rich_list(message: Any) -> Optional[list]:
+def _rich_list(message: Any) -> list | None:
     """Rich-text item list from either SDK shape (``rich_text_content.rich_text_list`` or legacy ``rich_text``)."""
     rich_text = getattr(message, "rich_text_content", None) or getattr(message, "rich_text", None)
     if not rich_text:
@@ -105,11 +105,11 @@ def extract_text(message: Any) -> str:
     return fallback(message) if fallback else content
 
 
-def extract_media(message: Any) -> Tuple[MessageType, List[str], List[str]]:
+def extract_media(message: Any) -> tuple[MessageType, list[str], list[str]]:
     """Return ``(MessageType, [download codes/urls], [mime types])`` for a message."""
     msg_type = MessageType.TEXT
-    media_urls: List[str] = []
-    media_types: List[str] = []
+    media_urls: list[str] = []
+    media_types: list[str] = []
     image_content = getattr(message, "image_content", None)
     if download_code := (getattr(image_content, "download_code", None) if image_content else None):
         media_urls.append(download_code)
@@ -154,9 +154,9 @@ def extract_media(message: Any) -> Tuple[MessageType, List[str], List[str]]:
     return msg_type, media_urls, media_types
 
 
-def collect_download_codes(message: Any) -> List[Tuple[Any, str]]:
+def collect_download_codes(message: Any) -> list[tuple[Any, str]]:
     """Return ``(container, key)`` pairs whose download code should be resolved to a URL."""
-    codes: List[Tuple[Any, str]] = []
+    codes: list[tuple[Any, str]] = []
     img_content = getattr(message, "image_content", None)
     if img_content and getattr(img_content, "download_code", None):
         codes.append((img_content, "download_code"))

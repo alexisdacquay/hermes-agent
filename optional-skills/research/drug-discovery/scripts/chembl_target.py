@@ -4,8 +4,12 @@ chembl_target.py — Search ChEMBL for a target and retrieve top active compound
 Usage: python3 chembl_target.py "EGFR" --min-pchembl 7 --limit 20
 No external dependencies.
 """
-import sys, json, time, argparse
-import urllib.request, urllib.parse
+import argparse
+import json
+import sys
+import time
+import urllib.parse
+import urllib.request
 
 BASE = "https://www.ebi.ac.uk/chembl/api/data"
 
@@ -46,7 +50,7 @@ def main():
         mid = a.get("molecule_chembl_id","N/A")
         if mid in seen: continue
         seen.add(mid)
-        print(f"{mid:<18} {str(a.get('pchembl_value','N/A')):>8} {str(a.get('standard_type','N/A')):<12} {str(a.get('standard_value','N/A')):<10} {a.get('standard_units','N/A')}")
+        print(f"{mid:<18} {a.get('pchembl_value','N/A')!s:>8} {a.get('standard_type','N/A')!s:<12} {a.get('standard_value','N/A')!s:<10} {a.get('standard_units','N/A')}")
         time.sleep(0.1)
     print(f"\nTotal: {len(seen)} unique molecules")
 

@@ -9,10 +9,10 @@ import json
 import time
 from unittest.mock import MagicMock
 
-import pytest
-
 import gateway.run as gateway_run
+import pytest
 from gateway.platforms.event import MessageEvent, MessageType
+
 from tests.gateway.restart_test_helpers import make_restart_runner, make_restart_source
 
 

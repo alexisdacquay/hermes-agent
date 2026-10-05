@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any, Dict, Optional
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -41,22 +41,22 @@ class _FakeSession:
 
     def __init__(
         self,
-        out: Dict[str, Any],
-        capabilities: Optional[set] = None,
-        input_properties: Optional[Dict[str, set]] = None,
+        out: dict[str, Any],
+        capabilities: set | None = None,
+        input_properties: dict[str, set] | None = None,
     ):
         self._out = out
         self._caps = capabilities or set()
         self._input_properties = input_properties or {}
-        self.last_args: Dict[str, Any] = {}
+        self.last_args: dict[str, Any] = {}
         self.calls = []
 
-    def call_tool(self, name: str, args: Dict[str, Any], timeout: float = 30.0):
+    def call_tool(self, name: str, args: dict[str, Any], timeout: float = 30.0):
         self.last_args = args
         self.calls.append((name, dict(args)))
         return self._out
 
-    def supports_capability(self, capability: str, tool: Optional[str] = None) -> bool:
+    def supports_capability(self, capability: str, tool: str | None = None) -> bool:
         return capability in self._caps
 
     def supports_input_property(self, tool: str, property_name: str) -> bool:
@@ -233,7 +233,10 @@ def _interactive_session(monkeypatch):
     """Interactive CLI presence for the shared gate plus a fresh approval session key; grants made here are
     wiped from ``tools.approval``'s store afterwards so nothing leaks between tests."""
     from tools import approval
-    from tools.approval_context import reset_current_session_key, set_current_session_key
+    from tools.approval_context import (
+        reset_current_session_key,
+        set_current_session_key,
+    )
 
     monkeypatch.setenv("HERMES_INTERACTIVE", "1")
     monkeypatch.setattr(approval, "save_permanent_allowlist", lambda patterns: None)

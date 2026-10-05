@@ -11,8 +11,6 @@ branch never calls it), never lowers a threshold, and is ``None`` for non-allowl
 from __future__ import annotations
 
 import re
-from typing import Optional
-
 
 # floor_seconds -> slugs. Order irrelevant — longest slug wins at match time.
 _REASONING_STALE_TIMEOUT_FLOORS: dict[int, tuple[str, ...]] = {
@@ -66,7 +64,7 @@ _SORTED_REASONING_FLOORS: list[tuple[str, float, re.Pattern[str]]] = [
 ]
 
 
-def get_reasoning_stale_timeout_floor(model: object) -> Optional[float]:
+def get_reasoning_stale_timeout_floor(model: object) -> float | None:
     """Stale-timeout floor (seconds) for a known reasoning model, else ``None``.
 
     The aggregator prefix (up to the last ``/``) is stripped and the slug matched

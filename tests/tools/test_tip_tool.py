@@ -3,7 +3,6 @@
 import json
 
 import pytest
-
 from tools import tip_tool as tt
 
 

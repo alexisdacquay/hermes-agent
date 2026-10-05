@@ -6,8 +6,8 @@ its value- and absence-based steps would overwrite what the user chose."""
 import shutil
 from pathlib import Path
 
-import pytest
 import hermes_yaml as yaml
+import pytest
 
 TEMPLATE = Path(__file__).resolve().parents[2] / "cli-config.yaml.example"
 

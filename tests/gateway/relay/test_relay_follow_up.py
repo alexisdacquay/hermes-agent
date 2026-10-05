@@ -18,7 +18,6 @@ connector's resolve + tenant-match enforcement lives in the connector repo
 from __future__ import annotations
 
 import pytest
-
 from gateway.config import PlatformConfig
 from gateway.relay.adapter import RelayAdapter
 from gateway.relay.descriptor import CONTRACT_VERSION, CapabilityDescriptor

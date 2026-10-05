@@ -10,9 +10,8 @@ import json
 import threading
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 import hermes_cli.models as models_mod
+import pytest
 from agent import auxiliary_reasoning_floor
 from agent.auxiliary_client import call_llm
 from hermes_cli import models_reasoning_caps

@@ -11,10 +11,10 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
-
 from agent.agent_runtime_helpers import extract_api_error_context
 from agent.error_classifier import FailoverReason, classify_api_error
 from agent.turn_retry_state import TurnRetryState
+
 from tests.hermes_cli.anon_portal import make_jwt
 
 WELCOME = "https://welcome-api.nousresearch.com/v1"

@@ -18,8 +18,8 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from gateway.config import PlatformConfig
+
 from tests.gateway._plugin_adapter_loader import load_plugin_adapter
 
 _ntfy = load_plugin_adapter("ntfy")

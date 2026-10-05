@@ -2,7 +2,6 @@
 
 
 import pytest
-
 from agent.transports import get_transport
 from agent.transports.codex import _default_prompt_cache_retention_for_request
 

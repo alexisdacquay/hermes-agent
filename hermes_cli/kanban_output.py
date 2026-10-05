@@ -6,7 +6,8 @@ import argparse
 import json
 import sys
 import time
-from typing import Any, Callable, Iterable, Optional
+from collections.abc import Callable, Iterable
+from typing import Any
 
 from hermes_cli import kanban_db as kb
 
@@ -33,7 +34,7 @@ _RUNS_RUN_FIELDS = (
 _ATTACHMENT_FIELDS = ("id", "filename", "content_type", "size", "uploaded_by", "stored_path", "created_at")
 
 
-def _fmt_ts(ts: Optional[int]) -> str:
+def _fmt_ts(ts: int | None) -> str:
     return time.strftime("%Y-%m-%d %H:%M", time.localtime(ts)) if ts else ""
 
 

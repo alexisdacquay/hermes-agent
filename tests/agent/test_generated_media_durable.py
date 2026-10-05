@@ -24,7 +24,6 @@ import time
 from pathlib import Path
 
 import pytest
-
 from agent.image_gen_provider import save_b64_image
 from agent.video_gen_provider import save_b64_video
 from gateway.platforms import base

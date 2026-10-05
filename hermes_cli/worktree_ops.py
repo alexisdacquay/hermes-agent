@@ -17,11 +17,11 @@ import threading
 import time
 import uuid
 from pathlib import Path
-from typing import Dict, Optional
 
-from hermes_cli._subprocess_compat import kill_process_tree, noninteractive_git_env
 from hermes_constants import get_hermes_home
 from utils import atomic_json_write
+
+from hermes_cli._subprocess_compat import kill_process_tree, noninteractive_git_env
 
 logger = logging.getLogger("cli")
 
@@ -37,7 +37,7 @@ def _git(args, cwd, timeout: float = 10, **kwargs):
                           errors="replace", timeout=timeout, cwd=cwd, **kwargs)
 
 
-def _git_out(args, cwd, timeout: float = 10, **kwargs) -> Optional[str]:
+def _git_out(args, cwd, timeout: float = 10, **kwargs) -> str | None:
     """``_git`` returning stripped stdout, or None on a non-zero exit. Raises like ``_git``."""
     result = _git(args, cwd, timeout=timeout, **kwargs)
     return result.stdout.strip() if result.returncode == 0 else None
@@ -52,7 +52,7 @@ def _git_quiet(args, cwd, timeout: float = 10, log: str | None = None, **kwargs)
             logger.debug("%s: %s", log, e)
 
 
-def _normalize_git_bash_path(p: Optional[str]) -> Optional[str]:
+def _normalize_git_bash_path(p: str | None) -> str | None:
     """Translate a Git Bash path (``/c/..``, ``/cygdrive/c/..``, ``/mnt/c/..``) to ``C:\\..`` on Windows."""
     if not p or sys.platform != "win32":
         return p
@@ -62,7 +62,7 @@ def _normalize_git_bash_path(p: Optional[str]) -> Optional[str]:
     return p
 
 
-def _git_repo_root() -> Optional[str]:
+def _git_repo_root() -> str | None:
     """Return the git repo root for CWD (Git-Bash-normalized), or None if not in a repo."""
     try:
         return _normalize_git_bash_path(_git_out(["rev-parse", "--show-toplevel"], None, timeout=5))
@@ -231,7 +231,7 @@ def _resolve_worktree_base(repo_root: str, fetch_timeout: float = 5,
         except Exception:
             return False
 
-    def _fetch_head_age() -> Optional[float]:
+    def _fetch_head_age() -> float | None:
         try:
             gd = _run(["rev-parse", "--git-dir"])
             if gd.returncode != 0:
@@ -416,7 +416,7 @@ def _worktree_add(repo_root: str, wt_path: Path, branch_name: str, base_ref: str
 
 
 def _setup_worktree(repo_root: str = None, sync_base: bool = True,
-                    name: Optional[str] = None) -> Optional[Dict[str, str]]:
+                    name: str | None = None) -> dict[str, str] | None:
     """Create an isolated git worktree -> ``{path, branch, repo_root, base}``, or None on failure.
 
     *sync_base* branches from the fetched remote tip (``_resolve_worktree_base``), else local
@@ -474,7 +474,7 @@ _REMOTE_TRUNK_CANDIDATES = ("origin/HEAD", "origin/main", "origin/master")
 _LOCAL_TRUNK_CANDIDATES = ("main", "master")
 
 
-def _worktree_local_trunk(path: str, timeout: float = 5) -> Optional[str]:
+def _worktree_local_trunk(path: str, timeout: float = 5) -> str | None:
     """Local trunk of a repo with NO remote-tracking refs: ``main``/``master``, else the branch
     checked out in the main worktree. None = no baseline at all; callers must preserve.
 
@@ -491,7 +491,7 @@ def _worktree_local_trunk(path: str, timeout: float = 5) -> Optional[str]:
     return None
 
 
-def _worktree_merge_base_ref(path: str, timeout: float = 5) -> Optional[str]:
+def _worktree_merge_base_ref(path: str, timeout: float = 5) -> str | None:
     """Ref merged work is judged against: ``origin/HEAD``/``origin/main``/``origin/master``, or the
     local trunk when the repo has no remote-tracking refs at all. None = nothing to compare
     against -> every consumer must preserve. May raise like ``_git``.
@@ -639,7 +639,7 @@ def _worktree_merge_cache_path() -> Path:
     return get_hermes_home() / "cache" / "worktree_merge_verdicts.json"
 
 
-def _load_worktree_merge_cache() -> Dict[str, bool]:
+def _load_worktree_merge_cache() -> dict[str, bool]:
     """Load the ``git cherry`` verdict cache. Missing/corrupt cache = empty."""
     try:
         entries = json.loads(_worktree_merge_cache_path().read_text(encoding="utf-8-sig")).get("verdicts")
@@ -649,7 +649,7 @@ def _load_worktree_merge_cache() -> Dict[str, bool]:
     return {k: v for k, v in entries.items() if isinstance(v, bool)} if isinstance(entries, dict) else {}
 
 
-def _save_worktree_merge_cache(verdicts: Dict[str, bool]) -> None:
+def _save_worktree_merge_cache(verdicts: dict[str, bool]) -> None:
     """Atomically persist the newest ``_WORKTREE_MERGE_CACHE_MAX`` verdicts. Never raises."""
     try:
         items = list(verdicts.items())[-_WORKTREE_MERGE_CACHE_MAX:]
@@ -659,7 +659,7 @@ def _save_worktree_merge_cache(verdicts: Dict[str, bool]) -> None:
 
 
 def _worktree_commits_all_merged_upstream(
-    worktree_path: str, timeout: int = 30, max_ahead: int = 20, cache: Optional[Dict[str, bool]] = None,
+    worktree_path: str, timeout: int = 30, max_ahead: int = 20, cache: dict[str, bool] | None = None,
 ) -> bool:
     """Whether every local-only commit is patch-equivalent (``git cherry``) to upstream. Fails SAFE -> False.
 
@@ -707,14 +707,14 @@ def _worktree_commits_all_merged_upstream(
         return False
 
 
-def _worktree_current_branch(worktree_path: str, timeout: int) -> Optional[str]:
+def _worktree_current_branch(worktree_path: str, timeout: int) -> str | None:
     """Checked-out branch name, or None when detached/git fails. May raise on subprocess errors."""
     branch = _git_out(["rev-parse", "--abbrev-ref", "HEAD"], worktree_path, timeout=timeout)
     return branch if branch and branch != "HEAD" else None  # "HEAD" = detached
 
 
 def _worktree_branch_pr_merged(
-    worktree_path: str, timeout: int = 15, cache: Optional[Dict[str, bool]] = None,
+    worktree_path: str, timeout: int = 15, cache: dict[str, bool] | None = None,
 ) -> bool:
     """Whether the branch's PR is MERGED on GitHub (``gh pr list``). Fails SAFE toward False.
 
@@ -749,7 +749,7 @@ def _worktree_branch_pr_merged(
         return False
 
 
-def _fetch_remote_branch_heads(repo_root: str, timeout: int = 20) -> Optional[Dict[str, str]]:
+def _fetch_remote_branch_heads(repo_root: str, timeout: int = 20) -> dict[str, str] | None:
     """``{branch: sha}`` for every branch on origin (one ``ls-remote``), or None = cannot verify, preserve.
 
     Managed installs fetch a single-branch refspec, so pushed PR branches have no
@@ -769,7 +769,7 @@ def _fetch_remote_branch_heads(repo_root: str, timeout: int = 20) -> Optional[Di
 
 
 def _worktree_branch_pushed_exact(
-    worktree_path: str, remote_heads: Optional[Dict[str, str]], timeout: int = 10,
+    worktree_path: str, remote_heads: dict[str, str] | None, timeout: int = 10,
 ) -> bool:
     """Whether the branch head is EXACTLY what origin holds (tree redundant; reap it, keep the branch).
 
@@ -801,7 +801,7 @@ def _worktree_lock_is_live(repo_root: str, worktree_path: str, timeout: int = 10
         return "live"
 
     target = Path(worktree_path).resolve()
-    current: Optional[Path] = None
+    current: Path | None = None
     for line in listing.splitlines():
         if line.startswith("worktree "):
             try:
@@ -1009,7 +1009,7 @@ def _prune_stale_worktrees(repo_root: str, max_age_hours: int = 24) -> None:
         pass
 
 
-def _prune_orphaned_branches(repo_root: str, protect: Optional[set] = None) -> None:
+def _prune_orphaned_branches(repo_root: str, protect: set | None = None) -> None:
     """Delete local ``hermes/hermes-*`` and ``pr-*`` branches with no worktree, except *protect*."""
     try:
         listing = _git_out(["branch", "--format=%(refname:short)"], repo_root)

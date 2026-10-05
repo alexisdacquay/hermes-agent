@@ -8,7 +8,6 @@ import threading
 from pathlib import Path
 
 import pytest
-
 from hermes_cli import kanban as kc
 from hermes_cli import kanban_db as kb
 from hermes_cli import kanban_db_connect as kbc
@@ -193,8 +192,9 @@ def test_board_override_is_isolated_per_concurrent_call(kanban_home, monkeypatch
 
 def test_run_slash_reclaim_running_task(kanban_home):
     import re
-    import time
     import secrets
+    import time
+
     from hermes_cli import kanban_db_connect as kbc
 
     out1 = kc.run_slash("create 'stuck worker task' --assignee broken-model")

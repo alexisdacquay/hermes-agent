@@ -23,9 +23,8 @@ import argparse
 import os
 from unittest.mock import patch
 
-import pytest
 import hermes_yaml as yaml
-
+import pytest
 from hermes_cli.config import (
     _MISSING,
     _get_nested,

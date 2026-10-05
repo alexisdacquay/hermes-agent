@@ -5,7 +5,6 @@ import tarfile
 from pathlib import Path
 
 import pytest
-
 from tools.environments.file_sync import FileSyncManager
 
 

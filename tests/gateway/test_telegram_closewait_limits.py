@@ -30,10 +30,9 @@ import socket
 from unittest.mock import MagicMock
 
 import httpx
-
 from gateway.config import PlatformConfig
-from plugins.platforms.telegram import adapter as tg_adapter  # noqa: E402
-from plugins.platforms.telegram.adapter import TelegramAdapter  # noqa: E402
+from plugins.platforms.telegram import adapter as tg_adapter
+from plugins.platforms.telegram.adapter import TelegramAdapter
 
 
 class _StopConnect(Exception):
@@ -77,7 +76,7 @@ def _drive_connect(monkeypatch, *, proxy_url, fallback_ips=None):
     # Skip the cross-process token lock.
     monkeypatch.setattr(adapter, "_acquire_platform_lock", lambda *a, **k: True)
     # Ensure the adapter reports no statically-configured fallback IPs.
-    monkeypatch.setattr(adapter, "_fallback_ips", lambda: [])
+    monkeypatch.setattr(adapter, "_fallback_ips", list)
 
     if fallback_ips is not None:
         monkeypatch.setattr(adapter, "_fallback_ips", lambda: list(fallback_ips))

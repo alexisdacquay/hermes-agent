@@ -1,9 +1,8 @@
 import json
 
-import pytest
-
-from hermes_cli import web_server
 import hermes_cli.web_server_chat as _web_server_chat
+import pytest
+from hermes_cli import web_server
 
 
 class FakeBridge:

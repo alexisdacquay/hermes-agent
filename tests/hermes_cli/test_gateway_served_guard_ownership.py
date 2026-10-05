@@ -19,9 +19,8 @@ import io
 from contextlib import redirect_stdout
 from pathlib import Path
 
-import pytest
-
 import hermes_constants
+import pytest
 from gateway import host_attach
 from gateway.host_attach import HostGateway
 
@@ -97,9 +96,8 @@ def test_satellite_served_by_same_tenants_multiplexer_is_still_refused(tmp_path,
     refused, out = _refusal(gw)
     assert refused is True
     assert "hermes -p default gateway restart" in out
-    with pytest.raises(SystemExit) as exc:
-        with redirect_stdout(io.StringIO()):
-            gw._guard_named_profile_under_multiplexer()
+    with pytest.raises(SystemExit) as exc, redirect_stdout(io.StringIO()):
+        gw._guard_named_profile_under_multiplexer()
     assert exc.value.code == gw.GATEWAY_FATAL_CONFIG_EXIT_CODE
 
 

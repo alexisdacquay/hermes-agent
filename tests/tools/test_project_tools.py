@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 
 import pytest
-
 from hermes_cli import projects_db as pdb
 from tools import project_tools, terminal_tool
 from tools.registry import registry

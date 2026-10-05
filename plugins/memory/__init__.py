@@ -16,9 +16,10 @@ import logging
 import sys
 from pathlib import Path
 from types import SimpleNamespace
-from typing import List, Optional, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING, List, Optional, Tuple
 
 from hermes_cli.config import cfg_get
+
 from plugins import plugin_loader as _loader
 
 if TYPE_CHECKING:
@@ -32,7 +33,7 @@ ENTRY_POINTS_GROUP = "hermes_agent.memory_providers"
 # only retract that profile's provider skills, never a sibling profile's.
 _REGISTERED_MEMORY_PROVIDER_SKILLS: dict[str, dict[str, Path]] = {}
 # Native extensions whose first import must not race another thread (#58083 warm-up).
-_NATIVE_WARM_IMPORTS: Tuple[str, ...] = ("numpy",)
+_NATIVE_WARM_IMPORTS: tuple[str, ...] = ("numpy",)
 
 
 def _registered_skills_for_active_home() -> dict[str, Path]:
@@ -47,7 +48,7 @@ _register_synthetic_package = _loader.register_synthetic_package
 _get_user_plugins_dir = _loader.user_plugins_dir
 
 
-def _get_project_plugins_dir() -> Optional[Path]:
+def _get_project_plugins_dir() -> Path | None:
     """``./.hermes/plugins/`` or None. Gated on HERMES_ENABLE_PROJECT_PLUGINS like the
     PluginManager scan: a repo you merely ``cd`` into must not offer a memory backend."""
     try:
@@ -87,12 +88,12 @@ def _module_name(provider_dir: Path, name: str) -> str:
     return f"{_USER_NAMESPACE}.{name}__source_{digest}"
 
 
-def _external_source_dirs() -> List[Path]:
+def _external_source_dirs() -> list[Path]:
     """User then project plugin roots that exist (precedence order)."""
     return [d for d in (_get_user_plugins_dir(), _get_project_plugins_dir()) if d]
 
 
-def _iter_provider_dirs() -> List[Tuple[str, Path]]:
+def _iter_provider_dirs() -> list[tuple[str, Path]]:
     """``(name, path)`` for bundled, then user-installed, then project-local; first-seen wins."""
     dirs = [(child.name, child) for child in _loader.iter_plugin_dirs(_MEMORY_PLUGINS_DIR)]
     seen = {name for name, _ in dirs}
@@ -121,7 +122,7 @@ def _iter_entry_points():
         return []
 
 
-def find_provider_dir(name: str) -> Optional[Path]:
+def find_provider_dir(name: str) -> Path | None:
     """Provider name -> directory: bundled, user, project, then a pip entry point's
     package dir. The entry-point case matters because ``config_schema.py`` and
     ``cli.py`` are read from disk, not imported; without a directory a pip-installed
@@ -136,7 +137,7 @@ def find_provider_dir(name: str) -> Optional[Path]:
     return _entry_point_package_dir(find_provider_entry_point(name))
 
 
-def _entry_point_package_dir(entry_point) -> Optional[Path]:
+def _entry_point_package_dir(entry_point) -> Path | None:
     """Directory of an entry point's module, resolved WITHOUT importing it (discovery
     runs from the dashboard/argparse before a provider is selected; importing every
     candidate would run arbitrary code). Only package entry points yield a
@@ -163,7 +164,7 @@ def find_provider_entry_point(name: str):
     return next((ep for ep in _iter_entry_points() if ep.name == name), None)
 
 
-def list_memory_provider_names() -> List[str]:
+def list_memory_provider_names() -> list[str]:
     """Cheap name-only listing (directory scan + entry-point enumeration, no import or
     availability check) — safe at module-import time (dashboard dropdown)."""
     names = {name for name, _ in _iter_provider_dirs()}
@@ -171,7 +172,7 @@ def list_memory_provider_names() -> List[str]:
     return sorted(names)
 
 
-def discover_memory_providers() -> List[Tuple[str, str, bool]]:
+def discover_memory_providers() -> list[tuple[str, str, bool]]:
     """``[(name, description, is_available), ...]``; bundled wins on name collisions,
     then user directories, then pip."""
     results = [
@@ -189,7 +190,7 @@ def discover_memory_providers() -> List[Tuple[str, str, bool]]:
     return results
 
 
-def load_memory_provider(name: str, *, register_skills: Optional[bool] = None) -> Optional["MemoryProvider"]:
+def load_memory_provider(name: str, *, register_skills: bool | None = None) -> MemoryProvider | None:
     """Load a MemoryProvider by name (bundled, user, project, then pip entry point);
     None if not found or failing to load. Skills register only for the configured
     active provider unless ``register_skills`` is explicit, so inspecting inactive
@@ -222,7 +223,7 @@ def load_memory_provider(name: str, *, register_skills: Optional[bool] = None) -
     return _loader.load_named(name, provider_dir, _load, kind="Memory provider", noun="provider", logger=logger)
 
 
-def import_memory_provider_module(name: Optional[str] = None) -> bool:
+def import_memory_provider_module(name: str | None = None) -> bool:
     """Import the provider's module (default: the configured ``memory.provider``) WITHOUT
     constructing a provider — the later ``load_memory_provider`` then hits ``sys.modules``
     instead of a fresh native extension load. Exists so ``hermes acp`` can pay the heavy
@@ -268,7 +269,7 @@ def _load_package(provider_dir: Path, name: str):
     )
 
 
-def import_provider_module(name: str, submodule: Optional[str] = None):
+def import_provider_module(name: str, submodule: str | None = None):
     """The package (or ``<package>.<submodule>``) of whichever copy of provider *name* is installed.
 
     Host-side code (dashboard host-block storage, OAuth routes, doctor, profile clone) used to
@@ -287,7 +288,7 @@ def import_provider_module(name: str, submodule: Optional[str] = None):
     return importlib.import_module(f"{package.__name__}.{submodule}") if submodule else package
 
 
-def _instantiate_subclass(namespace) -> Optional["MemoryProvider"]:
+def _instantiate_subclass(namespace) -> MemoryProvider | None:
     """First instantiable ``MemoryProvider`` subclass found among *namespace*'s attributes."""
     from agent.memory_provider import MemoryProvider
 
@@ -301,7 +302,7 @@ def _instantiate_subclass(namespace) -> Optional["MemoryProvider"]:
     return None
 
 
-def _load_provider_from_entry_point(entry_point, *, register_skills: bool = True) -> Optional["MemoryProvider"]:
+def _load_provider_from_entry_point(entry_point, *, register_skills: bool = True) -> MemoryProvider | None:
     """Import a provider entry point and extract the MemoryProvider instance: an
     instance, a subclass, a module with ``register(ctx)``, a factory / ``register``
     callable, or a namespace holding a subclass — in that order."""
@@ -337,7 +338,7 @@ def _load_provider_from_entry_point(entry_point, *, register_skills: bool = True
     return provider
 
 
-def _load_provider_from_dir(provider_dir: Path, *, register_skills: bool = True) -> Optional["MemoryProvider"]:
+def _load_provider_from_dir(provider_dir: Path, *, register_skills: bool = True) -> MemoryProvider | None:
     """Import a provider module; ``register(ctx)`` first, else a top-level subclass."""
     name = provider_dir.name
     from hermes_cli.plugin_isolation import user_plugin_host
@@ -464,14 +465,18 @@ class _ProviderCollector:
         """A real ``PluginContext``, built once on demand: the common provider that only
         calls ``register_memory_provider`` must not pay for importing the plugin manager."""
         if self._context is None:
-            from hermes_cli.plugins import PluginContext, PluginManifest, get_plugin_manager
+            from hermes_cli.plugins import (
+                PluginContext,
+                PluginManifest,
+                get_plugin_manager,
+            )
 
             manifest = PluginManifest(name=self.name, key=self.name)
             self._context = PluginContext(manifest, get_plugin_manager())
         return self._context
 
 
-def _get_active_memory_provider() -> Optional[str]:
+def _get_active_memory_provider() -> str | None:
     """Active provider name from config.yaml (``memory.provider``), or None. Reads config only."""
     try:
         from hermes_cli.config import load_config
@@ -503,7 +508,7 @@ def _explicitly_disabled(name: str, provider_dir: Path) -> bool:
     return bool(names & {v for v in disabled if isinstance(v, str)})
 
 
-def _prune_inactive_memory_provider_skills(active_provider: Optional[str] = None) -> None:
+def _prune_inactive_memory_provider_skills(active_provider: str | None = None) -> None:
     """Remove tracked skills that no longer belong to the active provider."""
     if active_provider is None:
         active_provider = _get_active_memory_provider()
@@ -520,7 +525,7 @@ def _prune_inactive_memory_provider_skills(active_provider: Optional[str] = None
         registered.pop(qualified_name, None)
 
 
-def discover_plugin_cli_commands() -> List[dict]:
+def discover_plugin_cli_commands() -> list[dict]:
     """CLI commands for the **active** memory plugin only. Imports just its ``cli.py``
     (``register_cli(subparser)``), never the provider module, so it is safe during
     argparse setup. At most one dict: name/help/description/setup_fn/handler_fn/plugin."""

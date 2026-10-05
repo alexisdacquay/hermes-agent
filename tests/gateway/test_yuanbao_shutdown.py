@@ -13,9 +13,9 @@ is ``websockets``' responsibility (and harmless at shutdown, where the loop is
 tearing down regardless), so it is intentionally out of scope here.
 """
 
-import sys
-import os
 import asyncio
+import os
+import sys
 
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if _REPO_ROOT not in sys.path:
@@ -24,9 +24,9 @@ if _REPO_ROOT not in sys.path:
 import pytest
 from gateway.config import PlatformConfig
 from gateway.platforms.yuanbao import (
-    YuanbaoAdapter,
-    ConnectionManager,
     WS_CLOSE_TIMEOUT_S,
+    ConnectionManager,
+    YuanbaoAdapter,
 )
 
 

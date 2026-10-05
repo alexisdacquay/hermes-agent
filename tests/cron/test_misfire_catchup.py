@@ -11,7 +11,6 @@ import threading
 from datetime import timedelta
 
 import pytest
-
 from cron.jobs import _hermes_now, create_job, get_job, load_jobs, save_jobs
 from cron.scheduler_provider import (
     CronScheduler,

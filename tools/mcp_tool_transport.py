@@ -2,23 +2,44 @@
 ledger + death-supervisor registration), Streamable HTTP / SSE connect (preflight, identity header, client certs, OAuth),
 protocol negotiation and initial tool discovery. Split from tools/mcp_tool.py."""
 
-import logging
 import asyncio
+import logging
 import os
 import urllib.parse
 import urllib.request
 from contextlib import asynccontextmanager
-from typing import Dict, Optional, Set
-from utils import normalize_proxy_url
-from agent.proxy_bypass import is_loopback_host, should_bypass_proxy
+
 from agent import runtime_cwd as _runtime_cwd
-from tools.mcp_tool_errors import NonMcpEndpointError, _apply_identity_header, _describe_http_failure, _handshake_answered_with_unsupported_version, _handshake_rejected_as_modern, _is_streamable_http_rejection, _make_http_rejection_recorder, _make_mcp_body_cap_transport, _make_redirect_header_stripper, _resolve_client_cert, _unwrap_exception_group
-from tools.mcp_tool_lifecycle import _filter_mcp_children, _leader_start_time, _orphan_stdio_pid_servers, _orphan_stdio_pids, _stdio_pgids, _stdio_pids, _stdio_starttimes
-from tools.mcp_tool_common import _core
-from tools.mcp_tool_node_abi import node_abi_error
+from agent.proxy_bypass import is_loopback_host, should_bypass_proxy
+from utils import normalize_proxy_url
+
 from tools import mcp_tool_config as _config
 from tools import mcp_tool_lifecycle as _lifecycle
 from tools import mcp_tool_registration as _registration
+from tools.mcp_tool_common import _core
+from tools.mcp_tool_errors import (
+    NonMcpEndpointError,
+    _apply_identity_header,
+    _describe_http_failure,
+    _handshake_answered_with_unsupported_version,
+    _handshake_rejected_as_modern,
+    _is_streamable_http_rejection,
+    _make_http_rejection_recorder,
+    _make_mcp_body_cap_transport,
+    _make_redirect_header_stripper,
+    _resolve_client_cert,
+    _unwrap_exception_group,
+)
+from tools.mcp_tool_lifecycle import (
+    _filter_mcp_children,
+    _leader_start_time,
+    _orphan_stdio_pid_servers,
+    _orphan_stdio_pids,
+    _stdio_pgids,
+    _stdio_pids,
+    _stdio_starttimes,
+)
+from tools.mcp_tool_node_abi import node_abi_error
 
 logger = logging.getLogger("tools.mcp_tool")
 
@@ -41,7 +62,7 @@ def _present(**kwargs) -> dict:
     return {k: v for k, v in kwargs.items() if v is not None}
 
 
-def _mcp_proxy_mounts(httpx_mod, url: str, ssl_verify, client_cert, server_name: str = "") -> Optional[dict]:
+def _mcp_proxy_mounts(httpx_mod, url: str, ssl_verify, client_cert, server_name: str = "") -> dict | None:
     """Proxy transports for the caller-owned MCP HTTP client, or ``None`` for a direct connect.
 
     httpx auto-detects proxies only when ``transport is None``
@@ -78,7 +99,7 @@ def _mcp_proxy_mounts(httpx_mod, url: str, ssl_verify, client_cert, server_name:
     return mounts or None
 
 
-def _pgroup_alive(pgid: Optional[int]) -> bool:
+def _pgroup_alive(pgid: int | None) -> bool:
     """Signal 0 to the group succeeds iff any member is alive (POSIX only)."""
     try:
         os.killpg(pgid, 0)  # windows-footgun: ok — guarded by AttributeError below
@@ -91,11 +112,12 @@ class LiveEndpointUnavailable(ConnectionError):
     """A declared runtime file did not provide a usable live endpoint."""
 
 
-def _live_endpoint(server_name: str) -> Optional[tuple[str, dict]]:
+def _live_endpoint(server_name: str) -> tuple[str, dict] | None:
     from agent.redact import register_vault_redaction_value
     from hermes_platform import declaration
     from hermes_platform.host import facts
     from hermes_platform.resolver.app import AppResolver
+
     from tools.mcp_liveness import liveness_for
 
     live = liveness_for(server_name)
@@ -232,7 +254,7 @@ class MCPServerTransportMixin:
         keeps later requests legacy-shaped (envelope and MCP-Protocol-Version header), the form the
         handshake itself just proved the server accepts. The returned result keeps the server's own
         version for logging/diagnostics."""
-        import mcp.types as types  # late: keeps the SDK import lazy
+        from mcp import types  # late: keeps the SDK import lazy
         offered = _core.LATEST_HANDSHAKE_VERSION
         build_caps = getattr(session, "_build_capabilities", None)
         capabilities = build_caps(offered) if callable(build_caps) else types.ClientCapabilities()
@@ -291,11 +313,11 @@ class MCPServerTransportMixin:
 
     # ------------------------------------------------------------------ stdio
 
-    def _track_spawned_children(self, new_pids: Set[int]) -> None:
+    def _track_spawned_children(self, new_pids: set[int]) -> None:
         """Ledger the freshly spawned stdio children (pids, pgids, machine spawn ledger). pgids are
         captured while alive (getpgid fails after exit; the sweep needs them for reparented descendants)."""
-        new_pgids: Dict[int, int] = {}
-        new_starts: Dict[int, int] = {}
+        new_pgids: dict[int, int] = {}
+        new_starts: dict[int, int] = {}
         for pid in new_pids:
             try:
                 new_pgids[pid] = os.getpgid(pid)
@@ -329,7 +351,7 @@ class MCPServerTransportMixin:
         # _kill_orphaned_mcp_children) still reap as before; this only covers when they never run.
         _core._update_death_supervisor("register", new_pgids.values())
 
-    def _release_spawned_children(self, new_pids: Set[int]) -> None:
+    def _release_spawned_children(self, new_pids: set[int]) -> None:
         """Drop the ledger entries; a child (or its pgroup) still alive means SDK teardown failed
         (common on mid-way cancel on Linux: setsid() children escape) — mark it orphaned for the sweep."""
         from gateway.status import _pid_exists
@@ -425,7 +447,7 @@ class MCPServerTransportMixin:
 
     # ------------------------------------------------------------------- HTTP
 
-    async def _preflight_content_type(self, url: str, *, headers: Optional[dict] = None,
+    async def _preflight_content_type(self, url: str, *, headers: dict | None = None,
                                       ssl_verify: bool = True, client_cert=None, timeout: float = 5.0,
                                       strict_redirect_headers: bool = False) -> None:
         """Probe *url* before the SDK connects: a plain web page would make the SDK sit out the full

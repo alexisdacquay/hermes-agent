@@ -11,7 +11,6 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 import tools.mcp_tool as mcp
 from tools import mcp_tool_discovery as _mcp_discovery
 from tools import mcp_tool_handlers as _mcp_handlers

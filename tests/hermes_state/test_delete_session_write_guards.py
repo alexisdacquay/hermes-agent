@@ -1,6 +1,7 @@
 """Invariant tests for entry-side deletion refusal on active write guards (#123583)."""
 
 import os
+
 import pytest
 from hermes_state import SessionDB
 from hermes_state_errors import SessionActiveWriteGuardError

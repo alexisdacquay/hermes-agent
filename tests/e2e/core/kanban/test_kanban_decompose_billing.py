@@ -24,9 +24,9 @@ import re
 import signal
 import subprocess
 import sys
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Callable, Iterator
 
 import pytest
 

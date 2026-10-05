@@ -7,7 +7,7 @@ import shutil
 import sys
 import time
 from functools import lru_cache
-from typing import Any, Optional
+from typing import Any
 
 _TITLE_COLOR = "#E8C463"
 _CHARTED_SIGNAL_MIN_CONTRAST = 4.5
@@ -38,7 +38,7 @@ def _palette() -> dict[str, str]:
     return derive_palette(_primary_hex(), dark=True)
 
 
-def _fade(base: Optional[str], alpha: float) -> Optional[str]:
+def _fade(base: str | None, alpha: float) -> str | None:
     from agent.learning_graph_render import hex_to_rgb, mix_rgb, rgb_to_hex
 
     if not base:
@@ -48,7 +48,7 @@ def _fade(base: Optional[str], alpha: float) -> Optional[str]:
     return rgb_to_hex(mix_rgb(hex_to_rgb(_palette()["bg"]), hex_to_rgb(base), alpha))
 
 
-def _resolve(style: str, alpha: float) -> Optional[str]:
+def _resolve(style: str, alpha: float) -> str | None:
     """Fade the style's base ink toward the background by ``alpha`` (rgba-over-bg)."""
     return _fade(_palette().get(style), alpha)
 
@@ -67,7 +67,7 @@ def _contrast_ratio(foreground: tuple[int, int, int], background: tuple[int, int
     return (high + 0.05) / (low + 0.05)
 
 
-def _ensure_contrast(color: Optional[str], background: str, minimum: float) -> Optional[str]:
+def _ensure_contrast(color: str | None, background: str, minimum: float) -> str | None:
     """Lift a foreground toward the readable pole until it clears ``minimum``."""
     if not color:
         return None
@@ -85,7 +85,7 @@ def _ensure_contrast(color: Optional[str], background: str, minimum: float) -> O
     return rgb_to_hex(pole)
 
 
-def _resolve_charted_signal(style: str, alpha: float) -> Optional[str]:
+def _resolve_charted_signal(style: str, alpha: float) -> str | None:
     """Keep age tinting without allowing explanatory labels to disappear."""
     return _ensure_contrast(_resolve(style, alpha), _palette()["bg"], _CHARTED_SIGNAL_MIN_CONTRAST)
 
@@ -107,16 +107,15 @@ def _row_to_text(row: list, color: bool):
     return text
 
 
-def _term_size(width: Optional[int], height: Optional[int]) -> tuple[int, int]:
+def _term_size(width: int | None, height: int | None) -> tuple[int, int]:
     size = shutil.get_terminal_size((90, 30))
     return max(40, width or size.columns), max(10, height or size.lines)
 
 
 def _frame_renderable(payload, *, cols, rows, reveal, color):
+    from agent import learning_graph_render as render
     from rich.console import Group
     from rich.text import Text
-
-    from agent import learning_graph_render as render
 
     legend = render.build_legend(payload)
     categories = render.category_legend(payload)
@@ -129,7 +128,7 @@ def _frame_renderable(payload, *, cols, rows, reveal, color):
     frame = render.render_graph(payload, cols=inner, rows=field_rows, reveal=reveal)
     count = len(payload.get("nodes", []))
 
-    def st(style: Optional[str]) -> Optional[str]:
+    def st(style: str | None) -> str | None:
         return style if color else None
 
     title = Text()
@@ -195,7 +194,7 @@ def _frame_renderable(payload, *, cols, rows, reveal, color):
     return Group(*parts)
 
 
-def _console(*, color: bool, width: Optional[int] = None, force: bool = False):
+def _console(*, color: bool, width: int | None = None, force: bool = False):
     """A Rich console. ``force`` emits truecolor ANSI even into a captured stream — the interactive CLI
     grabs that output and re-renders it through prompt_toolkit (raw escapes to a real terminal would
     otherwise be swallowed). Mirrors the ``ChatConsole`` idiom in ``cli.py``.
@@ -252,7 +251,7 @@ def _play(console, payload, *, cols, rows, color, fps: int) -> int:
 
 
 def _clamp(v: float, lo: float, hi: float) -> float:
-    return lo if v < lo else hi if v > hi else v
+    return lo if v < lo else min(v, hi)
 
 
 # ── list / delete / edit ─────────────────────────────────────────────────────
@@ -273,7 +272,7 @@ def _cmd_list(args: argparse.Namespace) -> int:
     return 0
 
 
-def _lookup_node(node_id: str) -> Optional[dict]:
+def _lookup_node(node_id: str) -> dict | None:
     """Resolve a node id via ``node_detail``; print the failure and return None when missing."""
     from agent.learning_mutations import node_detail
 
@@ -318,7 +317,7 @@ def _cmd_edit(args: argparse.Namespace) -> int:
     return 0 if res.get("ok") else 1
 
 
-def _open_in_editor(initial: str, *, suffix: str) -> Optional[str]:
+def _open_in_editor(initial: str, *, suffix: str) -> str | None:
     import os
     import subprocess
     import tempfile

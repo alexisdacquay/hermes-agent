@@ -17,7 +17,6 @@ from collections.abc import Mapping
 from pathlib import Path
 
 import pytest
-
 from scripts.code_health import cli
 from scripts.code_health.config import ENFORCEMENT
 

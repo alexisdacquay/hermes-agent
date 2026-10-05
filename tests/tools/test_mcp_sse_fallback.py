@@ -10,7 +10,6 @@ import asyncio
 
 import httpx
 import pytest
-
 from tools.mcp_tool import MCPServerTask
 
 
@@ -67,7 +66,7 @@ def test_sse_only_server_connects_via_fallback(monkeypatch, exc):
 
 @pytest.mark.parametrize("exc,ever_connected", [
     (_http_400(), True),                # reconnect after a proven session: never mask the 400
-    (asyncio.TimeoutError(), False),    # timeout is not a transport mismatch
+    (TimeoutError(), False),    # timeout is not a transport mismatch
     (_http_400(500), False),            # 5xx is a broken server, not SSE-only
 ])
 def test_no_fallback_on_reconnect_timeout_or_server_error(monkeypatch, exc, ever_connected):
@@ -91,8 +90,8 @@ def test_opaque_sdk_rejection_is_reported_with_the_servers_status_and_body(monke
     warning and the both-transports ConnectionError must still name the HTTP status, the URL that
     was requested and the body the server sent (#114350, #113359). A root that already carries the
     status (httpx ``HTTPStatusError``) is left alone — no duplicated detail."""
-    from tools.mcp_tool_errors import _make_http_rejection_recorder
     from tools.mcp_tool import sdk_httpx
+    from tools.mcp_tool_errors import _make_http_rejection_recorder
 
     httpx2 = sdk_httpx()
     body = '{"jsonrpc":"2.0","error":{"code":-32020,"message":"Unsupported MCP-Protocol-Version"}}'

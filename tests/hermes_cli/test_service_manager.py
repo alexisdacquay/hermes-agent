@@ -8,11 +8,9 @@ implementation in this same file once that phase ships.
 from __future__ import annotations
 
 import pytest
-
 from hermes_cli.service_manager import (
     S6ServiceManager,
 )
-
 
 # ---------------------------------------------------------------------------
 # validate_profile_name

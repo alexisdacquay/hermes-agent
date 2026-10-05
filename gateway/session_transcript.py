@@ -8,8 +8,9 @@ import contextlib
 import logging
 import threading
 import time
+from typing import TYPE_CHECKING, Any
+
 from agent.turn_context import extract_api_content_sidecar
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 if TYPE_CHECKING:
     from gateway.session import SessionEntry
@@ -26,7 +27,7 @@ class TranscriptReadError(RuntimeError):
         super().__init__(f"transcript read failed for session {session_id}")
 
 
-def _spool_dropped(session_id: str, message: Dict[str, Any]):
+def _spool_dropped(session_id: str, message: dict[str, Any]):
     """Spool one evicted/undeliverable message to disk (same machinery as the shutdown flush, so it
     is replayed after DB recovery); path or None."""
     try:
@@ -57,7 +58,7 @@ class SessionTranscriptMixin:
     # no longer a transient blip and needs operator attention.
     _TRANSCRIPT_APPEND_FAILURE_ESCALATION_THRESHOLD = 3
 
-    def _compression_tip_for_session_id(self, session_id: Optional[str]) -> Optional[str]:
+    def _compression_tip_for_session_id(self, session_id: str | None) -> str | None:
         """Latest compression continuation for *session_id* (heals a mapping left pointing at a
         compressed parent by a restart or failed send)."""
         db = self._db_for_session_id(session_id) if session_id else None
@@ -70,8 +71,8 @@ class SessionTranscriptMixin:
             return session_id
 
     def _heal_compression_tip_locked(
-        self, entry: "SessionEntry", original_session_id: Optional[str],
-        canonical_session_id: Optional[str]) -> bool:
+        self, entry: SessionEntry, original_session_id: str | None,
+        canonical_session_id: str | None) -> bool:
         """Rewrite *entry* to the compression continuation if stale. Lock held."""
         if not original_session_id or not canonical_session_id:
             return False
@@ -85,7 +86,7 @@ class SessionTranscriptMixin:
 
     def advance_compression_session(
         self, session_key: str, expected_session_id: str, target_session_id: str,
-    ) -> Optional[SessionEntry]:
+    ) -> SessionEntry | None:
         """CAS-advance one route along an already-verified compression lineage. Unlike
         ``switch_session`` this never ends/reopens SQLite rows (the compression transaction owns
         that). ``None`` means the route moved after the caller's snapshot (e.g. /new) — caller
@@ -107,7 +108,7 @@ class SessionTranscriptMixin:
         """Return the lock that serializes pending-queue drain boundaries."""
         return self._lazy("_transcript_drain_lock", threading.RLock)
 
-    def append_to_transcript(self, session_id: str, message: Dict[str, Any], skip_db: bool = False) -> None:
+    def append_to_transcript(self, session_id: str, message: dict[str, Any], skip_db: bool = False) -> None:
         """Serialize transcript draining across queue migration boundaries. A session with no usable
         store is NOT skipped: the write is queued and counted like any other failed append, so a
         dead/unopenable state.db escalates and spools instead of dropping turns silently
@@ -126,7 +127,7 @@ class SessionTranscriptMixin:
             session_id = reroutes[session_id]
         return session_id
 
-    def _enqueue_transcript_message(self, session_id: str, message: Dict[str, Any]) -> list:
+    def _enqueue_transcript_message(self, session_id: str, message: dict[str, Any]) -> list:
         """Queue *message* (retry lock held); evicts + spools the oldest past the cap."""
         pending = self._dirty_transcripts.setdefault(session_id, [])
         pending.append(dict(message))
@@ -220,7 +221,7 @@ class SessionTranscriptMixin:
             self._save()
         (getattr(self, "_session_owner_hints", None) or {}).pop(child_id, None)
 
-    def _append_to_transcript_serialized(self, session_id: str, message: Dict[str, Any]) -> None:
+    def _append_to_transcript_serialized(self, session_id: str, message: dict[str, Any]) -> None:
         """Append a message to a session's transcript (SQLite), draining the per-session retry
         queue.
 
@@ -362,7 +363,7 @@ class SessionTranscriptMixin:
         except Exception as exc:
             logger.warning("Failed to drain transcript spool for %s: %s", session_id, exc)
 
-    def _append_transcript_message(self, session_id: str, message: Dict[str, Any]) -> None:
+    def _append_transcript_message(self, session_id: str, message: dict[str, Any]) -> None:
         """Write one transcript row. Caller handles retry queuing."""
         _db = self._db_for_session_id(session_id)
         if _db is None:
@@ -406,6 +407,7 @@ class SessionTranscriptMixin:
         if "messages_fts" in str(exc).lower():
             return True
         import sqlite3
+
         from hermes_state import SessionDB
         return isinstance(exc, sqlite3.DatabaseError) and SessionDB._is_fts_write_corruption_error(exc)
 
@@ -466,7 +468,7 @@ class SessionTranscriptMixin:
             logger.debug("has_platform_message_id lookup failed", exc_info=True)
             return False
 
-    def transcript_tail_role(self, session_id: str) -> Optional[str]:
+    def transcript_tail_role(self, session_id: str) -> str | None:
         """Role of the newest live conversation row on the route ``load_transcript`` reads (``None``
         when empty, no DB, or the read fails — the boundary write would fail the same way)."""
         session_id = self._compression_tip_for_session_id(self._follow_reroutes(session_id))
@@ -480,7 +482,7 @@ class SessionTranscriptMixin:
             return None
 
     def rewrite_transcript(
-        self, session_id: str, messages: List[Dict[str, Any]], active_only: bool = False,
+        self, session_id: str, messages: list[dict[str, Any]], active_only: bool = False,
         reject_active_turn_lease: bool = False) -> bool:
         """Replace a session's transcript (/retry, /compress). DESTRUCTIVE by default:
         ``active_only=False`` DELETEs every row incl. soft-archived compaction history (pass
@@ -541,7 +543,7 @@ class SessionTranscriptMixin:
             return False
 
     def persist_rotated_compression_child(
-            self, parent_session_id: str, child_session_id: str, messages: List[Dict[str, Any]]) -> bool:
+            self, parent_session_id: str, child_session_id: str, messages: list[dict[str, Any]]) -> bool:
         """Make a rotated compression child durable before the live entry is repointed: a published
         child already is, anything else gets *messages* written by the destructive rewrite."""
         return (self.is_published_compression_child(parent_session_id, child_session_id)
@@ -570,7 +572,7 @@ class SessionTranscriptMixin:
         except Exception as e:
             raise TranscriptReadError(session_id) from e
 
-    def load_transcript(self, session_id: str) -> List[Dict[str, Any]]:
+    def load_transcript(self, session_id: str) -> list[dict[str, Any]]:
         """Load all messages from a session's transcript (state.db is canonical). Reads follow the
         same routing writes use — the in-memory reroute map, then the durable compression tip —
         otherwise the transcript "vanishes" while every message sits under the child."""
@@ -595,7 +597,7 @@ class SessionTranscriptMixin:
 
     def rewind_session(
         self, session_id: str, n: int = 1, *, require_retryable_composite: bool = False,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Back up ``n`` user turns via soft-delete (``active=0``), mirroring CLI ``/undo [N]``.
         Returns ``{"rewound_count", "turns_undone", "target_text"}`` or ``None`` (no DB / no rewindable
         turn / persistence failure); ``n`` clamps to the oldest user turn. ``require_retryable_composite``

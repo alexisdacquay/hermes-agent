@@ -12,7 +12,6 @@ from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
-
 import tools.process_registry as module
 from tools.process_registry import ProcessRegistry, ProcessSession
 

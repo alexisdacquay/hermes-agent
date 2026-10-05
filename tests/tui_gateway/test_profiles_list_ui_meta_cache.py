@@ -13,9 +13,9 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 import tui_gateway.server as srv
 from tui_gateway import profile_roster_cache as cache
+
 
 @pytest.fixture(autouse=True)
 def _clear_memo():

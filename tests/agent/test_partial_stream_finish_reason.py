@@ -19,10 +19,8 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
-
-from hermes_constants import PARTIAL_STREAM_STUB_ID, FINISH_REASON_LENGTH
 from agent.conversation_loop import _join_truncated_parts
-
+from hermes_constants import FINISH_REASON_LENGTH, PARTIAL_STREAM_STUB_ID
 
 # ── Helpers (mirrors test_streaming.py) ────────────────────────────────────
 
@@ -433,7 +431,7 @@ class TestConversationLoopPartialStreamContinuation:
         through length_continue_retries — the loop persists the partial
         content and asks the model to continue."""
 
-        from tests.agent.test_run_agent import _mock_response, _mock_assistant_msg
+        from tests.agent.test_run_agent import _mock_assistant_msg, _mock_response
 
         # First API call: the partial-stream stub (length on partial-stream-stub id).
         repeated_tail = (
@@ -644,7 +642,7 @@ class TestEmptyPartialStreamStubNotPersisted:
     """
 
     def test_empty_stub_only_appends_continuation_user_message(self, loop_agent):
-        from tests.agent.test_run_agent import _mock_response, _mock_assistant_msg
+        from tests.agent.test_run_agent import _mock_assistant_msg, _mock_response
 
         # First API call: empty partial-stream stub — stream died mid
         # tool-call args with zero text delivered.
@@ -728,6 +726,7 @@ class TestBuildAssistantMessageEmptyContentPad:
 
     def test_empty_content_stored_as_is(self):
         from agent.chat_completion_helpers import build_assistant_message
+
         from tests.agent.test_run_agent import _mock_assistant_msg
 
         agent = self._agent_for_builder()
@@ -741,6 +740,7 @@ class TestBuildAssistantMessageEmptyContentPad:
 
     def test_tool_call_turn_content_left_empty(self):
         from agent.chat_completion_helpers import build_assistant_message
+
         from tests.agent.test_run_agent import _mock_assistant_msg, _mock_tool_call
 
         agent = self._agent_for_builder()

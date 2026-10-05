@@ -4,32 +4,33 @@ Extracted from ``hermes_cli.web_server``; helpers/state that tests monkeypatch o
 ``web_server`` stay there and are late-bound (cycle-safe).
 """
 
+import asyncio
 import base64
 import binascii
 import contextlib
+import json
 import logging
+import os
 import queue
 import tempfile
 import threading
-import asyncio
-import json
-import os
 import urllib.parse
 import urllib.request
-from fastapi import APIRouter
-from hermes_cli.web_routers._common import http_failure
+from typing import Any
+
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
+
 from hermes_cli.web_deps import late
-from hermes_cli.web_server_chat import _ws_auth_ok, _ws_request_is_allowed
-from hermes_cli.web_server_gateway import _split_text_for_speak_stream
-from fastapi import HTTPException, WebSocket, WebSocketDisconnect
 from hermes_cli.web_models import (
     AudioTranscriptionRequest,
     STTLeaseRequest,
-    TTSSpeakRequest,
     TTSLeaseRequest,
+    TTSSpeakRequest,
     VoiceLiveSessionRequest,
 )
-from typing import Any, Dict, Optional
+from hermes_cli.web_routers._common import http_failure
+from hermes_cli.web_server_chat import _ws_auth_ok, _ws_request_is_allowed
+from hermes_cli.web_server_gateway import _split_text_for_speak_stream
 
 _log = logging.getLogger("hermes_cli.web_server")
 router = APIRouter()
@@ -39,7 +40,7 @@ _config_profile_scope = late("_config_profile_scope", "hermes_cli.web_server_pro
 _voice_list_error_logged_once = late("_voice_list_error_logged_once")
 load_env = late("load_env", "hermes_cli.config")
 
-_AUDIO_MIME_EXTENSIONS: Dict[str, str] = {
+_AUDIO_MIME_EXTENSIONS: dict[str, str] = {
     "audio/aac": ".aac", "audio/flac": ".flac", "audio/m4a": ".m4a", "audio/mp3": ".mp3",
     "audio/mp4": ".mp4", "audio/mpeg": ".mp3", "audio/ogg": ".ogg", "audio/wav": ".wav",
     "audio/wave": ".wav", "audio/webm": ".webm", "audio/x-m4a": ".m4a", "audio/x-wav": ".wav",
@@ -61,7 +62,7 @@ def _unlink_quietly(path: str) -> None:
         pass
 
 
-async def _run_config_scoped(profile: Optional[str], fn):
+async def _run_config_scoped(profile: str | None, fn):
     """Run ``fn()`` on a worker thread under the config-only profile scope.
 
     Home-only contextvar scope, NOT ``_profile_scope``: these calls block for a
@@ -82,7 +83,7 @@ def _audio_extension_for_mime(mime_type: str) -> str:
 
 @router.post("/api/audio/transcribe")
 async def transcribe_audio_upload(
-    payload: AudioTranscriptionRequest, profile: Optional[str] = None
+    payload: AudioTranscriptionRequest, profile: str | None = None
 ):
     data_url = (payload.data_url or "").strip()
     if not data_url.startswith("data:") or "," not in data_url:
@@ -144,7 +145,7 @@ async def transcribe_audio_upload(
 
 
 @router.get("/api/audio/voice-config")
-async def get_client_voice_config(profile: Optional[str] = None):
+async def get_client_voice_config(profile: str | None = None):
     """The active profile's STT/TTS config for CLIENT-DIRECT voice.
 
     Lets the desktop cut the audio relay hop: mic audio goes straight to the
@@ -173,7 +174,7 @@ async def get_client_voice_config(profile: Optional[str] = None):
 
 
 @router.get("/api/audio/voice-live/status")
-async def get_voice_live_status(profile: Optional[str] = None):
+async def get_voice_live_status(profile: str | None = None):
     """Which voice chat mode the profile selected (``chained`` | ``gpt-live``) and whether GPT-Live
     can start. Non-secret: the desktop decides which conversation engine to mount from this."""
     from tools.voice_live import resolve_gpt_live_status
@@ -183,7 +184,7 @@ async def get_voice_live_status(profile: Optional[str] = None):
 
 
 @router.post("/api/audio/voice-live/session")
-async def create_voice_live_session(payload: VoiceLiveSessionRequest, profile: Optional[str] = None):
+async def create_voice_live_session(payload: VoiceLiveSessionRequest, profile: str | None = None):
     """Exchange the renderer's WebRTC SDP offer for a GPT-Live session answer.
 
     The project API key stays on this host; the renderer only receives the session id and the
@@ -205,7 +206,7 @@ async def create_voice_live_session(payload: VoiceLiveSessionRequest, profile: O
     return {"ok": True, **result}
 
 
-def _elevenlabs_voice_label(voice: Dict[str, Any]) -> str:
+def _elevenlabs_voice_label(voice: dict[str, Any]) -> str:
     name = str(voice.get("name") or voice.get("voice_id") or "Voice").strip()
     category = str(voice.get("category") or "").strip()
 
@@ -213,7 +214,7 @@ def _elevenlabs_voice_label(voice: Dict[str, Any]) -> str:
 
 
 @router.get("/api/audio/elevenlabs/voices")
-async def get_elevenlabs_voices(profile: Optional[str] = None):
+async def get_elevenlabs_voices(profile: str | None = None):
     """Return ElevenLabs voices when an API key is configured.
 
     The desktop UI uses this for the ``tts.elevenlabs.voice_id`` dropdown.
@@ -248,7 +249,7 @@ async def get_elevenlabs_voices(profile: Optional[str] = None):
     try:
         loop = asyncio.get_running_loop()
 
-        def _fetch() -> Dict[str, Any]:
+        def _fetch() -> dict[str, Any]:
             with urllib.request.urlopen(request, timeout=10) as response:
                 return json.loads(response.read().decode("utf-8"))
 
@@ -290,7 +291,7 @@ async def get_elevenlabs_voices(profile: Optional[str] = None):
 
 
 @router.post("/api/audio/speak")
-async def speak_text(payload: TTSSpeakRequest, profile: Optional[str] = None):
+async def speak_text(payload: TTSSpeakRequest, profile: str | None = None):
     """Synthesize speech and return audio as base64 data URL.
 
     Used by the desktop voice-conversation mode to play back assistant
@@ -347,7 +348,7 @@ async def speak_text(payload: TTSSpeakRequest, profile: Optional[str] = None):
 
 
 @router.post("/api/audio/tts-lease")
-async def tts_lease(payload: TTSLeaseRequest, profile: Optional[str] = None):
+async def tts_lease(payload: TTSLeaseRequest, profile: str | None = None):
     """Desktop TTS-output toggles as warm-up / release signals.
 
     ``active: true`` registers a lease on the TTS engine and pre-loads the
@@ -479,7 +480,7 @@ def _ffmpeg_s16le_mono(path: str) -> tuple:
 
 
 @router.post("/api/audio/stt-lease")
-async def stt_lease(payload: STTLeaseRequest, profile: Optional[str] = None):
+async def stt_lease(payload: STTLeaseRequest, profile: str | None = None):
     """Desktop voice-input sessions as STT warm-up / release signals.
 
     ``active: true`` registers a lease and pre-loads the configured local STT
@@ -513,7 +514,7 @@ async def stt_lease(payload: STTLeaseRequest, profile: Optional[str] = None):
 
 
 @router.websocket("/api/audio/speak-stream")
-async def speak_stream_ws(ws: "WebSocket") -> None:
+async def speak_stream_ws(ws: WebSocket) -> None:
     """Streaming TTS for the desktop: text in, raw int16 PCM frames out.
 
     The socket is a per-reply speech *session*: the client feeds text
@@ -550,7 +551,11 @@ async def speak_stream_ws(ws: "WebSocket") -> None:
 
     def _resolve():
         from tools.tts_streaming import resolve_streaming_provider
-        from tools.tts_tool import _get_provider, _load_tts_config, _resolve_max_text_length
+        from tools.tts_tool import (
+            _get_provider,
+            _load_tts_config,
+            _resolve_max_text_length,
+        )
         with _config_profile_scope(profile):
             cfg = _load_tts_config()
             streamer = resolve_streaming_provider(cfg)

@@ -11,9 +11,9 @@ import asyncio
 import threading
 import time
 
-import pytest
 import hermes_cli.config as _cfg_mod
 import hermes_cli.web_server_profiles as _web_server_profiles
+import pytest
 
 
 class TestGetConfigOffLoop:
@@ -27,7 +27,7 @@ class TestGetConfigOffLoop:
             from starlette.testclient import TestClient
         except ImportError:
             pytest.skip("fastapi/starlette not installed")
-        from hermes_cli.web_server import app, _SESSION_HEADER_NAME, _SESSION_TOKEN
+        from hermes_cli.web_server import _SESSION_HEADER_NAME, _SESSION_TOKEN, app
 
         client = TestClient(app)
         client.headers[_SESSION_HEADER_NAME] = _SESSION_TOKEN

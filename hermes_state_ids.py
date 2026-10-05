@@ -12,7 +12,6 @@ from __future__ import annotations
 import re
 import uuid
 from datetime import datetime
-from typing import Optional
 
 SESSION_ID_PATTERN = re.compile(r"^\d{8}_\d{6}_")
 
@@ -53,7 +52,7 @@ def is_known_session_id(value: str) -> bool:
 DEFAULT_HEX_LEN = 6
 
 
-def new_session_id(now: Optional[datetime] = None, *, hex_len: int = DEFAULT_HEX_LEN) -> str:
+def new_session_id(now: datetime | None = None, *, hex_len: int = DEFAULT_HEX_LEN) -> str:
     """``<timestamp>_<random hex>`` for a fresh session; ``now`` pins the timestamp to a clock the
     caller already captured (``agent.session_start``) so the id and the row agree to the second."""
     stamp = (now or datetime.now()).strftime("%Y%m%d_%H%M%S")

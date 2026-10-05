@@ -1,8 +1,7 @@
 """Toolset helpers: get/resolve/validate named tool groups (static TOOLSETS + registry-registered)."""
 
 from pathlib import Path
-from typing import Dict, List, Any, Set, Optional, Tuple
-
+from typing import Any
 
 # Shared tool list for CLI and all messaging platform toolsets (edit once, all
 # platforms follow). Desktop GUI affordances are deliberately NOT here: they live
@@ -274,12 +273,12 @@ def _registry_call(method: str, default):
         return default
 
 
-def _registry_generation() -> Tuple[int, int]:
+def _registry_generation() -> tuple[int, int]:
     reg = _registry()
     return (id(reg), getattr(reg, "_generation", 0)) if reg is not None else (0, 0)
 
 
-def get_toolset(name: str, *, include_registry: bool = True) -> Optional[Dict[str, Any]]:
+def get_toolset(name: str, *, include_registry: bool = True) -> dict[str, Any] | None:
     """Toolset definition, or None if unknown.
 
     include_registry=True merges plugin/overlay tools registered into this toolset
@@ -323,7 +322,7 @@ def get_toolset(name: str, *, include_registry: bool = True) -> Optional[Dict[st
     return {"description": description, "tools": registry.get_tool_names_for_toolset(registry_toolset), "includes": []}
 
 
-def bundle_non_core_tools(toolset_name: str) -> Set[str]:
+def bundle_non_core_tools(toolset_name: str) -> set[str]:
     """A bundle's tools minus _HERMES_CORE_TOOLS (one level of includes).
 
     Disabling a `core + extras` bundle must not strip the core tools every other
@@ -345,10 +344,10 @@ def bundle_non_core_tools(toolset_name: str) -> Set[str]:
 # engages only at the public entry (visited is None). The scope is part of the key because a
 # multiplexed process resolves ``mcp-<server>`` per profile overlay: without it profile B got
 # profile A's tool names for a server B never connected (#106005).
-_resolve_toolset_memo: Dict[Tuple[str, bool, int, int, str], List[str]] = {}
+_resolve_toolset_memo: dict[tuple[str, bool, int, int, str], list[str]] = {}
 
 
-def _plugin_platform_bundle(name: str) -> List[str]:
+def _plugin_platform_bundle(name: str) -> list[str]:
     """Implicit `hermes-<platform>` bundle for a registered plugin platform: core
     tools plus whatever the plugin registered under the platform name. [] otherwise."""
     if not name.startswith("hermes-"):
@@ -368,7 +367,7 @@ def _plugin_platform_bundle(name: str) -> List[str]:
     return list(tools)
 
 
-def resolve_toolset(name: str, visited: Set[str] = None, *, include_registry: bool = True) -> List[str]:
+def resolve_toolset(name: str, visited: set[str] = None, *, include_registry: bool = True) -> list[str]:
     """Recursively resolve a toolset (and its includes) to a sorted tool-name list.
     include_registry=False resolves the static TOOLSETS view only.
 
@@ -387,7 +386,7 @@ def resolve_toolset(name: str, visited: Set[str] = None, *, include_registry: bo
 
     # "all"/"*" span every toolset so new toolsets are included automatically.
     if name in {"all", "*"}:
-        all_tools: Set[str] = set()
+        all_tools: set[str] = set()
         for toolset_name in get_toolset_names():
             all_tools.update(resolve_toolset(toolset_name, visited.copy(), include_registry=include_registry))
         return sorted(all_tools)
@@ -413,27 +412,27 @@ def resolve_toolset(name: str, visited: Set[str] = None, *, include_registry: bo
     return result
 
 
-def _get_plugin_toolset_names() -> Set[str]:
+def _get_plugin_toolset_names() -> set[str]:
     """Registry toolset names absent from the static TOOLSETS dict."""
     return {n for n in _registry_call("get_registered_toolset_names", ()) if n not in TOOLSETS}
 
 
-def _get_registry_toolset_aliases() -> Dict[str, str]:
+def _get_registry_toolset_aliases() -> dict[str, str]:
     return _registry_call("get_registered_toolset_aliases", {})
 
 
-def _display_alias(ts_name: str, aliases: Dict[str, str]) -> Optional[str]:
+def _display_alias(ts_name: str, aliases: dict[str, str]) -> str | None:
     """First non-static alias pointing at *ts_name*, or None."""
     return next((a for a, canonical in aliases.items() if canonical == ts_name and a not in TOOLSETS), None)
 
 
-def _plugin_display_names() -> List[str]:
+def _plugin_display_names() -> list[str]:
     """Plugin toolset names, shown under their first non-static alias when one exists."""
     aliases = _get_registry_toolset_aliases()
     return [_display_alias(n, aliases) or n for n in _get_plugin_toolset_names()]
 
 
-def get_all_toolsets() -> Dict[str, Dict[str, Any]]:
+def get_all_toolsets() -> dict[str, dict[str, Any]]:
     """All toolset definitions: static plus plugin-registered."""
     result = dict(TOOLSETS)
     aliases = _get_registry_toolset_aliases()
@@ -447,12 +446,12 @@ def get_all_toolsets() -> Dict[str, Dict[str, Any]]:
     return result
 
 
-def get_toolset_names() -> List[str]:
+def get_toolset_names() -> list[str]:
     """Sorted names of all toolsets (static + plugin), excluding aliases."""
     return sorted(set(TOOLSETS.keys()) | set(_plugin_display_names()))
 
 
-def profile_role_toolsets(profile_home: Optional[Path] = None) -> Tuple[Set[str], Set[str]]:
+def profile_role_toolsets(profile_home: Path | None = None) -> tuple[set[str], set[str]]:
     """``(granted, denied)`` for the profile at *profile_home* (default: the in-scope home; a session's
     home override, when bound, IS its profile dir): toolsets reserved for the role in its backend-written
     ``profile.yaml``, and toolsets reserved for any other role. An ordinary profile is granted none."""
@@ -469,12 +468,12 @@ def validate_toolset(name: str) -> bool:
             or name in _get_plugin_toolset_names() or name in _get_registry_toolset_aliases())
 
 
-def create_custom_toolset(name: str, description: str, tools: List[str] = None, includes: List[str] = None) -> None:
+def create_custom_toolset(name: str, description: str, tools: list[str] = None, includes: list[str] = None) -> None:
     """Register a runtime toolset in TOOLSETS."""
     TOOLSETS[name] = _ts(description, tools or [], includes or [])
 
 
-def get_toolset_info(name: str) -> Dict[str, Any]:
+def get_toolset_info(name: str) -> dict[str, Any]:
     """Toolset definition plus its resolved tools, or None if unknown."""
     toolset = get_toolset(name)
     if not toolset:

@@ -12,9 +12,8 @@ a subset of ``OSError`` (ENOENT/ENOTDIR/EBADF/ELOOP) — ``EACCES`` escaped as a
 import os
 from pathlib import Path
 
-import pytest
-
 import hermes_cli.gateway as gateway_cli
+import pytest
 
 pytestmark = pytest.mark.platforms("linux")
 

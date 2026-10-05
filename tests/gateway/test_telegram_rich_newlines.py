@@ -14,7 +14,6 @@ tests construct a real ``TelegramAdapter``.
 """
 
 import pytest
-
 from plugins.platforms.telegram.adapter import TelegramAdapter
 
 

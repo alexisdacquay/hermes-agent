@@ -19,12 +19,12 @@ A normal start or reconnect must retain the retryable conflict behavior and
 must never evict the active holder.
 """
 
-from typing import Any, Dict
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from gateway.platforms.base import BasePlatformAdapter
+
 
 class _StubAdapter(BasePlatformAdapter):
     """Minimal concrete subclass for testing _acquire_platform_lock."""
@@ -40,7 +40,7 @@ class _StubAdapter(BasePlatformAdapter):
     async def send(self, *args: Any, **kwargs: Any) -> None:
         pass
 
-    async def get_chat_info(self, chat_id: str) -> Dict[str, Any]:
+    async def get_chat_info(self, chat_id: str) -> dict[str, Any]:
         return {}
 
 @pytest.fixture()

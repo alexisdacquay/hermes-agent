@@ -15,7 +15,6 @@ A's runtime — the turn then ran with A's persona and wrote A's memory
 from __future__ import annotations
 
 import pytest
-
 from tui_gateway import server
 
 

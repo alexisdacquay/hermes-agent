@@ -26,11 +26,9 @@ import sys
 import uuid
 from pathlib import Path
 
-import pytest
-
-import hermes_state
-import hermes_state_repair
 import hermes_state_holders
+import hermes_state_repair
+import pytest
 from hermes_state import SessionDB
 from hermes_state_repair import repair_state_db_schema
 

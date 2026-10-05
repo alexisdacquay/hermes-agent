@@ -7,7 +7,6 @@ import json
 import zipfile
 
 import pytest
-
 from tools import file_tools  # registers the public read_file handler
 from tools.read_extract import extract_document_text
 from tools.registry import registry

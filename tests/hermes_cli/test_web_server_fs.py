@@ -4,7 +4,6 @@ from contextlib import nullcontext
 from pathlib import Path
 
 import pytest
-
 from hermes_cli import ssh_workspace_fs, web_server
 from hermes_cli.web_routers import files as file_routes
 

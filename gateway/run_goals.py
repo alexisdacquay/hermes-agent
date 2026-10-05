@@ -11,8 +11,8 @@ import asyncio
 import dataclasses
 import logging
 import time
-from contextlib import nullcontext, suppress
-from typing import TYPE_CHECKING, Any, Optional
+from contextlib import suppress
+from typing import TYPE_CHECKING, Any
 
 from gateway.platforms.event import MessageEvent, MessageType
 
@@ -56,7 +56,7 @@ class GatewayGoalsMixin:
         except Exception as exc:
             logger.warning("%s: session DB warm-up failed: %s", label, exc)
 
-    async def _session_entry_for_manager(self, event: "MessageEvent", label: str):
+    async def _session_entry_for_manager(self, event: MessageEvent, label: str):
         """Session entry for a /goal or /heartbeat manager, or None when lookup fails. Warms the
         SessionDB cache first (a cold cache drops the first write while the reply claims it was
         set). Internal events never touch activity (idle/daily reset clock)."""
@@ -70,7 +70,7 @@ class GatewayGoalsMixin:
             return None
         return session_entry if getattr(session_entry, "session_id", None) else None
 
-    async def _manager_for_event(self, event: "MessageEvent", kind: str, load):
+    async def _manager_for_event(self, event: MessageEvent, kind: str, load):
         """``(manager, session_entry)`` for *kind* ("goal"/"heartbeat"), or ``(None, None)``.
         ``load()`` imports the manager class and returns a ``session_id -> manager`` factory."""
         try:
@@ -83,7 +83,7 @@ class GatewayGoalsMixin:
             return None, None
         return factory(session_entry.session_id), session_entry
 
-    async def _get_goal_manager_for_event(self, event: "MessageEvent"):
+    async def _get_goal_manager_for_event(self, event: MessageEvent):
         """Return ``(GoalManager, session_entry)`` for this event, or ``(None, None)``."""
         def _load():
             from hermes_cli.goals import GoalManager
@@ -91,7 +91,7 @@ class GatewayGoalsMixin:
             return lambda sid: GoalManager(session_id=sid, default_max_turns=max_turns)
         return await self._manager_for_event(event, "goal", _load)
 
-    async def _get_heartbeat_manager_for_event(self, event: "MessageEvent"):
+    async def _get_heartbeat_manager_for_event(self, event: MessageEvent):
         """Return ``(HeartbeatManager, session_entry)`` for this event, or ``(None, None)``."""
         def _load():
             from hermes_cli.heartbeat import HeartbeatManager
@@ -288,7 +288,8 @@ class GatewayGoalsMixin:
 
         _bg_procs, _active_deleg = None, 0
         with suppress(Exception):
-            from hermes_cli.goals import count_active_delegations, gather_background_processes as _gather_bg
+            from hermes_cli.goals import count_active_delegations
+            from hermes_cli.goals import gather_background_processes as _gather_bg
             # Only THIS session's processes (gateway turns register under turn_ctx.session_id):
             # subagents' pollers must not park the parent's goal.
             _bg_procs = _gather_bg(owner_task_id=getattr(session_entry, "session_id", None) or None)
@@ -379,7 +380,7 @@ class GatewayGoalsMixin:
             await self._defer_goal_status_notice_after_delivery(source, msg)
 
     async def _loop_wakeup_fire_one(
-        self, sid: str, state: Any, now: float, warned_no_route: set, profile: Optional[str] = None,
+        self, sid: str, state: Any, now: float, warned_no_route: set, profile: str | None = None,
     ) -> None:
         """Inject one due /loop wakeup into its session, applying every deferral rule. ``profile`` is
         the store being scanned (None = default); a ``profile`` persisted in the route wins."""
@@ -470,7 +471,10 @@ class GatewayGoalsMixin:
         store — a ``/loop`` set from a secondary profile's chat would never fire. Every served
         profile's store is scanned under its own runtime scope (same shape as ``_handoff_watcher``),
         and each hit is fired against that profile's adapters."""
-        from gateway.run import _async_profile_runtime_scope, _resolve_handoff_watch_scopes
+        from gateway.run import (
+            _async_profile_runtime_scope,
+            _resolve_handoff_watch_scopes,
+        )
         from gateway.run_idle_gates import profile_has_active_loop
         await asyncio.sleep(5)  # let platforms finish connecting
         warned_no_route: set = set()
@@ -480,10 +484,12 @@ class GatewayGoalsMixin:
             # binds its own scope instead of running on ambient env (see _scope_or_null).
             if profile_home is not None:
                 return _async_profile_runtime_scope(profile_home)
-            from tui_gateway.launch_profile_policy import async_launch_profile_scope_if_multiplexed
+            from tui_gateway.launch_profile_policy import (
+                async_launch_profile_scope_if_multiplexed,
+            )
             return async_launch_profile_scope_if_multiplexed()
 
-        async def _scan_one_store(profile_name: Optional[str]) -> None:
+        async def _scan_one_store(profile_name: str | None) -> None:
             from hermes_cli.loops import list_active_loops
 
             # Warm once per scan: the scan reads every persisted loop and a cold cache would

@@ -5,7 +5,6 @@ import json
 import textwrap
 
 import pytest
-
 from hermes_cli.observability import relay_shared_metrics as rsm
 from hermes_cli.observability import shared_metrics_catalog as catalog
 from hermes_cli.observability import shared_metrics_contract as contract

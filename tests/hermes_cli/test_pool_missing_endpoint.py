@@ -1,11 +1,9 @@
 """Endpoint-less manual credentials resolve through the public runtime ladder."""
-import pytest
 import hermes_yaml as yaml
-
+import pytest
 from hermes_cli.auth import PROVIDER_REGISTRY, write_credential_pool
 from hermes_cli.runtime_provider import resolve_runtime_provider
 from hermes_constants import get_hermes_home
-
 
 KEY = "test-only-not-a-real-provider-key"
 

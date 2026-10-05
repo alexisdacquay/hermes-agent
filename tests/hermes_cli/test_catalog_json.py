@@ -6,14 +6,12 @@ is that a git checkout must never see a dirty tracked catalog.json."""
 
 from __future__ import annotations
 
-import dataclasses
 import io
 import json
 import urllib.request
 
-import pytest
-
 import hermes_cli.local_runtime.catalog as cat
+import pytest
 
 
 @pytest.fixture(autouse=True)
@@ -109,10 +107,10 @@ def test_loader_ignores_unknown_fields():
 
 
 def test_min_engine_gate(monkeypatch):
-    from hermes_cli.web_routers.local_models import _engine_too_old
+    from pathlib import Path
 
     from hermes_cli.local_runtime.binaries import Engine
-    from pathlib import Path
+    from hermes_cli.web_routers.local_models import _engine_too_old
 
     monkeypatch.setattr("hermes_cli.local_runtime.binaries.installed_engine",
                         lambda *args, **kwargs: Engine("cpu", "b10362", Path("unused")))

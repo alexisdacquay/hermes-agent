@@ -16,7 +16,6 @@ import urllib.error
 from types import SimpleNamespace
 
 import pytest
-
 from hermes_cli.subcommands import peer as peer_mod
 
 SESSION = "20260916_bot_chat"

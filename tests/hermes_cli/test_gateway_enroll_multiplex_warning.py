@@ -19,9 +19,8 @@ from __future__ import annotations
 import io
 from contextlib import redirect_stdout
 
-import pytest
-
 import hermes_constants
+import pytest
 from hermes_cli.gateway_enroll import _warn_if_secondary_multiplex_profile
 
 

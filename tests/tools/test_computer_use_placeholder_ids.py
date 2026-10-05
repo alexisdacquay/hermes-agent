@@ -12,12 +12,12 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 from unittest.mock import MagicMock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-def _backend_with_windows(windows: List[Dict[str, Any]]):
+def _backend_with_windows(windows: list[dict[str, Any]]):
     from tools.computer_use.cua_backend import CuaDriverBackend
 
     backend = CuaDriverBackend()

@@ -1,16 +1,17 @@
 """A bundle reuses shipped bytes and adds missing pinned tools outside its seal."""
 
 import pytest
-
-import pm.paths as paths
+from pm import paths
 from pm.lock import Facts
+
 from tests.pm.test_pm_authority import core_env, pm_env, served  # noqa: F401 — fixtures
 
 
 @pytest.mark.parametrize("sealed_install", [True, False])
 def test_missing_bundle_tool_is_installed_in_writable_store(pm_env, tmp_path, monkeypatch, sealed_install):
-    from pm.install import ensure, env_for, is_installed
     import importlib
+
+    from pm.install import ensure, env_for, is_installed
 
     fixture = pm_env
     shipped = tmp_path / "payload" / "tools"

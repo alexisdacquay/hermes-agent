@@ -13,13 +13,19 @@ import logging
 import os
 import secrets
 import urllib.parse
-from typing import Any, Callable, Dict, Optional
+from collections.abc import Callable
+from typing import Any
 
 import httpx
-
 from hermes_cli.dashboard_auth import (
-    DashboardAuthProvider, InvalidCodeError, LoginStart, ProviderError, RefreshExpiredError, Session,
-    classify_jwks_lookup_error)
+    DashboardAuthProvider,
+    InvalidCodeError,
+    LoginStart,
+    ProviderError,
+    RefreshExpiredError,
+    Session,
+    classify_jwks_lookup_error,
+)
 
 # JWKS Cache-Control max-age (nous contract C7); self-hosted mirrors it.
 JWKS_CACHE_SECONDS = 300
@@ -62,7 +68,7 @@ class SkipRegistration(Exception):
 
 def register_provider(
     ctx, logger: logging.Logger, tag: str, provider_cls: type, settings: Callable[[], dict],
-) -> tuple[Optional[dict], str]:
+) -> tuple[dict | None, str]:
     """Build ``provider_cls(**settings())`` and register it on ``ctx``.
 
     Returns ``(kwargs, "")`` on success, ``(None, skip_reason)`` when ``settings`` raised
@@ -117,7 +123,7 @@ def pkce_login_start(authorize_url: str, *, client_id: str, scope: str, redirect
         cookie_payload={"hermes_session_pkce": f"state={state};verifier={code_verifier}"})
 
 
-def parse_json_body(response: httpx.Response) -> Dict[str, Any]:
+def parse_json_body(response: httpx.Response) -> dict[str, Any]:
     """JSON object body, or ``{}`` for non-JSON content-type / parse error / non-dict."""
     if not response.headers.get("content-type", "").startswith("application/json"):
         return {}
@@ -129,8 +135,8 @@ def parse_json_body(response: httpx.Response) -> Dict[str, Any]:
 
 
 def exchange_token(
-    url: str, data: Dict[str, str], *, headers: Optional[Dict[str, str]] = None, bad_request_exc: type[Exception],
-    idp: str, endpoint: str, token_key: str, missing_msg: str) -> tuple[str, Dict[str, Any]]:
+    url: str, data: dict[str, str], *, headers: dict[str, str] | None = None, bad_request_exc: type[Exception],
+    idp: str, endpoint: str, token_key: str, missing_msg: str) -> tuple[str, dict[str, Any]]:
     """POST a token grant and return ``(token, payload)``.
 
     A 400 (OAuth-shaped error envelope) raises ``bad_request_exc`` — ``InvalidCodeError``
@@ -158,7 +164,7 @@ def exchange_token(
     return token, payload
 
 
-def refresh_token_from(payload: Dict[str, Any], fallback: str = "") -> str:
+def refresh_token_from(payload: dict[str, Any], fallback: str = "") -> str:
     """The token response's refresh token, or ``fallback`` when absent/non-string
     (the session then behaves as access-token-only until expiry)."""
     rt = payload.get("refresh_token")
@@ -166,7 +172,7 @@ def refresh_token_from(payload: Dict[str, Any], fallback: str = "") -> str:
 
 
 def session_from_claims(
-    provider: str, claims: Dict[str, Any], *, access_token: str, refresh_token: str,
+    provider: str, claims: dict[str, Any], *, access_token: str, refresh_token: str,
     label: str = "token", email: str = "", display_name: str = "", org_id: str = "") -> Session:
     """Map verified JWT claims onto a Session; ``sub`` is mandatory."""
     user_id = str(claims.get("sub", ""))
@@ -190,7 +196,7 @@ def make_jwks_client(jwks_url: str) -> Any:
 
 
 def verify_jwt(
-    token: str, jwks_client: Any, *, algorithms: list[str], audience: str, issuer: str, label: str) -> Dict[str, Any]:
+    token: str, jwks_client: Any, *, algorithms: list[str], audience: str, issuer: str, label: str) -> dict[str, Any]:
     """Verify ``token`` against ``jwks_client`` with pinned ``aud``/``iss``.
 
     Unreachable JWKS → ``ProviderError`` (503); a bearer that is not one of our JWTs
@@ -277,7 +283,7 @@ class JwtOAuthProvider(DashboardAuthProvider):
         return self._grant(
             data, headers=headers, bad_request_exc=RefreshExpiredError, previous_refresh_token=refresh_token)
 
-    def verify_session(self, *, access_token: str) -> Optional[Session]:
+    def verify_session(self, *, access_token: str) -> Session | None:
         # None on expiry/invalidity (middleware then tries refresh); a ProviderError
         # (JWKS unreachable) bubbles up so middleware emits 503.
         try:

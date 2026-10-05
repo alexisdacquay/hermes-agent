@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Callable
 
 
 def build_model_parser(subparsers, *, cmd_model: Callable) -> None:

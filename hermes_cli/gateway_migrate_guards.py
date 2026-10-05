@@ -12,8 +12,9 @@ from __future__ import annotations
 import contextlib
 import os
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Optional
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from hermes_cli.gateway_migrate import MigrationPlan, ProfileGateway
@@ -22,7 +23,7 @@ if TYPE_CHECKING:
 # --------------------------------------------------------------------------- identity resolution
 
 
-def _pid_uid(pid: int) -> Optional[int]:
+def _pid_uid(pid: int) -> int | None:
     """Owner uid of a live process: ``/proc`` where it exists, ``ps`` on macOS; None when unknown."""
     with contextlib.suppress(OSError):
         return os.stat(f"/proc/{pid}").st_uid
@@ -37,7 +38,7 @@ def _pid_uid(pid: int) -> Optional[int]:
     return None
 
 
-def _system_unit_uid(unit_path: Path) -> Optional[int]:
+def _system_unit_uid(unit_path: Path) -> int | None:
     """uid a system unit runs as: its ``User=`` (root when absent); None when the name is unknown."""
     from hermes_cli.gateway import _read_systemd_user_from_unit
     user = _read_systemd_user_from_unit(unit_path)
@@ -49,7 +50,7 @@ def _system_unit_uid(unit_path: Path) -> Optional[int]:
     return None
 
 
-def gateway_identity(home: Path, pid: Optional[int], services: list[tuple[str, bool]]) -> tuple[Optional[int], Path]:
+def gateway_identity(home: Path, pid: int | None, services: list[tuple[str, bool]]) -> tuple[int | None, Path]:
     """``(uid, runtime_home)`` of the gateway that serves ``home``.
 
     uid: the live process owner; else, for a system unit, its ``User=`` — and ONLY that: a system
@@ -62,7 +63,7 @@ def gateway_identity(home: Path, pid: Optional[int], services: list[tuple[str, b
     from hermes_cli.gateway import _hermes_home_pinned_by_unit, get_systemd_unit_path
     from hermes_cli.gateway_migrate import _home_env
 
-    uid: Optional[int] = _pid_uid(pid) if pid is not None else None
+    uid: int | None = _pid_uid(pid) if pid is not None else None
     runtime_home = home
     has_system_unit = False
     for kind, system in services:
@@ -90,7 +91,7 @@ def _service_label(profile: ProfileGateway) -> str:
     return profile.service_label() if profile.services else "no service manager (detached)"
 
 
-def _guard_service_domain(plan: MigrationPlan, profile: ProfileGateway) -> Optional[str]:
+def _guard_service_domain(plan: MigrationPlan, profile: ProfileGateway) -> str | None:
     """Different manager or scope than the one the fleet converges on (system vs user systemd, launchd vs
     systemd). The reference is the default's own unit when it has one, else the manager
     ``target_service_kind()`` elects from the secondaries: a default that never had a gateway unit is not a
@@ -112,7 +113,7 @@ def _guard_service_domain(plan: MigrationPlan, profile: ProfileGateway) -> Optio
             f"a different service domain is not folded automatically.")
 
 
-def _guard_unix_user(plan: MigrationPlan, profile: ProfileGateway) -> Optional[str]:
+def _guard_unix_user(plan: MigrationPlan, profile: ProfileGateway) -> str | None:
     default_uid = plan.default.uid
     if default_uid is None and plan.default.has_system_unit:
         # Consolidating INTO a principal this host cannot identify is the same unknown boundary
@@ -129,7 +130,7 @@ def _guard_unix_user(plan: MigrationPlan, profile: ProfileGateway) -> Optional[s
             f"{default_uid}: a UNIX privilege boundary is not folded automatically.")
 
 
-def _guard_home_tree(plan: MigrationPlan, profile: ProfileGateway) -> Optional[str]:
+def _guard_home_tree(plan: MigrationPlan, profile: ProfileGateway) -> str | None:
     profiles_root = (plan.default_home / "profiles").resolve()
     runtime_home = (profile.runtime_home or profile.home).resolve()
     if runtime_home.is_relative_to(profiles_root):
@@ -138,7 +139,7 @@ def _guard_home_tree(plan: MigrationPlan, profile: ProfileGateway) -> Optional[s
             f"the multiplexer would serve {profile.home} instead of the live home.")
 
 
-_AUTO_MIGRATION_GUARDS: tuple[Callable[[MigrationPlan, ProfileGateway], Optional[str]], ...] = (
+_AUTO_MIGRATION_GUARDS: tuple[Callable[[MigrationPlan, ProfileGateway], str | None], ...] = (
     _guard_service_domain,
     _guard_unix_user,
     _guard_home_tree,
@@ -165,9 +166,10 @@ def auto_migration_opted_out(default_home: Path) -> bool:
     ``load_config`` the rest of the CLI reads (``DEFAULT_CONFIG`` + config.yaml + the managed overlay), so
     an administrator's managed ``false`` wins over a user's ``true`` and a YAML string ``"false"`` is
     false, not truthy. Only the nested key counts, there is no top-level alias."""
+    from utils import is_truthy_value
+
     from hermes_cli.config import load_config_readonly
     from hermes_cli.gateway_migrate import _home_env
-    from utils import is_truthy_value
     with _home_env(default_home):
         gateway_section = load_config_readonly().get("gateway")
     if not isinstance(gateway_section, dict):

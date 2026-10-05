@@ -45,8 +45,9 @@ import logging
 import os
 import sqlite3
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any
 
 from agent.error_classifier import FailoverReason
 
@@ -80,7 +81,7 @@ _TERMINAL_TURN_EXIT_PREFIXES = ("max_iterations_reached",)
 _OFF_VALUES = frozenset({"0", "false", "no", "off"})
 
 
-def kanban_task_id() -> Optional[str]:
+def kanban_task_id() -> str | None:
     """The dispatcher-set kanban task id, or ``None`` when this is not a worker run.
 
     Single source of truth for every kanban-worker predicate. The env value is
@@ -120,8 +121,7 @@ def max_recovery_attempts() -> int:
 
 def recovery_delay_seconds(attempt: int) -> float:
     """Backoff before recovery attempt ``attempt`` (1-based); last entry repeats."""
-    if attempt < 1:
-        attempt = 1
+    attempt = max(attempt, 1)
     index = min(attempt - 1, len(RECOVERY_DELAYS_SECONDS) - 1)
     return RECOVERY_DELAYS_SECONDS[index]
 
@@ -160,7 +160,7 @@ def should_recover_turn(result: Any, *, attempt: int) -> bool:
     return True
 
 
-def _kanban_db_path() -> Optional[str]:
+def _kanban_db_path() -> str | None:
     """The dispatcher-pinned board DB — no ambient resolution, ever.
 
     The dispatcher pins ``HERMES_KANBAN_DB`` (plus run id + claim lock) at spawn
@@ -300,7 +300,7 @@ def build_recovery_nudge(result: Any, *, attempt: int, max_attempts: int) -> str
     )
 
 
-def _emit_recovery_skipped(emit: Optional[Callable[[str], None]]) -> None:
+def _emit_recovery_skipped(emit: Callable[[str], None] | None) -> None:
     """The one "no proof, no retry" line — fail-closed is worth saying out loud."""
     message = (
         f"[kanban] in-place recovery skipped for {kanban_task_id() or 'task'}: this worker no "
@@ -319,8 +319,8 @@ def recover_failed_kanban_turns(
     get_result: Callable[[], Any],
     *,
     sleep_fn: Callable[[float], None] = time.sleep,
-    emit: Optional[Callable[[str], None]] = None,
-    claim_check: Optional[Callable[[], bool]] = None,
+    emit: Callable[[str], None] | None = None,
+    claim_check: Callable[[], bool] | None = None,
 ) -> int:
     """Retry an authorised kanban worker turn in place; returns attempts made.
 

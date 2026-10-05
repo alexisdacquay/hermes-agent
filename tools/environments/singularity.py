@@ -11,9 +11,9 @@ import subprocess
 import threading
 import uuid
 from pathlib import Path
-from typing import Optional
 
 from hermes_constants import get_hermes_home
+
 from tools.environments.base import BaseEnvironment, _load_json_store, _save_json_store
 from tools.environments.base_output import _popen_bash
 from tools.environments.path_utils import sanitize_task_id_for_path
@@ -153,7 +153,7 @@ class SingularityEnvironment(BaseEnvironment):
         self._instance_started = False
         self._persistent = persistent_filesystem
         self._task_id = task_id
-        self._overlay_dir: Optional[Path] = None
+        self._overlay_dir: Path | None = None
         self._cpu = cpu
         self._memory = memory
 
@@ -175,7 +175,10 @@ class SingularityEnvironment(BaseEnvironment):
             cmd.append("--writable-tmpfs")
 
         try:
-            from tools.credential_files import get_credential_file_mounts, get_skills_directory_mount
+            from tools.credential_files import (
+                get_credential_file_mounts,
+                get_skills_directory_mount,
+            )
             for entry in (*get_credential_file_mounts(), *get_skills_directory_mount()):
                 cmd.extend(["--bind", f"{entry['host_path']}:{entry['container_path']}:ro"])
         except Exception as e:

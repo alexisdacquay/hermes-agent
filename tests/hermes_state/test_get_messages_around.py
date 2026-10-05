@@ -6,7 +6,6 @@ around the anchor plus before/after counts so callers can detect session
 boundaries.
 """
 import pytest
-
 from hermes_state import SessionDB
 
 

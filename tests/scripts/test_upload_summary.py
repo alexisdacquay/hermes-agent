@@ -1,11 +1,8 @@
 """Every verified R2 upload lands in the GitHub step summary, with its public URL."""
-import json
 
 import pytest
-
 from scripts.releases import r2, upload_summary
 from scripts.releases.r2_scope import R2Scope
-
 
 BASE = "https://hermes-assets.nousresearch.com"
 KEY = "releases/commit/" + "a" * 40 + "/HermesBundled-1.2.3-win-x64.msix"

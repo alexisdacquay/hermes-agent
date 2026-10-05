@@ -7,7 +7,6 @@ import zlib
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import pytest
-
 from agent.bedrock_adapter import normalize_converse_stream_events
 
 

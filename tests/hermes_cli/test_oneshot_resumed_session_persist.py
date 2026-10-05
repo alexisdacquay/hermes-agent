@@ -23,9 +23,9 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import cli as cli_mod
 import pytest
 
-import cli as cli_mod
 
 @pytest.fixture(autouse=True)
 def _reset_finalize_state(monkeypatch):

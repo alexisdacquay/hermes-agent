@@ -10,13 +10,12 @@ from __future__ import annotations
 import os
 import time
 from pathlib import Path
-from typing import Optional
 
 _TTL_SECONDS = 5.0
 _cache: dict = {}
 
 
-def _resolve_git_dir(start: Path) -> Optional[Path]:
+def _resolve_git_dir(start: Path) -> Path | None:
     """Nearest enclosing git dir for ``start``, following worktree pointer files."""
     for parent in (start, *start.parents):
         dotgit = parent / ".git"
@@ -34,7 +33,7 @@ def _resolve_git_dir(start: Path) -> Optional[Path]:
     return None
 
 
-def current_git_branch(cwd: Optional[str] = None) -> str:
+def current_git_branch(cwd: str | None = None) -> str:
     """Branch name for ``cwd`` (defaults to the process cwd); ``""`` outside a repo.
 
     A detached HEAD renders as the abbreviated commit (``a1b2c3d…``). Results are

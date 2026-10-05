@@ -63,7 +63,7 @@ class _StandIn:
         url = str(request.url)
         path = urlsplit(url).path
         self.hits.append((request.method, url))
-        j = lambda status, body, **h: self.httpx.Response(status, json=body, headers=h, request=request)  # noqa: E731
+        j = lambda status, body, **h: self.httpx.Response(status, json=body, headers=h, request=request)
         if url == RESOURCE:
             if request.headers.get("Authorization") == "Bearer AT-1":
                 return j(200, {"ok": True})
@@ -83,7 +83,6 @@ class _StandIn:
 async def _run_flow(tmp_path, monkeypatch, issuer_doc):
     from mcp.shared.auth import OAuthClientMetadata
     from pydantic import AnyUrl
-
     from tools.mcp_oauth import HermesTokenStorage, _authorization_code_result
     from tools.mcp_oauth_manager import _HERMES_PROVIDER_CLS, reset_manager_for_tests
     from tools.mcp_tool import sdk_httpx

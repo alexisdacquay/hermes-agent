@@ -16,7 +16,6 @@ import difflib
 import hashlib
 import logging
 from dataclasses import dataclass
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -37,8 +36,8 @@ class MonitorOutcome:
     ok: bool
     changed: bool = False
     first_run: bool = False
-    context_block: Optional[str] = None
-    error: Optional[str] = None
+    context_block: str | None = None
+    error: str | None = None
 
 
 def hash_monitor_output(output: str) -> str:

@@ -8,7 +8,6 @@ import os
 import tempfile
 
 import pytest
-
 from hermes_cli.web_routers import display
 from tools.bot_desktop import lease
 

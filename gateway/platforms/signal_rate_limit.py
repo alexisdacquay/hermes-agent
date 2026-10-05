@@ -10,7 +10,7 @@ import asyncio
 import logging
 import re
 import time
-from typing import Any, Optional
+from typing import Any
 
 from agent.i18n import t
 from agent.retry_utils import parse_retry_after_seconds
@@ -29,7 +29,7 @@ class SignalRateLimitError(Exception):
     """Raised by ``SignalAdapter._rpc`` for rate-limit responses when ``raise_on_rate_limit=True``.
     ``retry_after`` is the server's per-token Retry-After in seconds (signal-cli ≥ v0.14.3) or None."""
 
-    def __init__(self, message: str, retry_after: Optional[float] = None) -> None:
+    def __init__(self, message: str, retry_after: float | None = None) -> None:
         super().__init__(message)
         self.retry_after = retry_after
 
@@ -47,7 +47,7 @@ def _error_message(err: Any) -> str:
     return str(err.get("message", "")) if isinstance(err, dict) else str(err)
 
 
-def _extract_retry_after_seconds(err: Any) -> Optional[float]:
+def _extract_retry_after_seconds(err: Any) -> float | None:
     """Per-token Retry-After from a signal-cli rate-limit error, or None. Sources, in order:
     ``error.data.response.results[*].retryAfterSeconds`` (signal-cli ≥ v0.14.3), then "Retry after N
     seconds" parsed from the message (RetryLaterException wrapped as AttachmentInvalidException)."""
@@ -98,7 +98,7 @@ class SignalAttachmentScheduler:
         self.last_refill = time.monotonic()
         self._lock = asyncio.Lock()
 
-    def _projected_tokens(self, now: Optional[float] = None) -> float:
+    def _projected_tokens(self, now: float | None = None) -> float:
         """Tokens the bucket would hold at ``now``, without mutating state."""
         elapsed = (time.monotonic() if now is None else now) - self.last_refill
         if elapsed > 0 and self.tokens < self.capacity:
@@ -160,7 +160,7 @@ class SignalAttachmentScheduler:
                    "credited, refill=%.4fs⁻¹)", n_attachments, rpc_duration, token_before, self.tokens, n_attachments,
                    self.refill_rate)
 
-    def feedback(self, retry_after: Optional[float], n_attempted: int) -> None:
+    def feedback(self, retry_after: float | None, n_attempted: int) -> None:
         """Apply server feedback after a 429: empty the bucket and, when ``retry_after`` (per-token refill
         window) is present, calibrate ``refill_rate`` from it."""
         if retry_after and retry_after > 0 and (new_rate := 1.0 / float(retry_after)) != self.refill_rate:
@@ -177,7 +177,7 @@ class SignalAttachmentScheduler:
                 "refill_seconds_per_token": round(1.0 / self.refill_rate, 1) if self.refill_rate > 0 else float("inf")}
 
 
-_scheduler: Optional[SignalAttachmentScheduler] = None
+_scheduler: SignalAttachmentScheduler | None = None
 
 
 def get_scheduler() -> SignalAttachmentScheduler:

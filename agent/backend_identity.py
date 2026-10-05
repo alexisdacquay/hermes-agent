@@ -13,7 +13,6 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
 
 from hermes_cli.route_identity import normalize_route_base_url
 
@@ -32,7 +31,7 @@ class FailureScope(Enum):
     ENDPOINT = "endpoint"
 
 
-def _norm(value: Optional[str]) -> str:
+def _norm(value: str | None) -> str:
     return (value or "").strip().lower()
 
 
@@ -49,9 +48,9 @@ class BackendIdentity:
 
     @classmethod
     def build(
-        cls, provider: Optional[str] = None, model: Optional[str] = None,
-        base_url: Optional[str] = None,
-    ) -> "BackendIdentity":
+        cls, provider: str | None = None, model: str | None = None,
+        base_url: str | None = None,
+    ) -> BackendIdentity:
         return cls(
             provider=_norm(provider), model=_norm(model),
             base_url=normalize_route_base_url(base_url),

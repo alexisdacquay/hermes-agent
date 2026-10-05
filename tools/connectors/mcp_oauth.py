@@ -8,10 +8,11 @@ import os
 import secrets
 import threading
 import time
+from collections.abc import Callable
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional
+from typing import Any
 from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
@@ -21,12 +22,13 @@ URL_TIMEOUT_SECONDS = 30.0
 
 def probe_with_rollback(
         server_name: str, cfg: dict, hermes_home: str, flow, reconnect_live: bool, *,
-        on_commit: Optional[Callable[[], None]] = None) -> None:
+        on_commit: Callable[[], None] | None = None) -> None:
     """Roll back failures through initialize; commit authorization before tool discovery.
 
     ``on_commit`` runs right after the configuration is saved: a card install persists its setup
     values there, so they land with the authorization and never before it."""
     from hermes_cli.mcp_config import _oauth_tokens_present, _probe_single_server
+
     from tools.mcp_dashboard_oauth import exception_message
     from tools.mcp_oauth import HermesTokenStorage, login_connect_timeout
     from tools.mcp_oauth_manager import get_manager
@@ -38,7 +40,7 @@ def probe_with_rollback(
     if flow is not None:
         flow.backup = backup
     previous_entry = None
-    details: Dict[str, Any] = {}
+    details: dict[str, Any] = {}
     tools: list = []
     discovery_error = ""
 
@@ -91,7 +93,7 @@ class AttemptCanceled(RuntimeError):
 _COMMIT_GUARD = threading.Lock()
 # (hermes home, server) -> the newest card attempt. A retry or a new operation replaces an attempt
 # whose worker is still waiting on the browser; the older one is canceled so it cannot commit later.
-_ACTIVE: Dict[tuple, Any] = {}
+_ACTIVE: dict[tuple, Any] = {}
 
 
 def cancel_attempt(flow) -> bool:
@@ -105,7 +107,7 @@ def cancel_attempt(flow) -> bool:
     return False
 
 
-def _commit(server_name: str, cfg: dict, on_commit: Optional[Callable[[], None]], flow=None) -> None:
+def _commit(server_name: str, cfg: dict, on_commit: Callable[[], None] | None, flow=None) -> None:
     from hermes_cli.mcp_config import _save_mcp_server
 
     with _COMMIT_GUARD:
@@ -120,13 +122,14 @@ def _commit(server_name: str, cfg: dict, on_commit: Optional[Callable[[], None]]
 
 
 def _reuse_saved_authorization(
-        server_name: str, cfg: dict, flow, on_commit: Optional[Callable[[], None]]) -> bool:
+        server_name: str, cfg: dict, flow, on_commit: Callable[[], None] | None) -> bool:
     """Connect with the tokens already on disk, with no browser step and no consent.
 
     Retrying discovery for a server that is authorized must not ask the user to sign in again, and
     must not delete the working grant first. Any failure here falls through to the interactive
     flow, which replaces the grant."""
     from hermes_cli.mcp_config import _oauth_tokens_present, _probe_single_server
+
     from tools.mcp_oauth import suppress_interactive_oauth
 
     if not _oauth_tokens_present(server_name):
@@ -147,8 +150,8 @@ def _reuse_saved_authorization(
 
 def run_worker(
         hermes_home: str, server_name: str, cfg: dict, reconnect_live: bool, *,
-        flow, on_done: Optional[Callable[[], None]] = None,
-        env: Optional[Dict[str, str]] = None, on_commit: Optional[Callable[[], None]] = None,
+        flow, on_done: Callable[[], None] | None = None,
+        env: dict[str, str] | None = None, on_commit: Callable[[], None] | None = None,
         reuse_saved: bool = False) -> None:
     """Drive the interactive MCP OAuth probe under the shared callback bridge.
 
@@ -159,7 +162,11 @@ def run_worker(
     from hermes_constants import reset_hermes_home_override, set_hermes_home_override
     try:
         from agent.secret_scope import (
-            build_profile_secret_scope, reset_secret_scope, set_secret_scope)
+            build_profile_secret_scope,
+            reset_secret_scope,
+            set_secret_scope,
+        )
+
         from tools.mcp_dashboard_oauth import dashboard_oauth_flow
         from tools.mcp_oauth import force_interactive_oauth
         home_token = secret_token = None
@@ -208,12 +215,12 @@ def _validate_client_redirect_uri(uri: str) -> str:
     return f"http://{'[' + host + ']' if ':' in host else host}:{parsed.port}{parsed.path or '/callback'}"
 
 
-def _start_loopback_receiver(flow) -> "http.server.HTTPServer":
+def _start_loopback_receiver(flow) -> http.server.HTTPServer:
     """Bind the single backend-hosted one-shot receiver and feed its callback into ``flow``."""
     from tools.mcp_oauth import _parse_redirect_query
 
     class _Handler(http.server.BaseHTTPRequestHandler):
-        def do_GET(self):  # noqa: N802
+        def do_GET(self):
             parsed = urlparse(self.path)
             if parsed.path.rstrip("/") not in ("/callback", ""):
                 self.send_response(404)
@@ -253,7 +260,7 @@ def _pinned_redirect_uri(cfg: dict) -> str:
     return f"http://{host}:{oauth['redirect_port']}/callback"
 
 
-def choose_callback_receiver(flow, cfg: dict, client_redirect_uri: Optional[str] = None):
+def choose_callback_receiver(flow, cfg: dict, client_redirect_uri: str | None = None):
     """Set the redirect consumed by the SDK and return the optional backend HTTP receiver."""
     if _pinned_loopback(cfg):
         flow.redirect_uri = _pinned_redirect_uri(cfg)
@@ -282,7 +289,7 @@ class OAuthAttempt:
     flow: Any
     detail: str = ""
 
-    def poll(self) -> Dict[str, Any]:
+    def poll(self) -> dict[str, Any]:
         snapshot = self.flow.snapshot()
         raw = snapshot.get("status")
         status = raw if raw in ("approved", "error") else "pending"
@@ -295,16 +302,17 @@ class OAuthAttempt:
 
 def start(
     server_name: str, *, url_timeout: float = URL_TIMEOUT_SECONDS,
-    client_redirect_uri: Optional[str] = None, cfg: Optional[dict] = None,
-    env: Optional[Dict[str, str]] = None, on_commit: Optional[Callable[[], None]] = None,
+    client_redirect_uri: str | None = None, cfg: dict | None = None,
+    env: dict[str, str] | None = None, on_commit: Callable[[], None] | None = None,
 ) -> OAuthAttempt:
     """Start a card OAuth flow and wait until its authorization URL is published.
 
     ``cfg`` is an install's in-memory configuration; without it the saved one is authorized."""
     from hermes_cli.mcp_config import _get_mcp_servers
     from hermes_constants import get_hermes_home
-    from tools.mcp_dashboard_oauth import DashboardOAuthFlow
     from tui_gateway import mcp_oauth_sessions
+
+    from tools.mcp_dashboard_oauth import DashboardOAuthFlow
 
     cfg = dict(cfg if cfg is not None else _get_mcp_servers().get(server_name) or {})
     if not cfg:

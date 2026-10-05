@@ -5,7 +5,6 @@ from __future__ import annotations
 from unittest.mock import Mock
 
 import pytest
-
 from agent import video_gen_registry
 
 
@@ -248,7 +247,11 @@ class TestFamilyRouting:
 
     def test_default_family_text_routing(self, with_fake_fal):
         """No model arg → DEFAULT_MODEL → text-to-video endpoint."""
-        from plugins.video_gen.fal import FALVideoGenProvider, FAL_FAMILIES, DEFAULT_MODEL
+        from plugins.video_gen.fal import (
+            DEFAULT_MODEL,
+            FAL_FAMILIES,
+            FALVideoGenProvider,
+        )
 
         result = FALVideoGenProvider().generate("a dog")
         assert result["success"] is True
@@ -257,7 +260,11 @@ class TestFamilyRouting:
 
 
     def test_unknown_family_falls_back_to_default(self, with_fake_fal):
-        from plugins.video_gen.fal import FALVideoGenProvider, FAL_FAMILIES, DEFAULT_MODEL
+        from plugins.video_gen.fal import (
+            DEFAULT_MODEL,
+            FAL_FAMILIES,
+            FALVideoGenProvider,
+        )
 
         result = FALVideoGenProvider().generate(
             "x",
@@ -564,7 +571,7 @@ class TestUpscalePass:
         return captured
 
     def test_upscale_chains_seedvr(self, with_fake_fal):
-        from plugins.video_gen.fal import FALVideoGenProvider, UPSCALER_ENDPOINT
+        from plugins.video_gen.fal import UPSCALER_ENDPOINT, FALVideoGenProvider
 
         result = FALVideoGenProvider().generate(
             "a dog", model="pixverse-v6", upscale=True,

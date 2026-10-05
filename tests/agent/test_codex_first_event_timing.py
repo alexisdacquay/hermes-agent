@@ -2,7 +2,6 @@ from types import SimpleNamespace
 
 import httpx
 import pytest
-
 from agent.codex_runtime import run_codex_stream
 
 

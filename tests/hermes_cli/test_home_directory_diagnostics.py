@@ -1,9 +1,7 @@
 """Home initialization must respect operator-owned links and diagnose storage."""
 import stat
-from pathlib import Path
 
 import pytest
-
 from hermes_cli import config
 
 

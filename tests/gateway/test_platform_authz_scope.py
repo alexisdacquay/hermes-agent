@@ -17,7 +17,6 @@ import contextlib
 import os
 
 import pytest
-
 from agent.secret_scope import reset_secret_scope, set_secret_scope
 
 

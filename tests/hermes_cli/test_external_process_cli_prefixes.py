@@ -13,7 +13,6 @@ from __future__ import annotations
 import subprocess
 
 import pytest
-
 from providers import register_provider
 from providers.base import ProviderProfile
 
@@ -46,7 +45,10 @@ def service_launch(tmp_path, monkeypatch):
 
 @pytest.mark.platforms("posix")  # HOME-relative prefixes and the exec bit are the POSIX layout
 def test_external_process_provider_finds_claude_in_an_install_prefix(service_launch, tmp_path, monkeypatch):
-    from hermes_cli.auth import get_external_process_provider_status, resolve_external_process_provider_credentials
+    from hermes_cli.auth import (
+        get_external_process_provider_status,
+        resolve_external_process_provider_credentials,
+    )
 
     assert resolve_external_process_provider_credentials("claude-cli-acp-test")["command"] == service_launch
     status = get_external_process_provider_status("claude-cli-acp-test")

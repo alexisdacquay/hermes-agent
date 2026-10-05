@@ -10,10 +10,13 @@ points the user at ``hermes tools``).
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 from agent.image_gen_provider import ImageGenProvider
-from agent.provider_registry import ProviderRegistry, configured_provider_name, is_available_safe
+from agent.provider_registry import (
+    ProviderRegistry,
+    configured_provider_name,
+    is_available_safe,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +27,7 @@ _registry: ProviderRegistry[ImageGenProvider] = ProviderRegistry(
 _registry.export(globals())
 
 
-def get_active_provider() -> Optional[ImageGenProvider]:
+def get_active_provider() -> ImageGenProvider | None:
     """Resolve the currently-active provider. Availability semantics (mirrors
     :mod:`agent.web_search_registry`): an explicitly configured provider is returned
     even if ``is_available()`` is False, so the dispatcher surfaces a precise

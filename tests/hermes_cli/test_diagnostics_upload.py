@@ -65,9 +65,8 @@ class TestRequestUploadUrl:
         with patch(
             "hermes_cli.diagnostics_upload.urllib.request.urlopen",
             return_value=resp,
-        ):
-            with pytest.raises(RuntimeError):
-                request_upload_url()
+        ), pytest.raises(RuntimeError):
+            request_upload_url()
 
 
     def test_base_url_env_override(self, monkeypatch):
@@ -129,9 +128,8 @@ class TestPutBundle:
         with patch(
             "hermes_cli.diagnostics_upload.urllib.request.urlopen",
             side_effect=err,
-        ):
-            with pytest.raises(urllib.error.HTTPError):
-                put_bundle("https://u", b"data")
+        ), pytest.raises(urllib.error.HTTPError):
+            put_bundle("https://u", b"data")
 
 
 # ---------------------------------------------------------------------------

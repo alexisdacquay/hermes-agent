@@ -19,7 +19,6 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
 
 logger = logging.getLogger("hermes.mcp_serve")
 
@@ -200,7 +199,7 @@ def _extract_message_content(msg: dict) -> str:
     return str(content) if content else ""
 
 
-def _extract_attachments(msg: dict) -> List[dict]:
+def _extract_attachments(msg: dict) -> list[dict]:
     """Non-text attachments: image/file content blocks plus MEDIA: tags in the text."""
     attachments = []
     content = msg.get("content", "")
@@ -267,14 +266,14 @@ class EventBridge:
     gateway bridge, polling SQLite instead)."""
 
     def __init__(self):
-        self._queue: List[QueueEvent] = []
+        self._queue: list[QueueEvent] = []
         self._cursor = 0
         self._lock = threading.Lock()
         self._new_event = threading.Event()
         self._running = False
-        self._thread: Optional[threading.Thread] = None
-        self._last_poll_timestamps: Dict[str, float] = {}  # session_key -> unix timestamp
-        self._pending_approvals: Dict[str, dict] = {}  # populated from events
+        self._thread: threading.Thread | None = None
+        self._last_poll_timestamps: dict[str, float] = {}  # session_key -> unix timestamp
+        self._pending_approvals: dict[str, dict] = {}  # populated from events
         self._state_db_mtime: float = 0.0  # skip polling work when state.db is unchanged
         self._cached_sessions_index: dict = {}
 
@@ -301,17 +300,17 @@ class EventBridge:
             self._thread.join(timeout=5)
         logger.debug("EventBridge stopped")
 
-    def _matching(self, after_cursor: int, session_key: Optional[str], limit: int) -> List[dict]:
+    def _matching(self, after_cursor: int, session_key: str | None, limit: int) -> list[dict]:
         with self._lock:
             return [e.as_dict() for e in self._queue
                     if e.cursor > after_cursor and (not session_key or e.session_key == session_key)][:limit]
 
-    def poll_events(self, after_cursor: int = 0, session_key: Optional[str] = None, limit: int = 20) -> dict:
+    def poll_events(self, after_cursor: int = 0, session_key: str | None = None, limit: int = 20) -> dict:
         """Return events since after_cursor, optionally filtered by session_key."""
         events = self._matching(after_cursor, session_key, limit)
         return {"events": events, "next_cursor": events[-1]["cursor"] if events else after_cursor}
 
-    def wait_for_event(self, after_cursor: int = 0, session_key: Optional[str] = None, timeout_ms: int = 30000) -> Optional[dict]:
+    def wait_for_event(self, after_cursor: int = 0, session_key: str | None = None, timeout_ms: int = 30000) -> dict | None:
         """Block until a matching event arrives or timeout expires."""
         deadline = time.monotonic() + (timeout_ms / 1000.0)
         while time.monotonic() < deadline:
@@ -325,7 +324,7 @@ class EventBridge:
             self._new_event.wait(timeout=min(remaining, POLL_INTERVAL))
         return None
 
-    def list_pending_approvals(self) -> List[dict]:
+    def list_pending_approvals(self) -> list[dict]:
         """List approval requests observed during this bridge session."""
         with self._lock:
             return sorted(self._pending_approvals.values(), key=lambda a: a.get("created_at", ""))
@@ -451,7 +450,7 @@ def _conversation_messages(session_key: str):
     return messages, None
 
 
-def _platform_matches(wanted: Optional[str], actual: str) -> bool:
+def _platform_matches(wanted: str | None, actual: str) -> bool:
     return not wanted or actual.lower() == wanted.lower()
 
 
@@ -465,7 +464,7 @@ class _ToolHandlers:
     def __init__(self, bridge: EventBridge):
         self.bridge = bridge
 
-    def conversations_list(self, platform: Optional[str] = None, limit: int = 50, search: Optional[str] = None) -> str:
+    def conversations_list(self, platform: str | None = None, limit: int = 50, search: str | None = None) -> str:
         """List active messaging conversations across connected platforms.
 
         Returns conversations with their session keys (needed for messages_read),
@@ -563,7 +562,7 @@ class _ToolHandlers:
         attachments = _extract_attachments(target_msg)
         return json.dumps({"message_id": message_id, "count": len(attachments), "attachments": attachments}, indent=2)
 
-    def events_poll(self, after_cursor: int = 0, session_key: Optional[str] = None, limit: int = 20) -> str:
+    def events_poll(self, after_cursor: int = 0, session_key: str | None = None, limit: int = 20) -> str:
         """Poll for new conversation events since a cursor position.
 
         Returns events that have occurred since the given cursor. Use the
@@ -581,7 +580,7 @@ class _ToolHandlers:
         result = self.bridge.poll_events(after_cursor=after_cursor, session_key=session_key, limit=limit)
         return json.dumps(result, indent=2)
 
-    def events_wait(self, after_cursor: int = 0, session_key: Optional[str] = None, timeout_ms: int = 30000) -> str:
+    def events_wait(self, after_cursor: int = 0, session_key: str | None = None, timeout_ms: int = 30000) -> str:
         """Wait for the next conversation event (long-poll).
 
         Blocks until a matching event arrives or the timeout expires.
@@ -623,7 +622,7 @@ class _ToolHandlers:
         except Exception as e:
             return json.dumps({"error": f"Send failed: {e}"})
 
-    def channels_list(self, platform: Optional[str] = None) -> str:
+    def channels_list(self, platform: str | None = None) -> str:
         """List available messaging channels and targets across platforms.
 
         Returns channels that you can send messages to. The target strings
@@ -689,7 +688,7 @@ _TOOL_NAMES = (
 )
 
 
-def create_mcp_server(event_bridge: Optional[EventBridge] = None) -> "MCPServer":
+def create_mcp_server(event_bridge: EventBridge | None = None) -> MCPServer:
     """Create and return the Hermes MCP server with all tools registered."""
     if not _MCP_SERVER_AVAILABLE:
         raise ImportError(f"MCP server requires the 'mcp' package. Install with: {sys.executable} -m pip install 'mcp'")

@@ -6,7 +6,6 @@ from contextlib import closing
 from pathlib import Path
 
 import pytest
-
 from hermes_cli import backup
 
 

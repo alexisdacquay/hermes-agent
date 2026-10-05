@@ -6,13 +6,15 @@ import base64
 import binascii
 import re
 import tempfile
+from collections.abc import Awaitable
 from functools import partial
 from pathlib import Path
-from typing import Any, Awaitable
+from typing import Any
 from urllib.parse import quote, unquote
 
-from plugins.teams_pipeline.models import MeetingArtifact, TeamsMeetingRef
 from tools.microsoft_graph_client import MicrosoftGraphAPIError, MicrosoftGraphClient
+
+from plugins.teams_pipeline.models import MeetingArtifact, TeamsMeetingRef
 
 # Graph uses both slash keys (users/{id}/...) and quoted keys (users('{id}')/...),
 # so every segment pattern has a quoted group and a slash group.

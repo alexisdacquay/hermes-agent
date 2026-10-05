@@ -3,17 +3,18 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass, fields, replace
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Literal
+
+from utils import base_url_host_matches, base_url_hostname, base_url_origin
 
 from agent.model_metadata import fetch_endpoint_model_metadata, fetch_model_metadata
-from utils import base_url_host_matches, base_url_hostname, base_url_origin
 
 logger = logging.getLogger(__name__)
 
-_ZERO = Decimal("0")
-_ONE_MILLION = Decimal("1000000")
+_ZERO = Decimal(0)
+_ONE_MILLION = Decimal(1000000)
 _NOUS_DEFAULT_BASE_URL = "https://inference-api.nousresearch.com/v1"
 # Pay-per-token first-party APIs whose models.dev rate card is the vendor's own
 # list price, keyed by billing-route provider -> API domain. A model missing from
@@ -70,7 +71,7 @@ class CanonicalUsage:
     cache_write_tokens: int = 0
     reasoning_tokens: int = 0
     request_count: int = 1
-    raw_usage: Optional[dict[str, Any]] = None
+    raw_usage: dict[str, Any] | None = None
 
     @property
     def prompt_tokens(self) -> int:
@@ -80,7 +81,7 @@ class CanonicalUsage:
     def total_tokens(self) -> int:
         return self.prompt_tokens + self.output_tokens
 
-    def __add__(self, other: "CanonicalUsage") -> "CanonicalUsage":
+    def __add__(self, other: CanonicalUsage) -> CanonicalUsage:
         """Sum two usage buckets. ``raw_usage`` (single-response detail) is
         dropped; ``request_count`` adds so callers see how many API calls a
         combined figure covers."""
@@ -102,38 +103,38 @@ class BillingRoute:
 
 @dataclass(frozen=True)
 class PricingEntry:
-    input_cost_per_million: Optional[Decimal] = None
-    output_cost_per_million: Optional[Decimal] = None
-    cache_read_cost_per_million: Optional[Decimal] = None
-    cache_write_cost_per_million: Optional[Decimal] = None
-    request_cost: Optional[Decimal] = None
+    input_cost_per_million: Decimal | None = None
+    output_cost_per_million: Decimal | None = None
+    cache_read_cost_per_million: Decimal | None = None
+    cache_write_cost_per_million: Decimal | None = None
+    request_cost: Decimal | None = None
     source: CostSource = "none"
-    source_url: Optional[str] = None
-    pricing_version: Optional[str] = None
-    fetched_at: Optional[datetime] = None
+    source_url: str | None = None
+    pricing_version: str | None = None
+    fetched_at: datetime | None = None
     # Context-tiered pricing (e.g. Gemini Pro above 200k prompt tokens): when
     # ``usage.prompt_tokens`` exceeds ``tier_threshold_tokens`` the ``*_above``
     # rates replace the base rates for the WHOLE request (Google's semantics,
     # not marginal brackets). A None ``*_above`` falls back to its base rate.
-    tier_threshold_tokens: Optional[int] = None
-    input_cost_per_million_above: Optional[Decimal] = None
-    output_cost_per_million_above: Optional[Decimal] = None
-    cache_read_cost_per_million_above: Optional[Decimal] = None
-    cache_write_cost_per_million_above: Optional[Decimal] = None
+    tier_threshold_tokens: int | None = None
+    input_cost_per_million_above: Decimal | None = None
+    output_cost_per_million_above: Decimal | None = None
+    cache_read_cost_per_million_above: Decimal | None = None
+    cache_write_cost_per_million_above: Decimal | None = None
 
 
 @dataclass(frozen=True)
 class CostResult:
-    amount_usd: Optional[Decimal]
+    amount_usd: Decimal | None
     status: CostStatus
     source: CostSource
     label: str
-    fetched_at: Optional[datetime] = None
-    pricing_version: Optional[str] = None
+    fetched_at: datetime | None = None
+    pricing_version: str | None = None
     notes: tuple[str, ...] = ()
 
 
-_UTC_NOW = lambda: datetime.now(timezone.utc)
+_UTC_NOW = lambda: datetime.now(UTC)
 _INCLUDED_ENTRY = PricingEntry(
     input_cost_per_million=_ZERO, output_cost_per_million=_ZERO, cache_read_cost_per_million=_ZERO,
     cache_write_cost_per_million=_ZERO, source="none", pricing_version="included-route",
@@ -141,8 +142,8 @@ _INCLUDED_ENTRY = PricingEntry(
 
 
 def _snap(
-    inp: str, out: str, cache_read: Optional[str] = None, cache_write: Optional[str] = None, *,
-    version: str, url: Optional[str] = None, **tiers: Any,
+    inp: str, out: str, cache_read: str | None = None, cache_write: str | None = None, *,
+    version: str, url: str | None = None, **tiers: Any,
 ) -> PricingEntry:
     """Build an official-docs snapshot entry from per-million USD rate strings."""
     return PricingEntry(
@@ -162,7 +163,7 @@ _ANTHROPIC_URL = "https://platform.claude.com/docs/en/about-claude/pricing"
 _GOOGLE_URL = "https://ai.google.dev/pricing"
 _OPUS = ("5.00", "25.00", "0.50", "6.25")
 _SONNET = ("3.00", "15.00", "0.30", "3.75")
-_SNAPSHOTS: tuple[tuple[str, Optional[str], str, dict], ...] = (
+_SNAPSHOTS: tuple[tuple[str, str | None, str, dict], ...] = (
     # OpenAI GPT-5.6 (Sol/Terra/Luna). Cache write = 1.25x input, cache read =
     # 0.10x input. "-pro" high-effort modes bill at the same per-token rates
     # (aliased below); "Sol Fast mode" is a separate tier, not covered.
@@ -249,7 +250,7 @@ _SNAPSHOTS: tuple[tuple[str, Optional[str], str, dict], ...] = (
     }),
 )
 
-_OFFICIAL_DOCS_PRICING: Dict[tuple[str, str], PricingEntry] = {}
+_OFFICIAL_DOCS_PRICING: dict[tuple[str, str], PricingEntry] = {}
 for _provider, _url, _version, _rows in _SNAPSHOTS:
     for _models, _rates in _rows.items():
         _entry = _snap(*_rates, version=_version, url=_url)
@@ -295,7 +296,7 @@ del _slug, _inp, _out, _read, _write, _inp_above, _out_above, _read_above, _writ
 # OpenAI Ultrafast (``service_tier: "ultrafast"``): 6x Standard on every bucket, same 272K
 # whole-request tier. Selected by the tier the response reports it was SERVED at (a request asking
 # for Ultrafast can be served at ``default``, and is then billed at Standard).
-_OPENAI_ULTRAFAST_PRICING: Dict[str, PricingEntry] = {
+_OPENAI_ULTRAFAST_PRICING: dict[str, PricingEntry] = {
     "gpt-6-astra": _snap(
         "60.00", "300.00", "6.00", "75.00",
         url="https://developers.openai.com/api/docs/pricing?latest-pricing=ultrafast",
@@ -322,7 +323,7 @@ _OFFICIAL_DOCS_PRICING[("google", "gemini-2.5-pro")] = _snap(
 )
 # Anthropic fast mode (``speed: "fast"``): a premium on the whole context window, with the
 # prompt-caching multipliers applied on top. Selected per response by ``usage.speed``.
-_ANTHROPIC_FAST_MODE_PRICING: Dict[str, PricingEntry] = {
+_ANTHROPIC_FAST_MODE_PRICING: dict[str, PricingEntry] = {
     _model: _snap(*_rates, version="anthropic-fast-mode-2026-09", url=f"{_ANTHROPIC_URL}#fast-mode-pricing")
     for _models, _rates in (
         (("claude-opus-4-8", "claude-opus-5"), ("10.00", "50.00", "1.00", "12.50")),
@@ -338,9 +339,9 @@ del _BEDROCK_URL, _ANTHROPIC_URL, _GOOGLE_URL, _OPUS, _SONNET
 # The direct Gemini provider emits preview IDs for two models; key the snapshot
 # by both the documented stable name and the emitted ID.
 for _provider, _alias, _canonical in (
-    *((("openai", f"{m}-{suffix}", m)
+    *(("openai", f"{m}-{suffix}", m)
        for m in ("gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-6-sol", "gpt-6-luna", "gpt-6.1-sol")
-       for suffix in ("pro", "900k"))),
+       for suffix in ("pro", "900k")),
     ("google", "gemini-3.1-pro-preview", "gemini-3.1-pro"),
     ("google", "gemini-3.1-flash-lite-preview", "gemini-3.1-flash-lite"),
 ):
@@ -348,7 +349,7 @@ for _provider, _alias, _canonical in (
 del _provider, _alias, _canonical
 
 
-def _to_decimal(value: Any) -> Optional[Decimal]:
+def _to_decimal(value: Any) -> Decimal | None:
     try:
         return None if value is None else Decimal(str(value))
     except Exception:
@@ -386,7 +387,7 @@ _GOOGLE_PROVIDER_NAMES = {"google", "gemini", "vertex", "google-gemini", "google
 
 
 def resolve_billing_route(
-    model_name: str, provider: Optional[str] = None, base_url: Optional[str] = None
+    model_name: str, provider: str | None = None, base_url: str | None = None
 ) -> BillingRoute:
     provider_name = (provider or "").strip().lower()
     base = (base_url or "").strip().lower()
@@ -457,7 +458,7 @@ def _normalize_anthropic_model_name(model: str) -> str:
 _MODEL_NORMALIZERS = {"anthropic": _normalize_anthropic_model_name, "bedrock": _normalize_bedrock_model_name}
 
 
-def _lookup_official_docs_pricing(route: BillingRoute) -> Optional[PricingEntry]:
+def _lookup_official_docs_pricing(route: BillingRoute) -> PricingEntry | None:
     model = route.model.lower()
     entry = _OFFICIAL_DOCS_PRICING.get((route.provider, model))
     if entry:
@@ -476,7 +477,7 @@ def with_served_service_tier(usage: CanonicalUsage, response: Any) -> CanonicalU
     return replace(usage, raw_usage={**(usage.raw_usage or {}), "service_tier": tier.strip().lower()})
 
 
-def _served_openai_tier(usage: CanonicalUsage) -> Optional[str]:
+def _served_openai_tier(usage: CanonicalUsage) -> str | None:
     return usage.raw_usage.get("service_tier") if isinstance(usage.raw_usage, dict) else None
 
 
@@ -485,13 +486,13 @@ def _served_fast(usage: CanonicalUsage) -> bool:
     return isinstance(usage.raw_usage, dict) and usage.raw_usage.get("speed") == "fast"
 
 
-def _anthropic_fast_mode_entry(model: str) -> Optional[PricingEntry]:
+def _anthropic_fast_mode_entry(model: str) -> PricingEntry | None:
     name = model.lower()
     return _ANTHROPIC_FAST_MODE_PRICING.get(name) or _ANTHROPIC_FAST_MODE_PRICING.get(
         _normalize_anthropic_model_name(name))
 
 
-def _openrouter_pricing_entry(route: BillingRoute) -> Optional[PricingEntry]:
+def _openrouter_pricing_entry(route: BillingRoute) -> PricingEntry | None:
     return _pricing_entry_from_metadata(
         fetch_model_metadata(), route.model,
         source_url="https://openrouter.ai/docs/api/api-reference/models/get-models",
@@ -500,13 +501,13 @@ def _openrouter_pricing_entry(route: BillingRoute) -> Optional[PricingEntry]:
 
 
 def _pricing_entry_from_metadata(
-    metadata: Dict[str, Dict[str, Any]], model_id: str, *, source_url: str, pricing_version: str
-) -> Optional[PricingEntry]:
+    metadata: dict[str, dict[str, Any]], model_id: str, *, source_url: str, pricing_version: str
+) -> PricingEntry | None:
     if model_id not in metadata:
         return None
     pricing = metadata[model_id].get("pricing") or {}
 
-    def per_million(key: str, *aliases: str) -> Optional[Decimal]:
+    def per_million(key: str, *aliases: str) -> Decimal | None:
         raw = pricing.get(key)
         for alias in aliases:  # alias chain is truthiness-based (``a or b or c``)
             raw = raw or pricing.get(alias)
@@ -528,7 +529,7 @@ def _pricing_entry_from_metadata(
 
 
 
-def _models_dev_pricing_entry(route: BillingRoute) -> Optional[PricingEntry]:
+def _models_dev_pricing_entry(route: BillingRoute) -> PricingEntry | None:
     """models.dev list price for a direct first-party route (see ``_MODELS_DEV_DIRECT_HOSTS``)."""
     domain = _MODELS_DEV_DIRECT_HOSTS.get(route.provider)
     if not domain or not route.model:
@@ -553,9 +554,9 @@ def _models_dev_pricing_entry(route: BillingRoute) -> Optional[PricingEntry]:
 
 
 def get_pricing_entry(
-    model_name: str, provider: Optional[str] = None, base_url: Optional[str] = None,
-    api_key: Optional[str] = None,
-) -> Optional[PricingEntry]:
+    model_name: str, provider: str | None = None, base_url: str | None = None,
+    api_key: str | None = None,
+) -> PricingEntry | None:
     route = resolve_billing_route(model_name, provider=provider, base_url=base_url)
     if route.billing_mode == "subscription_included":
         return _INCLUDED_ENTRY
@@ -604,7 +605,7 @@ _CHAT_USAGE_SHAPE = (
 
 
 def normalize_usage(
-    response_usage: Any, *, provider: Optional[str] = None, api_mode: Optional[str] = None
+    response_usage: Any, *, provider: str | None = None, api_mode: str | None = None
 ) -> CanonicalUsage:
     """Normalize raw API response usage into canonical token buckets (Anthropic,
     Codex Responses, or OpenAI Chat Completions shape)."""
@@ -664,8 +665,8 @@ def _unknown_cost(source: CostSource, *notes: str) -> CostResult:
 
 
 def estimate_usage_cost(
-    model_name: str, usage: CanonicalUsage, *, provider: Optional[str] = None,
-    base_url: Optional[str] = None, api_key: Optional[str] = None,
+    model_name: str, usage: CanonicalUsage, *, provider: str | None = None,
+    base_url: str | None = None, api_key: str | None = None,
 ) -> CostResult:
     from providers import get_provider_profile
     profile = get_provider_profile(provider or '')
@@ -731,8 +732,8 @@ def estimate_usage_cost(
 
 
 def has_known_pricing(
-    model_name: str, provider: Optional[str] = None, base_url: Optional[str] = None,
-    api_key: Optional[str] = None,
+    model_name: str, provider: str | None = None, base_url: str | None = None,
+    api_key: str | None = None,
 ) -> bool:
     """True if pricing data exists for this model+route (direct lookup, no dummy usage)."""
     return get_pricing_entry(model_name, provider=provider, base_url=base_url, api_key=api_key) is not None

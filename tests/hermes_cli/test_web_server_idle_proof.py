@@ -7,19 +7,17 @@ child runs the in-process ticker), and prompts waiting on a human. Anything unre
 ``None`` and the caller treats it as busy.
 """
 
+import json
 import os
-import socket
 import subprocess
 import sys
 import threading
 import time
 import urllib.error
 import urllib.request
-import json
 from pathlib import Path
 
 import pytest
-
 from hermes_cli.web_server_idle_proof import idle_proof, pending_human_input
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -40,7 +38,7 @@ def test_idle_proof_is_true_only_when_every_ledger_is_provably_empty():
 def test_idle_proof_reads_the_real_cron_and_human_input_ledgers():
     """The probe must see a running cron job (invisible to the renderer) and a pending approval
     or open clarify request in the live process ledgers, not a renderer-published flag."""
-    import cron.scheduler as scheduler
+    from cron import scheduler
     from tools import approval
     from tui_gateway import server_requests
 

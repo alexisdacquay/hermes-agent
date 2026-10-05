@@ -9,11 +9,10 @@ thread every SessionDB call lands on.
 import asyncio
 import threading
 
-import pytest
-
 import hermes_cli.web_models as _web_models
 import hermes_cli.web_routers.sessions as _rt_sessions
 import hermes_cli.web_server_sessions as _web_server_sessions
+import pytest
 
 
 def test_bulk_delete_sessiondb_work_runs_off_event_loop(monkeypatch):

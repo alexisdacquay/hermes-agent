@@ -2,7 +2,6 @@
 
 import acp
 import pytest
-
 from acp_adapter import entry
 
 

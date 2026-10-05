@@ -14,7 +14,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from typing import Any, Optional
+from typing import Any
 
 DEFAULT_PORTAL_BASE_URL = "https://portal.nousresearch.com"
 
@@ -30,10 +30,10 @@ class BillingError(Exception):
     """
 
     def __init__(
-        self, message: str, *, status: Optional[int] = None, error: Optional[str] = None,
-        portal_url: Optional[str] = None, retry_after: Optional[int] = None,
-        payload: Optional[dict[str, Any]] = None, actor: Optional[str] = None,
-        code: Optional[str] = None, recovery: Optional[str] = None,
+        self, message: str, *, status: int | None = None, error: str | None = None,
+        portal_url: str | None = None, retry_after: int | None = None,
+        payload: dict[str, Any] | None = None, actor: str | None = None,
+        code: str | None = None, recovery: str | None = None,
     ) -> None:
         super().__init__(message)
         self.status, self.error, self.portal_url, self.retry_after = status, error, portal_url, retry_after
@@ -97,7 +97,7 @@ class BillingUpgradeCapExceeded(BillingTransient):
 # --- Base-URL + auth resolution ---
 
 
-def resolve_portal_base_url(state: Optional[dict[str, Any]] = None) -> str:
+def resolve_portal_base_url(state: dict[str, Any] | None = None) -> str:
     """Resolve the portal base URL with login-time precedence: env, stored state, default."""
     env = os.getenv("HERMES_PORTAL_BASE_URL") or os.getenv("NOUS_PORTAL_BASE_URL")
     for candidate in (env, state.get("portal_base_url") if state else None):
@@ -106,7 +106,7 @@ def resolve_portal_base_url(state: Optional[dict[str, Any]] = None) -> str:
     return DEFAULT_PORTAL_BASE_URL
 
 
-def _absolutize_portal_url(portal_url: Optional[str]) -> Optional[str]:
+def _absolutize_portal_url(portal_url: str | None) -> str | None:
     """Resolve a (possibly relative) server portalUrl against the client's portal base.
 
     The server emits ``portalUrl`` relative by design; absolute URLs pass through unchanged. urljoin
@@ -135,7 +135,7 @@ def invalidate_cached_token() -> None:
     _token_cache.clear()
 
 
-def _billing_not_logged_in(exc: Optional[BaseException] = None) -> "BillingAuthError":
+def _billing_not_logged_in(exc: BaseException | None = None) -> BillingAuthError:
     """Build the canonical 'not logged in' BillingAuthError (single source)."""
     err = BillingAuthError("Not logged into Nous Portal — run `hermes portal` to log in.", status=401, error="invalid_token")
     if exc is not None:
@@ -180,7 +180,7 @@ def _resolve_token_and_base(*, use_cache: bool = True) -> tuple[str, str]:
 # --- HTTP plumbing ---
 
 
-def _retry_after_seconds(headers: Any) -> Optional[int]:
+def _retry_after_seconds(headers: Any) -> int | None:
     """Parse a ``Retry-After`` header (integer seconds) — None if absent/bad."""
     from agent.retry_utils import parse_retry_after_seconds
 
@@ -238,8 +238,8 @@ def _raise_for_error(status: int, payload: dict[str, Any], headers: Any = None) 
 
 
 def _request(
-    method: str, path: str, *, body: Optional[dict[str, Any]] = None,
-    extra_headers: Optional[dict[str, str]] = None, timeout: float = DEFAULT_TIMEOUT, _retried_auth: bool = False,
+    method: str, path: str, *, body: dict[str, Any] | None = None,
+    extra_headers: dict[str, str] | None = None, timeout: float = DEFAULT_TIMEOUT, _retried_auth: bool = False,
 ) -> dict[str, Any]:
     """Authenticated billing request -> parsed JSON dict (``{}`` for an empty 2xx body).
 

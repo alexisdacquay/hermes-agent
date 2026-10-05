@@ -13,11 +13,9 @@ a MagicMock.
 
 from __future__ import annotations
 
-import time
 from pathlib import Path
 
 import pytest
-
 from hermes_state import SessionDB
 
 

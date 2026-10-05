@@ -4,7 +4,6 @@ import os
 from types import SimpleNamespace
 
 import pytest
-
 from plugins.platforms.discord.adapter import (
     DiscordAdapter,
     _apply_yaml_config,

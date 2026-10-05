@@ -26,7 +26,6 @@ import threading
 from typing import Any
 
 import pytest
-
 from agent import relay_runtime
 from agent.relay_runtime import (
     RelayRuntime,

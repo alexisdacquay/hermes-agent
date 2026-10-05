@@ -20,8 +20,8 @@ import time
 from unittest.mock import patch
 
 import pytest
-
 from tools.cronjob_tools import _manual_run_delivery_note
+
 
 @pytest.fixture(autouse=True)
 def _clean_state():
@@ -147,27 +147,26 @@ class TestRunnerSummaryWiring:
         from tools.cronjob_tools import _try_dispatch_background_run
 
         job = _job("job-dn-01", "telegram")
-        with _bound_session_key("agent:main:telegram:dm:83993"):
-            with (
-                patch(
-                    "tools.cronjob_tools.claim_job_for_fire",
-                    return_value=job,  # claimed snapshot (return_job=True API)
-                ),
-                patch("cron.scheduler.run_one_job", return_value=True),
-                patch(
-                    "tools.cronjob_tools.get_job",
-                    return_value={
-                        # Post-#83993 record shape: mark_job_run writes
-                        # delivery_failed (not ok) when only delivery failed.
-                        "last_status": "delivery_failed",
-                        "last_error": None,
-                        "last_delivery_error": "telegram send failed: 400",
-                    },
-                ),
-            ):
-                res = _try_dispatch_background_run(job)
-                assert res.get("dispatched") is True, _dispatch_diag(res)
-                evt = _drain_completion_event(res["delegation_id"])
+        with (
+            _bound_session_key("agent:main:telegram:dm:83993"), patch(
+                "tools.cronjob_tools.claim_job_for_fire",
+                return_value=job,  # claimed snapshot (return_job=True API)
+            ),
+            patch("cron.scheduler.run_one_job", return_value=True),
+            patch(
+                "tools.cronjob_tools.get_job",
+                return_value={
+                    # Post-#83993 record shape: mark_job_run writes
+                    # delivery_failed (not ok) when only delivery failed.
+                    "last_status": "delivery_failed",
+                    "last_error": None,
+                    "last_delivery_error": "telegram send failed: 400",
+                },
+            ),
+        ):
+            res = _try_dispatch_background_run(job)
+            assert res.get("dispatched") is True, _dispatch_diag(res)
+            evt = _drain_completion_event(res["delegation_id"])
         assert evt is not None, "completion event never reached the queue"
         summary = evt.get("summary") or ""
         assert "Delivery target: telegram" in summary
@@ -185,21 +184,20 @@ class TestRunnerSummaryWiring:
         from tools.cronjob_tools import _try_dispatch_background_run
 
         job = _job("job-dn-03", "")
-        with _bound_session_key("agent:main:telegram:dm:86622"):
-            with (
-                patch(
-                    "tools.cronjob_tools.claim_job_for_fire",
-                    return_value=job,  # claimed snapshot (return_job=True API)
-                ),
-                patch("cron.scheduler.run_one_job", return_value=True),
-                patch(
-                    "tools.cronjob_tools.get_job",
-                    return_value={"last_status": "ok", "last_error": None},
-                ),
-            ):
-                res = _try_dispatch_background_run(job)
-                assert res.get("dispatched") is True, _dispatch_diag(res)
-                evt = _drain_completion_event(res["delegation_id"])
+        with (
+            _bound_session_key("agent:main:telegram:dm:86622"), patch(
+                "tools.cronjob_tools.claim_job_for_fire",
+                return_value=job,  # claimed snapshot (return_job=True API)
+            ),
+            patch("cron.scheduler.run_one_job", return_value=True),
+            patch(
+                "tools.cronjob_tools.get_job",
+                return_value={"last_status": "ok", "last_error": None},
+            ),
+        ):
+            res = _try_dispatch_background_run(job)
+            assert res.get("dispatched") is True, _dispatch_diag(res)
+            evt = _drain_completion_event(res["delegation_id"])
         assert evt is not None, "completion event never reached the queue"
         summary = evt.get("summary") or ""
         assert "Delivery target: local (output saved locally only)" in summary

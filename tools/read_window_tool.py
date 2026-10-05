@@ -6,13 +6,13 @@ blocking-prompt bridge like `read_terminal`: ``window.read.request`` -> the rend
 main process (native window enumeration) -> ``window.read.respond``.
 """
 
-from typing import Callable, Optional
+from collections.abc import Callable
 
 from tools.read_terminal_tool import read_pane
 from tools.registry import registry
 
 
-def read_window_below_tool(callback: Optional[Callable] = None) -> str:
+def read_window_below_tool(callback: Callable | None = None) -> str:
     """Return the window underneath the Hermes window as a JSON string."""
     return read_pane(callback, (), (
         "read_window_below is only available in the Hermes desktop app.",

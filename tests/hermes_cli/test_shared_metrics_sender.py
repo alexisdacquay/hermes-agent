@@ -9,10 +9,9 @@ user's local history rather than a send queue.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
-
 from hermes_cli.observability.shared_metrics import SharedMetricsStore
 from hermes_cli.observability.shared_metrics_sender import (
     MAX_ATTEMPTS,
@@ -25,7 +24,7 @@ from hermes_cli.observability.shared_metrics_sender import (
 from hermes_cli.sqlite_util import write_txn
 
 INSTALL_ID = "12a73e97-4de9-4766-830d-9ca1192c0420"
-NOW = datetime(2026, 8, 26, 12, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 26, 12, 0, tzinfo=UTC)
 ENDPOINT = "https://telemetry.test/v1/telemetry"
 
 
@@ -76,28 +75,25 @@ def store(tmp_path):
 
 def _grant_consent(
     store,
-    opened=datetime(2026, 8, 20, tzinfo=timezone.utc),
-    confirmed_through=datetime(2026, 10, 1, tzinfo=timezone.utc),
+    opened=datetime(2026, 8, 20, tzinfo=UTC),
+    confirmed_through=datetime(2026, 10, 1, tzinfo=UTC),
 ):
     """Open a consent window and heartbeat it forward, via the real writer."""
-    with store._connection() as connection:
-        with write_txn(connection):
-            reconcile_send_consent(connection, True, now=opened)
-            reconcile_send_consent(connection, True, now=confirmed_through)
+    with store._connection() as connection, write_txn(connection):
+        reconcile_send_consent(connection, True, now=opened)
+        reconcile_send_consent(connection, True, now=confirmed_through)
 
 
 def _revoke_consent(store, at):
-    with store._connection() as connection:
-        with write_txn(connection):
-            reconcile_send_consent(connection, False, now=at)
+    with store._connection() as connection, write_txn(connection):
+        reconcile_send_consent(connection, False, now=at)
 
 
 def _clear_consent(store):
     """Remove all consent state, for tests of the fail-closed default."""
-    with store._connection() as connection:
-        with write_txn(connection):
-            connection.execute("DELETE FROM send_consent_windows")
-            connection.execute("DELETE FROM consent_marks")
+    with store._connection() as connection, write_txn(connection):
+        connection.execute("DELETE FROM send_consent_windows")
+        connection.execute("DELETE FROM consent_marks")
 
 
 def _add_package(store, package_id, period_day, *, exported=True, install_id=INSTALL_ID):
@@ -152,7 +148,7 @@ def _row(store, package_id):
 
 
 def _iso(moment):
-    return moment.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+    return moment.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
 def _sender(store, transport, **kwargs):
@@ -266,7 +262,7 @@ class TestConsentGate:
     def test_packages_from_before_opt_in_are_never_sent(self, store):
         # Consent opens on Aug 24; the "old" package's period predates it.
         _clear_consent(store)
-        _grant_consent(store, opened=datetime(2026, 8, 24, tzinfo=timezone.utc))
+        _grant_consent(store, opened=datetime(2026, 8, 24, tzinfo=UTC))
         _add_package(store, "old", "2026-08-20")
         _add_package(store, "new", "2026-08-26")
         transport = FakeTransport(FakeResponse(202))
@@ -328,12 +324,11 @@ class TestConsentGate:
 
         # User re-enables 5 days later; heartbeat confirms past the horizon.
         later = NOW + timedelta(days=5)
-        with store._connection() as connection:
-            with write_txn(connection):
-                reconcile_send_consent(connection, True, now=later)
-                reconcile_send_consent(
-                    connection, True, now=later + timedelta(days=30)
-                )
+        with store._connection() as connection, write_txn(connection):
+            reconcile_send_consent(connection, True, now=later)
+            reconcile_send_consent(
+                connection, True, now=later + timedelta(days=30)
+            )
 
         transport = FakeTransport(*[FakeResponse(202)] * 10)
         SharedMetricsSender(
@@ -357,12 +352,11 @@ class TestConsentGate:
         _revoke_consent(store, at=NOW)
 
         later = NOW + timedelta(days=5)
-        with store._connection() as connection:
-            with write_txn(connection):
-                reconcile_send_consent(connection, True, now=later)
-                reconcile_send_consent(
-                    connection, True, now=later + timedelta(days=10)
-                )
+        with store._connection() as connection, write_txn(connection):
+            reconcile_send_consent(connection, True, now=later)
+            reconcile_send_consent(
+                connection, True, now=later + timedelta(days=10)
+            )
         _add_package(store, "after-re-optin", (later + timedelta(days=1)).date().isoformat())
         transport = FakeTransport(FakeResponse(202))
         SharedMetricsSender(

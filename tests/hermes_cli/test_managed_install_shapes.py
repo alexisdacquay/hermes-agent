@@ -9,7 +9,6 @@ earlier version writes an empty marker, so detection must handle all three.
 import os
 
 import pytest
-
 from hermes_cli import config as config_mod
 
 

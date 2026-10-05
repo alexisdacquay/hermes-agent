@@ -5,7 +5,6 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from threading import Thread
 
 import pytest
-
 from agent import model_metadata, model_metadata_http
 
 

@@ -7,10 +7,10 @@ background session) across gateway messenger platforms.
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from gateway.config import Platform
 from gateway.platforms.event import MessageEvent
 from gateway.session import SessionSource
+
 
 def _make_event(text="/bg", platform=Platform.TELEGRAM,
                 user_id="12345", chat_id="67890"):

@@ -20,7 +20,6 @@ import types
 from unittest.mock import patch
 
 import pytest
-
 from tools import terminal_tool as tt
 from tools.terminal_scope import get_terminal_scope
 from tui_gateway import launch_profile_policy as ltp

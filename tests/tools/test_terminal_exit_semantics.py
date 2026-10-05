@@ -1,7 +1,6 @@
 """Tests for terminal command exit code semantic interpretation."""
 
 import pytest
-
 from tools.terminal_tool_result import _interpret_exit_code
 
 

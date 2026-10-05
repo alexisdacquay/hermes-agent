@@ -14,7 +14,6 @@ from __future__ import annotations
 import json
 
 import pytest
-
 from gateway.config import Platform
 from tools.send_message_tool import send_message_tool
 
@@ -63,10 +62,9 @@ def relay_env(tmp_path, monkeypatch):
 
 def _send(target: str, sent):
     """Invoke the real tool, recording any egress it attempts."""
+    import asyncio
     from types import SimpleNamespace
     from unittest.mock import patch
-
-    import asyncio
 
     discord_cfg = SimpleNamespace(enabled=True, token="t", extra={})
     config = SimpleNamespace(
@@ -283,7 +281,7 @@ def _send_slack(target: str, sent, *, resolves_to: str | None = SLACK_DM):
 
 @pytest.mark.parametrize(
     "target",
-    [f"slack:@ben", f"slack:{SLACK_USER}", f"slack:<@{SLACK_USER}>"],
+    ["slack:@ben", f"slack:{SLACK_USER}", f"slack:<@{SLACK_USER}>"],
 )
 def test_slack_user_targets_resolve_then_authorize(slack_relay_env, target):
     """An attested DM must SEND regardless of which alias names it.
@@ -740,7 +738,7 @@ def test_enabled_native_adapter_is_still_native(monkeypatch):
     import gateway.run as gr_run
     from gateway.config import Platform
 
-    ref = lambda: SimpleNamespace(adapters={Platform.DISCORD: object()})  # noqa: E731
+    ref = lambda: SimpleNamespace(adapters={Platform.DISCORD: object()})
     monkeypatch.setattr(gr_run, "_gateway_runner_ref", ref, raising=False)
     monkeypatch.setattr(
         gc,
@@ -828,7 +826,6 @@ def test_tool_guard_forwards_the_thread_id(monkeypatch):
 
     def fake_authorize(platform_name, chat_id, thread_id=None):
         seen["args"] = (platform_name, chat_id, thread_id)
-        return None
 
     import gateway.relay.egress as eg
 
@@ -1358,7 +1355,6 @@ def test_tool_guard_forwards_the_dispatch_token(monkeypatch):
 
     def _spy(platform_name, chat_id, thread_id=None, *, native_token=smt._TOKEN_UNSET):
         seen["native_token"] = native_token
-        return None
 
     monkeypatch.setattr("gateway.relay.egress.authorize_relay_target", _spy)
     smt._authorize_relay_target("telegram", "@x", None, native_token="123:tok")
@@ -1373,7 +1369,6 @@ def test_a_caller_that_omits_the_snapshot_does_not_get_the_exemption(monkeypatch
 
     def _spy(platform_name, chat_id, thread_id=None, **kwargs):
         seen["kwargs"] = kwargs
-        return None
 
     monkeypatch.setattr("gateway.relay.egress.authorize_relay_target", _spy)
     smt._authorize_relay_target("telegram", "@x")

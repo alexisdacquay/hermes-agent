@@ -16,7 +16,6 @@ import time
 import types
 
 import pytest
-
 from tui_gateway import server
 from tui_gateway.compute_host import ComputeHost
 

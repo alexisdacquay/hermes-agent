@@ -8,7 +8,6 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from agent.i18n import t
 
 
@@ -570,7 +569,6 @@ class TestVoiceFullDuplexListener:
             # turn fully done
             cli._voice_tts_done.set()
             probes["done"] = should_stop()
-            return None
 
         cli = self._cli(monkeypatch, listen=fake_listen, _agent_running=True)
         cli._voice_tts_done.set()

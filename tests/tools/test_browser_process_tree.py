@@ -5,7 +5,6 @@ import signal
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from tools.browser_tool_lifecycle import _legacy_kill_process_tree
 
 

@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 
 from agent.context_breakdown import compute_session_context_breakdown
 
+
 def _make_agent(
     *,
     stable: str = "identity and guidance",
@@ -95,10 +96,11 @@ def test_empty_transcript_still_reports_the_conversation_category():
 
 # ── /context renderers (pure functions over the payload) ────────────────────
 
-from agent.context_breakdown import (  # noqa: E402
+from agent.context_breakdown import (
     render_context_breakdown_lines,
     render_context_grid,
 )
+
 
 def _payload(**overrides):
     base = {

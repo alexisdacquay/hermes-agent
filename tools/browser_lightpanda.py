@@ -17,7 +17,6 @@ import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +27,7 @@ _READY_TIMEOUT_S = 10.0
 _POLL_INTERVAL_S = 0.1
 _STDERR_TAIL_LIMIT = 2000
 
-_servers: Dict[str, "LightpandaServer"] = {}
+_servers: dict[str, LightpandaServer] = {}
 _servers_lock = threading.Lock()
 
 
@@ -38,7 +37,7 @@ class LightpandaServer:
     port: int
     proc: subprocess.Popen
     log_path: str
-    start_time: Optional[int] = None
+    start_time: int | None = None
 
     @property
     def cdp_url(self) -> str:
@@ -59,7 +58,7 @@ def _home_candidates() -> list:
     return candidates
 
 
-def find_lightpanda_binary() -> Optional[str]:
+def find_lightpanda_binary() -> str | None:
     """Return the lightpanda executable, or None. Order: PATH (with agent-browser's Homebrew/managed-node
     fallbacks), then installer/agent-browser locations, then ``$HERMES_HOME/bin``. No Windows build."""
     if os.name == "nt":
@@ -170,7 +169,7 @@ def _terminate(proc: subprocess.Popen, what: str = "lightpanda") -> None:
         logger.debug("%s terminate failed: %s", what, e)
 
 
-def _safe_start_time(pid: int) -> Optional[int]:
+def _safe_start_time(pid: int) -> int | None:
     try:
         from tools.process_registry import ProcessRegistry
         return ProcessRegistry._safe_host_start_time(pid)
@@ -193,7 +192,7 @@ def _write_record(server: LightpandaServer) -> None:
         logger.debug("could not write lightpanda record for %s: %s", server.session_name, e)
 
 
-def launch_lightpanda(session_name: str, *, block_private_networks: bool = False) -> Tuple[Optional[LightpandaServer], Optional[str]]:
+def launch_lightpanda(session_name: str, *, block_private_networks: bool = False) -> tuple[LightpandaServer | None, str | None]:
     """Start ``lightpanda serve`` on a free loopback port; ``(server, None)`` once ``/json/version`` answers,
     else ``(None, error)``. stderr goes to ``<state_dir>/<session>.log`` so a chatty child never blocks on a pipe."""
     binary = find_lightpanda_binary()
@@ -242,7 +241,7 @@ def launch_lightpanda(session_name: str, *, block_private_networks: bool = False
     return server, None
 
 
-def get_server(session_name: str) -> Optional[LightpandaServer]:
+def get_server(session_name: str) -> LightpandaServer | None:
     with _servers_lock:
         return _servers.get(session_name)
 

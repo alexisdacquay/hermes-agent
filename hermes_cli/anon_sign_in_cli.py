@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import contextlib
-from typing import Iterator, Optional
+from collections.abc import Iterator
 
-from hermes_cli.anon_sign_in import Code, SignInState, UPGRADE_CANCELLED, UPGRADE_START
+from hermes_cli.anon_sign_in import UPGRADE_CANCELLED, UPGRADE_START, Code, SignInState
 
 
 def render_sign_in_cli_code(
@@ -35,7 +35,7 @@ def drain_sign_in_copy(gen: Iterator[SignInState], *, chat: bool = True, on_term
 
 def render_sign_in_cli(
     *, timeout_seconds: float = 15.0, open_browser: bool = False, chat: bool = False,
-    states: Optional[Iterator[SignInState]] = None, printer=print) -> int:
+    states: Iterator[SignInState] | None = None, printer=print) -> int:
     """Print a sign-in; returns the process exit code (0 ok, 1 not, 130 interrupted).
 
     ``chat=True`` renders the in-chat wording; *states* lets a caller hand in a partially drained

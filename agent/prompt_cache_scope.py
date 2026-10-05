@@ -11,7 +11,7 @@ walk and is hashed to ``gwk_<sha256[:24]>`` (it embeds platform/chat/user identi
 
 import hashlib
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from utils import base_url_hostname
 
@@ -21,7 +21,7 @@ _MEMO_ATTR = "_prompt_cache_scope_memo"
 _DECLARED_SCOPE_PREFIX = "gwk_"
 
 
-def _lineage_root(session_id: str, session_db: Any) -> Optional[str]:
+def _lineage_root(session_id: str, session_db: Any) -> str | None:
     """Compression-lineage root of *session_id*, or None (tolerates test-double results)."""
     if session_db is None:
         return None
@@ -38,7 +38,7 @@ def _lineage_root(session_id: str, session_db: Any) -> Optional[str]:
 
 
 def _agent_source(
-    agent: Any, session_id: str, session_db: Any, row_source: Optional[str] = None
+    agent: Any, session_id: str, session_db: Any, row_source: str | None = None
 ) -> str:
     """The ``sessions.source`` this agent's conversation is recorded under.
 
@@ -85,7 +85,7 @@ def _conversation_generation(session_key: str, source: str, session_db: Any) -> 
     return "" if generation is None else str(int(generation))
 
 
-def declared_conversation_scope(agent: Any) -> Optional[str]:
+def declared_conversation_scope(agent: Any) -> str | None:
     """Host-declared logical conversation scope (``gwk_<sha256[:24]>``), or None.
 
     Hashes ``(source, gateway_session_key, generation)``. None (fall back to the physical id)
@@ -110,7 +110,7 @@ def declared_conversation_scope(agent: Any) -> Optional[str]:
     sid = str(getattr(agent, "session_id", None) or "")
     db = getattr(agent, "_session_db", None)
     generation = ""
-    row_source: Optional[str] = None
+    row_source: str | None = None
     if sid and db is not None:
         try:
             # One read for both halves of the row identity (fork verdict + source).
@@ -217,7 +217,7 @@ def _apply_fork_tag(agent: Any, scope: str) -> str:
     return f"{scope}{FORK_SCOPE_SEPARATOR}{tag}"
 
 
-def declared_conversation_scope_safe(agent: Any) -> Optional[str]:
+def declared_conversation_scope_safe(agent: Any) -> str | None:
     """Never-raising variant of :func:`declared_conversation_scope`."""
     try:
         return declared_conversation_scope(agent)
@@ -226,7 +226,7 @@ def declared_conversation_scope_safe(agent: Any) -> Optional[str]:
         return None
 
 
-def resolve_prompt_cache_scope_safe(agent: Any) -> Optional[str]:
+def resolve_prompt_cache_scope_safe(agent: Any) -> str | None:
     """Never-raising variant of :func:`resolve_prompt_cache_scope` (None = use the physical id).
     At turn_context an exception inside ``set_runtime_main(...)`` would skip the whole binding.
 

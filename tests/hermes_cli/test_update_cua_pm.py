@@ -3,9 +3,8 @@
 from types import SimpleNamespace
 from unittest.mock import Mock
 
-import pytest
-
 import pm
+import pytest
 from hermes_cli import tools_config_cua as setup
 from hermes_cli import update_cmd_maint as update
 

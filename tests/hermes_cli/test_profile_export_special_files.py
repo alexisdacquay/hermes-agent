@@ -10,11 +10,9 @@ the whole archive.
 
 import os
 import socket
-import sys
 import tarfile
 
 import pytest
-
 from hermes_cli.profiles import export_profile
 
 pytestmark = pytest.mark.platforms("posix")  # Unix sockets and FIFOs are not available on Windows

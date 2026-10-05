@@ -15,7 +15,6 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
-
 from tools.connectors import live
 from tools.connectors.catalog_tool import NOT_HERE, manage_catalog
 from tools.connectors.contract import TargetState

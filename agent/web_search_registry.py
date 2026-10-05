@@ -19,7 +19,6 @@ provider configured as ``web.extract_backend`` falls through):
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 from agent.provider_registry import ProviderRegistry, is_available_safe
 from agent.web_search_provider import WebSearchProvider
@@ -32,7 +31,7 @@ _registry: ProviderRegistry[WebSearchProvider] = ProviderRegistry(
 )
 _registry.export(globals())
 
-def _read_config_key(*path: str) -> Optional[str]:
+def _read_config_key(*path: str) -> str | None:
     """Resolve a dotted config key from ``config.yaml``. Returns None on miss."""
     try:
         from hermes_cli.config import load_config_readonly
@@ -49,7 +48,7 @@ def _read_config_key(*path: str) -> Optional[str]:
     return None
 
 
-def _configured_backend(capability: str) -> Optional[str]:
+def _configured_backend(capability: str) -> str | None:
     """``web.<capability>_backend`` (preferred) or ``web.backend`` (shared fallback)."""
     return _read_config_key("web", f"{capability}_backend") or _read_config_key("web", "backend")
 
@@ -79,7 +78,7 @@ def _keyless_preference() -> tuple:
     return _KEYLESS_PREFERENCE
 
 
-def _resolve(configured: Optional[str], *, capability: str) -> Optional[WebSearchProvider]:
+def _resolve(configured: str | None, *, capability: str) -> WebSearchProvider | None:
     """Resolve the active provider for a capability ("search" | "extract").
 
     Rules, in order (see module docstring): explicit config wins even when
@@ -150,7 +149,7 @@ def _keyless_tier_enabled() -> bool:
         return True
 
 
-def _disabled_web_plugin_for(configured: Optional[str] = None, *, capability: Optional[str] = None) -> Optional[str]:
+def _disabled_web_plugin_for(configured: str | None = None, *, capability: str | None = None) -> str | None:
     """Plugin key of a *disabled* bundled web plugin that would have provided
     the configured backend (``web.<capability>_backend`` → ``web.backend``), or None.
 
@@ -190,11 +189,11 @@ def _disabled_web_plugin_for(configured: Optional[str] = None, *, capability: Op
     return None
 
 
-def get_active_search_provider() -> Optional[WebSearchProvider]:
+def get_active_search_provider() -> WebSearchProvider | None:
     """Resolve the currently-active web search provider."""
     return _resolve(_configured_backend("search"), capability="search")
 
 
-def get_active_extract_provider() -> Optional[WebSearchProvider]:
+def get_active_extract_provider() -> WebSearchProvider | None:
     """Resolve the currently-active web extract provider."""
     return _resolve(_configured_backend("extract"), capability="extract")

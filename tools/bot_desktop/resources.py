@@ -17,7 +17,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 _CGROUP_V2 = Path("/sys/fs/cgroup")
 _CGROUP_V1 = Path("/sys/fs/cgroup/memory")
@@ -28,11 +27,11 @@ DEFAULT_MIN_FREE_MB = 1536
 
 @dataclass
 class MemoryInfo:
-    available_mb: Optional[int]  # None when nothing readable (non-Linux, odd sandboxes)
-    limit_mb: Optional[int]  # the cgroup limit when there is one, else the machine's MemTotal
+    available_mb: int | None  # None when nothing readable (non-Linux, odd sandboxes)
+    limit_mb: int | None  # the cgroup limit when there is one, else the machine's MemTotal
 
 
-def _read_int(path: Path) -> Optional[int]:
+def _read_int(path: Path) -> int | None:
     try:
         text = path.read_text(encoding="utf-8-sig").strip()
     except OSError:
@@ -54,7 +53,7 @@ def _meminfo() -> dict[str, int]:
     return out
 
 
-def _stat_value(path: Path, key: str) -> Optional[int]:
+def _stat_value(path: Path, key: str) -> int | None:
     """One ``<key> <bytes>`` line out of a cgroup ``memory.stat``."""
     try:
         for line in path.read_text(encoding="utf-8-sig").splitlines():
@@ -66,7 +65,7 @@ def _stat_value(path: Path, key: str) -> Optional[int]:
     return None
 
 
-def _cgroup_limit_and_usage() -> tuple[Optional[int], Optional[int]]:
+def _cgroup_limit_and_usage() -> tuple[int | None, int | None]:
     """The cgroup's limit and its *working set* — usage minus reclaimable page cache.
 
     ``memory.current`` counts page cache, so a container reads several hundred MB above idle right after a
@@ -111,14 +110,14 @@ def min_free_mb() -> int:
         return DEFAULT_MIN_FREE_MB
 
 
-def tight_headroom_mb(floor: Optional[int] = None) -> int:
+def tight_headroom_mb(floor: int | None = None) -> int:
     """Above the floor but below this, a start is allowed and logged: the desktop fits, a few browser tabs
     would not. Derived from the floor so raising the floor cannot silently retire the warning."""
     floor = min_free_mb() if floor is None else floor
     return floor + floor // 3
 
 
-def memory_blocker(info: Optional[MemoryInfo] = None, need: Optional[int] = None) -> Optional[str]:
+def memory_blocker(info: MemoryInfo | None = None, need: int | None = None) -> str | None:
     """Why the screen must not start now, or None. Unknown memory is not a blocker: a host we cannot
     read is not a host we know to be small. ``need`` lets a caller that also wants
     :func:`tight_headroom_mb` read the floor once instead of loading the config twice."""

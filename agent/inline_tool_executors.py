@@ -10,14 +10,15 @@ lazily at call time so ``patch("tools.x.y")`` in tests keeps working.
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from dataclasses import dataclass
 from importlib import import_module
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any
 
 from tools.arg_coercion import coerce_tool_args
 
 
-def tool_hook_ids(agent, effective_task_id: str, tool_call_id: Optional[str]) -> Dict[str, str]:
+def tool_hook_ids(agent, effective_task_id: str, tool_call_id: str | None) -> dict[str, str]:
     """Identity kwargs every tool hook/middleware call carries (all coerced to ``""``)."""
     return {
         "task_id": effective_task_id or "",
@@ -35,12 +36,12 @@ def emit_terminal_post_tool_call(
     function_args: dict,
     result: Any,
     effective_task_id: str,
-    tool_call_id: Optional[str],
+    tool_call_id: str | None,
     duration_ms: int = 0,
-    status: Optional[str] = None,
-    error_type: Optional[str] = None,
-    error_message: Optional[str] = None,
-    middleware_trace: Optional[list] = None,
+    status: str | None = None,
+    error_type: str | None = None,
+    error_message: str | None = None,
+    middleware_trace: list | None = None,
 ) -> None:
     """Emit the one terminal ``post_tool_call`` hook for a tool_call_id (best-effort)."""
     try:
@@ -67,7 +68,7 @@ def apply_transform_tool_result(
     function_args: dict,
     result: Any,
     effective_task_id: str,
-    tool_call_id: Optional[str],
+    tool_call_id: str | None,
     duration_ms: int = 0,
 ) -> Any:
     """Apply ``transform_tool_result`` to an inline-dispatched tool's result.
@@ -76,7 +77,7 @@ def apply_transform_tool_result(
     reach it, so the agent paths call the same helper (after the terminal
     ``post_tool_call``) to keep the hook's "every tool" contract. Fail-open."""
     try:
-        from model_tools import _CallIds, _apply_transform_tool_result_hook
+        from model_tools import _apply_transform_tool_result_hook, _CallIds
         return _apply_transform_tool_result_hook(
             function_name, function_args, result, duration_ms,
             _CallIds(**tool_hook_ids(agent, effective_task_id, tool_call_id)),
@@ -90,17 +91,17 @@ class InlineToolContext:
     """Per-call state an inline executor may need beyond its arguments."""
 
     effective_task_id: str
-    tool_call_id: Optional[str] = None
-    messages: Optional[list] = None
+    tool_call_id: str | None = None
+    messages: list | None = None
 
 
 InlineToolExecutor = Callable[[Any, dict, InlineToolContext], Any]
 
 # ``(kwarg, args_key)`` → ``args.get(key)``; ``(kwarg, args_key, default)`` → ``args.get(key, default)``.
-_ArgSpec = Tuple[Any, ...]
+_ArgSpec = tuple[Any, ...]
 
 
-def _call_tool(module: str, func: str, args: dict, arg_specs: Tuple[_ArgSpec, ...], **fixed: Any) -> Any:
+def _call_tool(module: str, func: str, args: dict, arg_specs: tuple[_ArgSpec, ...], **fixed: Any) -> Any:
     """Import ``module.func`` lazily and call it with args mapped per ``arg_specs`` plus ``fixed``."""
     fn = getattr(import_module(module), func)
     return fn(**{spec[0]: args.get(*spec[1:]) for spec in arg_specs}, **fixed)
@@ -234,7 +235,7 @@ def _setup_mcp_shim(agent, args: dict, ctx: InlineToolContext) -> Any:
 
 
 # Order is the historical if/elif order of ``execute_tool_calls_sequential``.
-_RAW_INLINE_TOOL_EXECUTORS: Dict[str, InlineToolExecutor] = {
+_RAW_INLINE_TOOL_EXECUTORS: dict[str, InlineToolExecutor] = {
     "todo_list": _tool(
         "tools.todo_tool", "todo_tool", ("todos", "todos"), ("merge", "merge", False),
         store=lambda agent, ctx: agent._todo_store,
@@ -286,7 +287,7 @@ def _coerced(name: str, executor: InlineToolExecutor) -> InlineToolExecutor:
     return _exec
 
 
-INLINE_TOOL_EXECUTORS: Dict[str, InlineToolExecutor] = {
+INLINE_TOOL_EXECUTORS: dict[str, InlineToolExecutor] = {
     name: _coerced(name, executor) for name, executor in _RAW_INLINE_TOOL_EXECUTORS.items()
 }
 
@@ -296,7 +297,7 @@ INLINE_TOOL_EXECUTORS: Dict[str, InlineToolExecutor] = {
 INVOKE_TOOL_PRE_MEMORY_MANAGER_NAMES = frozenset({"todo_list", "session_search", "memory"})
 
 
-def resolve_invoke_tool_executor(agent, function_name: str) -> Optional[InlineToolExecutor]:
+def resolve_invoke_tool_executor(agent, function_name: str) -> InlineToolExecutor | None:
     """Inline executor for ``invoke_tool`` (concurrent path), or None for registry dispatch.
 
     Precedence: todo_list/session_search/memory, then memory-manager tools, then the

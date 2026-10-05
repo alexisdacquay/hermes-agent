@@ -7,8 +7,7 @@ init_session() failure handling, and the CWD marker contract.
 from unittest.mock import MagicMock
 
 import pytest
-
-import tools.terminal_tool_sudo as terminal_tool_sudo
+from tools import terminal_tool_sudo
 from tools.environments.base import BaseEnvironment, _load_json_store
 from tools.environments.base_output import _BoundedOutputCollector
 
@@ -177,10 +176,10 @@ class TestSnapshotFileModes:
 
     def test_snapshot_and_cwd_files_are_0600(self, tmp_path):
         import os
-        from pathlib import Path
         import shutil
         import stat
         import subprocess
+        from pathlib import Path
         bash = shutil.which("bash")
         if not bash:
             import pytest

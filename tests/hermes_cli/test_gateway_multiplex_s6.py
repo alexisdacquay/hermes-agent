@@ -5,9 +5,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 import hermes_constants
+import pytest
 from hermes_cli import gateway as gw
 from hermes_cli import gateway_migrate as gm
 from hermes_cli import gateway_multiplex_mode as mode

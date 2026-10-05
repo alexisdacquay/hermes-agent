@@ -13,9 +13,9 @@ import logging
 from unittest.mock import patch
 
 import pytest
-
 from agent import background_review
 from hermes_state import SessionDB
+
 
 @pytest.fixture
 def db(tmp_path):

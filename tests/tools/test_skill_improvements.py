@@ -5,7 +5,6 @@ import os
 import stat
 
 import pytest
-
 from tools.skill_manager_tool import (
     _create_skill,
     _edit_skill,
@@ -13,7 +12,6 @@ from tools.skill_manager_tool import (
     _write_file,
     skill_manage,
 )
-
 
 SKILL_CONTENT = """\
 ---

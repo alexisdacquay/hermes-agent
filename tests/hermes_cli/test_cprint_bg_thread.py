@@ -16,9 +16,8 @@ import sys
 import types
 from types import SimpleNamespace
 
-import pytest
-
 import cli
+import pytest
 
 
 @pytest.fixture(autouse=True)
@@ -126,7 +125,6 @@ def test_cprint_swallows_prompt_toolkit_import_error(monkeypatch):
                 # Returning a bogus spec that will fail on load works too,
                 # but raising here keeps the test simple.
                 raise ImportError("blocked for test")
-            return None
 
     blocker = _BlockFinder()
     sys.meta_path.insert(0, blocker)

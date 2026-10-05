@@ -10,7 +10,6 @@ into re-read/re-patch loops; they now return success with no_change=True.
 import json
 
 import pytest
-
 from tools.fuzzy_match import is_already_applied
 
 

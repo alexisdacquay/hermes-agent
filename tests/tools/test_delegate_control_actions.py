@@ -12,7 +12,6 @@ import json
 import weakref
 
 import pytest
-
 from tools.delegate_tool import (
     _handle_control_action,
     _is_descendant_of,

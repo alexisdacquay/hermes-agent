@@ -5,7 +5,6 @@ import subprocess
 import sys
 
 import pytest
-
 from tools import browser_use_cli as bu
 
 
@@ -27,7 +26,7 @@ def test_harness_runs_on_an_interpreter_without_its_own_site_packages(monkeypatc
 
 @pytest.mark.platforms("posix", "windows")
 def test_browser_exec_child_environment(tmp_path, monkeypatch):
-    from tools import browser_tool_session, browser_supervisor
+    from tools import browser_supervisor, browser_tool_session
 
     probe = tmp_path / "probe.py"
     probe.write_text("import json, os, sys\n"

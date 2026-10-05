@@ -11,7 +11,6 @@ import uuid
 from pathlib import Path
 
 import pytest
-
 from hermes_state import SessionDB
 from hermes_state_repair import _db_opens_cleanly, repair_state_db_schema
 

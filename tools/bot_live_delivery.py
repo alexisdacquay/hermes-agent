@@ -13,13 +13,13 @@ import os
 import re
 import time
 import uuid
+from collections.abc import Callable
 from contextlib import contextmanager
-
-from utils import atomic_json_write, atomic_write_text, fsync_directory
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from hermes_cli.active_sessions import _FileLock
+from utils import atomic_json_write, atomic_write_text, fsync_directory
 
 log = logging.getLogger(__name__)
 

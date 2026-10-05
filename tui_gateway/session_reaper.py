@@ -14,7 +14,6 @@ from tui_gateway._env import env_float
 
 from .method_ctx import bind_module
 
-
 # ── Flush-on-kill + periodic incremental flush ───────────────────────────
 # (a) SIGTERM/SIGINT run a bounded flush to state.db BEFORE normal shutdown, chained to the prior handler;
 # (b) the idle-reaper scan piggybacks an incremental flush so a SIGKILL loses at most one interval.

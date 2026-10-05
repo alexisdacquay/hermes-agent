@@ -13,9 +13,8 @@ Interactive mode (tool_progress_mode == "full") still uses ChatConsole.
 from datetime import datetime
 from unittest.mock import MagicMock
 
-
-from cli import HermesCLI
 from agent.i18n import t
+from cli import HermesCLI
 
 
 def _make_cli(quiet=False, session_id="20260524_111111_xyz", db=None):

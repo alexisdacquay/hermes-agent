@@ -5,27 +5,34 @@ import json
 import logging
 import re
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import httpx
-
 from agent.retry_utils import parse_retry_after_seconds
+
 from tools.skills_hub import _guarded_http_stream
 from tools.skills_hub_models import (
-    GuardedFetchMixin, SkillBundle, SkillMeta, SkillSource, _cache_metas, _cached_metas, _get_json,
-    _validate_bundle_rel_path, hub,
+    GuardedFetchMixin,
+    SkillBundle,
+    SkillMeta,
+    SkillSource,
+    _cache_metas,
+    _cached_metas,
+    _get_json,
+    _validate_bundle_rel_path,
+    hub,
 )
 
 logger = logging.getLogger("tools.skills_hub")
 
 
-def _query_terms(query: str) -> List[str]:
+def _query_terms(query: str) -> list[str]:
     return [term for term in re.split(r"[^a-z0-9]+", query.lower()) if term]
 
 
-def _dedupe_results(results: List[SkillMeta]) -> List[SkillMeta]:
+def _dedupe_results(results: list[SkillMeta]) -> list[SkillMeta]:
     """Dedupe by lowercased identifier (name fallback), first wins."""
-    seen: Dict[str, SkillMeta] = {}
+    seen: dict[str, SkillMeta] = {}
     for result in results:
         seen.setdefault((result.identifier or result.name).lower(), result)
     return list(seen.values())
@@ -53,7 +60,7 @@ def _search_score(query: str, meta: SkillMeta) -> int:
     return score
 
 
-def _first_str(*values: Any) -> Optional[str]:
+def _first_str(*values: Any) -> str | None:
     """First non-empty ``str`` among ``values`` (dicts/None are skipped)."""
     return next((v for v in values if isinstance(v, str) and v), None)
 
@@ -77,7 +84,7 @@ class ClawHubSource(GuardedFetchMixin, SkillSource):
     _get_json = staticmethod(_get_json)
 
     @staticmethod
-    def _normalize_tags(tags: Any) -> List[str]:
+    def _normalize_tags(tags: Any) -> list[str]:
         if isinstance(tags, list):
             return [str(t) for t in tags]
         if isinstance(tags, dict):
@@ -85,7 +92,7 @@ class ClawHubSource(GuardedFetchMixin, SkillSource):
         return []
 
     @staticmethod
-    def _coerce_skill_payload(data: Any) -> Optional[Dict[str, Any]]:
+    def _coerce_skill_payload(data: Any) -> dict[str, Any] | None:
         """Flatten ``{"skill": {...}, "latestVersion", "owner"}`` listing shapes."""
         if not isinstance(data, dict):
             return None
@@ -101,21 +108,21 @@ class ClawHubSource(GuardedFetchMixin, SkillSource):
         return merged
 
     @staticmethod
-    def _owner_from_payload(data: Optional[Dict[str, Any]]) -> Optional[str]:
+    def _owner_from_payload(data: dict[str, Any] | None) -> str | None:
         owner = data.get("owner") if isinstance(data, dict) else None
         if isinstance(owner, dict):
             owner = owner.get("handle")
         return owner.strip() if isinstance(owner, str) and owner.strip() else None
 
     @classmethod
-    def _owner_matches(cls, expected_owner: Optional[str], data: Optional[Dict[str, Any]]) -> bool:
+    def _owner_matches(cls, expected_owner: str | None, data: dict[str, Any] | None) -> bool:
         if not expected_owner:
             return True
         actual = cls._owner_from_payload(data)
         return not actual or actual.lower() == expected_owner.lower()
 
     @classmethod
-    def _item_to_meta(cls, item: Dict[str, Any]) -> Optional[SkillMeta]:
+    def _item_to_meta(cls, item: dict[str, Any]) -> SkillMeta | None:
         """Listing item -> SkillMeta (None without a slug)."""
         slug = item.get("slug")
         if not isinstance(slug, str) or not slug:
@@ -128,7 +135,7 @@ class ClawHubSource(GuardedFetchMixin, SkillSource):
             tags=cls._normalize_tags(item.get("tags", [])), extra={"owner": owner} if owner else {},
         )
 
-    def _skill_detail(self, identifier: str) -> Optional[Tuple[str, Dict[str, Any]]]:
+    def _skill_detail(self, identifier: str) -> tuple[str, dict[str, Any]] | None:
         """``(slug, payload)`` for an identifier, or None when unparsable,
         missing, or owned by someone other than the ``@owner`` requested."""
         parsed = self._parse_identifier(identifier)
@@ -147,7 +154,7 @@ class ClawHubSource(GuardedFetchMixin, SkillSource):
             return None
         return slug, data
 
-    def _exact_slug_meta(self, query: str) -> Optional[SkillMeta]:
+    def _exact_slug_meta(self, query: str) -> SkillMeta | None:
         query = query.strip()
         parsed, query_terms = self._parse_identifier(query), _query_terms(query)
         candidates = [parsed[0]] if parsed else [query] if "/" not in query and self._SLUG_RE.fullmatch(query) else []
@@ -158,7 +165,7 @@ class ClawHubSource(GuardedFetchMixin, SkillSource):
             candidates.append(base_slug)
         return next((m for m in map(self.inspect, dict.fromkeys(candidates)) if m), None)
 
-    def _finalize_search_results(self, query: str, results: List[SkillMeta], limit: int) -> List[SkillMeta]:
+    def _finalize_search_results(self, query: str, results: list[SkillMeta], limit: int) -> list[SkillMeta]:
         query_norm = query.strip()
         if not query_norm:
             return _dedupe_results(results)[:limit]
@@ -172,7 +179,7 @@ class ClawHubSource(GuardedFetchMixin, SkillSource):
             return filtered[:limit]
         return _dedupe_results(results)[:limit]
 
-    def search(self, query: str, limit: int = 10) -> List[SkillMeta]:
+    def search(self, query: str, limit: int = 10) -> list[SkillMeta]:
         query = query.strip()
         if query:
             if len(_query_terms(query)) >= 2:
@@ -207,7 +214,7 @@ class ClawHubSource(GuardedFetchMixin, SkillSource):
         return final_results
 
     @classmethod
-    def _parse_identifier(cls, identifier: str) -> Optional[Tuple[str, Optional[str]]]:
+    def _parse_identifier(cls, identifier: str) -> tuple[str, str | None] | None:
         """``(slug, expected_owner)`` for a bare slug, ``clawhub/<slug>``,
         ``@owner/slug``, or the URL path ``owner/skills/slug``.
 
@@ -234,7 +241,7 @@ class ClawHubSource(GuardedFetchMixin, SkillSource):
             return None
         return slug, owner
 
-    def fetch(self, identifier: str) -> Optional[SkillBundle]:
+    def fetch(self, identifier: str) -> SkillBundle | None:
         detail = self._skill_detail(identifier)
         if detail is None:
             return None
@@ -267,7 +274,7 @@ class ClawHubSource(GuardedFetchMixin, SkillSource):
         return SkillBundle(name=slug, files=files, source="clawhub",
                            identifier=f"@{owner}/{slug}" if owner else slug, trust_level="community")
 
-    def inspect(self, identifier: str) -> Optional[SkillMeta]:
+    def inspect(self, identifier: str) -> SkillMeta | None:
         detail = self._skill_detail(identifier)
         if detail is None:
             return None
@@ -279,7 +286,7 @@ class ClawHubSource(GuardedFetchMixin, SkillSource):
             meta.extra["owner"] = owner
         return meta
 
-    def _search_catalog(self, query: str, limit: int = 10) -> List[SkillMeta]:
+    def _search_catalog(self, query: str, limit: int = 10) -> list[SkillMeta]:
         cache_key = f"clawhub_search_catalog_v1_{hashlib.md5(f'{query}|{limit}'.encode()).hexdigest()}"
         cached = _cached_metas(cache_key)
         if cached is not None:
@@ -291,7 +298,7 @@ class ClawHubSource(GuardedFetchMixin, SkillSource):
         _cache_metas(cache_key, results)
         return results
 
-    def _load_catalog_index(self, max_items: int = 0) -> List[SkillMeta]:
+    def _load_catalog_index(self, max_items: int = 0) -> list[SkillMeta]:
         """Walk the ClawHub catalog via cursor pagination.
 
         ``max_items`` stops the walk early once that many distinct skills are
@@ -309,8 +316,8 @@ class ClawHubSource(GuardedFetchMixin, SkillSource):
         cached = _cached_metas(cache_key)
         if cached is not None:
             return cached
-        cursor: Optional[str] = None
-        results: List[SkillMeta] = []
+        cursor: str | None = None
+        results: list[SkillMeta] = []
         seen: set[str] = set()
         # 750 pages * 200/page = 150k ceiling over the ~50k catalog; a safety
         # rail against an infinite-cursor loop, normally ended by nextCursor=None.
@@ -323,7 +330,7 @@ class ClawHubSource(GuardedFetchMixin, SkillSource):
             if deadline is not None and time.monotonic() > deadline:
                 partial = True
                 break
-            params: Dict[str, Any] = {"limit": 200, "cursor": cursor} if cursor else {"limit": 200}
+            params: dict[str, Any] = {"limit": 200, "cursor": cursor} if cursor else {"limit": 200}
             data = self._get_json(f"{self.BASE_URL}/skills", timeout=30, params=params)
             if data is None:
                 fetch_failures += 1
@@ -354,8 +361,8 @@ class ClawHubSource(GuardedFetchMixin, SkillSource):
             _cache_metas(cache_key, results)
         return results
 
-    def _resolve_latest_version(self, slug: str, skill_data: Dict[str, Any],
-                                owner: Optional[str] = None) -> Optional[str]:
+    def _resolve_latest_version(self, slug: str, skill_data: dict[str, Any],
+                                owner: str | None = None) -> str | None:
         latest, tags = skill_data.get("latestVersion"), skill_data.get("tags")
         version = _first_str(
             latest.get("version") if isinstance(latest, dict) else None,
@@ -369,7 +376,7 @@ class ClawHubSource(GuardedFetchMixin, SkillSource):
             vd = vd.get("items")
         return _first_str(vd[0].get("version")) if isinstance(vd, list) and vd and isinstance(vd[0], dict) else None
 
-    def _fetch_owner_handle(self, slug: str) -> Optional[str]:
+    def _fetch_owner_handle(self, slug: str) -> str | None:
         """Owner handle from the detail API (the listing API lacks it), or None.
 
         Bounded retry: 3 attempts total. 429 honours ``Retry-After`` else
@@ -407,8 +414,8 @@ class ClawHubSource(GuardedFetchMixin, SkillSource):
             time.sleep(delay)
         return None
 
-    def enrich_owners(self, skills: List[SkillMeta], max_workers: int = 30,
-                      budget_seconds: Optional[float] = None) -> int:
+    def enrich_owners(self, skills: list[SkillMeta], max_workers: int = 30,
+                      budget_seconds: float | None = None) -> int:
         """Batch-fetch owner handles for ClawHub skills missing ``extra["owner"]``
         (in-place; returns the number enriched).
 
@@ -464,8 +471,8 @@ class ClawHubSource(GuardedFetchMixin, SkillSource):
                     break
         return enriched
 
-    def _extract_files(self, version_data: Dict[str, Any]) -> Dict[str, str]:
-        files: Dict[str, str] = {}
+    def _extract_files(self, version_data: dict[str, Any]) -> dict[str, str]:
+        files: dict[str, str] = {}
         file_list = version_data.get("files")
         if isinstance(file_list, dict):
             return {k: v for k, v in file_list.items() if isinstance(v, str)}
@@ -484,18 +491,18 @@ class ClawHubSource(GuardedFetchMixin, SkillSource):
                     files[fname] = content
         return files
 
-    def _download_zip(self, slug: str, version: str, owner: Optional[str] = None) -> Dict[str, str]:
+    def _download_zip(self, slug: str, version: str, owner: str | None = None) -> dict[str, str]:
         """Download the skill ZIP from /download (bounded, streamed) and extract its text files."""
         import io
         import zipfile
 
-        files: Dict[str, str] = {}
+        files: dict[str, str] = {}
         params = {"slug": slug, "version": version}
         if owner:
             params["owner"] = owner
         max_retries = 3
         for attempt in range(max_retries):
-            retry_after_delay: Optional[int] = None
+            retry_after_delay: int | None = None
             try:
                 with _guarded_http_stream(
                     f"{self.BASE_URL}/download",

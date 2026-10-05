@@ -9,11 +9,10 @@ import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-import pytest
 import hermes_yaml as yaml
-
-from hermes_constants import reset_hermes_home_override, set_hermes_home_override
+import pytest
 from hermes_cli.plugins import PluginContext, PluginManager, PluginManifest
+from hermes_constants import reset_hermes_home_override, set_hermes_home_override
 
 
 def _context(

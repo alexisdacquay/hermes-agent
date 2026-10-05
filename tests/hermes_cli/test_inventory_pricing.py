@@ -8,10 +8,9 @@ same way the `hermes model` CLI picker does.
 from threading import Event
 from time import monotonic
 
-import pytest
-
 import hermes_cli.inventory as inv
 import hermes_cli.models as models_mod
+import pytest
 from hermes_cli import models_pricing
 
 

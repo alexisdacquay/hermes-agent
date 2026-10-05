@@ -10,7 +10,6 @@ whole failure this guards against was a value that never reached the config.
 import textwrap
 
 import pytest
-
 from hermes_constants import get_hermes_home
 from tools import desktop_ui
 from tools.react_to_message_tool import check_react_requirements

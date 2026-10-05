@@ -10,14 +10,19 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import re
+import weakref
+from collections.abc import Callable
 from functools import partial
 from pathlib import Path
-import weakref
-from typing import Any, Callable, Optional
+from typing import Any
 
 from agent.i18n import t
 
-from gateway.kanban_watchers_common import _list_boards, _to_thread_process_service, logger
+from gateway.kanban_watchers_common import (
+    _list_boards,
+    _to_thread_process_service,
+    logger,
+)
 from gateway.wake import session_owned_by_profile
 
 
@@ -88,7 +93,7 @@ def _safe_review_reason(value: Any, limit: int = 160) -> str:
     return reason
 
 
-def _wake_scope_id(adapter: Any, sub: dict) -> Optional[str]:
+def _wake_scope_id(adapter: Any, sub: dict) -> str | None:
     """Return the tenant scope (Slack workspace) a subscription's wake keys to.
 
     ``build_session_key()`` includes ``scope_id`` on multi-tenant platforms,
@@ -159,7 +164,7 @@ def _platform_names(mapping: Any) -> set[str]:
     return {getattr(platform, "value", str(platform)).lower() for platform in mapping}
 
 
-def _adapter_for_subscription(runner: Any, platform: Any, sub: dict, owner_profile: Optional[str]) -> Any:
+def _adapter_for_subscription(runner: Any, platform: Any, sub: dict, owner_profile: str | None) -> Any:
     """Resolve a durable route without turning a missing secondary bot into primary authority."""
     adapter = runner._authorization_adapter(platform, owner_profile)
     config = getattr(runner, "config", None)
@@ -226,7 +231,7 @@ def _adapter_for_subscription(runner: Any, platform: Any, sub: dict, owner_profi
 class _Collector:
     """One tick's claim state: which profiles/platforms this gateway serves and the GC gate."""
 
-    def __init__(self, runner: Any, kb: Any, *, notifier_profile: Optional[str], gc_due: bool, gc_retention_days: int) -> None:
+    def __init__(self, runner: Any, kb: Any, *, notifier_profile: str | None, gc_due: bool, gc_retention_days: int) -> None:
         self.runner = runner
         self.kb = kb
         self.notifier_profile = notifier_profile
@@ -299,7 +304,7 @@ class _Collector:
         except Exception as _gc_exc:
             logger.debug("kanban notifier: stale-sub GC failed for board %s: %s", slug, _gc_exc)
 
-    def _claim_for_sub(self, conn: Any, slug: str, sub: dict) -> Optional[dict]:
+    def _claim_for_sub(self, conn: Any, slug: str, sub: dict) -> dict | None:
         """Claim one subscription's unseen events; None when skipped or nothing new."""
         owner_profile = sub.get("notifier_profile") or None
         platform = (sub.get("platform") or "").lower()
@@ -354,7 +359,7 @@ class _Collector:
             conn.close()
 
 
-def _notifier_collect(runner: Any, kb: Any, *, notifier_profile: Optional[str], gc_due: bool, gc_retention_days: int) -> list[dict]:
+def _notifier_collect(runner: Any, kb: Any, *, notifier_profile: str | None, gc_due: bool, gc_retention_days: int) -> list[dict]:
     """Claim unseen terminal events for every owned subscription on every board.
 
     Each gateway polls only subscriptions owned by profiles whose adapters it
@@ -470,7 +475,7 @@ def _fmt_timed_out(ev, n) -> tuple:
 # archived / unblocked are claimed (so the cursor advances past them) but
 # intentionally silent (no formatter), and excluded from _WAKE_KINDS so they
 # never wake the creator.
-_EVENT_FORMATTERS: dict[str, Callable[[Any, "_KanbanNotification"], tuple]] = {
+_EVENT_FORMATTERS: dict[str, Callable[[Any, _KanbanNotification], tuple]] = {
     "completed": _fmt_completed,
     "blocked": lambda ev, n: (
         t("gateway.kanban.ping.blocked", head=n.head, reason=_clip(ev, "reason", "gateway.kanban.ping.reason_suffix", 160)),
@@ -560,7 +565,7 @@ class _KanbanNotification:
 
     # -- formatting --
 
-    def format_event(self, ev: Any) -> Optional[str]:
+    def format_event(self, ev: Any) -> str | None:
         """Render one event; accumulates wake handoff/review detail. None → silent kind."""
         formatter = _EVENT_FORMATTERS.get(ev.kind)
         if formatter is None:
@@ -606,7 +611,7 @@ class _KanbanNotification:
         logger.info("kanban notifier: woke agent for %s on %s/%s profile=%s events=%s",
                     self.task_id, self.platform_str, self.sub["chat_id"], self.sub_profile or "default", self.wake_kinds)
 
-    def _served_wake_profile(self) -> Optional[str]:
+    def _served_wake_profile(self) -> str | None:
         """The subscription's profile when THIS gateway is a multiplexer serving it, else ``None``.
 
         ``None`` keeps the historical path: a standalone ``hermes -p <name>`` gateway owns its own

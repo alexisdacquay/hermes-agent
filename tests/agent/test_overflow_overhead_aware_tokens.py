@@ -4,13 +4,11 @@ tool schemas, not a messages-only estimate (LCM issue 441). Also: the retry
 diagnostics buffered during long-context recovery must flush correctly (muted
 vs. unmuted) on terminal failure."""
 
-import pytest
-
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import pytest
 from run_agent import AIAgent
-
 
 # ---------------------------------------------------------------------------
 # Shared fixtures / helpers (mirrored from test_413_compression.py)

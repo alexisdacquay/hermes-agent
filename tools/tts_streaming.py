@@ -14,9 +14,10 @@ import logging
 import re
 import time
 from abc import ABC, abstractmethod
-from typing import Callable, Dict, Iterator, List, Optional
+from collections.abc import Callable, Iterator
 
 from agent.think_scrubber import THINK_TAG_NAMES
+
 from tools.tool_backend_helpers import resolve_openai_audio_api_key
 from tools.tts_tool import _get_provider, _load_tts_config
 from tools.tts_tool_providers import DEFAULT_XAI_SAMPLE_RATE
@@ -47,7 +48,7 @@ def _gemini_key() -> str:
 # persisted). The TTL keeps a stale barge from annotating an unrelated message minutes later.
 SPEECH_INTERRUPTED_NOTE = "[Note: the user interrupted your previous spoken reply before it finished.]"
 _INTERRUPT_TTL_S = 120.0
-_interrupted_at: Optional[float] = None
+_interrupted_at: float | None = None
 
 
 def mark_speech_interrupted() -> None:
@@ -80,7 +81,7 @@ class SentenceChunker:
         self.buf = ""
 
     @classmethod
-    def from_config(cls, tts_config: Dict) -> "SentenceChunker":
+    def from_config(cls, tts_config: dict) -> SentenceChunker:
         """Chunker honouring ``tts.streaming.min_len``. 20 suits English; a CJK opener of 5–7
         characters is a whole clause, so voice setups lower it to speak the first sentence
         alone instead of buffering it behind the second. Floor 1: 0 would emit every boundary."""
@@ -89,12 +90,12 @@ class SentenceChunker:
         except (AttributeError, TypeError, ValueError):  # non-mapping / non-numeric → default
             return cls()
 
-    def feed(self, delta: str) -> List[str]:
+    def feed(self, delta: str) -> list[str]:
         """Absorb *delta*; return every complete sentence now ready to speak."""
         self.buf = _THINK_BLOCK_RE.sub("", self.buf + delta)
         if _THINK_OPEN_RE.search(self.buf):
             return []  # open think tag — the closing tag may arrive next delta
-        out: List[str] = []
+        out: list[str] = []
         start = 0  # skip boundaries that would leave the head too short
         while m := SENTENCE_BOUNDARY_RE.search(self.buf, start):
             head = self.buf[: m.end()]
@@ -106,7 +107,7 @@ class SentenceChunker:
             start = 0
         return out
 
-    def flush(self) -> List[str]:
+    def flush(self) -> list[str]:
         """Drain the tail (end-of-text or long-idle flush)."""
         tail, self.buf = _THINK_BLOCK_RE.sub("", self.buf), ""
         if m := _THINK_OPEN_RE.search(tail):
@@ -128,7 +129,7 @@ class StreamingTTSProvider(ABC):
     channels: int = 1
     sample_width: int = 2  # bytes/sample (int16)
 
-    def __init__(self, tts_config: Dict, section: Dict):
+    def __init__(self, tts_config: dict, section: dict):
         self.tts_config = tts_config
         self.section = section
 
@@ -142,7 +143,7 @@ class StreamingTTSProvider(ABC):
         """Yield PCM chunks for ``text``. Raise on failure (caller logs)."""
 
 
-_REGISTRY: Dict[str, type[StreamingTTSProvider]] = {}
+_REGISTRY: dict[str, type[StreamingTTSProvider]] = {}
 
 
 def register(name: str) -> Callable[[type[StreamingTTSProvider]], type[StreamingTTSProvider]]:
@@ -152,7 +153,7 @@ def register(name: str) -> Callable[[type[StreamingTTSProvider]], type[Streaming
     return _wrap
 
 
-def _try_instantiate(name: str, tts_config: Dict) -> Optional[StreamingTTSProvider]:
+def _try_instantiate(name: str, tts_config: dict) -> StreamingTTSProvider | None:
     """Construct the registered streamer *name* if it's usable, else None."""
     cls = _REGISTRY.get(name)
     if cls is None or not cls.available():
@@ -166,11 +167,11 @@ def _try_instantiate(name: str, tts_config: Dict) -> Optional[StreamingTTSProvid
 
 # Fallback priority for ``tts.streaming.provider: auto`` — best chunked latency/quality
 # first. Deliberately hard-coded (a UX decision); edge is absent (no chunked-PCM API).
-_PROVIDER_PRIORITY: List[str] = ["elevenlabs", "gemini", "openai", "xai"]
+_PROVIDER_PRIORITY: list[str] = ["elevenlabs", "gemini", "openai", "xai"]
 
 
 def resolve_streaming_provider(
-    tts_config: Dict, preferred: Optional[str] = None) -> Optional[StreamingTTSProvider]:
+    tts_config: dict, preferred: str | None = None) -> StreamingTTSProvider | None:
     """Return a ready streamer for the *configured* provider, else ``None``.
     ``tts.streaming.provider`` when set: a name pins that exact streamer (``None`` if unusable);
     ``auto`` returns the first usable in ``_PROVIDER_PRIORITY``. Otherwise the configured TTS
@@ -206,7 +207,9 @@ class ElevenLabsStreamer(StreamingTTSProvider):
     def stream(self, text: str) -> Iterator[bytes]:
         from tools.tts_tool import _import_elevenlabs
         from tools.tts_tool_providers import (
-            DEFAULT_ELEVENLABS_STREAMING_MODEL_ID, DEFAULT_ELEVENLABS_VOICE_ID, _elevenlabs_environment_kwargs,
+            DEFAULT_ELEVENLABS_STREAMING_MODEL_ID,
+            DEFAULT_ELEVENLABS_VOICE_ID,
+            _elevenlabs_environment_kwargs,
         )
         client = _import_elevenlabs()(
             api_key=_resolve_key("ELEVENLABS_API_KEY", "elevenlabs"), **_elevenlabs_environment_kwargs(self.section),
@@ -226,7 +229,7 @@ def _openai_config_api_key() -> str:
         return ""
 
 
-def _sample_rate_from_headers(headers) -> Optional[int]:
+def _sample_rate_from_headers(headers) -> int | None:
     """Rate an OpenAI-compatible TTS endpoint advertises: ``X-Audio-Sample-Rate`` (the convention
     local servers use) or ``rate=`` in ``Content-Type`` (``audio/pcm; rate=44100``); None if absent."""
     if not headers:
@@ -251,7 +254,7 @@ class OpenAIStreamer(StreamingTTSProvider):
     ``rate=``) overrides it before the first chunk is yielded (#76466).
     """
 
-    def __init__(self, tts_config: Dict, section: Dict):
+    def __init__(self, tts_config: dict, section: dict):
         super().__init__(tts_config, section)
         configured = section.get("pcm_sample_rate", self.sample_rate)
         if isinstance(configured, bool) or not isinstance(configured, (int, float, str)) \
@@ -265,8 +268,8 @@ class OpenAIStreamer(StreamingTTSProvider):
         return bool(_openai_config_api_key() or resolve_openai_audio_api_key())
 
     def stream(self, text: str) -> Iterator[bytes]:
-        from openai import OpenAI
         from hermes_cli.config import get_env_value
+        from openai import OpenAI
         client = OpenAI(
             api_key=(self.section.get("api_key") or resolve_openai_audio_api_key()),
             base_url=(self.section.get("base_url") or get_env_value("OPENAI_BASE_URL") or None))
@@ -300,10 +303,15 @@ class GeminiStreamer(StreamingTTSProvider):
     def stream(self, text: str) -> Iterator[bytes]:
         import base64
         import json as _json
+
         import requests
-        from tools.tts_tool_providers import (
-            DEFAULT_GEMINI_TTS_BASE_URL, DEFAULT_GEMINI_TTS_MODEL, DEFAULT_GEMINI_TTS_VOICE)
         from hermes_cli.config import get_env_value
+
+        from tools.tts_tool_providers import (
+            DEFAULT_GEMINI_TTS_BASE_URL,
+            DEFAULT_GEMINI_TTS_MODEL,
+            DEFAULT_GEMINI_TTS_VOICE,
+        )
         api_key = _gemini_key()
         model = str(self.section.get("model", DEFAULT_GEMINI_TTS_MODEL)).strip() or DEFAULT_GEMINI_TTS_MODEL
         voice = str(self.section.get("voice", DEFAULT_GEMINI_TTS_VOICE)).strip() or DEFAULT_GEMINI_TTS_VOICE
@@ -415,7 +423,7 @@ class XAIStreamer(StreamingTTSProvider):
         import threading
         from contextvars import copy_context
 
-        q: "queue.Queue[object]" = queue.Queue(maxsize=_XAI_QUEUE_MAX)
+        q: queue.Queue[object] = queue.Queue(maxsize=_XAI_QUEUE_MAX)
         done = object()
         stop = threading.Event()
 
@@ -481,7 +489,7 @@ class XAIStreamer(StreamingTTSProvider):
                     message = await asyncio.wait_for(
                         ws.recv(), timeout=self._RECV_TIMEOUT_S
                     )
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     raise RuntimeError(f"xAI streaming TTS: no audio for {self._RECV_TIMEOUT_S}s")
                 except websockets.exceptions.ConnectionClosedOK:
                     return  # clean close, with or without audio.done

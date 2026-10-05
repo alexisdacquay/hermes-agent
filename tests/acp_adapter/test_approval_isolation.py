@@ -50,12 +50,12 @@ class TestThreadLocalApprovalCallback:
     def test_callback_not_visible_in_different_thread(self):
         """Thread A's callback is NOT visible to Thread B."""
         from tools.terminal_tool import (
-            set_approval_callback,
             _get_approval_callback,
+            set_approval_callback,
         )
 
-        cb_a = lambda cmd, desc: "thread_a"  # noqa: E731
-        cb_b = lambda cmd, desc: "thread_b"  # noqa: E731
+        cb_a = lambda cmd, desc: "thread_a"
+        cb_b = lambda cmd, desc: "thread_b"
 
         seen_in_a = []
         seen_in_b = []
@@ -88,11 +88,11 @@ class TestThreadLocalApprovalCallback:
         """A callback set in the main thread does NOT leak into a
         freshly-spawned worker thread."""
         from tools.terminal_tool import (
-            set_approval_callback,
             _get_approval_callback,
+            set_approval_callback,
         )
 
-        cb_main = lambda cmd, desc: "main"  # noqa: E731
+        cb_main = lambda cmd, desc: "main"
         set_approval_callback(cb_main)
 
         worker_saw = []

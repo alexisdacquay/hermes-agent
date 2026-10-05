@@ -12,19 +12,32 @@ import json
 import logging
 import os
 import time
+from collections.abc import Callable
 from contextlib import contextmanager
-from typing import Any, Callable, Optional
+from typing import Any
 
 from agent.redact import redact_sensitive_text
-from hermes_cli.goals import judge_goal
-from tools.registry import no_cache_check_fn, registry, tool_error
 from hermes_cli.config import cfg_get, load_config
+from hermes_cli.goals import judge_goal
+
 from tools.kanban_tools_schemas import (
     KANBAN_ATTACH_SCHEMA,
-    KANBAN_ATTACH_URL_SCHEMA, KANBAN_ATTACHMENTS_SCHEMA, KANBAN_BLOCK_SCHEMA, KANBAN_COMMENT_SCHEMA,
-    KANBAN_COMPLETE_SCHEMA, KANBAN_CREATE_SCHEMA, KANBAN_HEARTBEAT_SCHEMA, KANBAN_LINK_SCHEMA,
-    KANBAN_LIST_SCHEMA, KANBAN_REQUEST_CHANGES_SCHEMA, KANBAN_REQUEST_REVIEW_SCHEMA,
-    KANBAN_SCHEDULE_SCHEMA, KANBAN_SHOW_SCHEMA, KANBAN_UNBLOCK_SCHEMA)
+    KANBAN_ATTACH_URL_SCHEMA,
+    KANBAN_ATTACHMENTS_SCHEMA,
+    KANBAN_BLOCK_SCHEMA,
+    KANBAN_COMMENT_SCHEMA,
+    KANBAN_COMPLETE_SCHEMA,
+    KANBAN_CREATE_SCHEMA,
+    KANBAN_HEARTBEAT_SCHEMA,
+    KANBAN_LINK_SCHEMA,
+    KANBAN_LIST_SCHEMA,
+    KANBAN_REQUEST_CHANGES_SCHEMA,
+    KANBAN_REQUEST_REVIEW_SCHEMA,
+    KANBAN_SCHEDULE_SCHEMA,
+    KANBAN_SHOW_SCHEMA,
+    KANBAN_UNBLOCK_SCHEMA,
+)
+from tools.registry import no_cache_check_fn, registry, tool_error
 
 logger = logging.getLogger(__name__)
 
@@ -186,7 +199,7 @@ def _reject_delegated_child_mutation(tool_name: str) -> None:
             "configured Kanban orchestrator must perform board mutations.")
 
 
-def _default_task_id(arg: Any) -> Optional[str]:
+def _default_task_id(arg: Any) -> str | None:
     """Resolve ``task_id`` arg or fall back to the env var the dispatcher set."""
     if arg is not None:
         val = str(arg).strip()
@@ -228,11 +241,11 @@ def _require_task_id(args: dict) -> str:
         "default to. Pass an explicit task_id; discover task ids with kanban_list.")
 
 
-def _own_task_env(task_id: str, var: str) -> Optional[str]:
+def _own_task_env(task_id: str, var: str) -> str | None:
     """``$var`` only when this worker is scoped to ``task_id``; else None."""
     return os.environ.get(var) if os.environ.get("HERMES_KANBAN_TASK") == task_id else None
 
-def _worker_run_id(task_id: str) -> Optional[int]:
+def _worker_run_id(task_id: str) -> int | None:
     """This worker's dispatcher run id when it is scoped to task_id."""
     raw = _own_task_env(task_id, "HERMES_KANBAN_RUN_ID")
     try:
@@ -241,7 +254,7 @@ def _worker_run_id(task_id: str) -> Optional[int]:
         return None
 
 
-def _stamp_worker_session_metadata(task_id: str, metadata: Optional[dict]) -> Optional[dict]:
+def _stamp_worker_session_metadata(task_id: str, metadata: dict | None) -> dict | None:
     """Add trusted worker session id metadata for this worker's own task."""
     session_id = _own_task_env(task_id, "HERMES_SESSION_ID")
     return {**(metadata or {}), "worker_session_id": session_id} if session_id else metadata
@@ -309,7 +322,7 @@ def _require_orchestrator_tool(tool_name: str) -> None:
 
 
 @contextmanager
-def _board(board: Optional[str], *, quiet_close: bool = False):
+def _board(board: str | None, *, quiet_close: bool = False):
     """``with _board(slug) as (kb, conn)``; lazy import so the module loads in non-kanban
     contexts. ``board=None`` keeps the env/symlink resolution chain; an explicit slug
     overrides it per call. ``quiet_close`` swallows close() errors (best-effort bridges)."""
@@ -353,7 +366,7 @@ def _redact_opt(value: Any) -> Any:
     return _redact(value) if value else value
 
 
-def _redact_metadata(metadata: dict) -> Optional[dict]:
+def _redact_metadata(metadata: dict) -> dict | None:
     """Redact via a JSON round-trip; None if the result can't be re-parsed."""
     try:
         return json.loads(redact_sensitive_text(json.dumps(metadata), force=True))
@@ -395,7 +408,7 @@ def _merge_artifacts(metadata: Any, artifacts: list[str]) -> dict:
     return metadata
 
 
-def _require_text(args: dict, name: str, message: Optional[str] = None) -> Any:
+def _require_text(args: dict, name: str, message: str | None = None) -> Any:
     """``args[name]``; rejects when missing or blank."""
     value = args.get(name)
     _check(value and str(value).strip(), message or f"{name} is required")
@@ -414,22 +427,19 @@ def _parse_bool_arg(args: dict, name: str) -> bool:
     return parsed
 
 
-def _opt_int(value: Any, default: Optional[int] = None) -> Optional[int]:
+def _opt_int(value: Any, default: int | None = None) -> int | None:
     return int(value) if value is not None else default
 
 
 _TASK_FIELDS = tuple(
-    "id title body assignee status tenant priority workspace_kind workspace_path created_by "
-    "created_at started_at completed_at result current_run_id model_override "
-    "provider_override completion_contract last_failure_error".split())
+    ["id", "title", "body", "assignee", "status", "tenant", "priority", "workspace_kind", "workspace_path", "created_by", "created_at", "started_at", "completed_at", "result", "current_run_id", "model_override", "provider_override", "completion_contract", "last_failure_error"])
 _TASK_SUMMARY_FIELDS = tuple(
-    "id title assignee status priority tenant workspace_kind workspace_path project_id created_by "
-    "created_at started_at completed_at current_run_id model_override provider_override".split())
-_RUN_FIELDS = tuple("id profile status outcome summary error metadata started_at ended_at".split())
+    ["id", "title", "assignee", "status", "priority", "tenant", "workspace_kind", "workspace_path", "project_id", "created_by", "created_at", "started_at", "completed_at", "current_run_id", "model_override", "provider_override"])
+_RUN_FIELDS = tuple(["id", "profile", "status", "outcome", "summary", "error", "metadata", "started_at", "ended_at"])
 _COMMENT_FIELDS = ("author", "body", "created_at")
 _EVENT_FIELDS = ("kind", "payload", "created_at", "run_id")
 _ATTACHMENT_FIELDS = tuple(
-    "id filename content_type size uploaded_by stored_path created_at".split())
+    ["id", "filename", "content_type", "size", "uploaded_by", "stored_path", "created_at"])
 _CREATED_FIELDS = ("status", "workspace_kind", "workspace_path", "project_id")
 
 
@@ -493,7 +503,11 @@ def _goal_gate(tool_name: str, task, tid: str, evidence: str) -> None:
     try:
         # Headless gate runs outside any agent turn: bind the per-task relay-affinity scope
         # (mirrors kanban_specify) so the relay does not reject the judge call (#113669).
-        from agent.portal_tags import get_affinity_scope, reset_affinity_scope, set_affinity_scope
+        from agent.portal_tags import (
+            get_affinity_scope,
+            reset_affinity_scope,
+            set_affinity_scope,
+        )
         affinity_token = None if get_affinity_scope() else set_affinity_scope(f"kanban:{tid}")
         try:
             verdict, reason, _, _, transport_failed = judge_goal(
@@ -1001,14 +1015,16 @@ def _handle_attach(args: dict, **kw) -> str:
 _MAX_ATTACH_URL_REDIRECTS = 5
 
 
-def _download_url_with_cap(url: str, max_bytes: int) -> tuple[bytes, Optional[str]]:
+def _download_url_with_cap(url: str, max_bytes: int) -> tuple[bytes, str | None]:
     """Fetch ``url`` over http(s) capped at ``max_bytes`` -> ``(data, content_type)``.
     Every hop is SSRF-checked (redirects followed manually) so a model-controlled URL, or a
     public host 302ing, cannot reach loopback/private/cloud-metadata ranges. ``ValueError``
     for bad scheme, blocked target, too many redirects, or a body over the cap (checked
     while streaming, so nothing oversize is buffered)."""
     from urllib.parse import urljoin, urlparse
+
     import httpx
+
     from tools.url_safety import is_safe_url
     current_url = url
     for _ in range(_MAX_ATTACH_URL_REDIRECTS + 1):
@@ -1073,13 +1089,13 @@ def _handle_attachments(args: dict, **kw) -> str:
                 _fields(a, _ATTACHMENT_FIELDS) for a in kb.list_attachments(conn, tid)]})
 
 
-def _persisted_session_id(session_id: Optional[str]) -> Optional[str]:
+def _persisted_session_id(session_id: str | None) -> str | None:
     """Return a session id only when it is present in this profile's state.db."""
     if not session_id:
         return None
     try:
-        from hermes_state import SessionDB
         from hermes_constants import get_hermes_home
+        from hermes_state import SessionDB
 
         state = SessionDB(db_path=get_hermes_home() / "state.db", read_only=True)
     except Exception:  # state.db may not exist for a CLI/dashboard invocation
@@ -1115,6 +1131,7 @@ def _handle_create(args: dict, **kw) -> str:
     parents = _coerce_str_list(args.get("parents") or [], "parents", "task ids")
     with _board(args.get("board")) as (kb, conn):
         from gateway.session_context import get_session_env
+
         from tools.async_delegation import _current_origin_session_id
         self_tid = (os.environ.get("HERMES_KANBAN_TASK")
                     if _is_dispatcher_owned_worker() else None)
@@ -1154,7 +1171,7 @@ def _handle_create(args: dict, **kw) -> str:
                    subscribed=_maybe_auto_subscribe(conn, new_tid))
 
 
-def _live_tui_session_key(session_key: str, profile: Optional[str]) -> str:
+def _live_tui_session_key(session_key: str, profile: str | None) -> str:
     """Re-resolve a TUI session key at subscribe time: the inherited ``HERMES_SESSION_KEY``
     can name a session already superseded by a compaction fork, and a subscription bound to
     the dead key silently drops every later completion notification (#110068). Maps the key
@@ -1164,6 +1181,7 @@ def _live_tui_session_key(session_key: str, profile: Optional[str]) -> str:
     if profile and profile != "default":
         try:
             from pathlib import Path
+
             from hermes_cli.profiles import get_profile_dir, profile_exists
             if profile_exists(profile):
                 db_path = Path(get_profile_dir(profile)) / "state.db"
@@ -1180,7 +1198,7 @@ def _live_tui_session_key(session_key: str, profile: Optional[str]) -> str:
         return session_key
 
 
-def _resolve_notify_target() -> Optional[dict[str, Any]]:
+def _resolve_notify_target() -> dict[str, Any] | None:
     """``kanban_db.add_notify_sub`` kwargs for the calling session, or None (CLI/cron/tests).
     Gateway sessions: ``HERMES_SESSION_PLATFORM``/``CHAT_ID`` ContextVars. TUI/desktop:
     those are cleared but the subprocess inherits ``HERMES_SESSION_KEY`` -> ``platform="tui"``

@@ -23,9 +23,8 @@ import threading
 from pathlib import Path
 from types import SimpleNamespace
 
-import pytest
-
 import hermes_state
+import pytest
 from hermes_state import SessionDB
 
 

@@ -16,15 +16,16 @@ import re
 import sqlite3
 import threading
 import time
+from collections.abc import Callable
 from contextlib import suppress
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 from urllib.parse import quote
 
+from agent.file_safety import raise_if_read_blocked
 from agent.memory_provider import MemoryProvider, spawn_context_thread
 from agent.secret_scope import get_secret
-from agent.file_safety import raise_if_read_blocked
 from tools.registry import tool_error
 
 logger = logging.getLogger(__name__)
@@ -224,7 +225,7 @@ class _WriteQueue:
         self._close(*([conn] if conn is not None else []))
 
     def enqueue(self, user_id: str, session_id: str, messages: list) -> None:
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         with self._shutdown_lock:
             if self._shutdown:
                 return
@@ -345,7 +346,7 @@ class RetainDBMemoryProvider(MemoryProvider):
         self._queue = _WriteQueue(self._client, home / "retaindb_queue.db")
         soul = (home / "SOUL.md").read_text(encoding="utf-8-sig", errors="replace").strip() if (home / "SOUL.md").exists() else ""
         if soul:  # seed agent identity from SOUL.md in background
-            seed = lambda: self._client.seed_agent_identity(self._agent_id, soul, source="soul_md")  # noqa: E731
+            seed = lambda: self._client.seed_agent_identity(self._agent_id, soul, source="soul_md")
             spawn_context_thread(_quiet, args=("soul seed", seed), name="retaindb-soul-seed").start()
 
     def system_prompt_block(self) -> str:
@@ -406,7 +407,7 @@ class RetainDBMemoryProvider(MemoryProvider):
         """Queue turn for async ingest. Returns immediately."""
         if not self._queue or not user_content:
             return
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         self._queue.enqueue(self._user_id, session_id or self._session_id,
                             [{"role": "user", "content": user_content, "timestamp": now},
                              {"role": "assistant", "content": assistant_content, "timestamp": now}])

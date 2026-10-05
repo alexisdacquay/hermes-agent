@@ -4,11 +4,11 @@ import types
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from gateway.config import Platform, StreamingConfig
 from gateway.platforms.base import resolve_proxy_url
 from gateway.run import GatewayRunner
 from gateway.session import SessionSource
+
 
 def _make_runner(proxy_url=None):
     """Create a minimal GatewayRunner for proxy tests."""
@@ -165,13 +165,13 @@ class TestMacosProxyProbeCache:
 
     @pytest.fixture(autouse=True)
     def _isolate(self):
-        import gateway.platforms.base as base
+        from gateway.platforms import base
         base.reset_macos_proxy_cache()
         yield
         base.reset_macos_proxy_cache()
 
     def _count_forks(self, monkeypatch):
-        import gateway.platforms.base as base
+        from gateway.platforms import base
         calls = []
 
         def fake(*a, **kw):

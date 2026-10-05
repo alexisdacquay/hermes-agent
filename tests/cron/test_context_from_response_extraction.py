@@ -9,8 +9,8 @@ self-continuity silently became a no-op.
 import sys
 from pathlib import Path
 
-import pytest
 import cron.scheduler
+import pytest
 import run_agent
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -137,7 +137,8 @@ def test_writer_reader_preserve_response_with_nested_frames(cron_env, monkeypatc
 
 def test_truncated_outer_frame_cannot_promote_a_quoted_inner_frame(cron_env, monkeypatch):
     import os
-    from cron.jobs import create_job, save_job_output, OUTPUT_DIR
+
+    from cron.jobs import OUTPUT_DIR, create_job, save_job_output
     from cron.scheduler_prompt import _inject_context_from
 
     quoted = "QUOTED INNER ANSWER"

@@ -22,10 +22,11 @@ import subprocess
 import sys
 import threading
 import time
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any, Callable, Iterable
+from typing import Any
 
 import hermes_yaml as yaml
 
@@ -128,7 +129,7 @@ class Fleet:
     def url(self, role: str) -> str:
         return self.servers[role].base_url
 
-    def start(self) -> "Fleet":
+    def start(self) -> Fleet:
         for srv in self.servers.values():
             srv.start()
         return self
@@ -223,7 +224,7 @@ class EgressTrap:
                 self.end_headers()
                 self.close_connection = True
 
-            do_CONNECT = do_GET = do_POST = do_PUT = do_HEAD = _refuse  # noqa: N815
+            do_CONNECT = do_GET = do_POST = do_PUT = do_HEAD = _refuse
 
         self._server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
         self._server.daemon_threads = True

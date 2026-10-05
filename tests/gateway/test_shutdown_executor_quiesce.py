@@ -20,9 +20,9 @@ import time
 from collections import OrderedDict
 from contextlib import suppress
 
+import gateway.run as gw_mod
 import pytest
 
-import gateway.run as gw_mod
 
 class _FakeSessionDB:
     """Records when the gateway closed it, on a shared event log."""
@@ -402,7 +402,6 @@ async def test_default_executor_worker_is_seen_by_the_close_guard():
     async def _wait_for_summary(attempt, *_a):
         turn_waiting.set()
         await asyncio.shield(attempt.future)  # the live turn is still waiting at stop()
-        return None
 
     async def _apply_result(*_a, **_kw):
         pass

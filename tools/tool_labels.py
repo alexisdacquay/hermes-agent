@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from tools.connectors.gateway.names import parse_connector_name
 from tools.mcp_tool_schema import MCP_TOOL_NAME_PREFIX
@@ -53,7 +53,7 @@ class ToolLabel:
     def text(self) -> str:
         return f"{self.app} · {self.action}" if self.action else self.app
 
-    def as_payload(self) -> Dict[str, str]:
+    def as_payload(self) -> dict[str, str]:
         return {"kind": self.kind, "app": self.app, "action": self.action, "emoji": self.emoji,
                 "text": self.text, "name": self.name, "preview": self.preview}
 
@@ -111,7 +111,7 @@ def _unnamed_label(arguments: Any) -> ToolLabel:
                      name="", preview=_arg_preview("", arguments))
 
 
-def label_for_tool_name(name: str, arguments: Any = None) -> Optional[ToolLabel]:
+def label_for_tool_name(name: str, arguments: Any = None) -> ToolLabel | None:
     if not isinstance(name, str) or not name.strip():
         return None
     connector = parse_connector_name(name)
@@ -127,7 +127,7 @@ def label_for_tool_name(name: str, arguments: Any = None) -> Optional[ToolLabel]
     return _local_tool_label(name, arguments)
 
 
-def _bridge_labels(function_name: str, args: Dict[str, Any]) -> List[ToolLabel]:
+def _bridge_labels(function_name: str, args: dict[str, Any]) -> list[ToolLabel]:
     if function_name == "tool_search":
         queries = args.get("queries")
         queries = [queries] if isinstance(queries, str) else queries
@@ -142,7 +142,7 @@ def _bridge_labels(function_name: str, args: Dict[str, Any]) -> List[ToolLabel]:
                       emoji=DESCRIBE_EMOJI, name=function_name)]
 
 
-def labels_for_call(function_name: str, function_args: Any) -> List[ToolLabel]:
+def labels_for_call(function_name: str, function_args: Any) -> list[ToolLabel]:
     args = function_args if isinstance(function_args, dict) else {}
     if function_name in ("tool_search", "tool_describe"):
         return _bridge_labels(function_name, args)

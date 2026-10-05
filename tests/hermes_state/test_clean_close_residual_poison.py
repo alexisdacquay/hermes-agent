@@ -9,6 +9,7 @@ healthy handle. ``normal`` is the control.
 """
 import sqlite3
 import threading
+
 import pytest
 from hermes_state import SessionDB
 

@@ -6,9 +6,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
 import hermes_yaml as yaml
-
+import pytest
 from hermes_cli.config import DEFAULT_CONFIG
 
 REPO_ROOT = Path(__file__).resolve().parents[2]

@@ -11,7 +11,6 @@ back to the whole-message policy.
 
 import threading
 from collections import OrderedDict
-from typing import Optional
 
 # A couple dozen active scaffolds is generous for one gateway process.
 _MAX_ENTRIES = 32
@@ -20,7 +19,7 @@ _MAX_ENTRIES = 32
 _MAX_CHARS = 4 * 1024 * 1024
 
 _lock = threading.Lock()
-_prefixes: "OrderedDict[str, None]" = OrderedDict()
+_prefixes: OrderedDict[str, None] = OrderedDict()
 
 
 def register_stable_prefix(prefix: str) -> None:
@@ -36,7 +35,7 @@ def register_stable_prefix(prefix: str) -> None:
             _prefixes.popitem(last=False)
 
 
-def find_stable_prefix(content: str) -> Optional[str]:
+def find_stable_prefix(content: str) -> str | None:
     """Longest registered *proper* prefix of ``content`` with a non-whitespace tail.
 
     The tail must be non-whitespace so the split never yields an empty text
@@ -45,7 +44,7 @@ def find_stable_prefix(content: str) -> Optional[str]:
     burst of one-off skill invocations.
     """
     with _lock:
-        best: Optional[str] = None
+        best: str | None = None
         for prefix in _prefixes:
             if (
                 content.startswith(prefix)

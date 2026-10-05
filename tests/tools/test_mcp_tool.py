@@ -15,7 +15,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -156,9 +155,10 @@ class TestLoadMCPConfig:
         self, tmp_path, monkeypatch
     ):
         import json
+
         import hermes_yaml as yaml
-        from hermes_cli.agent_plugins import MCP_SCHEMA_V1, PLUGIN_SCHEMA_V1
         from hermes_cli import plugins as plugins_mod
+        from hermes_cli.agent_plugins import MCP_SCHEMA_V1, PLUGIN_SCHEMA_V1
 
         home = tmp_path / "home"
         plugin = home / "plugins" / "portable"
@@ -200,7 +200,7 @@ class TestLoadMCPConfig:
 
 class TestMCPParallelSafetyProvenance:
     def test_parallel_safe_servers_keep_exact_raw_names(self, monkeypatch):
-        import tools.mcp_tool as mcp_tool
+        from tools import mcp_tool
 
         first = SimpleNamespace(session=object(), _registered_tool_names=[])
         second = SimpleNamespace(session=object(), _registered_tool_names=[])
@@ -234,7 +234,7 @@ class TestMCPParallelSafetyProvenance:
                 mcp_tool._parallel_safe_servers.update(saved_parallel)
 
     def test_tool_provenance_keeps_exact_raw_server_names(self):
-        import tools.mcp_tool as mcp_tool
+        from tools import mcp_tool
         from tools import mcp_tool_registration as _mcp_registration
 
         first_tool = "mcp__foo_bar__first"
@@ -267,7 +267,7 @@ class TestMCPStatus:
     def test_status_distinguishes_configured_connecting_failed_and_disabled(
         self, monkeypatch
     ):
-        import tools.mcp_tool as mcp_tool
+        from tools import mcp_tool
         from tools import mcp_tool_config as _mcp_config
         from tools import mcp_tool_discovery as _mcp_discovery
 
@@ -314,7 +314,7 @@ class TestMCPStatus:
         assert statuses["disabled"]["disabled"] is True
 
     def test_status_ignores_a_runtime_owned_by_another_profile(self, monkeypatch):
-        import tools.mcp_tool as mcp_tool
+        from tools import mcp_tool
         from tools import mcp_tool_config as _mcp_config
         from tools import mcp_tool_discovery as _mcp_discovery
 
@@ -352,8 +352,7 @@ class TestMCPStatus:
 
 
     def test_scoped_shutdown_clears_only_its_connection_status(self, monkeypatch):
-        import tools.mcp_tool as mcp_tool
-        from tools import mcp_tool_lifecycle, mcp_tool_loop
+        from tools import mcp_tool, mcp_tool_lifecycle, mcp_tool_loop
 
         monkeypatch.setattr(mcp_tool_loop, "_stop_mcp_loop", lambda **_kwargs: None)
         with mcp_tool._lock:
@@ -696,8 +695,8 @@ class TestSchemaConversion:
 
 class TestCheckFunction:
     def test_disconnected_returns_false(self):
-        from tools.mcp_tool_handlers import _make_check_fn
         from tools.mcp_tool import _servers
+        from tools.mcp_tool_handlers import _make_check_fn
 
         _servers.pop("test_server", None)
         check = _make_check_fn("test_server")
@@ -705,8 +704,8 @@ class TestCheckFunction:
 
 
     def test_recycled_stdio_server_remains_available_for_lazy_reconnect(self):
-        from tools.mcp_tool_handlers import _make_check_fn
         from tools.mcp_tool import _servers
+        from tools.mcp_tool_handlers import _make_check_fn
 
         server = _make_mock_server("test_server", session=None)
         server._config = {"command": "npx"}
@@ -728,6 +727,7 @@ class TestRunOnMcpLoop:
         """If run_coroutine_threadsafe raises, the factory's coroutine is closed."""
         import gc
         import warnings
+
         import tools.mcp_tool as mcp
 
         created = {"coro": None}
@@ -748,9 +748,8 @@ class TestRunOnMcpLoop:
                 with patch(
                     "agent.async_utils.asyncio.run_coroutine_threadsafe",
                     side_effect=RuntimeError("scheduler down"),
-                ):
-                    with pytest.raises(RuntimeError):
-                        _mcp_loop._run_on_mcp_loop(factory)
+                ), pytest.raises(RuntimeError):
+                    _mcp_loop._run_on_mcp_loop(factory)
                 gc.collect()
 
         assert created["coro"] is not None
@@ -767,6 +766,7 @@ class TestRunOnMcpLoop:
         """If loop is None, a passed coroutine (not factory) is closed."""
         import gc
         import warnings
+
         import tools.mcp_tool as mcp
 
         async def _sample():
@@ -807,8 +807,8 @@ class TestToolHandler:
         return patch("tools.mcp_tool_loop._run_on_mcp_loop", side_effect=fake_run)
 
     def test_successful_call(self):
-        from tools.mcp_tool_handlers import _make_tool_handler
         from tools.mcp_tool import _servers
+        from tools.mcp_tool_handlers import _make_tool_handler
 
         mock_session = MagicMock()
         mock_session.call_tool = AsyncMock(
@@ -828,8 +828,8 @@ class TestToolHandler:
 
 
     def test_recycled_stdio_server_reconnects_lazily_on_tool_call(self):
-        from tools.mcp_tool_handlers import _make_tool_handler
         from tools.mcp_tool import _servers
+        from tools.mcp_tool_handlers import _make_tool_handler
 
         mock_session = MagicMock()
         mock_session.call_tool = AsyncMock(
@@ -970,9 +970,9 @@ class TestRunOnMCPLoopInterrupts:
 class TestDiscoverAndRegister:
     def test_tools_registered_in_registry(self):
         """_discover_and_register_server registers tools with correct names."""
-        from tools.registry import ToolRegistry
+        from tools.mcp_tool import MCPServerTask, _servers
         from tools.mcp_tool_discovery import _discover_and_register_server
-        from tools.mcp_tool import _servers, MCPServerTask
+        from tools.registry import ToolRegistry
 
         mock_registry = ToolRegistry()
         mock_tools = [
@@ -1537,7 +1537,11 @@ class TestBuildSafeEnv:
     def test_secret_source_vars_resolve_through_active_profile_scope(self, monkeypatch):
         """Under multiplex the stdio child gets the ROUTED profile's value for a source-tagged name,
         never the launch profile's os.environ copy; a name the profile lacks is omitted."""
-        from agent.secret_scope import set_multiplex_active, set_secret_scope, reset_secret_scope
+        from agent.secret_scope import (
+            reset_secret_scope,
+            set_multiplex_active,
+            set_secret_scope,
+        )
         from hermes_cli import env_loader
         from tools.mcp_tool_config import _build_safe_env
 
@@ -1879,8 +1883,8 @@ class TestUtilityHandlers:
     # -- list_resources --
 
     def test_list_resources_success(self):
-        from tools.mcp_tool_handlers import _make_list_resources_handler
         from tools.mcp_tool import _servers
+        from tools.mcp_tool_handlers import _make_list_resources_handler
 
         mock_resource = SimpleNamespace(
             uri="file:///tmp/test.txt", name="test.txt",
@@ -1913,8 +1917,8 @@ class TestUtilityHandlers:
     # -- get_prompt --
 
     def test_get_prompt_success(self):
-        from tools.mcp_tool_handlers import _make_get_prompt_handler
         from tools.mcp_tool import _servers
+        from tools.mcp_tool_handlers import _make_get_prompt_handler
 
         mock_msg = SimpleNamespace(
             role="assistant",
@@ -1950,9 +1954,9 @@ class TestUtilityToolRegistration:
 
     def test_utility_tools_registered(self):
         """_discover_and_register_server registers all 4 utility tools."""
-        from tools.registry import ToolRegistry
+        from tools.mcp_tool import MCPServerTask, _servers
         from tools.mcp_tool_discovery import _discover_and_register_server
-        from tools.mcp_tool import _servers, MCPServerTask
+        from tools.registry import ToolRegistry
 
         mock_registry = ToolRegistry()
         mock_tools = [_make_mcp_tool("read_file", "Read a file")]
@@ -2023,12 +2027,11 @@ try:
 except ImportError:
     ToolUseContent = _CompatType
 
-from tools.mcp_tool import CreateMessageResultWithTools, SamplingHandler, ToolUseContent
-from tools.mcp_tool_common import _safe_numeric
 from tools import mcp_tool_config as _mcp_config
 from tools import mcp_tool_discovery as _mcp_discovery
 from tools import mcp_tool_loop as _mcp_loop
-
+from tools.mcp_tool import CreateMessageResultWithTools, SamplingHandler, ToolUseContent
+from tools.mcp_tool_common import _safe_numeric
 
 # ---------------------------------------------------------------------------
 # Helpers for sampling tests
@@ -2565,8 +2568,11 @@ class TestDiscoveryConnectConcurrency:
         120s-per-wave timeout would let a lock loser run unguarded discovery
         beside a still-connecting holder (#117373 review)."""
         from tools import mcp_tool_discovery as _discovery
-        from tools.mcp_tool import _MCP_DISCOVERY_LOCK_MAX_RETRIES, _MCP_DISCOVERY_LOCK_RETRY_DELAY_S
-        from tools.mcp_tool import _MCP_DISCOVERY_PASS_MAX_SEC
+        from tools.mcp_tool import (
+            _MCP_DISCOVERY_LOCK_MAX_RETRIES,
+            _MCP_DISCOVERY_LOCK_RETRY_DELAY_S,
+            _MCP_DISCOVERY_PASS_MAX_SEC,
+        )
 
         waiter_budget = _MCP_DISCOVERY_LOCK_MAX_RETRIES * _MCP_DISCOVERY_LOCK_RETRY_DELAY_S
         assert waiter_budget > _MCP_DISCOVERY_PASS_MAX_SEC, (
@@ -2577,7 +2583,6 @@ class TestDiscoveryConnectConcurrency:
 
         def fake_run_on_mcp_loop(factory, timeout=None):
             captured["timeout"] = timeout
-            return None
 
         # 40 servers = 14 waves at cap 3: uncapped, the pass would block 28 min
         # and outlive the waiter budget by 26+ minutes.
@@ -2604,9 +2609,9 @@ class TestMCPSelectiveToolLoading:
         return server
 
     def _run_discover(self, name, tool_names, config, session=None):
-        from tools.registry import ToolRegistry
-        from tools.mcp_tool_discovery import _discover_and_register_server
         from tools.mcp_tool import _servers
+        from tools.mcp_tool_discovery import _discover_and_register_server
+        from tools.registry import ToolRegistry
 
         mock_registry = ToolRegistry()
         server = self._make_server(name, tool_names, session=session)
@@ -2701,9 +2706,9 @@ class TestMCPBuiltinCollisionGuard:
 
     def test_mcp_tool_skipped_when_builtin_exists(self):
         """An MCP tool whose prefixed name collides with a built-in is skipped."""
-        from tools.registry import ToolRegistry
+        from tools.mcp_tool import MCPServerTask, _servers
         from tools.mcp_tool_discovery import _discover_and_register_server
-        from tools.mcp_tool import _servers, MCPServerTask
+        from tools.registry import ToolRegistry
 
         mock_registry = ToolRegistry()
 
@@ -2742,9 +2747,9 @@ class TestMCPBuiltinCollisionGuard:
 
     def test_mcp_tool_rejected_when_collision_is_another_mcp(self):
         """Cross-server MCP collisions preserve the existing owner."""
-        from tools.registry import ToolRegistry
+        from tools.mcp_tool import MCPServerTask, _servers
         from tools.mcp_tool_discovery import _discover_and_register_server
-        from tools.mcp_tool import _servers, MCPServerTask
+        from tools.registry import ToolRegistry
 
         mock_registry = ToolRegistry()
 
@@ -2831,8 +2836,8 @@ class TestRegisterMcpServers:
 
 
     def test_connects_new_servers(self):
-        from tools.mcp_tool_discovery import register_mcp_servers
         from tools.mcp_tool import _servers
+        from tools.mcp_tool_discovery import register_mcp_servers
         from tools.mcp_tool_loop import _ensure_mcp_loop
 
         fake_config = {"my_server": {"command": "npx", "args": ["test"]}}
@@ -2854,8 +2859,8 @@ class TestRegisterMcpServers:
 
     def test_skips_servers_already_connecting(self):
         """Servers in _server_connecting must not be spawned again (#58862)."""
+        from tools.mcp_tool import _server_connecting, _servers
         from tools.mcp_tool_discovery import register_mcp_servers
-        from tools.mcp_tool import _servers, _server_connecting
         from tools.mcp_tool_loop import _ensure_mcp_loop
 
         fake_config = {"my_srv": {"command": "npx", "args": ["test"]}}
@@ -2891,8 +2896,8 @@ class TestRegisterMcpServers:
 
     def test_clears_stale_connecting_on_timeout(self):
         """Stale entries in _server_connecting are cleaned up after timeout (#58862)."""
+        from tools.mcp_tool import _server_connecting, _servers
         from tools.mcp_tool_discovery import register_mcp_servers
-        from tools.mcp_tool import _servers, _server_connecting
         from tools.mcp_tool_loop import _ensure_mcp_loop
 
         fake_config = {
@@ -2935,8 +2940,8 @@ class TestMcpParallelToolCalls:
 
     def test_register_mcp_servers_tracks_parallel_flag(self):
         """register_mcp_servers populates _parallel_safe_servers from config."""
+        from tools.mcp_tool import _lock, _parallel_safe_servers
         from tools.mcp_tool_discovery import register_mcp_servers
-        from tools.mcp_tool import _parallel_safe_servers, _lock
         from tools.mcp_tool_schema import sanitize_mcp_name_component
         fake_config = {
             "parallel_srv": {
@@ -2976,7 +2981,7 @@ class TestMCPDiscoveryCrossProcessLock:
     @pytest.fixture(autouse=True)
     def _fast_retries(self):
         """Override retry constants so tests are fast."""
-        import tools.mcp_tool as mcp_tool
+        from tools import mcp_tool
         orig_max = mcp_tool._MCP_DISCOVERY_LOCK_MAX_RETRIES
         orig_delay = mcp_tool._MCP_DISCOVERY_LOCK_RETRY_DELAY_S
         mcp_tool._MCP_DISCOVERY_LOCK_MAX_RETRIES = 3
@@ -2987,8 +2992,8 @@ class TestMCPDiscoveryCrossProcessLock:
 
     def test_lock_acquired_path(self, tmp_path):
         """Lock acquired -> discovery runs normally, lock released at end."""
-        from tools.mcp_tool_loop import _LockCookie
         from tools.mcp_tool_discovery import discover_mcp_tools
+        from tools.mcp_tool_loop import _LockCookie
 
         lock_file = tmp_path / ".mcp-discovery.lock"
         fh = open(lock_file, "w", encoding="utf-8")

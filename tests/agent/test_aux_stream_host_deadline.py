@@ -34,7 +34,6 @@ import time
 from types import SimpleNamespace
 
 import pytest
-
 from agent import auxiliary_client as aux
 from agent.conversation_compression import (
     CompressionCommitFence,
@@ -174,11 +173,10 @@ def test_nested_none_inherits_rather_than_escaping_the_host_deadline():
     """
     outer = time.monotonic() - 1.0
     stream = _Stream(count=50)
-    with aux.aux_stream_deadline(outer):
-        with aux.aux_stream_deadline(None):
-            assert aux._current_aux_stream_deadline() == outer
-            with pytest.raises(TimeoutError):
-                aux._aggregate_chat_stream(stream, model="m", total_ceiling=2400.0)
+    with aux.aux_stream_deadline(outer), aux.aux_stream_deadline(None):
+        assert aux._current_aux_stream_deadline() == outer
+        with pytest.raises(TimeoutError):
+            aux._aggregate_chat_stream(stream, model="m", total_ceiling=2400.0)
     assert stream.yielded == 1
 
 

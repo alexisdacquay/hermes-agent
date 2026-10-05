@@ -1,8 +1,8 @@
 """Submit proposed plugin selections to the independent PM publisher."""
 from __future__ import annotations
 
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable, Optional
 
 
 class AdmissionRefused(RuntimeError):
@@ -16,7 +16,7 @@ class DependencyConflict(AdmissionRefused):
     the message leads with the plugin and keeps the resolver's cause for the details.
     """
 
-    def __init__(self, cause: str, *, plugin: Optional[str] = None):
+    def __init__(self, cause: str, *, plugin: str | None = None):
         self.cause = cause
         self.plugin = plugin
         who = f"Plugin '{plugin}'" if plugin else "The plugin selection"
@@ -29,7 +29,7 @@ def candidate_member_dirs(
     candidate_enabled: Iterable[str],
     candidate_disabled: Iterable[str] = (),
     *,
-    active_plugins_dir: Optional[Path] = None,
+    active_plugins_dir: Path | None = None,
     extra_dirs: Iterable[Path] = (),
 ) -> list[Path]:
     """Shipped callers' member-list adapter; new discovery belongs to PM.
@@ -51,10 +51,10 @@ def admit_plugin_set_change(
     candidate_enabled: set,
     candidate_disabled: set,
     *,
-    active_plugins_dir: Optional[Path] = None,
+    active_plugins_dir: Path | None = None,
     extra_dirs: Iterable[Path] = (),
     expected_config: str | None = None,
-    plugin: Optional[str] = None,
+    plugin: str | None = None,
 ) -> None:
     """PM discovers and validates the proposed union under its install lock.
 

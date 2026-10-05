@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Callable
 
 
 def build_pairing_parser(subparsers, *, cmd_pairing: Callable) -> None:

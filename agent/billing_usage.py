@@ -14,7 +14,7 @@ import logging
 import math
 import os
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 from hermes_time import safe_strftime
 
@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 LOW_BALANCE_THRESHOLD_USD = 5.0
 
 
-def _finite(value: Any) -> Optional[float]:
+def _finite(value: Any) -> float | None:
     """Float iff a real finite number (not bool/NaN/Inf); json.loads admits bare NaN, which would render ``$nan``."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
@@ -33,7 +33,7 @@ def _finite(value: Any) -> Optional[float]:
     return f if math.isfinite(f) else None
 
 
-def _fmt_usd(value: Optional[float]) -> str:
+def _fmt_usd(value: float | None) -> str:
     """``$X,XXX.YY`` for display. ``None`` -> ``$0.00`` (callers gate on presence)."""
     return f"${(value or 0.0):,.2f}"
 
@@ -57,7 +57,7 @@ def fetch_nous_account(timeout: float):
     return _fetch_portal_account(timeout)
 
 
-def format_renews(value: Optional[str]) -> Optional[str]:
+def format_renews(value: str | None) -> str | None:
     """ISO date/timestamp -> ``Jul 24, 2026``; unparseable input is returned unchanged."""
     from datetime import datetime
     text = str(value or "").strip()
@@ -86,7 +86,7 @@ class UsageBar:
     spent_usd: float = 0.0
 
     @property
-    def pct_used(self) -> Optional[int]:
+    def pct_used(self) -> int | None:
         if self.kind != "plan" or self.total_usd <= 0:
             return None
         return max(0, min(100, round(self.spent_usd / self.total_usd * 100)))
@@ -104,14 +104,14 @@ class UsageModel:
 
     available: bool
     status: str = "free"
-    plan_name: Optional[str] = None
-    renews_at: Optional[str] = None
-    renews_display: Optional[str] = None
-    subscription_remaining_usd: Optional[float] = None
-    topup_remaining_usd: Optional[float] = None
-    total_spendable_usd: Optional[float] = None
-    plan_bar: Optional[UsageBar] = None
-    topup_bar: Optional[UsageBar] = None
+    plan_name: str | None = None
+    renews_at: str | None = None
+    renews_display: str | None = None
+    subscription_remaining_usd: float | None = None
+    topup_remaining_usd: float | None = None
+    total_spendable_usd: float | None = None
+    plan_bar: UsageBar | None = None
+    topup_bar: UsageBar | None = None
 
     @property
     def has_topup(self) -> bool:
@@ -184,7 +184,7 @@ def _plan_bar(remaining: float, spent: float) -> UsageBar:
     return UsageBar(kind="plan", remaining_usd=remaining, total_usd=20.0, spent_usd=spent)
 
 
-def _dev_fixture_usage_model() -> Optional[UsageModel]:
+def _dev_fixture_usage_model() -> UsageModel | None:
     """``HERMES_DEV_CREDITS_FIXTURE`` -> fixture model (``free|healthy|low|topup|depleted``), else None."""
     name = (os.getenv("HERMES_DEV_CREDITS_FIXTURE") or "").strip().lower()
     name = {"mid": "healthy", "top-up": "topup"}.get(name, name)

@@ -27,7 +27,6 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from agent.turn_context import (
     _memory_query_text,
     build_turn_context,
@@ -35,7 +34,6 @@ from agent.turn_context import (
     compose_user_api_content,
 )
 from hermes_state import SessionDB
-
 
 # ---------------------------------------------------------------------------
 # compose_user_api_content — the single source of the injection composition
@@ -392,7 +390,7 @@ class _MockHandler(BaseHTTPRequestHandler):
     captured_requests: list = []
     response_queue: list = []
 
-    def do_POST(self):  # noqa: N802 (http.server API)
+    def do_POST(self):
         length = int(self.headers.get("Content-Length", 0))
         req = json.loads(self.rfile.read(length).decode())
         type(self).captured_requests.append(req)
@@ -473,9 +471,9 @@ def wire_env():
     prev_home = os.environ.get("HERMES_HOME")
     os.environ["HERMES_HOME"] = os.path.join(test_home, ".hermes")
 
-    from run_agent import AIAgent
-
     from pathlib import Path
+
+    from run_agent import AIAgent
 
     db = SessionDB(db_path=Path(test_home) / "state.db")
     sid = "sess-wire"
@@ -890,8 +888,8 @@ class TestMaxIterationsSummaryReplay:
         main-loop call sent — popping the sidecar without substituting sends
         CLEAN content and diverges the prefix at the earliest injected
         message, exactly when the context is largest."""
-        from run_agent import AIAgent
         from agent.chat_completion_helpers import handle_max_iterations
+        from run_agent import AIAgent
 
         agent = AIAgent(
             api_key="test-key",

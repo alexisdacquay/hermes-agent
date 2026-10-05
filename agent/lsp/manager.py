@@ -18,14 +18,27 @@ import math
 import os
 import threading
 import time
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from collections.abc import Callable
+from typing import Any
 
 from agent.lsp import eventlog
-from agent.lsp.client import DIAGNOSTICS_DOCUMENT_WAIT, LSPClient, _diagnostic_key as _diag_key
+from agent.lsp.client import DIAGNOSTICS_DOCUMENT_WAIT, LSPClient
+from agent.lsp.client import _diagnostic_key as _diag_key
 from agent.lsp.servers import (
-    SERVERS, UNTRUSTED_SAFE_SERVERS, ServerContext, ServerDef, custom_servers, find_server_for_file, language_id_for,
+    SERVERS,
+    UNTRUSTED_SAFE_SERVERS,
+    ServerContext,
+    ServerDef,
+    custom_servers,
+    find_server_for_file,
+    language_id_for,
 )
-from agent.lsp.workspace import clear_cache, is_trusted_workspace, operator_workspace_roots, resolve_workspace_for_file
+from agent.lsp.workspace import (
+    clear_cache,
+    is_trusted_workspace,
+    operator_workspace_roots,
+    resolve_workspace_for_file,
+)
 
 logger = logging.getLogger("agent.lsp.manager")
 
@@ -33,8 +46,8 @@ DEFAULT_IDLE_TIMEOUT = 600  # seconds; servers idle for >10min get reaped
 _DELTA_BASELINE_CAP = 256  # per-file pre-write snapshots; paths never written again would otherwise live forever (#62950)
 MIN_IDLE_TIMEOUT = 30  # floor for config values; must exceed any per-op wait budget
 
-_Key = Tuple[str, str]
-_Diags = List[Dict[str, Any]]
+_Key = tuple[str, str]
+_Diags = list[dict[str, Any]]
 
 
 def _float_or(value: Any, default: float) -> float:
@@ -44,7 +57,7 @@ def _float_or(value: Any, default: float) -> float:
         return default
 
 
-def _path_list(value: Any) -> Optional[List[str]]:
+def _path_list(value: Any) -> list[str] | None:
     """A config list of paths, ``~``-expanded; ``None`` when the value is not a list of strings."""
     if value is None:
         return []
@@ -53,7 +66,7 @@ def _path_list(value: Any) -> Optional[List[str]]:
     return [os.path.expanduser(p) for p in value if p]
 
 
-def _parse_exclude_roots(value: Any) -> Optional[List[str]]:
+def _parse_exclude_roots(value: Any) -> list[str] | None:
     """``lsp.exclude_roots``; ``None`` (fail closed: every root excluded) for a malformed value."""
     if (roots := _path_list(value)) is None:
         eventlog.event_log.warning(
@@ -62,7 +75,7 @@ def _parse_exclude_roots(value: Any) -> Optional[List[str]]:
     return roots
 
 
-def parse_trusted_workspaces(value: Any) -> List[str]:
+def parse_trusted_workspaces(value: Any) -> list[str]:
     """``lsp.trusted_workspaces``; a malformed value trusts nothing extra."""
     if (roots := _path_list(value)) is None:
         eventlog.event_log.warning(
@@ -83,8 +96,8 @@ class _BackgroundLoop:
     """A daemon thread owning one asyncio loop; :meth:`run` blocks on a coroutine."""
 
     def __init__(self) -> None:
-        self._loop: Optional[asyncio.AbstractEventLoop] = None
-        self._thread: Optional[threading.Thread] = None
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._thread: threading.Thread | None = None
         self._ready = threading.Event()
 
     def start(self) -> None:
@@ -106,7 +119,7 @@ class _BackgroundLoop:
             except Exception:  # noqa: BLE001
                 pass
 
-    def run(self, coro, *, timeout: Optional[float] = None) -> Any:
+    def run(self, coro, *, timeout: float | None = None) -> Any:
         """Submit a coroutine to the loop and block for its result (or raise)."""
         from agent.async_utils import safe_schedule_threadsafe
         if self._loop is None:
@@ -139,12 +152,12 @@ class LSPService:
 
     def __init__(
         self, *, enabled: bool, wait_mode: str, wait_timeout: float, install_strategy: str,
-        binary_overrides: Optional[Dict[str, List[str]]] = None,
-        env_overrides: Optional[Dict[str, Dict[str, str]]] = None,
-        init_overrides: Optional[Dict[str, Dict[str, Any]]] = None,
-        disabled_servers: Optional[List[str]] = None,
+        binary_overrides: dict[str, list[str]] | None = None,
+        env_overrides: dict[str, dict[str, str]] | None = None,
+        init_overrides: dict[str, dict[str, Any]] | None = None,
+        disabled_servers: list[str] | None = None,
         idle_timeout: float = DEFAULT_IDLE_TIMEOUT,
-        extra_servers: Optional[List[ServerDef]] = None,
+        extra_servers: list[ServerDef] | None = None,
         broken_retry_seconds: float = 0.0,
         warmup_timeout: float = 0.0,
         exclude_roots: Any = None,
@@ -159,14 +172,14 @@ class LSPService:
         self._init_overrides = init_overrides or {}
         self._disabled_servers = set(disabled_servers or [])
         self._idle_timeout = idle_timeout
-        self._extra_servers: List[ServerDef] = list(extra_servers or [])
+        self._extra_servers: list[ServerDef] = list(extra_servers or [])
         self._broken_retry = max(0.0, broken_retry_seconds)
         self._warmup_timeout = max(0.0, warmup_timeout)
         # ``None`` = misconfigured → fail closed (every root excluded) until the user fixes the key: a
         # bare string here means "exclude that workspace", and excluding nothing would re-pay the stall it
         # was meant to avoid.
-        self._exclude_roots: Optional[List[str]] = _parse_exclude_roots(exclude_roots)
-        self._trusted_workspaces: List[str] = parse_trusted_workspaces(trusted_workspaces)
+        self._exclude_roots: list[str] | None = _parse_exclude_roots(exclude_roots)
+        self._trusted_workspaces: list[str] = parse_trusted_workspaces(trusted_workspaces)
         self._untrusted_skipped: set = set()  # (server_id, root) pairs denied by workspace trust
         self._operator_roots = frozenset(operator_workspace_roots())  # see _note_operator_roots
 
@@ -175,21 +188,21 @@ class LSPService:
             self._loop.start()
 
         # Per-(server_id, workspace_root) state
-        self._clients: Dict[_Key, LSPClient] = {}
+        self._clients: dict[_Key, LSPClient] = {}
         # (server_id, root) → monotonic deadline after which the pair may be retried (inf = lifetime).
-        self._broken: Dict[_Key, float] = {}
-        self._spawning: Dict[_Key, asyncio.Future] = {}
-        self._last_used: Dict[_Key, float] = {}
+        self._broken: dict[_Key, float] = {}
+        self._spawning: dict[_Key, asyncio.Future] = {}
+        self._last_used: dict[_Key, float] = {}
         self._state_lock = threading.Lock()
-        self._idle_reaper_task: Optional[asyncio.Task] = None
+        self._idle_reaper_task: asyncio.Task | None = None
         # abs file path → diagnostics snapshot taken immediately before a write.
-        self._delta_baseline: Dict[str, _Diags] = {}
+        self._delta_baseline: dict[str, _Diags] = {}
 
         if self._enabled and self._idle_timeout > 0:
             self._loop.run(self._start_idle_reaper(), timeout=2.0)
 
     @classmethod
-    def create_from_config(cls) -> Optional["LSPService"]:
+    def create_from_config(cls) -> LSPService | None:
         """Build a service from ``hermes_cli.config``; ``None`` if config can't load."""
         try:
             from hermes_cli.config import load_config_readonly
@@ -229,7 +242,7 @@ class LSPService:
             trusted_workspaces=lsp_cfg.get("trusted_workspaces"),
         )
 
-    def _server_for(self, file_path: str) -> Optional[ServerDef]:
+    def _server_for(self, file_path: str) -> ServerDef | None:
         """Config-declared servers first (they may claim an extension ahead of a built-in), then the registry."""
         extra = find_server_for_file(file_path, self._extra_servers) if self._extra_servers else None
         return extra or find_server_for_file(file_path)
@@ -244,7 +257,7 @@ class LSPService:
         """Return True iff this service should be consulted at all."""
         return self._enabled
 
-    def _broken_key(self, srv: ServerDef, file_path: str) -> Optional[_Key]:
+    def _broken_key(self, srv: ServerDef, file_path: str) -> _Key | None:
         """``(server_id, per-server root)`` broken-set key, or ``None`` when the file isn't gated in.
 
         Falls back to the workspace root when the per-server resolver fails —
@@ -323,7 +336,7 @@ class LSPService:
             return False
         return True
 
-    def _broken_retry_in(self, key: _Key) -> Optional[float]:
+    def _broken_retry_in(self, key: _Key) -> float | None:
         deadline = self._broken.get(key, math.inf)
         return None if math.isinf(deadline) else max(0.0, deadline - time.monotonic())
 
@@ -370,8 +383,8 @@ class LSPService:
                 del self._delta_baseline[next(iter(self._delta_baseline))]
 
     def get_diagnostics_sync(
-        self, file_path: str, *, delta: bool = True, timeout: Optional[float] = None,
-        line_shift: Optional[Callable[[int], Optional[int]]] = None,
+        self, file_path: str, *, delta: bool = True, timeout: float | None = None,
+        line_shift: Callable[[int], int | None] | None = None,
     ) -> _Diags:
         """Synchronously open ``file_path``, wait for diagnostics, return them.  Never raises.
 
@@ -410,7 +423,7 @@ class LSPService:
             eventlog.log_clean(server_id, file_path)
         return diags
 
-    def _apply_delta(self, file_path: str, diags: _Diags, line_shift: Optional[Callable[[int], Optional[int]]]) -> _Diags:
+    def _apply_delta(self, file_path: str, diags: _Diags, line_shift: Callable[[int], int | None] | None) -> _Diags:
         """Drop diagnostics present in the pre-write baseline, then roll the baseline forward."""
         abs_path = os.path.abspath(file_path)
         baseline = self._delta_baseline.get(abs_path) or []
@@ -465,7 +478,7 @@ class LSPService:
         self._loop.stop()
         clear_cache()
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Return a snapshot of the service for ``hermes lsp status``."""
         with self._state_lock:
             clients = [
@@ -486,14 +499,14 @@ class LSPService:
 
     # ---- async internals ----
 
-    async def _snapshot_async(self, file_path: str, budget: Optional[float] = None) -> _Diags:
+    async def _snapshot_async(self, file_path: str, budget: float | None = None) -> _Diags:
         # No fresh data for the pre-edit content → empty baseline.  Safe: the delta
         # filter then removes less, never more.  Never seed from stale stores.
         return await self._open_and_wait_async(file_path, snapshot=True, budget=budget) or []
 
     async def _open_and_wait_async(
-        self, file_path: str, *, snapshot: bool = False, budget: Optional[float] = None,
-    ) -> Optional[_Diags]:
+        self, file_path: str, *, snapshot: bool = False, budget: float | None = None,
+    ) -> _Diags | None:
         """Open + wait for FRESH diagnostics: ``[]`` = checked clean, ``None`` = no verdict in budget.
 
         Callers must not substitute stale data for either.  ``snapshot`` mode (pre-write baseline)
@@ -535,7 +548,7 @@ class LSPService:
             client = self._clients.get(self._live_key(srv, root))
         return list(client.diagnostics_for(file_path, fresh_only=True)) if client else []
 
-    async def _get_or_spawn(self, file_path: str) -> Optional[LSPClient]:
+    async def _get_or_spawn(self, file_path: str) -> LSPClient | None:
         srv = self._server_for(file_path)
         if srv is None:
             return None
@@ -599,7 +612,7 @@ class LSPService:
             await client.add_workspace_folder(root)
         return client
 
-    async def _spawn_client(self, srv: ServerDef, root: str, trusted: bool) -> Optional[LSPClient]:
+    async def _spawn_client(self, srv: ServerDef, root: str, trusted: bool) -> LSPClient | None:
         """Resolve the binary and start a client; ``None`` (after logging) when either fails."""
         ctx = ServerContext(
             workspace_root=root, install_strategy=self._install_strategy, binary_overrides=self._binary_overrides,

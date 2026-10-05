@@ -1,6 +1,5 @@
 """Suppressed automatic diagnostics retain failed jobs without invented delivery receipts."""
 import pytest
-
 from cron import executions, incidents, jobs, scheduler
 from gateway.config import GatewayConfig, Platform, PlatformConfig
 

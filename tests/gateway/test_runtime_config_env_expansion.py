@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import json
 
-import pytest
-
 import gateway.run as gateway_run
+import pytest
 
 
 def _write_config(home, body: str) -> None:

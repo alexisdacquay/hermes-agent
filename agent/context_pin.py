@@ -7,7 +7,6 @@ disagrees with what the provider is known to advertise for the model.
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -29,14 +28,17 @@ def context_pin_suffix(context_length, config_context_length) -> str:
     return " (pinned)" if is_context_pinned(context_length, config_context_length) else ""
 
 
-def advertised_context_length(model: str, base_url: str = "") -> Optional[int]:
+def advertised_context_length(model: str, base_url: str = "") -> int | None:
     """Provider-advertised window from LOCAL sources only (persistent cache learned on this
     endpoint, models.dev disk cache, hardcoded catalog). Never a network probe: users pin
     precisely when the endpoint cannot report its window, so the check must not add startup
     latency or a failing request."""
     from agent.model_metadata import (
-        DEFAULT_CONTEXT_LENGTHS, _load_model_metadata_disk_cache, _longest_key_match,
-        _strip_provider_prefix, get_cached_context_length,
+        DEFAULT_CONTEXT_LENGTHS,
+        _load_model_metadata_disk_cache,
+        _longest_key_match,
+        _strip_provider_prefix,
+        get_cached_context_length,
     )
     model = _strip_provider_prefix(str(model or ""))
     if not model:

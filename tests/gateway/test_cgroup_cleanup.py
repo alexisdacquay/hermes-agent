@@ -6,7 +6,6 @@ import os
 from pathlib import Path
 
 import pytest
-
 from gateway import cgroup_cleanup
 
 

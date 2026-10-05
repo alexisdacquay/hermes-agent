@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from agent.monitoring.emitter import MonitoringEmitter
 
+
 def test_emit_never_raises_when_disabled():
     em = MonitoringEmitter(enabled=False)
     em.emit({"event": "gateway_health", "name": "gateway.health_snapshot"})
@@ -20,7 +21,7 @@ def test_process_singleton_stays_dormant_until_subscribed():
         assert singleton.stats()["queued"] == 0
         assert singleton._started is False
 
-        subscriber = lambda _batch: None  # noqa: E731
+        subscriber = lambda _batch: None
         singleton.subscribe(subscriber)
         emitter.emit({"event": "gateway_health", "name": "gateway.lifecycle"})
         assert singleton._started is True
@@ -31,7 +32,7 @@ def test_process_singleton_stays_dormant_until_subscribed():
 def test_unsubscribe_stops_delivery():
     em = MonitoringEmitter()
     seen: list = []
-    cb = lambda batch: seen.extend(batch)  # noqa: E731
+    cb = lambda batch: seen.extend(batch)
     em.subscribe(cb)
     em.emit({"event": "gateway_health", "name": "a"})
     em.flush()

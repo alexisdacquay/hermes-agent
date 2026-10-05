@@ -40,8 +40,8 @@ import json
 import os
 import sys
 import tempfile
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 # Env var the orchestrator sets to the re-seed payload. Deliberately DISTINCT
 # from HERMES_AUTH_JSON_BOOTSTRAP (create-only, blank-volume seed) so the two
@@ -72,7 +72,7 @@ def _nous_entry_is_terminal(nous_state: Any) -> bool:
     return True
 
 
-def _extract_nous_from_seed(seed_raw: str) -> Optional[dict]:
+def _extract_nous_from_seed(seed_raw: str) -> dict | None:
     """Pull the ``providers.nous`` block out of a HERMES_AUTH_JSON_REBOOTSTRAP
     payload. The payload is a full auth.json document (same shape as
     HERMES_AUTH_JSON_BOOTSTRAP). Returns None unless it carries the expected VPS
@@ -102,7 +102,7 @@ def _extract_nous_from_seed(seed_raw: str) -> Optional[dict]:
     return nous
 
 
-def _parse_timestamp(value: Any) -> Optional[datetime]:
+def _parse_timestamp(value: Any) -> datetime | None:
     """Parse an OAuth timestamp without guessing when either side is malformed."""
     if not isinstance(value, str) or not value.strip():
         return None
@@ -113,7 +113,7 @@ def _parse_timestamp(value: Any) -> Optional[datetime]:
     if parsed.tzinfo is None:
         return None
     try:
-        return parsed.astimezone(timezone.utc)
+        return parsed.astimezone(UTC)
     except (OverflowError, ValueError):
         return None
 

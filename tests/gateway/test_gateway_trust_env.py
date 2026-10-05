@@ -1,7 +1,7 @@
 """gateway.trust_env — one config key controls aiohttp proxy-env honoring at every adapter site (#48820)."""
 import pytest
-
 from gateway.platforms import base as gw_base
+
 
 def _write_config(tmp_path, monkeypatch, body: str) -> None:
     # load_config caches on (path, mtime) — a fresh tmp HERMES_HOME per test is a fresh cache key.
@@ -31,7 +31,11 @@ class TestResolveProxyUrlMultiplexScope:
     Telegram, Discord, Mattermost, Matrix, SMS, and Slack)."""
 
     def test_scoped_profile_uses_its_own_value(self, monkeypatch):
-        from agent.secret_scope import reset_secret_scope, set_multiplex_active, set_secret_scope
+        from agent.secret_scope import (
+            reset_secret_scope,
+            set_multiplex_active,
+            set_secret_scope,
+        )
 
         monkeypatch.setenv("DISCORD_PROXY", "http://default-profile-proxy:8080")
         monkeypatch.delenv("NO_PROXY", raising=False)
@@ -46,7 +50,11 @@ class TestResolveProxyUrlMultiplexScope:
             set_multiplex_active(False)
 
     def test_scoped_profile_without_own_value_does_not_borrow_default(self, monkeypatch):
-        from agent.secret_scope import reset_secret_scope, set_multiplex_active, set_secret_scope
+        from agent.secret_scope import (
+            reset_secret_scope,
+            set_multiplex_active,
+            set_secret_scope,
+        )
 
         monkeypatch.setenv("DISCORD_PROXY", "http://default-profile-proxy:8080")
         monkeypatch.delenv("NO_PROXY", raising=False)

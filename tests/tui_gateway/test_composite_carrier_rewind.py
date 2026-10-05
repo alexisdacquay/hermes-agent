@@ -6,11 +6,10 @@ import threading
 from types import SimpleNamespace
 
 import pytest
-
 from agent.context_compressor import (
+    _SUMMARY_END_MARKER,
     HISTORICAL_TASK_HEADING,
     SUMMARY_PREFIX,
-    _SUMMARY_END_MARKER,
 )
 from hermes_state import SessionDB
 from tui_gateway import server

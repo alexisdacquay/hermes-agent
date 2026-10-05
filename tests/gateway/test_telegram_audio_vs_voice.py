@@ -15,7 +15,6 @@ These tests confirm that:
 from unittest.mock import patch
 
 import pytest
-
 from gateway.config import GatewayConfig, Platform
 from gateway.platforms.event import MessageEvent, MessageType
 from gateway.run import GatewayRunner
@@ -94,16 +93,15 @@ async def test_audio_attachment_context_note_format():
     with patch(
         "tools.transcription_tools.transcribe_audio",
         side_effect=AssertionError("must not be called"),
+    ), patch(
+        "tools.credential_files.to_agent_visible_cache_path",
+        side_effect=lambda p: p,
     ):
-        with patch(
-            "tools.credential_files.to_agent_visible_cache_path",
-            side_effect=lambda p: p,
-        ):
-            result = await runner._prepare_inbound_message_text(
-                event=event,
-                source=source,
-                history=[],
-            )
+        result = await runner._prepare_inbound_message_text(
+            event=event,
+            source=source,
+            history=[],
+        )
 
     # STT must not run (transcribe_audio raises); the agent sees the file path.
     assert "my_song.mp3" in result

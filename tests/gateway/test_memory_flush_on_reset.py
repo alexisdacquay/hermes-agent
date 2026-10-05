@@ -18,15 +18,11 @@ The fix: in ``_cleanup_agent_resources``, call
 """
 import time
 from types import SimpleNamespace
-from unittest.mock import MagicMock, call
 
-import pytest
-
+import agent.memory_manager as _mm_module
 from agent.memory_manager import MemoryManager
 from agent.memory_provider import MemoryProvider
-import agent.memory_manager as _mm_module
 from gateway.run import GatewayRunner
-
 
 # How long the "gate" write occupies the single background worker. Chosen so a
 # queued write reliably stays PENDING behind it for the duration of the test

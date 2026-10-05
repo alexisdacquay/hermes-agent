@@ -22,7 +22,7 @@ import sys
 import time
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 # Allow importing from repo root
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -31,13 +31,13 @@ sys.path.insert(0, REPO_ROOT)
 # Ensure HERMES_HOME is set (needed by tools/skills_hub*.py imports)
 os.environ.setdefault("HERMES_HOME", os.path.join(os.path.expanduser("~"), ".hermes"))
 
+import httpx
 from tools.skills_hub_clawhub import ClawHubSource
 from tools.skills_hub_github import GitHubAuth, GitHubSource
 from tools.skills_hub_models import SkillMeta
 from tools.skills_hub_official import OptionalSkillSource
 from tools.skills_hub_skillssh import SkillsShSource
 from tools.skills_hub_sources import BrowseShSource, LobeHubSource, WellKnownSkillSource
-import httpx
 
 OUTPUT_PATH = os.path.join(REPO_ROOT, "website", "static", "api", "skills-index.json")
 INDEX_VERSION = 1
@@ -441,7 +441,7 @@ def main():
     # Healthy — only now write the index out for the docs build to consume.
     index = {
         "version": INDEX_VERSION,
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "skill_count": len(deduped),
         "skills": deduped,
     }

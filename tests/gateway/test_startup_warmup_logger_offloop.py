@@ -12,7 +12,6 @@ import threading
 import time
 
 import pytest
-
 from gateway.run_startup import GatewayStartupMixin
 
 

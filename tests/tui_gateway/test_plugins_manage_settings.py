@@ -6,7 +6,6 @@ plugin's schema with the current values, and ``settings`` writes through the sam
 """
 
 import pytest
-
 from tui_gateway import server
 
 MANIFEST = """\

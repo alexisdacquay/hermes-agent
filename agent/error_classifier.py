@@ -12,8 +12,9 @@ import json
 import logging
 import re
 import time
+from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Iterator, Optional, Sequence
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -71,11 +72,11 @@ class ClassifiedError:
     """Structured classification of an API error with recovery hints."""
 
     reason: FailoverReason
-    status_code: Optional[int] = None
-    provider: Optional[str] = None
-    model: Optional[str] = None
+    status_code: int | None = None
+    provider: str | None = None
+    model: str | None = None
     message: str = ""
-    error_context: Dict[str, Any] = field(default_factory=dict)
+    error_context: dict[str, Any] = field(default_factory=dict)
 
     # Recovery hints — the retry loop checks these instead of re-classifying.
     retryable: bool = True
@@ -326,7 +327,7 @@ _REQUEST_VALIDATION_PATTERNS = (
 # A rejection from any other host means the provider's gateway injected the
 # field itself: a server-side flake, not our request shape. prompt_cache_retention
 # is only sent for api.meta.ai / bedrock-mantle (agent/transports/codex.py).
-_SERVER_INJECTED_PARAM_SENDERS: Dict[str, tuple] = {
+_SERVER_INJECTED_PARAM_SENDERS: dict[str, tuple] = {
     "prompt_cache_retention": ("meta", "muse", "msl", "model-api", "bedrock", "mantle"),
 }
 _PARAM_REJECTION_WORDS = ("not supported", "unsupported", "unknown", "unrecognized")
@@ -449,7 +450,7 @@ _UPSTREAM_BLOCKED_PATTERNS = (
 # ordered ``(patterns, verdict)`` pairs matched first-hit; ``verdict`` may be
 # a callable of the error message.
 
-Verdict = Dict[str, Any]
+Verdict = dict[str, Any]
 
 
 def _v(reason: FailoverReason, **hints: Any) -> Verdict:
@@ -571,13 +572,13 @@ def is_reasoning_field_rejection(error_msg: str) -> bool:
 
 def _billing_hints(error_msg: str) -> Verdict:
     """Billing verdict carrying the #82154 ambiguity marker when applicable."""
-    ctx: Dict[str, Any] = {}
+    ctx: dict[str, Any] = {}
     if any(p in error_msg for p in _UNVERIFIED_BILLING_PATTERNS):
         ctx = {"billing_unverified": True, "possible_content_filter": True}
     return {**_V_BILLING, "error_context": ctx}
 
 
-def _first_match(error_msg: str, rules: Sequence[tuple[Sequence[str], Any]]) -> Optional[Verdict]:
+def _first_match(error_msg: str, rules: Sequence[tuple[Sequence[str], Any]]) -> Verdict | None:
     """Verdict of the first rule whose pattern list hits ``error_msg``."""
     for patterns, verdict in rules:
         if any(p in error_msg for p in patterns):
@@ -636,7 +637,7 @@ _MESSAGE_TAIL_RULES = (
 
 # Structured error code → verdict. The error-code rate_limit verdict rotates
 # but does not set should_fallback (unlike the message/status paths).
-_ERROR_CODE_VERDICTS: Dict[str, Verdict] = {
+_ERROR_CODE_VERDICTS: dict[str, Verdict] = {
     **dict.fromkeys(("resource_exhausted", "throttled", "rate_limit_exceeded"),
                     _v(_R.rate_limit, should_rotate_credential=True)),
     **dict.fromkeys(_BILLING_ERROR_CODES, _V_BILLING),
@@ -653,7 +654,7 @@ _ERROR_CODE_VERDICTS: Dict[str, Verdict] = {
 # to the family key before lookup.
 _PROVIDER_CODE_FAMILIES = {"openai-codex": "openai", "google": "gemini", "google-gemini": "gemini",
                            "google-ai-studio": "gemini", "vertex": "gemini", "google-vertex": "gemini"}
-_PROVIDER_CODE_VERDICTS: Dict[str, Dict[str, Verdict]] = {
+_PROVIDER_CODE_VERDICTS: dict[str, dict[str, Verdict]] = {
     "openai": {"server_error": _V_SERVER_ERROR},
     "gemini": {"unavailable": _V_OVERLOADED, "deadline_exceeded": _V_TIMEOUT, "internal": _V_SERVER_ERROR},
     "anthropic": {"api_error": _V_SERVER_ERROR, "rate_limit_error": _V_RATE_LIMIT},
@@ -673,7 +674,7 @@ class _Ctx:
     """Everything the classifier stages need about one failed call."""
 
     error: Exception
-    status_code: Optional[int]
+    status_code: int | None
     body: dict
     msg: str  # lowercased str(error) + body message(s)
     provider: str  # as passed by the caller
@@ -699,7 +700,7 @@ class _Ctx:
         )
 
 
-def _plugin_verdict(c: _Ctx) -> Optional[Verdict]:
+def _plugin_verdict(c: _Ctx) -> Verdict | None:
     """First valid plugin classification (runs before the built-in pipeline so a
     provider plugin can add or correct verdicts). invoke_hook isolates callback
     failures; this guard only covers import/dispatch failure."""
@@ -719,7 +720,7 @@ def _plugin_verdict(c: _Ctx) -> Optional[Verdict]:
     return verdict
 
 
-def _profile_verdict(c: _Ctx) -> Optional[Verdict]:
+def _profile_verdict(c: _Ctx) -> Verdict | None:
     """The current provider's own ``ProviderProfile.classify_api_error`` verdict, or None.
 
     A ``kind: model-provider`` plugin never enters the PluginManager hook lifecycle, so without this a
@@ -780,7 +781,7 @@ _WELCOME_403_NAMED_PATTERNS = _CONTENT_POLICY_BLOCKED_PATTERNS + tuple(
     p for p in _BILLING_PATTERNS if p not in _FREE_TIER_REFUSAL_PATTERNS)
 
 
-def _nous_welcome_tier(c: _Ctx) -> Optional[Verdict]:
+def _nous_welcome_tier(c: _Ctx) -> Verdict | None:
     """The Nous inference gateway's welcome-tier (free tier) refusals, read from the structured body.
 
     A 429 carrying a fairshare ``reason`` is either a tier gate (``model_not_free`` /
@@ -791,7 +792,10 @@ def _nous_welcome_tier(c: _Ctx) -> Optional[Verdict]:
     The parsed refusal rides ``error_context`` so the terminal copy can say what happened.
     """
     from hermes_cli.anon_auth import (
-        WELCOME_TIER_GATE_REASONS, parse_welcome_refusal, welcome_route_refusal)
+        WELCOME_TIER_GATE_REASONS,
+        parse_welcome_refusal,
+        welcome_route_refusal,
+    )
     status = c.status_code
     if not c.anonymous:
         # A named credential's fairshare 429 is an ordinary rate limit, whatever its body says. The
@@ -823,7 +827,7 @@ def _nous_welcome_tier(c: _Ctx) -> Optional[Verdict]:
     return _v(_R.format_error, retryable=False, should_fallback=True, error_context=ctx)
 
 
-def _provider_special_cases(c: _Ctx) -> Optional[Verdict]:
+def _provider_special_cases(c: _Ctx) -> Verdict | None:
     """Highest-priority provider-specific shapes that a status code would misroute."""
     msg, status = c.msg, c.status_code
     welcome = _nous_welcome_tier(c)
@@ -877,7 +881,7 @@ def _provider_special_cases(c: _Ctx) -> Optional[Verdict]:
     return None
 
 
-def _moa_special_cases(c: _Ctx) -> Optional[Verdict]:
+def _moa_special_cases(c: _Ctx) -> Verdict | None:
     # Local MoA streaming adapter-shape bugs are not a provider outage; falling
     # back would silently replace the MoA route with a single model (#55933).
     if c.provider_slug == "moa" and any(s in str(c.error) for s in _MOA_ADAPTER_SHAPE_BUGS):
@@ -887,7 +891,7 @@ def _moa_special_cases(c: _Ctx) -> Optional[Verdict]:
     return _v(_R.model_not_found, retryable=False) if isinstance(c.error, MoAPresetNotFoundError) else None
 
 
-def _by_error_code(c: _Ctx) -> Optional[Verdict]:
+def _by_error_code(c: _Ctx) -> Verdict | None:
     """Structured error codes from the response body."""
     # Request-validation failure as plain-text ``event: error`` SSE data behind
     # HTTP 200: retrying cannot succeed, a configured fallback still may.
@@ -900,7 +904,7 @@ def _by_error_code(c: _Ctx) -> Optional[Verdict]:
     return verdict
 
 
-def _by_message(c: _Ctx) -> Optional[Verdict]:
+def _by_message(c: _Ctx) -> Verdict | None:
     """Message patterns when no status code settled it; status-less usage
     limits get the same disambiguation as 402."""
     head = _first_match(c.msg, _MESSAGE_HEAD_RULES)
@@ -910,7 +914,7 @@ def _by_message(c: _Ctx) -> Optional[Verdict]:
     return _classify_402(c.msg, dict) if usage_limit else _first_match(c.msg, _MESSAGE_TAIL_RULES)
 
 
-def _by_transport(c: _Ctx) -> Optional[Verdict]:
+def _by_transport(c: _Ctx) -> Verdict | None:
     """SSL, disconnect, circuit-breaker and transport-type heuristics, in that order."""
     msg = c.msg
     # Cert failure → fail fast (checked first: also contains "[ssl:"); transient
@@ -944,7 +948,7 @@ def _by_transport(c: _Ctx) -> Optional[Verdict]:
     return _V_TIMEOUT if transport else None
 
 
-def _by_status(c: _Ctx) -> Optional[Verdict]:
+def _by_status(c: _Ctx) -> Verdict | None:
     """HTTP status code with message-aware refinement (unlisted 4xx/5xx → generic)."""
     status = c.status_code
     if status is None:
@@ -956,7 +960,7 @@ def _by_status(c: _Ctx) -> Optional[Verdict]:
 # Stage order: plugin hooks → the provider's own profile hook → provider-specific special cases →
 # HTTP status → MoA shapes → structured error code → message patterns → SSL → disconnect +
 # large session → transport types → unknown (retryable with backoff).
-_STAGES: Sequence[Callable[[_Ctx], Optional[Verdict]]] = (
+_STAGES: Sequence[Callable[[_Ctx], Verdict | None]] = (
     _plugin_verdict, _profile_verdict, _provider_special_cases, _by_status, _moa_special_cases,
     _by_error_code, _by_message, _by_transport,
 )
@@ -1214,7 +1218,7 @@ def _classify_image_tool_422(c: _Ctx) -> Verdict:
 # check, then the client-error abort path (fallback first) is correct. 408 is
 # retry-safe (RFC 9110 §15.5.9; proxies emit it when generation outruns the
 # read window). Unlisted 4xx → format_error, 5xx → server_error.
-_STATUS_HANDLERS: Dict[int, Callable[[_Ctx], Verdict]] = {
+_STATUS_HANDLERS: dict[int, Callable[[_Ctx], Verdict]] = {
     400: _classify_400, 401: lambda c: _V_AUTH_ROTATE, 402: lambda c: _classify_402(c.msg, dict),
     403: _status_403, 404: _status_404, 408: lambda c: _V_TIMEOUT, 413: lambda c: _V_PAYLOAD_TOO_LARGE,
     422: lambda c: _classify_image_tool_422(c),
@@ -1242,7 +1246,7 @@ def _has_usage_limit_transient_signal(error_msg: str, body: dict, response_heade
     return False
 
 
-def _rate_limit_reset_seconds(error_msg: str, body: dict, response_headers) -> Optional[float]:
+def _rate_limit_reset_seconds(error_msg: str, body: dict, response_headers) -> float | None:
     """Seconds until a 429's window reopens, from the body's reset fields, ``Retry-After`` or the
     message grammar (``retry after Ns`` / ``resets in 4hr``); None when the response names none."""
     from agent.retry_utils import parse_retry_after_seconds, reset_delay_from_message
@@ -1293,7 +1297,7 @@ _CODEX_MASKED_REPLAY_MESSAGE = "request blocked."
 _CODEX_UNSUPPORTED_CONTENT_DETAIL = "unsupported content type"
 
 
-def _is_codex_masked_replay_rejection(c: "_Ctx") -> bool:
+def _is_codex_masked_replay_rejection(c: _Ctx) -> bool:
     """HTTP 400 / status-less ``{code: invalid_prompt, message: "Request blocked."}`` from
     ``openai-codex`` — as an SDK error body, a Responses ``error`` SSE frame, or the
     ``response.failed`` text ``"invalid_prompt: Request blocked."`` — or the bare
@@ -1319,7 +1323,7 @@ def _error_obj(body: Any) -> dict:
     return err if isinstance(err, dict) else {}
 
 
-def _json_dict(text: Any) -> Optional[dict]:
+def _json_dict(text: Any) -> dict | None:
     """Parse a JSON object string; None for non-strings, blanks, invalid JSON or non-objects."""
     if not (isinstance(text, str) and text.strip()):
         return None
@@ -1383,7 +1387,7 @@ def _from_cause_chain(error: Exception, pick: Callable[[Any], Any], default: Any
     return default
 
 
-def _status_of(exc: Any) -> Optional[int]:
+def _status_of(exc: Any) -> int | None:
     code = getattr(exc, "status_code", None)
     if isinstance(code, int):
         return code
@@ -1391,7 +1395,7 @@ def _status_of(exc: Any) -> Optional[int]:
     return code if isinstance(code, int) and 100 <= code < 600 else None
 
 
-def _body_of(exc: Any) -> Optional[dict]:
+def _body_of(exc: Any) -> dict | None:
     body = getattr(exc, "body", None)
     if isinstance(body, dict):
         return body
@@ -1408,7 +1412,7 @@ def _headers_of(exc: Any) -> Any:
     return headers if headers and hasattr(headers, "get") else None
 
 
-def _status_code_from_body(body: Any) -> Optional[int]:
+def _status_code_from_body(body: Any) -> int | None:
     """Numeric HTTP error status (400-599) from ``error.code``/``code`` in a structured body.
     An aggregator/relay can deliver the upstream failure only this way — as an
     error object inside an HTTP-200 SSE stream — leaving the SDK to raise a
@@ -1425,7 +1429,7 @@ def _status_code_from_body(body: Any) -> Optional[int]:
     )
 
 
-def _extract_status_code(error: Exception) -> Optional[int]:
+def _extract_status_code(error: Exception) -> int | None:
     """HTTP status code from the error or its cause chain; a body-carried numeric
     ``code`` counts when the exception itself carries no status (#121270)."""
     status = _from_cause_chain(error, _status_of, None)
@@ -1488,7 +1492,7 @@ def _is_openrouter_upstream_error(body: Any, provider: str) -> bool:
     return isinstance(metadata, dict) and ("raw" in metadata or "provider_name" in metadata)
 
 
-def _extract_upstream_provider_name(body: Any) -> Optional[str]:
+def _extract_upstream_provider_name(body: Any) -> str | None:
     """Pull the upstream provider name out of OpenRouter's error metadata."""
     metadata = _error_obj(body).get("metadata")
     name = metadata.get("provider_name") if isinstance(metadata, dict) else None

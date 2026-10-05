@@ -13,9 +13,8 @@ answer is identical on every connection topology.
 """
 
 import pytest
-
-import tui_gateway.server as server
 from toolsets import TOOLSETS
+from tui_gateway import server
 
 GUI_TOOLS = {
     "annotate_preview",

@@ -18,7 +18,6 @@ import stat
 import sys
 
 import pytest
-
 from gateway.platforms.webhook import WebhookAdapter
 
 
@@ -60,7 +59,7 @@ class TestGithubCommentDeliveryOffLoop:
         stop = True
         try:
             await asyncio.wait_for(task, timeout=2)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             task.cancel()
 
         assert result.success is True

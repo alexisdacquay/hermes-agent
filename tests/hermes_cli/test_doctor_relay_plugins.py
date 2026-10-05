@@ -5,7 +5,6 @@ Hermes surface that shows a user which files apply. It must agree with what init
 """
 
 import pytest
-
 from agent import relay_runtime
 from hermes_cli.doctor_config import _check_relay_plugins
 

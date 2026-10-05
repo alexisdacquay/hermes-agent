@@ -5,7 +5,6 @@ import subprocess
 import sys
 
 import pytest
-
 from hermes_state_holders import foreign_state_db_holders, held_store_refusal
 
 pytestmark = pytest.mark.platforms("windows")

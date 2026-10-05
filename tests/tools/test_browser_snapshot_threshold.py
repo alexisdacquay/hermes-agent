@@ -4,7 +4,6 @@ import json
 from unittest.mock import Mock
 
 import pytest
-
 from hermes_cli.config import DEFAULT_CONFIG
 from tools import browser_camofox, browser_tool
 from tools import browser_tool_cloud as bt_cloud

@@ -6,16 +6,25 @@ Split out of ``hermes_cli/model_switch.py``; every moved name is re-imported the
 
 from __future__ import annotations
 
-import logging
 import http.client
+import logging
 import os
-import time
 import threading as _threading
+import time
 from dataclasses import dataclass, field
-from typing import Any, List, Optional
-from agent.command_token_source import build_command_token_provider, materialize_probe_api_key
-from hermes_cli.providers import custom_provider_aliases, custom_provider_slug, get_label
+from typing import Any
+
+from agent.command_token_source import (
+    build_command_token_provider,
+    materialize_probe_api_key,
+)
 from utils import base_url_host_matches
+
+from hermes_cli.providers import (
+    custom_provider_aliases,
+    custom_provider_slug,
+    get_label,
+)
 
 # Log-record parity with the origin module.
 logger = logging.getLogger("hermes_cli.model_switch")
@@ -27,8 +36,8 @@ _UNCAPPED_PICKER_PROVIDERS: frozenset[str] = frozenset({"opencode-zen", "opencod
 
 
 def _save_discovered_models_to_config(
-    api_url: str, model_ids: list[str], *, api_mode: Optional[str] = None,
-    headers: Optional[dict[str, str]] = None, credential_identity: str | None = None) -> None:
+    api_url: str, model_ids: list[str], *, api_mode: str | None = None,
+    headers: dict[str, str] | None = None, credential_identity: str | None = None) -> None:
     """Persist a successful ``/v1/models`` probe into the matching ``custom_providers`` entry.
 
     Matches by base_url (slash-normalised), api_mode and headers. A failed config write is
@@ -94,7 +103,11 @@ def _fetch_picker_live_models(
     headers: dict[str, str] | None = None, timeout: float = 5.0,
     api_mode: str | None = None, *, cache: bool = True) -> list[str] | None:
     """Fetch picker models with native Ollama and cached generic discovery."""
-    from hermes_cli.models import _get_ollama_native_headers, cached_fetch_api_models, fetch_api_models
+    from hermes_cli.models import (
+        _get_ollama_native_headers,
+        cached_fetch_api_models,
+        fetch_api_models,
+    )
     from hermes_cli.models_local import (
         _OLLAMA_LOCAL_MODELS_CACHE_TTL,
         _normalize_openai_base_url,
@@ -183,7 +196,7 @@ def _credential_pool_is_usable(provider: str, *, raw_pool_present: bool = False,
     return raw_pool_present
 
 
-def prewarm_picker_cache_async() -> Optional["_threading.Thread"]:
+def prewarm_picker_cache_async() -> _threading.Thread | None:
     """Warm ``provider_models_cache.json`` in a daemon thread by running the picker path once.
 
     The first ``/model`` open (or the first after the 1h TTL) otherwise blocks ~1-2s on serial
@@ -223,8 +236,12 @@ def _prefetch_provider_models_parallel(provider_slugs: list[str]) -> None:
     through the thread-safe ``update_provider_cache_entry`` so concurrent writes cannot
     clobber each other."""
     from hermes_cli.models import (
-        _credential_fingerprint, _disk_serve_tier, _load_provider_models_cache,
-        _normalized_cache_slug, cached_provider_model_ids)
+        _credential_fingerprint,
+        _disk_serve_tier,
+        _load_provider_models_cache,
+        _normalized_cache_slug,
+        cached_provider_model_ids,
+    )
 
     now = time.time()
 
@@ -279,6 +296,7 @@ def _iter_builtin_candidates(models_dev_data: dict, excluded: set, seen: set):
     profile ("kimi" -> "kimi-coding"), non-api_key auth types (section 2 handles them) and
     unroutable providers. PROVIDER_REGISTRY env var names win over models.dev's."""
     from agent.models_dev import PROVIDER_TO_MODELS_DEV
+
     from hermes_cli.auth import PROVIDER_REGISTRY, is_runtime_provider_routable
     from hermes_cli.models import _AGGREGATOR_PROVIDERS
     from hermes_cli.providers import ALIASES
@@ -415,8 +433,12 @@ def _live_or_curated_ids(slug: str, curated: dict, *fallback_keys: str, merge_mo
     back to the curated list (merged with models.dev for preferred providers) when live is empty.
     ``non_blocking`` (GUI read path) reads the disk cache only — a provider that is slow or down
     contributes its curated list instead of stalling the whole picker (#114215)."""
-    from hermes_cli.models import _MODELS_DEV_PREFERRED, _merge_with_models_dev, cached_provider_model_ids
     from hermes_cli.chat_catalog import without_generation_models
+    from hermes_cli.models import (
+        _MODELS_DEV_PREFERRED,
+        _merge_with_models_dev,
+        cached_provider_model_ids,
+    )
 
     model_ids = cached_provider_model_ids(slug, non_blocking=non_blocking)
     if not model_ids:
@@ -454,13 +476,13 @@ def _nous_picker_model_ids(curated: dict, force_fresh_nous_tier: bool) -> list:
     recommendation fetch still yields a policy-filtered curated list."""
     model_ids = curated.get("nous", [])
     try:
-        from hermes_cli.models_pricing import get_pricing_for_provider
+        from hermes_cli.auth import get_provider_auth_state
         from hermes_cli.models import (
             check_nous_free_tier,
             union_with_portal_free_recommendations,
             union_with_portal_paid_recommendations,
         )
-        from hermes_cli.auth import get_provider_auth_state
+        from hermes_cli.models_pricing import get_pricing_for_provider
         # Cache-only: both Portal unions below discard the pricing map (``model_ids, _ = ...``);
         # only the appended ids matter, so a live catalog fetch here buys nothing but latency.
         pricing = get_pricing_for_provider("nous", cached_only=True) or {}
@@ -475,7 +497,10 @@ def _nous_picker_model_ids(curated: dict, force_fresh_nous_tier: bool) -> list:
     except Exception:
         pass
     try:
-        from hermes_cli.models_pricing import nous_policy_allowed_ids, restrict_to_nous_policy
+        from hermes_cli.models_pricing import (
+            nous_policy_allowed_ids,
+            restrict_to_nous_policy,
+        )
         model_ids = restrict_to_nous_policy(model_ids, nous_policy_allowed_ids(), rescue_empty=True)
     except Exception:
         pass
@@ -520,7 +545,11 @@ def _absorb_entry_models(grp: dict, entry: dict, active_model: Any) -> None:
     ``models:`` ids. The active selection alone never suppresses discovery, and a dict-shaped
     ``models:`` is metadata rather than an allowlist (see ``_models_config_is_allowlist``), so only
     list/string shapes pin the row."""
-    from hermes_cli.model_switch import _declared_model_ids, _entry_models_discovered, _models_config_is_allowlist
+    from hermes_cli.model_switch import (
+        _declared_model_ids,
+        _entry_models_discovered,
+        _models_config_is_allowlist,
+    )
     _extend_unique(grp["models"], [active_model])
     models_field = entry.get("models")
     if _models_config_is_allowlist(models_field, _entry_models_discovered(entry)):
@@ -648,11 +677,12 @@ def _collect_authed_provider_slugs(
     but never calls ``cached_provider_model_ids``; feeds :func:`_prefetch_provider_models_parallel`.
     Env vars are read through the per-profile secret scope. AWS SDK providers are skipped
     (heavier detection)."""
-    from hermes_cli.model_switch import _scoped_key_env
     from agent.models_dev import PROVIDER_TO_MODELS_DEV
+
     from hermes_cli.auth import PROVIDER_REGISTRY
-    from hermes_cli.providers import HERMES_OVERLAYS
+    from hermes_cli.model_switch import _scoped_key_env
     from hermes_cli.models import CANONICAL_PROVIDERS
+    from hermes_cli.providers import HERMES_OVERLAYS
     excluded_set = {str(p).strip().lower() for p in excluded if p}
     slugs: list[str] = []
     seen: set[str] = set()
@@ -834,8 +864,9 @@ def _lap_lmstudio_row(b: _PickerBuild, user_providers: dict) -> None:
 
 def _lap_builtin_rows(b: _PickerBuild, data: dict, user_providers: dict) -> None:
     """Section 1: models.dev-mapped providers with api_key auth."""
-    from hermes_cli.model_switch import _declared_model_ids, _scoped_key_env
     from agent.models_dev import get_provider_info
+
+    from hermes_cli.model_switch import _declared_model_ids, _scoped_key_env
     for hermes_id, mdev_id, pconfig, env_vars in _iter_builtin_candidates(data, b.excluded, b.seen_slugs):
         # Per-profile scope, never raw os.environ: a secondary profile's picker otherwise listed the
         # LAUNCH profile's env-keyed providers and hid its own .env-keyed ones.
@@ -888,7 +919,10 @@ def _overlay_has_creds(b: _PickerBuild, pid: str, hermes_slug: str, overlay) -> 
         # The pool gates anthropic behind is_provider_explicitly_configured() (aux tasks must not
         # consume Claude Code tokens); the picker is discovery-oriented, so read the files directly.
         try:
-            from agent.anthropic_credentials import read_claude_code_credentials, read_hermes_oauth_credentials
+            from agent.anthropic_credentials import (
+                read_claude_code_credentials,
+                read_hermes_oauth_credentials,
+            )
             hermes_creds = read_hermes_oauth_credentials()
             cc_creds = read_claude_code_credentials()
             if (hermes_creds and hermes_creds.get("accessToken")) or (cc_creds and cc_creds.get("accessToken")):
@@ -901,6 +935,7 @@ def _overlay_has_creds(b: _PickerBuild, pid: str, hermes_slug: str, overlay) -> 
 def _lap_overlay_rows(b: _PickerBuild, data: dict, user_providers: dict) -> None:
     """Section 2: Hermes-only providers (nous, openai-codex, copilot, opencode-go, ...)."""
     from agent.models_dev import PROVIDER_TO_MODELS_DEV
+
     from hermes_cli.model_switch import _declared_model_ids
     from hermes_cli.providers import HERMES_OVERLAYS
 
@@ -985,8 +1020,8 @@ def _lap_user_provider_rows(b: _PickerBuild, user_providers: dict) -> None:
     extra_headers) so keyed providers on one endpoint with the same wire protocol collapse into
     one row (two Palantir Claude entries -> one "Palantir Claude" row); a different
     key_env/api_mode/headers keeps distinct rows since the wire protocol or tenant differs."""
-    from hermes_cli.model_switch import _extra_headers_from_config, _scoped_key_env
     from hermes_cli.config import coerce_provider_id, is_provider_enabled
+    from hermes_cli.model_switch import _extra_headers_from_config, _scoped_key_env
     ep_groups: dict[tuple, dict] = {}
     for ep_name, ep_cfg in user_providers.items():
         if not isinstance(ep_cfg, dict) or not is_provider_enabled(ep_cfg) or ep_name.lower() in b.seen_slugs:
@@ -1072,8 +1107,8 @@ def _lap_custom_provider_rows(b: _PickerBuild, custom_providers: list) -> None:
     (endpoint, credential identity, api_mode, extra_headers, display prefix). Four "Ollama — X"
     entries on one host become one "Ollama" row; distinct prefixes sharing a proxy URL keep
     their own rows."""
-    from hermes_cli.model_switch import _extra_headers_from_config, _scoped_key_env
     from hermes_cli.config import coerce_provider_id
+    from hermes_cli.model_switch import _extra_headers_from_config, _scoped_key_env
     groups: dict[tuple, dict] = {}
     for entry in custom_providers:
         if not isinstance(entry, dict):
@@ -1153,7 +1188,11 @@ def _build_curated_lists(current_provider: str, current_base_url: str, current_m
     """Curated model lists keyed by hermes provider id, plus the dynamic ones (nous manifest,
     Ollama Cloud, LM Studio live probe). ``non_blocking`` (GUI read path) takes cached Ollama Cloud
     ids and warms them in the background rather than waiting on an 8s probe (#114215)."""
-    from hermes_cli.models import OPENROUTER_MODELS, _PROVIDER_MODELS, get_curated_nous_model_ids
+    from hermes_cli.models import (
+        _PROVIDER_MODELS,
+        OPENROUTER_MODELS,
+        get_curated_nous_model_ids,
+    )
     curated: dict[str, list[str]] = dict(_PROVIDER_MODELS)
     curated["openrouter"] = [mid for mid, _ in OPENROUTER_MODELS]
     # Plugin profiles without a static row: their fallback_models are the curated floor, so the
@@ -1175,8 +1214,8 @@ def _build_curated_lists(current_provider: str, current_base_url: str, current_m
     # cannot be the degraded remote provider this path must never wait on.
     is_current_lmstudio = current_provider.strip().lower() == "lmstudio"
     if "lmstudio" not in curated and (os.environ.get("LM_API_KEY") or os.environ.get("LM_BASE_URL") or is_current_lmstudio):
-        from hermes_cli.models_local import fetch_lmstudio_models
         from hermes_cli.auth import AuthError
+        from hermes_cli.models_local import fetch_lmstudio_models
         lm_base = (
             os.environ.get("LM_BASE_URL")
             or (current_base_url if is_current_lmstudio and current_base_url else None)
@@ -1197,7 +1236,7 @@ def list_authenticated_providers(
     max_models: int | None = None, current_model: str = "", refresh: bool = False,
     probe_custom_providers: bool = True, probe_current_custom_provider: bool = False,
     for_picker: bool = False, excluded_providers: list | None = None,
-    non_blocking_catalogs: bool = False, fast_custom_probe: bool | None = None) -> List[dict]:
+    non_blocking_catalogs: bool = False, fast_custom_probe: bool | None = None) -> list[dict]:
     """Detect which providers have credentials and list their curated (not full models.dev) models.
 
     Returns dicts with ``slug`` (the --provider value), ``name``, ``is_current``,
@@ -1215,6 +1254,7 @@ def list_authenticated_providers(
     exhausted-pool visibility (#103843)."""
 
     from agent.models_dev import fetch_models_dev
+
     from hermes_cli.config import coerce_provider_id, stringify_provider_map
 
     non_blocking_catalogs = bool(non_blocking_catalogs)
@@ -1315,7 +1355,7 @@ def _finalize_picker_rows(results: list, user_providers, current_model: str) -> 
     return results
 
 
-def _prepend_moa_picker_provider(providers: List[dict], current_provider: str = "") -> List[dict]:
+def _prepend_moa_picker_provider(providers: list[dict], current_provider: str = "") -> list[dict]:
     """Add the virtual MoA provider row used by interactive model pickers.
 
     ``list_authenticated_providers()`` only returns real/auth-backed providers; the CLI inventory
@@ -1336,7 +1376,7 @@ def list_picker_providers(
     custom_providers: list | None = None, max_models: int | None = None, current_model: str = "",
     include_moa: bool = False, excluded_providers: list | None = None,
     non_blocking_catalogs: bool = False, probe_custom_providers: bool = True,
-    probe_current_custom_provider: bool = False) -> List[dict]:
+    probe_current_custom_provider: bool = False) -> list[dict]:
     """Interactive-picker variant of :func:`list_authenticated_providers`.
 
     OpenRouter's list is replaced with :func:`hermes_cli.models.fetch_openrouter_models` (curated
@@ -1355,7 +1395,7 @@ def list_picker_providers(
     if include_moa:
         providers = _prepend_moa_picker_provider(providers, current_provider=current_provider)
 
-    filtered: List[dict] = []
+    filtered: list[dict] = []
     for p in providers:
         if str(p.get("slug", "")).lower() == "openrouter":
             try:

@@ -10,14 +10,13 @@ provenance never leaks into this compatibility tag.
 from __future__ import annotations
 
 from contextvars import ContextVar
-from typing import List, Optional
 
 # Ambient conversation id (ATTRIBUTION value, sent as ``conversation=<id>``).
 # The agent loop publishes it at turn entry; auxiliary call sites funnelling
 # through ``auxiliary_client.call_llm`` (no session handle) pick it up via
 # ``nous_portal_tags()``. A ContextVar so concurrent agents in one process never
 # see each other's id; ``propagate_context_to_thread`` workers inherit it.
-_conversation_id: ContextVar[Optional[str]] = ContextVar("nous_portal_conversation_id", default=None)
+_conversation_id: ContextVar[str | None] = ContextVar("nous_portal_conversation_id", default=None)
 
 # Ambient affinity scope (ROUTING value): OpenRouter's sticky ``session_id``, Nous
 # Portal's sticky key and xAI's ``x-grok-conv-id`` pin a conversation to one
@@ -26,7 +25,7 @@ _conversation_id: ContextVar[Optional[str]] = ContextVar("nous_portal_conversati
 # chat (``prompt_cache_scope.declared_conversation_scope``). Only that declared value
 # is published; unset means consumers fall back to the conversation id, so delegate
 # trees keep sharing their parent's sticky key.
-_affinity_scope: ContextVar[Optional[str]] = ContextVar("hermes_affinity_scope", default=None)
+_affinity_scope: ContextVar[str | None] = ContextVar("hermes_affinity_scope", default=None)
 
 
 def _reset_var(var: ContextVar, token) -> None:
@@ -38,7 +37,7 @@ def _reset_var(var: ContextVar, token) -> None:
         var.set(None)
 
 
-def set_affinity_scope(scope: Optional[str]):
+def set_affinity_scope(scope: str | None):
     """Publish the declared routing/affinity scope; returns the ContextVar token."""
     return _affinity_scope.set(scope or None)
 
@@ -48,11 +47,11 @@ def reset_affinity_scope(token) -> None:
     _reset_var(_affinity_scope, token)
 
 
-def get_affinity_scope() -> Optional[str]:
+def get_affinity_scope() -> str | None:
     return _affinity_scope.get()
 
 
-def set_conversation_context(conversation_id: Optional[str]):
+def set_conversation_context(conversation_id: str | None):
     """Publish the active conversation id for ambient Portal tagging; returns the token.
 
     Called by the agent loop at turn entry with the session-lineage ROOT id (so
@@ -66,7 +65,7 @@ def reset_conversation_context(token) -> None:
     _reset_var(_conversation_id, token)
 
 
-def get_conversation_context() -> Optional[str]:
+def get_conversation_context() -> str | None:
     return _conversation_id.get()
 
 
@@ -82,7 +81,7 @@ def conversation_tag(session_id: str) -> str:
     return f"conversation={session_id}"
 
 
-def nous_portal_tags(session_id: str | None = None) -> List[str]:
+def nous_portal_tags(session_id: str | None = None) -> list[str]:
     """Fresh list of the canonical Nous Portal tags.
 
     The ambient conversation context (lineage ROOT id) wins over the explicit

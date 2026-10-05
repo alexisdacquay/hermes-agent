@@ -29,7 +29,6 @@ REAL cache lock, mirroring the structure used by
 import threading
 
 import pytest
-
 from hermes_state import AsyncSessionDB
 
 

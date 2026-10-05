@@ -9,13 +9,12 @@ from __future__ import annotations
 import json
 
 import pytest
-
-import pm.receipt as receipt
+from pm import receipt
 
 
 @pytest.fixture(autouse=True)
 def _isolated_receipt_context():
-    import hermes_cli.update_receipt as update_receipt
+    from hermes_cli import update_receipt
     variables = (receipt._current, receipt._completed_by_update, update_receipt._current)
     tokens = [variable.set(None) for variable in variables]
     yield
@@ -77,9 +76,9 @@ def test_begin_record_finalize_roundtrip(homed, outcome, exit_code):
 
 def test_bare_python_can_report_a_failed_bootstrap(tmp_path, monkeypatch):
     import os
-    from pathlib import Path
     import subprocess
     import sys
+    from pathlib import Path
 
     monkeypatch.setenv("HERMES_HOME", str(tmp_path / "home"))
     repo = Path(__file__).resolve().parents[2]

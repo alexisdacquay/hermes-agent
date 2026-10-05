@@ -4,9 +4,9 @@ import pytest
 
 def test_recovery_refuses_to_replace_newer_config(tmp_path, monkeypatch):
     from hermes_cli.runtime_state import recover_publication, runtime_lock
-    from pm.publication import PluginSelection
-    import pm.paths as paths
+    from pm import paths
     from pm.environments import install_state_dir
+    from pm.publication import PluginSelection
 
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
     repo = tmp_path / "repo"

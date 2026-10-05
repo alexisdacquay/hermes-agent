@@ -28,9 +28,10 @@ import json
 import threading
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Any, Callable, Union
+from typing import Any, Union
 
 from openai.types.responses import (
     Response,
@@ -51,7 +52,10 @@ from openai.types.responses import (
 )
 from openai.types.responses.response_create_params import ResponseCreateParamsStreaming
 from openai.types.responses.response_reasoning_item import Summary
-from openai.types.responses.response_usage import InputTokensDetails, OutputTokensDetails
+from openai.types.responses.response_usage import (
+    InputTokensDetails,
+    OutputTokensDetails,
+)
 from pydantic import TypeAdapter
 
 MODEL_ID = "fake-responses-model"
@@ -299,7 +303,7 @@ class FakeResponsesServer:
         self._lock = threading.Lock()
         self._server: ThreadingHTTPServer | None = None
 
-    def __enter__(self) -> "FakeResponsesServer":
+    def __enter__(self) -> FakeResponsesServer:
         server = ThreadingHTTPServer(("127.0.0.1", 0), _handler_for(self))
         server.daemon_threads = True
         self._server = server
@@ -350,14 +354,14 @@ def _handler_for(server: FakeResponsesServer) -> type[BaseHTTPRequestHandler]:
             self.end_headers()
             self.wfile.write(body)
 
-        def do_GET(self) -> None:  # noqa: N802
+        def do_GET(self) -> None:
             if self.path.rstrip("/").endswith("/models"):
                 self._json(200, {"object": "list", "data": [
                     {"id": MODEL_ID, "object": "model", "context_length": 128000}]})
                 return
             self._json(404, {"error": {"message": "not found"}})
 
-        def do_POST(self) -> None:  # noqa: N802
+        def do_POST(self) -> None:
             raw = self.rfile.read(int(self.headers.get("Content-Length", 0) or 0))
             try:
                 body = json.loads(raw or b"{}")

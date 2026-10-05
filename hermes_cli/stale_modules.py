@@ -19,7 +19,7 @@ importing ``utils``.
 from __future__ import annotations
 
 import sys
-from typing import Mapping, Sequence
+from collections.abc import Mapping, Sequence
 
 # Root modules the narrow purge left behind, keyed by attributes that must
 # exist on the on-disk copy after this release. Extend when a new root-level

@@ -5,7 +5,6 @@ import stat
 import sys
 
 import pytest
-
 from hermes_platform.resolver import ABSENT, LookupContext, locate_command
 
 

@@ -16,8 +16,9 @@ import os
 import socket
 import time
 import urllib.parse
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -43,11 +44,11 @@ _TRUTHY = {"1", "true", "yes", "on"}
 DASHBOARD_CLIENT_HEARTBEAT_REL = os.path.join("state", "dashboard_clients.heartbeat")
 
 
-def _env_str(env: Optional[dict], key: str) -> str:
+def _env_str(env: dict | None, key: str) -> str:
     return str((os.environ if env is None else env).get(key, "")).strip()
 
 
-def scale_to_zero_enabled(environ: Optional[dict] = None) -> bool:
+def scale_to_zero_enabled(environ: dict | None = None) -> bool:
     """Whether the Labs toggle stamp is set. Absent/blank/falsey -> disabled."""
     return _env_str(environ, SCALE_TO_ZERO_ENV).lower() in _TRUTHY
 
@@ -72,7 +73,7 @@ def messaging_is_relay_only_or_absent(platforms: Iterable[Any]) -> bool:
     return not names
 
 
-def should_arm(*, enabled: bool, relay_only_or_absent: bool, wake_url: Optional[str]) -> bool:
+def should_arm(*, enabled: bool, relay_only_or_absent: bool, wake_url: str | None) -> bool:
     """Arm only if ALL hold: flag on, relay-only/absent messaging, wakeUrl registered
     (a suspended instance with no wake target is a black hole). Otherwise the watcher
     never starts, so a non-opted instance behaves exactly as before."""
@@ -89,7 +90,7 @@ def is_idle(*, active_work_count: int, seconds_since_last_inbound: float,
             and seconds_since_last_inbound >= idle_timeout_seconds)
 
 
-def dashboard_client_heartbeat_path(hermes_home: Optional[os.PathLike | str] = None):
+def dashboard_client_heartbeat_path(hermes_home: os.PathLike | str | None = None):
     """Path of the dashboard-client liveness marker under HERMES_HOME."""
     if hermes_home is None:
         from hermes_constants import get_hermes_home
@@ -97,7 +98,7 @@ def dashboard_client_heartbeat_path(hermes_home: Optional[os.PathLike | str] = N
     return Path(hermes_home) / DASHBOARD_CLIENT_HEARTBEAT_REL
 
 
-def touch_dashboard_client_heartbeat(path: Optional[os.PathLike | str] = None) -> bool:
+def touch_dashboard_client_heartbeat(path: os.PathLike | str | None = None) -> bool:
     """Mark "a dashboard client is attached right now". Best-effort, never raises."""
     try:
         p = dashboard_client_heartbeat_path() if path is None else path
@@ -105,13 +106,13 @@ def touch_dashboard_client_heartbeat(path: Optional[os.PathLike | str] = None) -
         open(p, "a", encoding="utf-8").close()
         os.utime(p, None)
         return True
-    except Exception:  # noqa: BLE001 - liveness garnish must never break the WS
+    except Exception:
         logger.debug("scale-to-zero: dashboard heartbeat touch failed", exc_info=True)
         return False
 
 
-def dashboard_client_last_seen(path: Optional[os.PathLike | str] = None, *,
-                               now: Optional[float] = None) -> Optional[float]:
+def dashboard_client_last_seen(path: os.PathLike | str | None = None, *,
+                               now: float | None = None) -> float | None:
     """Epoch seconds a dashboard client last sent a WS frame, or None if never. Missing marker ->
     None (steady state when nobody has the dashboard open — NOT fail-awake, or no instance would
     ever sleep). Unreadable marker -> ``now`` (fail-awake, as in ``is_idle``). Clamped to now: an
@@ -126,7 +127,7 @@ def dashboard_client_last_seen(path: Optional[os.PathLike | str] = None, *,
         return current
 
 
-def self_suspend_available(environ: Optional[dict] = None) -> bool:
+def self_suspend_available(environ: dict | None = None) -> bool:
     """True iff Fly machine identity is present AND the local Machines API socket exists.
     Off-Fly this is False; see ``suspend_available`` for whether some OTHER lever exists
     before concluding the watcher must abstain."""
@@ -134,7 +135,7 @@ def self_suspend_available(environ: Optional[dict] = None) -> bool:
                 and os.path.exists(FLY_API_SOCKET))
 
 
-def brokered_sleep_url(environ: Optional[dict] = None) -> Optional[str]:
+def brokered_sleep_url(environ: dict | None = None) -> str | None:
     """The NAS sleep endpoint to POST, or None when this backend has no broker.
 
     Validated here rather than at POST time: a malformed value would otherwise let
@@ -161,7 +162,7 @@ def brokered_sleep_url(environ: Optional[dict] = None) -> Optional[str]:
     return url
 
 
-def suspend_available(environ: Optional[dict] = None) -> bool:
+def suspend_available(environ: dict | None = None) -> bool:
     """Whether ANY suspend lever exists, in-guest or brokered.
 
     Quiescing without one is worse than not quiescing: the re-dial clears the flip.
@@ -232,7 +233,7 @@ def request_brokered_suspend(
     return ok
 
 
-def suspend_self(environ: Optional[dict] = None, *, socket_path: str = FLY_API_SOCKET,
+def suspend_self(environ: dict | None = None, *, socket_path: str = FLY_API_SOCKET,
                  timeout: float = 10.0) -> bool:
     """POST /v1/apps/{app}/machines/{id}/suspend on the local flaps socket (the socket is the
     credential). Returns True when flaps accepted (2xx); the kernel then freezes this process

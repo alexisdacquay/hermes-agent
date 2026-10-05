@@ -38,6 +38,7 @@ def _connector_auth_error(rid, exc):
 def _connector_guard(fn):
     def handler(rid, params):
         from tools.connectors.gateway.errors import GatewayAuthError
+
         from tui_gateway.contracts.connectors import ConnectorErrorReason
 
         try:
@@ -79,6 +80,7 @@ def _session_owner(rid, owner):
 
 def _account_gate_closed(rid):
     from tools.connectors import connectors_available
+
     from tui_gateway.contracts.connectors import ConnectorErrorReason
 
     if connectors_available():
@@ -127,10 +129,11 @@ def _session_connector_gate(rid, session, action):
 
 def _session_connector_rpc(rid, request, session, action):
     import json
-    import model_tools
     import uuid
 
+    import model_tools
     from tools.connectors import live
+
     from tui_gateway.connector_payload import connector_ui_payload
     from tui_gateway.contracts.connectors import ConnectorErrorReason
 
@@ -173,6 +176,7 @@ def _session_connector_rpc(rid, request, session, action):
 
 def _connector_rows(rows):
     from tools.connectors.gateway.wire import ConnectorListItem
+
     from tui_gateway.connector_payload import connector_ui_payload
 
     return connector_ui_payload([
@@ -189,6 +193,7 @@ def _account_connector_list(rid):
 
 def _account_connector_connect(rid, request):
     from tools.connectors import account
+
     from tui_gateway.connector_payload import connector_ui_payload
     from tui_gateway.contracts.connectors import ConnectorErrorReason
 
@@ -212,7 +217,11 @@ def _account_connector_connect(rid, request):
 
 
 def _connector_rpc(rid, params, action):
-    from tui_gateway.contracts.connectors import ConnectorErrorReason, ConnectorsConnectParams, ConnectorsListParams
+    from tui_gateway.contracts.connectors import (
+        ConnectorErrorReason,
+        ConnectorsConnectParams,
+        ConnectorsListParams,
+    )
 
     model = ConnectorsListParams if action == "status" else ConnectorsConnectParams
     request, session, error = _connector_params(rid, params, model)
@@ -250,6 +259,7 @@ def _reissue(rid, operation, args):
         UNKNOWN_TARGET,
         reissue,
     )
+
     from tui_gateway.connector_payload import connector_ui_payload
     from tui_gateway.contracts.connectors import ConnectorErrorReason
 
@@ -304,6 +314,7 @@ def _account_scope(request):
 
 def _operation_for_request(rid, request, session):
     from tools.connectors import live
+
     from tui_gateway.contracts.connectors import ConnectorErrorReason
 
     if request.owner.type == "session":
@@ -374,6 +385,7 @@ def _apply_connection_answer(rid, answer, operation):
     from tools.connectors.contract import SettleReason
     from tools.connectors.operation import IllegalTransition
     from tools.connectors.run import apply_answer
+
     from tui_gateway.contracts.connectors import ConnectorErrorReason
 
     try:
@@ -397,6 +409,7 @@ def _operation_view(operation):
 
 def _connection_update(operation, change, snapshot):
     from hermes_constants import get_process_hermes_home, hermes_home_key
+
     from tui_gateway import server
     from tui_gateway.connector_payload import connector_ui_payload
 

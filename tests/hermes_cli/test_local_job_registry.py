@@ -5,8 +5,8 @@ from __future__ import annotations
 import threading
 
 import pytest
-
 from pm.downloader import DownloadPaused
+
 from tests.hermes_cli.test_local_download_jobs import client  # noqa: F401
 
 

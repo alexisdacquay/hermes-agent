@@ -8,17 +8,23 @@ is still read from there at call time.
 
 from __future__ import annotations
 
-import logging
 import hashlib
+import logging
 import shutil
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any
+
 from agent.skill_utils import is_excluded_skill_path
+
 from tools.skills_guard import ScanResult, content_hash
 from tools.skills_hub_github import GitHubAuth
 from tools.skills_hub_models import (
-    SkillBundle, SkillSource, _normalize_lock_install_path, _validate_bundle_rel_path,
-    _validate_install_parent_path, _validate_skill_name,
+    SkillBundle,
+    SkillSource,
+    _normalize_lock_install_path,
+    _validate_bundle_rel_path,
+    _validate_install_parent_path,
+    _validate_skill_name,
 )
 
 if TYPE_CHECKING:  # origin class; runtime use is via the lazy origin import
@@ -80,7 +86,7 @@ def quarantine_bundle(bundle: SkillBundle) -> Path:
     return dest
 
 
-def _category_skill_dirs(directory: Path) -> List[str]:
+def _category_skill_dirs(directory: Path) -> list[str]:
     """Names of non-hidden child dirs holding at least one active SKILL.md
     anywhere below (nested layouts like ``mlops/training/<skill>`` count).
 
@@ -142,10 +148,15 @@ def _check_install_target(install_dir: Path) -> None:
 
 def install_from_quarantine(
     quarantine_path: Path, skill_name: str, category: str, bundle: SkillBundle, scan_result: ScanResult,
-    scan_provenance: Optional[Dict[str, Any]] = None,
+    scan_provenance: dict[str, Any] | None = None,
 ) -> Path:
     """Move a scanned skill from quarantine into the skills directory."""
-    from tools.skills_hub import HubLockFile, _quarantine_dir, _skills_dir, append_audit_log
+    from tools.skills_hub import (
+        HubLockFile,
+        _quarantine_dir,
+        _skills_dir,
+        append_audit_log,
+    )
     safe_skill_name = _validate_skill_name(skill_name)
     safe_category = _validate_install_parent_path(category) if category else ""
     quarantine_resolved = quarantine_path.resolve()
@@ -202,7 +213,7 @@ def install_from_quarantine(
     return install_dir
 
 
-def uninstall_skill(skill_name: str) -> Tuple[bool, str]:
+def uninstall_skill(skill_name: str) -> tuple[bool, str]:
     """Remove a hub-installed skill. Refuses to remove builtins."""
     from tools.skills_hub import HubLockFile, append_audit_log
     lock = HubLockFile()
@@ -262,9 +273,9 @@ def _current_revision_or_empty(src, identifier: str) -> str:
         return ""
 
 def check_for_skill_updates(
-    name: Optional[str] = None, *, lock: Optional[HubLockFile] = None,
-    sources: Optional[List[SkillSource]] = None, auth: Optional[GitHubAuth] = None,
-) -> List[dict]:
+    name: str | None = None, *, lock: HubLockFile | None = None,
+    sources: list[SkillSource] | None = None, auth: GitHubAuth | None = None,
+) -> list[dict]:
     """Check installed hub skills for upstream changes.
 
     Each entry is fetched ONLY from adapters matching its recorded source.
@@ -281,7 +292,7 @@ def check_for_skill_updates(
     if sources is None:
         sources = create_source_router(auth=auth)
 
-    results: List[dict] = []
+    results: list[dict] = []
     for entry in installed:
         identifier, source_name = entry.get("identifier", ""), entry.get("source", "")
         row = {"name": entry.get("name", ""), "identifier": identifier, "source": source_name}

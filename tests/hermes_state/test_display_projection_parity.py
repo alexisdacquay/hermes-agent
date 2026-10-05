@@ -22,7 +22,6 @@ soft-deleted Undo/Rewind rows stay hidden.
 """
 
 import pytest
-
 from hermes_state import SessionDB
 
 

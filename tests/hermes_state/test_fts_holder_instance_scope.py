@@ -26,9 +26,8 @@ intent of the fallback is preserved.
 
 import os
 
-import pytest
-
 import hermes_state_holders
+import pytest
 
 # Capture the pristine stdlib functions at import time: monkeypatched calls
 # re-enter these closures, and re-capturing ``os.listdir`` after a previous

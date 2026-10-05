@@ -19,7 +19,6 @@ import sys
 from pathlib import Path
 
 import pytest
-
 from pm.environments import install_state_dir, runtime_facts_path, site_packages
 from tools import bot_relay
 from tools.bot_mode_dm import _dm_delivery_id

@@ -1,16 +1,12 @@
 """Regression tests for #63737: sk-ant-oat pool entries are OAuth."""
 
 import json
-from pathlib import Path
 
 from agent.credential_pool import (
     AUTH_TYPE_API_KEY,
     AUTH_TYPE_OAUTH,
-    CredentialPool,
     PooledCredential,
 )
-
-
 
 
 def test_anthropic_real_api_key_unchanged():

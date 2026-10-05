@@ -1,15 +1,11 @@
 """CLI coverage for the public Computer Use command surface."""
 
-import subprocess
 import sys
 from importlib import import_module
 from unittest.mock import Mock
 
 import pytest
-
 from tools.computer_use import cua_backend_driver
-
-
 
 
 def _invoke(monkeypatch, *args: str) -> int:

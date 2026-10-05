@@ -180,7 +180,11 @@ def _hermes_home_for_pid(pid: int) -> str | None:
     if env is None:
         return None
     from hermes_cli.main_dashboard import _dashboard_cmdline_for_pid
-    from hermes_cli.profiles import get_active_profile, normalize_profile_name, profile_root_for_env_home
+    from hermes_cli.profiles import (
+        get_active_profile,
+        normalize_profile_name,
+        profile_root_for_env_home,
+    )
     argv = _dashboard_cmdline_for_pid(pid) or []
     env_home = env.get("HERMES_HOME", "").strip()
     profile = _profile_flag_value(argv)
@@ -426,6 +430,7 @@ def _is_caller_wrapper_shell(pid: int, ancestors: set[int]) -> bool:
 def _kill_pids_windows(pids: list[int], killed: list[int], failed: list[tuple[int, str]]) -> None:
     """``taskkill /F`` each PID after re-verifying its identity."""
     from gateway.status import get_process_start_time
+
     from hermes_cli._subprocess_compat import pid_is_hermes, windows_hide_flags
     # Identity captured right after discovery: a PID reused before the kill fails the check.
     pid_start_times = {pid: get_process_start_time(pid) for pid in pids}
@@ -588,7 +593,7 @@ def _kill_pids_posix(pids: list[int], killed: list[int], failed: list[tuple[int,
 
 def _kill_stale_dashboard_processes(
     reason: str = "the running backend no longer matches the updated frontend", *,
-    restart_managed: bool = False, already_restarted_units: "set[str] | None" = None,
+    restart_managed: bool = False, already_restarted_units: set[str] | None = None,
     scope_home: str | None = None,
 ) -> dict[str, list]:
     """Kill running ``hermes dashboard`` / ``hermes serve`` processes (update end, ``--stop``).

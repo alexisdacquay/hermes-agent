@@ -9,7 +9,6 @@ import logging
 from types import SimpleNamespace
 
 import pytest
-
 from tools.mcp_tool_scope import _server_key
 
 

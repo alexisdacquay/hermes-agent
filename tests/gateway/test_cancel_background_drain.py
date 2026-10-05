@@ -12,11 +12,11 @@ import asyncio
 from unittest.mock import AsyncMock
 
 import pytest
-
 from gateway.config import Platform, PlatformConfig
 from gateway.platforms.base import BasePlatformAdapter
 from gateway.platforms.event import MessageEvent, MessageType
 from gateway.session import SessionSource, build_session_key
+
 
 class _StubAdapter(BasePlatformAdapter):
     async def connect(self, *, is_reconnect: bool = False):

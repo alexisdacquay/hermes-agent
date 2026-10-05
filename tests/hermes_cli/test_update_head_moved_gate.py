@@ -12,11 +12,9 @@ and fails loudly when the update was a no-op.
 from types import SimpleNamespace
 
 import pytest
-
 from hermes_cli import main as hermes_main
-import hermes_cli.main_web_build as main_web_build
-import hermes_cli.main_install_repair as main_install_repair
-from hermes_cli import update_cmd
+from hermes_cli import main_install_repair, main_web_build, update_cmd
+
 
 def _make_head_pinned_side_effect(sha="abc123"):
     """Simulate a detached checkout pinned to ``sha``: HEAD never moves."""

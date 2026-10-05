@@ -14,7 +14,7 @@ import json
 import os
 
 import pytest
-
+from tools import browser_tool_cloud as bt_cloud
 from tools.terminal_scope import (
     TerminalPolicyRefusal,
     TerminalPolicyUnavailable,
@@ -24,7 +24,6 @@ from tools.terminal_scope import (
     set_terminal_scope,
     terminal_env,
 )
-from tools import browser_tool_cloud as bt_cloud
 
 _LAUNCH_CWD = "/home/launch-user/private"
 _LAUNCH_VOLUMES = '["/host/secret:/data:rw"]'
@@ -95,7 +94,7 @@ def test_routed_turn_reads_every_terminal_consumer_from_profile(
     import tools.terminal_tool as tt
     from agent import runtime_cwd
     from gateway.platforms import base as gbase
-    from tools import browser_tool, env_probe, file_tools_paths
+    from tools import env_probe, file_tools_paths
 
     b_cwd = tmp_path / "b-work"
     b_cwd.mkdir()
@@ -150,7 +149,11 @@ def test_persistent_docker_routed_profile_keeps_one_container(tmp_path):
     SAME container as its session-bound work, and never another profile's."""
     import gateway.run as gw
     import tools.terminal_tool as tt
-    from gateway.session_context import clear_session_vars, reset_session_vars, set_session_vars
+    from gateway.session_context import (
+        clear_session_vars,
+        reset_session_vars,
+        set_session_vars,
+    )
 
     docker = "terminal:\n  backend: docker\n  container_persistent: true\n"
     keys = {}
@@ -190,16 +193,15 @@ def test_gateway_runtime_scope_resets_on_error(tmp_path):
     import gateway.run as gw
 
     home = _profile(tmp_path, "qa", "terminal:\n  backend: local\n")
-    with pytest.raises(RuntimeError):
-        with gw._profile_runtime_scope(home):
-            assert terminal_env("TERMINAL_ENV") == "local"
-            raise RuntimeError("turn blew up")
+    with pytest.raises(RuntimeError), gw._profile_runtime_scope(home):
+        assert terminal_env("TERMINAL_ENV") == "local"
+        raise RuntimeError("turn blew up")
     assert get_terminal_scope() is None
 
 
 def test_tui_and_cron_boundaries_bind_and_reset(tmp_path):
-    import tui_gateway.server as server
     from tools.terminal_scope import install_and_reset_profile_terminal_scope
+    from tui_gateway import server
 
     home = _profile(tmp_path, "dash", "terminal:\n  backend: local\n")
     with server._session_profile_runtime_scope({"profile_home": str(home)}):

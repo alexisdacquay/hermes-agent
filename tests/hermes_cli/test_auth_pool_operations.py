@@ -7,7 +7,6 @@ from types import SimpleNamespace
 from urllib.parse import parse_qs
 
 import pytest
-
 from hermes_cli import auth_commands
 from hermes_cli.auth import read_credential_pool, write_credential_pool
 

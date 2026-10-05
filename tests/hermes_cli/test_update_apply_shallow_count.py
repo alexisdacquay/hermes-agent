@@ -14,9 +14,8 @@ from __future__ import annotations
 
 import subprocess
 
-import pytest
-
 import hermes_cli.main as cli_main
+import pytest
 from hermes_cli import source_check, update_cmd
 
 

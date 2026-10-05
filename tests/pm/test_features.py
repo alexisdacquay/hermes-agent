@@ -7,9 +7,8 @@ never deviates and never installs a plugin member.
 
 from __future__ import annotations
 
-import pytest
-
 import pm.features as feats
+import pytest
 
 
 @pytest.fixture
@@ -62,11 +61,10 @@ def test_sync_venv_refuses_outside_frozen_extras(rooted, monkeypatch):
 def test_sync_venv_allows_frozen_extras_when_lazy_off(rooted, monkeypatch):
     feats.write_features(["web"])
 
-    from pm import paths
-    from pm.lock import Facts
-    from pm.environments import install_state_dir, runtime_facts_path
-
     import pm.install as ensure_mod
+    from pm import paths
+    from pm.environments import install_state_dir, runtime_facts_path
+    from pm.lock import Facts
 
     # Matching stamp alone cannot certify a vanished environment. Reuse only
     # the recorded selection while retaining the disabled acquisition policy.
@@ -97,11 +95,10 @@ def test_lazy_sync_never_creates_the_first_selection_for_a_foreign_interpreter(r
     that lacks whatever the foreign interpreter carried (the CI "anthropic/aiohttp vanished"
     class). Only an explicit install may create it. Exercised at the client seam every
     ensure_import caller goes through, in the in-process (is_runtime) shape."""
-    import pm.client as client
     import pm.install as ensure_mod
-    from pm import paths
-    from pm.package import InstallError
+    from pm import client, paths
     from pm.environments import runtime_facts_path
+    from pm.package import InstallError
 
     repo = rooted / "repo"
     repo.mkdir()

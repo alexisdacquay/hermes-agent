@@ -2,7 +2,6 @@
 
 
 import pytest
-
 from agent.turn_author import (
     TURN_AUTHOR_ENV,
     parse_turn_author,

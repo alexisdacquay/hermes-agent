@@ -28,6 +28,7 @@ from hermes_cli.auth import (
     _validate_nous_inference_url_from_network,
 )
 
+
 class TestValidatorRules:
 
     def test_attacker_host_rejected(self, caplog):
@@ -71,9 +72,10 @@ class TestCallSiteWiring:
     def _read_auth_source(self):
         # The Nous refresh sites live in auth_nous.py (split out of auth.py);
         # read both so the guard tolerates relocation but still fires on deletion.
+        from pathlib import Path
+
         import hermes_cli.auth as _auth_mod
         import hermes_cli.auth_nous as _nous_mod
-        from pathlib import Path
         return "".join(
             Path(m.__file__).read_text(encoding="utf-8") for m in (_auth_mod, _nous_mod)
         )
@@ -104,8 +106,8 @@ class TestHealsPoisonedStoredValue:
     """
 
     def test_refresh_resets_rejected_url_to_default(self, monkeypatch):
-        import hermes_cli.auth as auth
         import hermes_cli.auth_nous as hermes_cli_auth_nous
+        from hermes_cli import auth
 
         poisoned = "https://stg-inference-api.nousresearch.com/v1"
         state = {
@@ -171,8 +173,9 @@ class TestEnvOverrideWins:
     STAGING = "https://stg-inference-api.nousresearch.com/v1"
 
     def _patch_no_refresh(self, monkeypatch, auth, state):
-        import hermes_cli.auth_nous as hermes_cli_auth_nous
         import contextlib
+
+        import hermes_cli.auth_nous as hermes_cli_auth_nous
 
         # No refresh fires: the stored access token is a usable invoke JWT.
         monkeypatch.setattr(auth, "_nous_invoke_jwt_status", lambda *a, **k: None)
@@ -213,7 +216,7 @@ class TestEnvOverrideWins:
     def test_no_refresh_env_override_not_persisted(self, monkeypatch):
         """The env override is a runtime overlay: it must never be written
         back into the stored state (auth.json)."""
-        import hermes_cli.auth as auth
+        from hermes_cli import auth
 
         state = self._base_state(auth, auth.DEFAULT_NOUS_INFERENCE_URL)
         self._patch_no_refresh(monkeypatch, auth, state)
@@ -230,7 +233,7 @@ class TestEnvOverrideWins:
         """A poisoned stored staging host (persisted before the allowlist)
         still heals to the default when no env override is present — the
         #50265 no-refresh-read-path heal, folded in here."""
-        import hermes_cli.auth as auth
+        from hermes_cli import auth
 
         state = self._base_state(auth, self.STAGING)
         self._patch_no_refresh(monkeypatch, auth, state)

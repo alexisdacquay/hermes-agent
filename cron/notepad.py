@@ -11,9 +11,10 @@ from __future__ import annotations
 
 import sqlite3
 import threading
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Any
 
 from hermes_constants import get_hermes_home
 from hermes_time import now as _hermes_now
@@ -22,7 +23,7 @@ from hermes_time import now as _hermes_now
 # ticks (set_hermes_home_override) cannot leak one profile's notepad rows into the import-time home
 # — and remove_job's clear_notepad cannot wipe the wrong profile's DB.
 # Same pattern as cron/executions.py. See #86519.
-NOTEPAD_FILE: Optional[Path] = None
+NOTEPAD_FILE: Path | None = None
 MAX_VALUE_BYTES = 16 * 1024
 MAX_KEY_CHARS = 128
 MAX_JOB_TOTAL_BYTES = 64 * 1024
@@ -37,8 +38,9 @@ def _connect() -> sqlite3.Connection:
     # Late imports: a scheduler daemon that outlives an on-disk upgrade already has the OLD
     # ``hermes_cli.sqlite_util`` / ``cron.jobs`` cached, so new names must be resolved at call time,
     # not at import time (the guarantee cron/ledger.py used to carry, see e24c8499).
-    from cron.jobs import _ensure_cron_dir
     from hermes_cli.sqlite_util import open_db
+
+    from cron.jobs import _ensure_cron_dir
 
     path = _current_notepad_file()
     _ensure_cron_dir(path.parent)
@@ -76,7 +78,7 @@ def _validate(job_id: str, key: str, value: str) -> None:
         raise ValueError(f"value too large (max {MAX_VALUE_BYTES} bytes per key)")
 
 
-def set_note(job_id: str, key: str, value: str) -> Dict[str, Any]:
+def set_note(job_id: str, key: str, value: str) -> dict[str, Any]:
     """Upsert one key. Raises ValueError when a size cap would be exceeded."""
     job_id, key, value = str(job_id), str(key), str(value)
     _validate(job_id, key, value)
@@ -105,7 +107,7 @@ def set_note(job_id: str, key: str, value: str) -> Dict[str, Any]:
     return {"job_id": job_id, "key": key, "value": value, "updated_at": now}
 
 
-def get_note(job_id: str, key: str) -> Optional[str]:
+def get_note(job_id: str, key: str) -> str | None:
     with _transaction() as conn:
         row = conn.execute(
             "SELECT value FROM cron_notepad WHERE job_id=? AND key=?",
@@ -123,7 +125,7 @@ def delete_note(job_id: str, key: str) -> bool:
     return cur.rowcount > 0
 
 
-def list_notes(job_id: str) -> List[Dict[str, Any]]:
+def list_notes(job_id: str) -> list[dict[str, Any]]:
     """All entries for one job, sorted by key."""
     with _transaction() as conn:
         rows = conn.execute(

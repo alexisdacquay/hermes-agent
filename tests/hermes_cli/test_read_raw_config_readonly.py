@@ -12,10 +12,9 @@ Contract under test:
 """
 
 import os
-import time
 
-import pytest
 import hermes_yaml as yaml
+import pytest
 
 
 @pytest.fixture()

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional
-
 from agent.vault_backends.base import LoginBackend
 from agent.vault_store import VaultItemMeta
 
@@ -20,19 +18,19 @@ class LocalLoginBackend(LoginBackend):
     display_name = "Hermes vault"
     prefix = "vault_"
 
-    def list_items(self) -> List[VaultItemMeta]:
+    def list_items(self) -> list[VaultItemMeta]:
         return _store().list_items()
 
-    def get_meta(self, handle: str) -> Optional[VaultItemMeta]:
+    def get_meta(self, handle: str) -> VaultItemMeta | None:
         return _store().get_meta(handle)
 
     def resolve_password(self, handle: str) -> str:
         return str(_store().resolve_secret(handle).get("password") or "")
 
-    def resolve_otp(self, handle: str) -> Optional[str]:
+    def resolve_otp(self, handle: str) -> str | None:
         from agent.vault_store import totp_now
         seed = str(_store().resolve_secret(handle).get("otp_secret") or "")
         return totp_now(seed) if seed else None
 
-    def resolve_secret(self, handle: str) -> Dict[str, str]:
+    def resolve_secret(self, handle: str) -> dict[str, str]:
         return {k: str(v) for k, v in _store().resolve_secret(handle).items()}

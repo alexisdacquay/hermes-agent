@@ -7,22 +7,38 @@ web_server — reached via the late-binding seam so tests that mutate
 
 import asyncio
 import hashlib
-from contextlib import contextmanager
 import re
 import secrets
 import threading
 import time
-from typing import Any, Dict, Optional
+from contextlib import contextmanager
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
 from hermes_cli.web_deps import late
-from hermes_cli.web_server_mcp import _mcp_oauth_flows, _mcp_server_summary, _normalize_mcp_server_create
-from hermes_cli.web_models import MCPCatalogInstall, MCPEnabledToggle, MCPServerCreate, MCPServersReplace
+from hermes_cli.web_models import (
+    MCPCatalogInstall,
+    MCPEnabledToggle,
+    MCPServerCreate,
+    MCPServersReplace,
+)
 from hermes_cli.web_routers._common import (
-    _profile_cli_args, _profile_scope, _spawn_hermes_action, config_write_scope, http_failure,
-    log as _log, scoped_to_thread,
+    _profile_cli_args,
+    _profile_scope,
+    _spawn_hermes_action,
+    config_write_scope,
+    http_failure,
+    scoped_to_thread,
+)
+from hermes_cli.web_routers._common import (
+    log as _log,
+)
+from hermes_cli.web_server_mcp import (
+    _mcp_oauth_flows,
+    _mcp_server_summary,
+    _normalize_mcp_server_create,
 )
 
 router = APIRouter()
@@ -40,7 +56,7 @@ _MAX_PENDING_MCP_OAUTH_FLOWS = 8
 
 
 @contextmanager
-def _profile_secret_scope(profile: Optional[str]):
+def _profile_secret_scope(profile: str | None):
     """Home + secret scope for a probe-class request (#109901). ``_config_profile_scope`` now binds
     the secret scope itself; this stays the probe/OAuth callers' name. Home-only, NOT
     ``_profile_scope``: the body can block for seconds and the latter holds the process-global
@@ -49,7 +65,7 @@ def _profile_secret_scope(profile: Optional[str]):
         yield
 
 
-def _secret_scoped(profile: Optional[str], fn):
+def _secret_scoped(profile: str | None, fn):
     def _run():
         with _profile_secret_scope(profile):
             return fn()
@@ -92,7 +108,7 @@ def _mcp_install_action_name(name: str) -> str:
 
 
 @router.get("/api/mcp/servers")
-async def list_mcp_servers(profile: Optional[str] = None):
+async def list_mcp_servers(profile: str | None = None):
     from hermes_cli.mcp_config import _get_mcp_servers
 
     def _read():
@@ -108,9 +124,13 @@ async def list_mcp_servers(profile: Optional[str] = None):
 
 
 @router.post("/api/mcp/servers")
-async def add_mcp_server(body: MCPServerCreate, profile: Optional[str] = None):
+async def add_mcp_server(body: MCPServerCreate, profile: str | None = None):
     from hermes_cli.mcp_catalog import record_mcp_install
-    from hermes_cli.mcp_config import _get_mcp_servers, _save_bearer_auth_token, _save_mcp_server
+    from hermes_cli.mcp_config import (
+        _get_mcp_servers,
+        _save_bearer_auth_token,
+        _save_mcp_server,
+    )
 
     try:
         name, server_config, bearer_token = _normalize_mcp_server_create(body)
@@ -158,7 +178,7 @@ async def add_mcp_server(body: MCPServerCreate, profile: Optional[str] = None):
 
 
 @router.put("/api/mcp/servers")
-async def replace_mcp_servers(body: MCPServersReplace, profile: Optional[str] = None):
+async def replace_mcp_servers(body: MCPServersReplace, profile: str | None = None):
     """Replace the entire ``mcp_servers`` map (the mcp.json editor's save) —
     the deep-merging ``/api/config`` can never delete a key or drop an
     ``enabled: false``, so removals wouldn't persist through it."""
@@ -181,7 +201,7 @@ async def replace_mcp_servers(body: MCPServersReplace, profile: Optional[str] = 
 
 
 @router.delete("/api/mcp/servers/{name}")
-async def remove_mcp_server(name: str, profile: Optional[str] = None):
+async def remove_mcp_server(name: str, profile: str | None = None):
     from hermes_cli.mcp_config import _get_mcp_servers, _remove_mcp_server
 
     def _run():
@@ -202,9 +222,13 @@ async def remove_mcp_server(name: str, profile: Optional[str] = None):
 
 
 @router.post("/api/mcp/servers/{name}/test")
-async def test_mcp_server(name: str, profile: Optional[str] = None):
+async def test_mcp_server(name: str, profile: str | None = None):
     """Connect to the server, list its tools, disconnect."""
-    from hermes_cli.mcp_config import _get_mcp_servers, _oauth_tokens_present, _probe_single_server
+    from hermes_cli.mcp_config import (
+        _get_mcp_servers,
+        _oauth_tokens_present,
+        _probe_single_server,
+    )
 
     def _read():
         config_servers = _get_mcp_servers()
@@ -216,7 +240,7 @@ async def test_mcp_server(name: str, profile: Optional[str] = None):
     if name not in servers:
         raise HTTPException(status_code=404, detail=f"Server '{name}' not found")
 
-    details: Dict[str, Any] = {}
+    details: dict[str, Any] = {}
     # An `auth: oauth` server that serves tools/list anonymously would probe OK
     # with no token — a false green. Require a token on disk, matching /auth.
     needs_oauth_token = servers[name].get("auth") == "oauth"
@@ -252,11 +276,12 @@ async def test_mcp_server(name: str, profile: Optional[str] = None):
 
 
 @router.post("/api/mcp/servers/{name}/auth")
-async def auth_mcp_server(name: str, request: Request, profile: Optional[str] = None):
+async def auth_mcp_server(name: str, request: Request, profile: str | None = None):
     """Start MCP OAuth and hand the authorization URL to the dashboard browser."""
-    from hermes_cli.mcp_config import _get_mcp_servers
     from hermes_constants import get_hermes_home
     from tools.mcp_dashboard_oauth import DashboardOAuthFlow, exception_message
+
+    from hermes_cli.mcp_config import _get_mcp_servers
 
     _require_token(request)
     _gc_mcp_oauth_flows()
@@ -339,10 +364,10 @@ async def cancel_mcp_oauth_flow(flow_id: str, request: Request):
 @router.get("/api/mcp/oauth/callback/{server_name:path}")
 async def mcp_oauth_callback(
     server_name: str,
-    code: Optional[str] = None,
-    state: Optional[str] = None,
-    error: Optional[str] = None,
-    iss: Optional[str] = None,
+    code: str | None = None,
+    state: str | None = None,
+    error: str | None = None,
+    iss: str | None = None,
 ):
     _gc_mcp_oauth_flows()
     with _mcp_oauth_flows_lock:
@@ -370,7 +395,7 @@ async def mcp_oauth_callback(
 
 
 @router.put("/api/mcp/servers/{name}/enabled")
-async def set_mcp_server_enabled(name: str, body: MCPEnabledToggle, profile: Optional[str] = None):
+async def set_mcp_server_enabled(name: str, body: MCPEnabledToggle, profile: str | None = None):
     """Toggle ``enabled`` (takes effect on next session/gateway); disabled
     servers stay in config so they can be re-enabled without re-entry."""
     def _run():
@@ -395,7 +420,7 @@ async def set_mcp_server_enabled(name: str, body: MCPEnabledToggle, profile: Opt
     return await asyncio.to_thread(_run)
 
 
-def _catalog_entry_json(entry: Any, installed: bool, enabled: bool) -> Dict[str, Any]:
+def _catalog_entry_json(entry: Any, installed: bool, enabled: bool) -> dict[str, Any]:
     auth = entry.auth
     transport = entry.transport
     install = entry.install
@@ -437,7 +462,7 @@ def _catalog_entry_json(entry: Any, installed: bool, enabled: bool) -> Dict[str,
 
 
 @router.get("/api/mcp/catalog")
-async def list_mcp_catalog(profile: Optional[str] = None, detect_apps: bool = False):
+async def list_mcp_catalog(profile: str | None = None, detect_apps: bool = False):
     """Browse the Nous-approved MCP catalog (optional-mcps/ manifests), each
     entry annotated with installed/enabled state for ``profile``. Opt-in app
     signals describe this backend machine, never the client or terminal sandbox."""
@@ -471,7 +496,10 @@ async def list_mcp_catalog(profile: Optional[str] = None, detect_apps: bool = Fa
         import sys
 
         try:
-            from hermes_cli.mcp_app_detection import discover_catalog_apps, validate_applications
+            from hermes_cli.mcp_app_detection import (
+                discover_catalog_apps,
+                validate_applications,
+            )
 
             applications = {}
             for entry in entries:
@@ -499,7 +527,7 @@ async def list_mcp_catalog(profile: Optional[str] = None, detect_apps: bool = Fa
 
 
 @router.post("/api/mcp/catalog/install")
-async def install_mcp_catalog_entry(body: MCPCatalogInstall, profile: Optional[str] = None):
+async def install_mcp_catalog_entry(body: MCPCatalogInstall, profile: str | None = None):
     """Install a catalog MCP into config.yaml (declared env vars go to .env
     first; git-bootstrap entries run via the background CLI action path)."""
     from hermes_cli import mcp_catalog

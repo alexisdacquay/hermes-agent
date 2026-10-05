@@ -6,7 +6,6 @@ A `str` enum so payloads serialise to the bare value and the TypeScript side see
 from __future__ import annotations
 
 from enum import Enum
-from typing import Dict, Optional, Tuple
 
 
 class TargetState(str, Enum):
@@ -33,7 +32,7 @@ class SettleReason(str, Enum):
     interrupt = "interrupt"
 
 
-KINDS: Tuple[str, ...] = ("connector", "mcp", "plugin", "skill")
+KINDS: tuple[str, ...] = ("connector", "mcp", "plugin", "skill")
 
 RESOLVED_STATES = frozenset({TargetState.connected, TargetState.skipped})
 
@@ -42,7 +41,7 @@ _S, _A = TargetState, Actor
 # (kind, from) -> {to: the only actor allowed to cause it}. Every `connected` is witnessed by the
 # backend: the gateway's account list for a managed target, the install / enable / OAuth worker for
 # an MCP one. The card can only skip a target, or ask for a failed one to be run again.
-TRANSITIONS: Dict[Tuple[str, TargetState], Dict[TargetState, Actor]] = {
+TRANSITIONS: dict[tuple[str, TargetState], dict[TargetState, Actor]] = {
     ("connector", _S.pending): {_S.initiated: _A.backend_watcher, _S.failed: _A.backend_watcher, _S.skipped: _A.user},
     ("connector", _S.initiated): {
         _S.connected: _A.backend_watcher, _S.failed: _A.backend_watcher, _S.expired: _A.clock, _S.skipped: _A.user,
@@ -61,5 +60,5 @@ for _kind in ("plugin", "skill"):
             TRANSITIONS[(_kind, _from)] = dict(_edges)
 
 
-def allowed(kind: str, current: TargetState, to: TargetState) -> Optional[Actor]:
+def allowed(kind: str, current: TargetState, to: TargetState) -> Actor | None:
     return TRANSITIONS.get((kind, current), {}).get(to)

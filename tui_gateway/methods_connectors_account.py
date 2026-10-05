@@ -20,6 +20,7 @@ def _account_method(params_model=None, *, invalid="", invalid_reason=ConnectorEr
             from pydantic import ValidationError
             from tools.connectors import connectors_available
             from tools.connectors.gateway.errors import GatewayAuthError
+
             from tui_gateway.contracts.connectors import ConnectorErrorReason
 
             if not connectors_available():
@@ -59,7 +60,11 @@ def _(rid, request):
     from tools.connectors.portal.client import PortalConnectorClient
     from tools.connectors.portal.errors import InvalidConnectorSlug
     from tools.connectors.portal.tools_cache import read_tools
-    from tui_gateway.contracts.connectors import ConnectorErrorReason, ConnectorToolsResult
+
+    from tui_gateway.contracts.connectors import (
+        ConnectorErrorReason,
+        ConnectorToolsResult,
+    )
 
     client = PortalConnectorClient()
     client.require_authentication()
@@ -78,6 +83,7 @@ def _(rid, request):
 )
 def _(rid, _params):
     from tools.connectors.portal.client import PortalConnectorClient
+
     from tui_gateway.contracts.connectors import ConnectorsCatalogResult
 
     client = PortalConnectorClient()
@@ -96,7 +102,11 @@ def _(rid, _params):
 )
 def _(rid, request):
     from tools.connectors.portal.client import PortalConnectorClient
-    from tui_gateway.contracts.connectors import ConnectorAccountRow, ConnectorAccountsResult
+
+    from tui_gateway.contracts.connectors import (
+        ConnectorAccountRow,
+        ConnectorAccountsResult,
+    )
 
     accounts = PortalConnectorClient().list_accounts()
     rows = [account for account in accounts if request.connector is None or account["connector"] == request.connector]
@@ -123,9 +133,17 @@ def _(rid, request):
     unavailable_message="Connector accounts are unavailable.",
 )
 def _(rid, request):
-    from tools.connectors.gateway.errors import GatewayAuthError, GatewayUnavailable, ToolGatewayError
+    from tools.connectors.gateway.errors import (
+        GatewayAuthError,
+        GatewayUnavailable,
+        ToolGatewayError,
+    )
     from tools.connectors.portal.client import PortalConnectorClient
-    from tui_gateway.contracts.connectors import ConnectorAccountsRemoveResult, ConnectorErrorReason
+
+    from tui_gateway.contracts.connectors import (
+        ConnectorAccountsRemoveResult,
+        ConnectorErrorReason,
+    )
 
     try:
         removed = PortalConnectorClient().delete_account(request.connection_id)
@@ -156,7 +174,12 @@ def _(rid, request):
 def _(rid, _params):
     from tools.connectors.gateway.errors import GatewayAuthError, ToolGatewayError
     from tools.connectors.portal.client import PortalConnectorClient
-    from tui_gateway.contracts.connectors import ConnectorErrorReason, ConnectorPolicyGetResult, ConnectorPolicyLayer
+
+    from tui_gateway.contracts.connectors import (
+        ConnectorErrorReason,
+        ConnectorPolicyGetResult,
+        ConnectorPolicyLayer,
+    )
 
     try:
         client = PortalConnectorClient()
@@ -187,8 +210,17 @@ def _(rid, _params):
 def _(rid, request):
     from tools.connectors.gateway.errors import GatewayAuthError, ToolGatewayError
     from tools.connectors.portal.client import PortalConnectorClient
-    from tools.connectors.portal.policy import InvalidMemberPolicy, compose_connector_write, compose_tools_write
-    from tui_gateway.contracts.connectors import ConnectorErrorReason, ConnectorPolicySetResult, ToolsChange
+    from tools.connectors.portal.policy import (
+        InvalidMemberPolicy,
+        compose_connector_write,
+        compose_tools_write,
+    )
+
+    from tui_gateway.contracts.connectors import (
+        ConnectorErrorReason,
+        ConnectorPolicySetResult,
+        ToolsChange,
+    )
 
     try:
         client = PortalConnectorClient()

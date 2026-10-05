@@ -14,9 +14,10 @@ import sqlite3
 import subprocess
 import sys
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any
 
 REPO = Path(__file__).resolve().parents[4]
 PY = sys.executable
@@ -38,7 +39,7 @@ def wait_until(pred: Callable[[], Any], timeout: float, what: str, interval: flo
     raise AssertionError(f"timed out after {timeout:.0f}s waiting for {what}")
 
 
-def pid_alive(pid: Optional[int]) -> bool:
+def pid_alive(pid: int | None) -> bool:
     if not pid:
         return False
     try:
@@ -161,7 +162,7 @@ class Board:
     def runs(self, tid: str) -> list[dict]:
         return self._q("SELECT * FROM task_runs WHERE task_id = ? ORDER BY id", (tid,))
 
-    def events(self, tid: str, kind: Optional[str] = None) -> list[dict]:
+    def events(self, tid: str, kind: str | None = None) -> list[dict]:
         rows = self._q("SELECT * FROM task_events WHERE task_id = ? ORDER BY id", (tid,))
         for r in rows:
             try:

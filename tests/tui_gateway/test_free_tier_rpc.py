@@ -8,7 +8,6 @@ import json
 import time
 
 import pytest
-
 import tui_gateway.server as srv
 from hermes_cli import anon_auth
 from hermes_cli.auth import _auth_store_lock, _load_auth_store, _save_auth_store

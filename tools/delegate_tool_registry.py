@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
-import logging
 import json
+import logging
 import threading
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
+
 from agent.interrupt_compat import request_hard_interrupt
+
 from tools.registry import tool_error
 
 logger = logging.getLogger("tools.delegate_tool")  # log-record parity with the origin module
@@ -17,15 +19,15 @@ _spawn_paused: bool = False
 _active_subagents_lock = threading.Lock()
 # subagent_id -> mutable record tracking the live child agent.  Stays only
 # for the lifetime of the run; _run_single_child is the owner.
-_active_subagents: Dict[str, Dict[str, Any]] = {}
+_active_subagents: dict[str, dict[str, Any]] = {}
 # subagent_id -> {goal, delegation_id, owner_agent_session_id} retained AFTER the child finishes (bounded FIFO).
 # Child-started background processes routinely outlive the child (its npm ci with notify_on_complete=true finishes
 # after the summary was delivered); their completion notifications reach the parent via the shared completion_queue
 # and need delegation attribution even though the live registry entry is gone.
 _RECENT_SUBAGENTS_CAP = 200
-_recent_subagents: Dict[str, Dict[str, Any]] = {}
+_recent_subagents: dict[str, dict[str, Any]] = {}
 
-def get_subagent_attribution(task_id: Optional[str]) -> Optional[Dict[str, Any]]:
+def get_subagent_attribution(task_id: str | None) -> dict[str, Any] | None:
     """``{subagent_id, goal, delegation_id}`` for a process task_id that belongs to a live or recently-finished child
     (children run their terminal sessions under ``task_id == subagent_id``), else None."""
     if not task_id or not isinstance(task_id, str):
@@ -47,7 +49,7 @@ def is_spawn_paused() -> bool:
     with _spawn_pause_lock:
         return _spawn_paused
 
-def _register_subagent(record: Dict[str, Any]) -> None:
+def _register_subagent(record: dict[str, Any]) -> None:
     sid = record.get("subagent_id")
     if not sid:
         return
@@ -69,7 +71,7 @@ def _unregister_subagent(subagent_id: str, *, agent: Any = None) -> None:
         while len(_recent_subagents) > _RECENT_SUBAGENTS_CAP:
             _recent_subagents.pop(next(iter(_recent_subagents)), None)
 
-def _close_subagent_steering(subagent_id: str, agent: Any) -> Optional[str]:
+def _close_subagent_steering(subagent_id: str, agent: Any) -> str | None:
     """Atomically close steer acceptance and drain its final durable artifact. ``steer_subagent`` holds the same
     registry lock through ``agent.steer``, so either acceptance wins and this drain sees its exact text, or closure
     wins and the caller is rejected. Exact agent identity prevents a finishing child with a recycled public id from
@@ -122,7 +124,7 @@ def _subagent_transport_matches(record, transport) -> bool:
 
 
 def steer_subagent(
-    subagent_id: str, text: str, *, owner_session_id: Optional[str] = None, owner_transport: Any = None,
+    subagent_id: str, text: str, *, owner_session_id: str | None = None, owner_transport: Any = None,
     owner_session_record: Any = None,
 ) -> bool:
     """Queue steering text into a running subagent without stopping it.
@@ -156,7 +158,7 @@ def steer_subagent(
             logger.debug("steer_subagent(%s) failed: %s", subagent_id, exc)
             return False
 
-def _capture_gateway_steer_authority(owner_session_id: Optional[str]) -> tuple[Any, Any]:
+def _capture_gateway_steer_authority(owner_session_id: str | None) -> tuple[Any, Any]:
     """Exact request transport + live session generation, if any — an in-process
     bridge, not a serializable capability. Non-gateway hosts get ``(None, None)``."""
     if not owner_session_id:
@@ -170,7 +172,7 @@ def _capture_gateway_steer_authority(owner_session_id: Optional[str]) -> tuple[A
 # Registry record fields never exposed to the TUI/RPC snapshot.
 _PRIVATE_RECORD_KEYS = frozenset({"agent", "owner_session_id", "owner_transport", "owner_session_record", "accepting_steer"})
 
-def list_active_subagents() -> List[Dict[str, Any]]:
+def list_active_subagents() -> list[dict[str, Any]]:
     """Copy of the running subagent tree ({subagent_id, parent_id, depth, goal, model,
     started_at, tool_count, status, ...}); safe from any thread."""
     with _active_subagents_lock:
@@ -197,7 +199,7 @@ def _is_descendant_of(child_agent: Any, parent_agent: Any, max_hops: int = 8) ->
 # "spawn" (or omitted) keeps the historical spawn semantics.
 _CONTROL_ACTIONS = frozenset({"list", "steer", "stop"})
 
-def _resolve_session_lineage(session_id: Optional[str], parent_agent: Any) -> str:
+def _resolve_session_lineage(session_id: str | None, parent_agent: Any) -> str:
     """Tip of a session id's compression lineage via the parent's live SessionDB (best-effort; input unchanged when
     unavailable) so a delegation dispatched before a compression rotation still matches the rotated parent."""
     sid = str(session_id or "")
@@ -210,7 +212,7 @@ def _resolve_session_lineage(session_id: Optional[str], parent_agent: Any) -> st
     except Exception:
         return sid
 
-def _owns_subagent_record(record: Dict[str, Any], parent_agent: Any) -> bool:
+def _owns_subagent_record(record: dict[str, Any], parent_agent: Any) -> bool:
     """True when *parent_agent*'s conversation owns this live-child record.
 
     Tier 1: identity — the ``_delegate_parent_ref`` weakref chain reaches
@@ -234,7 +236,7 @@ def _owns_subagent_record(record: Dict[str, Any], parent_agent: Any) -> bool:
     # Compression rotation on either side: compare lineage tips.
     return _resolve_session_lineage(owner_sid, parent_agent) in {parent_sid, _resolve_session_lineage(parent_sid, parent_agent)}
 
-def _list_payload(parent_agent: Any) -> Dict[str, Any]:
+def _list_payload(parent_agent: Any) -> dict[str, Any]:
     with _active_subagents_lock:
         records = list(_active_subagents.values())
     entries = []
@@ -252,7 +254,7 @@ def _list_payload(parent_agent: Any) -> Dict[str, Any]:
             "accepting_steer": bool(r.get("accepting_steer", False)),
             "live_transcript": getattr(r.get("agent"), "_live_transcript_path", None),
         })
-    payload: Dict[str, Any] = {"action": "list", "count": len(entries), "subagents": entries}
+    payload: dict[str, Any] = {"action": "list", "count": len(entries), "subagents": entries}
     if not entries:
         payload["note"] = (
             "No live subagents right now. Children that already finished "
@@ -261,7 +263,7 @@ def _list_payload(parent_agent: Any) -> Dict[str, Any]:
         )
     return payload
 
-def _handle_control_action(action: str, subagent_id: Optional[str], message: Optional[str], parent_agent: Any) -> str:
+def _handle_control_action(action: str, subagent_id: str | None, message: str | None, parent_agent: Any) -> str:
     """Synchronous control plane for delegate_task: list/steer/stop. Runs in-turn (never backgrounded) over the same
     registry the TUI overlay drives, scoped so a conversation can only control its own spawn tree."""
     if action == "list":

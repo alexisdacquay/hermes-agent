@@ -34,6 +34,7 @@ import types
 
 from tui_gateway import server
 
+
 def test_voice_toggle_still_leaks_the_env_var_but_speech_is_stubbed(monkeypatch):
     """The dangerous primitive is neutralised even when the flag IS set.
 
@@ -69,7 +70,7 @@ def test_voice_toggle_still_leaks_the_env_var_but_speech_is_stubbed(monkeypatch)
     # raising stub, because ``speak_text`` wraps its whole body in
     # ``except Exception`` and would swallow an AssertionError, quietly
     # turning this test green whether or not the guard is doing anything.
-    import tools.tts_tool as tts_tool
+    from tools import tts_tool
 
     calls = []
     monkeypatch.setattr(

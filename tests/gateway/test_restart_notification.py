@@ -4,18 +4,17 @@ import json
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
-
 import gateway.run as gateway_run
+import pytest
 from gateway.config import HomeChannel, Platform, PlatformConfig
 from gateway.platforms.base import SendResult
 from gateway.platforms.event import MessageEvent, MessageType
 from gateway.session import build_session_key
+
 from tests.gateway.restart_test_helpers import (
     make_restart_runner,
     make_restart_source,
 )
-
 
 # ── restart marker helpers ───────────────────────────────────────────────
 

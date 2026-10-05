@@ -4,7 +4,6 @@ import shlex
 import time
 
 import pytest
-
 from tools.process_registry import ProcessRegistry
 
 

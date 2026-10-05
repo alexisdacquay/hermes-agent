@@ -25,7 +25,7 @@ def client(monkeypatch, _isolate_hermes_home):
         pytest.skip("fastapi/starlette not installed")
 
     import hermes_state
-    from hermes_cli.web_server import app, _SESSION_HEADER_NAME, _SESSION_TOKEN
+    from hermes_cli.web_server import _SESSION_HEADER_NAME, _SESSION_TOKEN, app
     from hermes_constants import get_hermes_home
 
     monkeypatch.setattr(hermes_state, "DEFAULT_DB_PATH", get_hermes_home() / "state.db")
@@ -49,8 +49,8 @@ def multiplexed():
 
 def _stub_action(monkeypatch, name: str, seen: dict, result: dict | None = None):
     """Stand in for the plugin action: read the credential like the git path does, note the thread."""
-    import hermes_cli.plugins_cmd as plugins_cmd
     from agent.secret_scope import get_secret
+    from hermes_cli import plugins_cmd
 
     def _stub(*_args, **_kwargs):
         try:

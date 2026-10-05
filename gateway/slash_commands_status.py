@@ -3,9 +3,9 @@ Bound onto ``GatewayRunner`` through ``GatewaySlashCommandsMixin``."""
 
 from __future__ import annotations
 
-import logging
 import asyncio
 import hashlib
+import logging
 import os
 import re
 import time
@@ -13,10 +13,11 @@ from typing import Any
 
 from agent.account_usage import fetch_account_usage, render_account_usage_lines
 from agent.i18n import t
+from hermes_cli.status_report import build_status_fields
+
 from gateway.config import Platform
 from gateway.platforms.event import MessageEvent
 from gateway.session_transcript import TranscriptReadError
-from hermes_cli.status_report import build_status_fields
 
 # Log-record parity with gateway/run.py and the origin module.
 logger = logging.getLogger("gateway.run")
@@ -106,7 +107,11 @@ def _status_model_route(
     lookup queries the endpoint that serves the displayed model (never a losing route's endpoint);
     a winner without a ``base_url`` leaves the lookup on the default runtime route.
     """
-    from gateway.run import _AGENT_PENDING_SENTINEL, _load_gateway_config, _resolve_gateway_model
+    from gateway.run import (
+        _AGENT_PENDING_SENTINEL,
+        _load_gateway_config,
+        _resolve_gateway_model,
+    )
     context_used = context_total = 0
     routes: list[tuple[str, str, dict]] = []
     if status_agent is not None and status_agent is not _AGENT_PENDING_SENTINEL:
@@ -437,8 +442,9 @@ class GatewayStatusCommandsMixin:
 
     async def _handle_agents_command(self, event: MessageEvent) -> str:
         """Handle /agents command - list active agents and running tasks."""
-        from gateway.run import _AGENT_PENDING_SENTINEL
         from tools.process_registry import format_uptime_short, process_registry
+
+        from gateway.run import _AGENT_PENDING_SENTINEL
         now = time.time()
         current_session_key = self._session_key_for_source(event.source)
         running_started: dict = getattr(self, "_running_agents_ts", {}) or {}
@@ -509,7 +515,10 @@ class GatewayStatusCommandsMixin:
         """/context per-category block (plain text, chars/4 estimate, same engine as /usage).
         Runs in a thread; returns [] and never raises."""
         try:
-            from agent.context_breakdown import compute_context_details, render_context_breakdown_lines
+            from agent.context_breakdown import (
+                compute_context_details,
+                render_context_breakdown_lines,
+            )
             try:
                 payload = self._session_context_breakdown(agent, source)
             except TranscriptReadError:
@@ -517,7 +526,10 @@ class GatewayStatusCommandsMixin:
             if not (payload.get("categories") or []):
                 return []
             details = _quiet_sync(lambda: compute_context_details(agent), {"skills": [], "toolsets": []}) if expanded else None
-            from agent.context_file_sources import context_file_sources_for_agent, render_context_file_lines
+            from agent.context_file_sources import (
+                context_file_sources_for_agent,
+                render_context_file_lines,
+            )
             file_lines = _quiet_sync(lambda: render_context_file_lines(context_file_sources_for_agent(agent)), [])
             return render_context_breakdown_lines(payload, details=details, grid=False) + ([""] + file_lines if file_lines else [])
         except Exception:
@@ -679,8 +691,8 @@ class GatewayStatusCommandsMixin:
                 days = int(flag) if flag.isdigit() else days
                 i += 1
         try:
-            from hermes_state_registry import acquire
             from agent.insights import InsightsEngine
+            from hermes_state_registry import acquire
 
             def _run_insights():
                 db = acquire()

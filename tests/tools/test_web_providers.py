@@ -9,12 +9,11 @@ Covers:
 from __future__ import annotations
 
 import json
-from typing import Any, Dict
+from typing import Any
 
 import pytest
 
 from tests.tools.conftest import register_all_web_providers
-
 
 # ---------------------------------------------------------------------------
 # ABC enforcement
@@ -53,7 +52,7 @@ class TestWebProviderABCs:
             def supports_search(self) -> bool:
                 return True
 
-            def search(self, query: str, limit: int = 5) -> Dict[str, Any]:
+            def search(self, query: str, limit: int = 5) -> dict[str, Any]:
                 return {"success": True, "data": {"web": []}}
 
         # Should instantiate fine — extract has default supports_*()
@@ -178,14 +177,14 @@ class TestUnconfiguredErrorEnvelopeParity:
         on, a zero-credential install routes to the keyless tier instead of
         erroring (covered in test_web_keyless_fallback.py).
         """
-        from tools import web_tools
         from agent import web_search_registry
+        from tools import web_tools
 
         self._clear_web_creds(monkeypatch)
         monkeypatch.setattr(web_tools, "_firecrawl_client", None, raising=False)
         monkeypatch.setattr(web_tools, "_firecrawl_client_config", None, raising=False)
         monkeypatch.setattr(web_tools, "_ddgs_package_importable", lambda: False)
-        monkeypatch.setattr(web_tools, "_load_web_config", lambda: {})
+        monkeypatch.setattr(web_tools, "_load_web_config", dict)
         monkeypatch.setattr(web_search_registry, "_keyless_tier_enabled", lambda: False)
         monkeypatch.setattr(web_tools, "_is_tool_gateway_ready", lambda: False)
 
@@ -201,8 +200,8 @@ class TestUnconfiguredErrorEnvelopeParity:
         keyless cloud client (PR #50659 salvage) — a keyless ring peer must not
         silently take over, and the request must hit api.firecrawl.dev.
         """
-        from tools import web_tools
         from plugins.web.firecrawl import provider as fc
+        from tools import web_tools
 
         self._clear_web_creds(monkeypatch)
         monkeypatch.setattr(web_tools, "_firecrawl_client", None, raising=False)
@@ -295,8 +294,9 @@ class TestDispatchersTriggerPluginDiscovery:
         import asyncio
         import json
         from unittest.mock import MagicMock
-        from agent.web_search_provider import WebSearchProvider
+
         from agent import web_search_registry
+        from agent.web_search_provider import WebSearchProvider
         from tools import web_tools
 
         restore = self._clear_registry()
@@ -379,8 +379,9 @@ class TestDispatchersTriggerPluginDiscovery:
         """
         import json
         from unittest.mock import MagicMock
-        from agent.web_search_provider import WebSearchProvider
+
         from agent import web_search_registry
+        from agent.web_search_provider import WebSearchProvider
         from tools import web_tools
 
         restore = self._clear_registry()

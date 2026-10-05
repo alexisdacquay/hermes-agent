@@ -14,7 +14,6 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from agent.auxiliary_client import async_call_llm, call_llm
 
 _RELAY_400 = (

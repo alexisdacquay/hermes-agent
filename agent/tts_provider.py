@@ -12,7 +12,8 @@ from __future__ import annotations
 
 import abc
 import logging
-from typing import Any, Dict, Iterator, List, Optional
+from collections.abc import Iterator
+from typing import Any
 
 from agent.provider_base import CatalogProviderBase
 
@@ -30,20 +31,20 @@ class TTSProvider(CatalogProviderBase):
     collides with a built-in TTS provider name) and :meth:`synthesize`.
     """
 
-    def list_voices(self) -> List[Dict[str, Any]]:
+    def list_voices(self) -> list[dict[str, Any]]:
         """Voice catalog entries: ``{"id"}`` required; ``display`` / ``language``
         / ``gender`` / ``preview_url`` optional. Default: empty."""
         return []
 
-    def default_voice(self) -> Optional[str]:
+    def default_voice(self) -> str | None:
         """Id of the first voice entry, or None if not applicable."""
         voices = self.list_voices()
         return voices[0].get("id") if voices else None
 
     @abc.abstractmethod
     def synthesize(
-        self, text: str, output_path: str, *, voice: Optional[str]=None, model: Optional[str]=None,
-        speed: Optional[float]=None, format: str=DEFAULT_OUTPUT_FORMAT, ** extra: Any,
+        self, text: str, output_path: str, *, voice: str | None=None, model: str | None=None,
+        speed: float | None=None, format: str=DEFAULT_OUTPUT_FORMAT, ** extra: Any,
     ) -> str:
         """Synthesize ``text`` into ``output_path`` and return the written path.
 
@@ -56,7 +57,7 @@ class TTSProvider(CatalogProviderBase):
         """
 
     def stream(
-        self, text: str, *, voice: Optional[str] = None, model: Optional[str] = None,
+        self, text: str, *, voice: str | None = None, model: str | None = None,
         format: str = "opus", **extra: Any,
     ) -> Iterator[bytes]:
         """Stream synthesized audio bytes (optional).
@@ -93,7 +94,7 @@ class TTSProvider(CatalogProviderBase):
         return False
 
 
-def resolve_output_format(value: Optional[str]) -> str:
+def resolve_output_format(value: str | None) -> str:
     """Clamp an output_format to :data:`VALID_OUTPUT_FORMATS`; invalid values
     coerce to :data:`DEFAULT_OUTPUT_FORMAT` so the tool surface forgives agent
     mistakes instead of rejecting them."""

@@ -14,7 +14,7 @@ import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from tools.mcp_oauth_provider import HermesProviderMixin
 
@@ -34,11 +34,11 @@ class _ProviderEntry:
     loop); ``pending_401`` dedupes thundering-herd 401s by failed access_token."""
 
     server_url: str
-    oauth_config: Optional[dict]
-    provider: Optional[Any] = None
+    oauth_config: dict | None
+    provider: Any | None = None
     last_mtime_ns: int = 0
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
-    pending_401: dict[str, "asyncio.Future[bool]"] = field(default_factory=dict)
+    pending_401: dict[str, asyncio.Future[bool]] = field(default_factory=dict)
 
 
 class HermesMCPOAuthProvider(HermesProviderMixin, *_SDK_BASES):
@@ -108,8 +108,12 @@ class HermesMCPOAuthProvider(HermesProviderMixin, *_SDK_BASES):
             return
         from mcp.client.auth.utils import (
             build_oauth_authorization_server_metadata_discovery_urls,
-            build_protected_resource_metadata_discovery_urls, create_oauth_metadata_request,
-            handle_auth_metadata_response, handle_protected_resource_response)
+            build_protected_resource_metadata_discovery_urls,
+            create_oauth_metadata_request,
+            handle_auth_metadata_response,
+            handle_protected_resource_response,
+        )
+
         from tools.mcp_oauth_provider import stamp_default_user_agent
         server_url = self.context.server_url
 
@@ -266,7 +270,7 @@ class HermesMCPOAuthProvider(HermesProviderMixin, *_SDK_BASES):
 
 
 # Cached at import time; None when the SDK's OAuth module is unavailable.
-_HERMES_PROVIDER_CLS: Optional[type] = HermesMCPOAuthProvider if _SDK_BASES else None
+_HERMES_PROVIDER_CLS: type | None = HermesMCPOAuthProvider if _SDK_BASES else None
 
 
 class MCPOAuthManager:
@@ -279,7 +283,7 @@ class MCPOAuthManager:
         # Strong refs to in-flight 401 tasks so the loop's weak bookkeeping cannot GC them mid-run.
         self._inflight_tasks: set[asyncio.Task] = set()
 
-    def get_or_build_provider(self, server_name: str, server_url: str, oauth_config: Optional[dict]) -> Optional[Any]:
+    def get_or_build_provider(self, server_name: str, server_url: str, oauth_config: dict | None) -> Any | None:
         """Cached OAuth provider for ``server_name``, built on first use (rebuilt when ``server_url`` changes);
         None if the MCP SDK's OAuth support is unavailable."""
         key = self._key(server_name)
@@ -302,13 +306,19 @@ class MCPOAuthManager:
         home = Path(hermes_home) if hermes_home is not None else get_hermes_home()
         return (str(home.expanduser().resolve(strict=False)), server_name)
 
-    def _build_provider(self, server_name: str, entry: _ProviderEntry) -> Optional[Any]:
+    def _build_provider(self, server_name: str, entry: _ProviderEntry) -> Any | None:
         """Build a ``HermesMCPOAuthProvider``; None if the SDK's OAuth support is unavailable."""
         if _HERMES_PROVIDER_CLS is None:
             logger.warning("MCP OAuth '%s': SDK auth module unavailable", server_name)
             return None
-        from tools.mcp_dashboard_oauth import get_dashboard_oauth_flow  # lazy: circular at import time
-        from tools.mcp_oauth import _OAUTH_AVAILABLE, OAuthNonInteractiveError, _is_interactive
+        from tools.mcp_dashboard_oauth import (
+            get_dashboard_oauth_flow,  # lazy: circular at import time
+        )
+        from tools.mcp_oauth import (
+            _OAUTH_AVAILABLE,
+            OAuthNonInteractiveError,
+            _is_interactive,
+        )
         from tools.mcp_oauth_provider import build_provider_kwargs, prepare_oauth_config
         if not _OAUTH_AVAILABLE:
             return None
@@ -364,7 +374,7 @@ class MCPOAuthManager:
                 return False
             # `_initialized` is private SDK API but stable across the pinned versions (>=1.26.0).
             if hasattr(entry.provider, "_initialized"):
-                entry.provider._initialized = False  # noqa: SLF001
+                entry.provider._initialized = False
             logger.info("MCP OAuth '%s': tokens file changed (mtime %d -> %d), forcing reload", server_name, old, mtime_ns)
             return True
 
@@ -386,7 +396,7 @@ class MCPOAuthManager:
         if not pending.done():
             pending.set_result(can_refresh)
 
-    async def handle_401(self, server_name: str, failed_access_token: Optional[str] = None) -> bool:
+    async def handle_401(self, server_name: str, failed_access_token: str | None = None) -> bool:
         """Handle a 401 from a tool call. True: a (possibly new) token is available — reconnect and retry. False: no
         recovery path — surface ``needs_reauth`` so the model stops hallucinating manual refreshes. Concurrent 401s
         with the same ``failed_access_token`` fire one recovery attempt; the rest await its future."""
@@ -408,7 +418,7 @@ class MCPOAuthManager:
             return False
 
 
-_MANAGER: Optional[MCPOAuthManager] = None
+_MANAGER: MCPOAuthManager | None = None
 _MANAGER_LOCK = threading.Lock()
 
 

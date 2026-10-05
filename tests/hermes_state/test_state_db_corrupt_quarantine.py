@@ -12,7 +12,6 @@ the only safe policy is to stop touching the file.
 import sqlite3
 
 import pytest
-
 from hermes_state import (
     DeletedWalGenerationError,
     SessionDB,

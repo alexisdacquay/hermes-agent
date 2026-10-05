@@ -2,7 +2,6 @@
 from unittest.mock import patch
 
 import pytest
-
 from cron import delivery_queue, scheduler
 from cron.scheduler_delivery import _deliver_result
 

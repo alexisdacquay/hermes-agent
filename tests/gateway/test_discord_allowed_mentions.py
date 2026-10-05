@@ -81,8 +81,7 @@ def _ensure_discord_mock():
 
 _ensure_discord_mock()
 
-from plugins.platforms.discord.adapter import _build_allowed_mentions  # noqa: E402
-
+from plugins.platforms.discord.adapter import _build_allowed_mentions
 
 # The four DISCORD_ALLOW_MENTION_* env vars that _build_allowed_mentions reads.
 # Cleared before each test so env leakage from other tests never masks a regression.

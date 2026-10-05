@@ -15,7 +15,6 @@ Covers four fix paths:
 import asyncio
 
 import pytest
-
 from gateway.config import Platform, PlatformConfig
 from gateway.platforms.base import (
     BasePlatformAdapter,

@@ -24,7 +24,7 @@ import logging
 import ssl
 import threading
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -111,7 +111,7 @@ def _shared_context(ca_path: str | None) -> ssl.SSLContext:
 
 def resolve_httpx_verify(
     *,
-    ca_bundle: Optional[str] = None,
+    ca_bundle: str | None = None,
     ssl_verify: Any = None,
     base_url: str = "",
 ) -> bool | ssl.SSLContext:

@@ -20,14 +20,11 @@ predicates run unchanged so we never silently strand existing data.
 
 from __future__ import annotations
 
-import os
 import threading
 import time
 
 import pytest
-
 from hermes_state import SessionDB
-
 
 IDLE_S = 6 * 3600  # mirror the TUI gateway's default session TTL
 # Heartbeats refresh every 30s and a backend is "stale" if its last refresh

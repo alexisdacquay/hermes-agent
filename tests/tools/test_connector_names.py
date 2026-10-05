@@ -1,13 +1,11 @@
 """Invariant tests for model-facing connector names and wire-slug recovery."""
 
 import pytest
-
 from tools.connectors.gateway.names import (
     format_connector_name,
     parse_connector_name,
     vendor_slug_candidates,
 )
-
 
 ENCODE_CASES = [
     (

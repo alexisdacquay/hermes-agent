@@ -5,7 +5,8 @@ embedded resources."""
 import base64
 import logging
 import mimetypes
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
+
 from tools.ansi_strip import strip_unicode_tags
 from tools.mcp_tool_common import mcp_field
 from tools.mcp_tool_schema import mcp_prefixed_tool_name
@@ -47,7 +48,7 @@ def _is_reserved_mcp_meta_key(key: str) -> bool:
     return any(label in ("modelcontextprotocol", "mcp") and i < len(labels) - 1 for i, label in enumerate(labels))
 
 
-def _strip_reserved_meta_keys(meta) -> Optional[Dict[str, Any]]:
+def _strip_reserved_meta_keys(meta) -> dict[str, Any] | None:
     """Drop protocol-reserved keys from ``_meta``; None if nothing model-facing remains or the
     input wasn't a mapping."""
     if not isinstance(meta, dict):
@@ -69,8 +70,8 @@ def _mcp_image_extension_for_mime_type(mime_type: str) -> str:
     return mimetypes.guess_extension(normalized) or ".png"
 
 
-def _decode_block_b64(data, what: str, label: str, *, cap_what: Optional[str] = None,
-                      cap_suffix: str = "", decode_fail: str = "") -> Tuple[Optional[bytes], str]:
+def _decode_block_b64(data, what: str, label: str, *, cap_what: str | None = None,
+                      cap_suffix: str = "", decode_fail: str = "") -> tuple[bytes | None, str]:
     """Base64-decode one block payload: ``(bytes, "")`` or ``(None, inline_marker)``. With
     ``cap_what`` the payload is rejected on b64 length BEFORE decoding and on decoded size
     after. Decode failures warn and return ``decode_fail`` ("" = drop the block)."""
@@ -87,7 +88,7 @@ def _decode_block_b64(data, what: str, label: str, *, cap_what: Optional[str] = 
 
 
 def _write_block_cache(writer: str, what: str, skip_label: str, *args,
-                       unavailable: str = "", failed: str = "", **kwargs) -> Tuple[Optional[str], str]:
+                       unavailable: str = "", failed: str = "", **kwargs) -> tuple[str | None, str]:
     """Call ``gateway.platforms.base.<writer>(*args, **kwargs)``: ``(path, "")`` or ``(None,
     marker)``. Fail-open so one bad block never kills the tool result: gateway deps missing
     (cron without gateway) → ``unavailable``; any other cache error → warning + ``failed``."""
@@ -105,7 +106,7 @@ def _write_block_cache(writer: str, what: str, skip_label: str, *args,
 _WAV_MIME_EXT = {"audio/wav": ".wav", "audio/x-wav": ".wav", "audio/wave": ".wav"}
 
 
-def _cache_mcp_media_block(block, kind: str, writer: str, ext_for, *, cap_what: Optional[str] = None) -> str:
+def _cache_mcp_media_block(block, kind: str, writer: str, ext_for, *, cap_what: str | None = None) -> str:
     """Cache an image/audio block and return a ``MEDIA:<path>`` tag. "" (logging, not raising)
     when the block isn't ``kind`` media, the base64 is malformed, or the cache rejects the
     bytes: the caller falls through to any text blocks."""
@@ -139,7 +140,7 @@ def _mcp_resource_filename(uri: str, mime_type: str) -> str:
     can't steer the cache location."""
     import re as _re
     from pathlib import Path
-    from urllib.parse import urlparse, unquote
+    from urllib.parse import unquote, urlparse
     name = ""
     if uri:
         try:

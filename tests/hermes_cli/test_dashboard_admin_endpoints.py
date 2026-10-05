@@ -7,10 +7,10 @@ contract and the CLI-config parity (servers/keys written via the API are
 visible to the CLI data layer), not specific catalog values.
 """
 
-import pytest
 import hermes_cli.config as _cfg_mod
 import hermes_cli.web_server_files as _web_server_files
 import hermes_cli.web_server_gateway as _web_server_gateway
+import pytest
 
 
 def _client():
@@ -19,8 +19,8 @@ def _client():
     except ImportError:
         pytest.skip("fastapi/starlette not installed")
     import hermes_state
+    from hermes_cli.web_server import _SESSION_HEADER_NAME, _SESSION_TOKEN, app
     from hermes_constants import get_hermes_home
-    from hermes_cli.web_server import app, _SESSION_HEADER_NAME, _SESSION_TOKEN
 
     client = TestClient(app)
     client.headers[_SESSION_HEADER_NAME] = _SESSION_TOKEN
@@ -271,8 +271,8 @@ class ScopedProvMemoryProvider(MemoryProvider):
         ``is_available`` reads the launch profile's credential must still resolve it from the
         launch home's ``.env`` instead of rendering "unavailable" with no visible error
         (``probe_availability`` swallows the ``UnscopedSecretError``)."""
-        from hermes_constants import get_hermes_home
         from hermes_cli.web_server_dashboard import _invalidate_plugins_hub_cache
+        from hermes_constants import get_hermes_home
         from tui_gateway.launch_profile_policy import activate_multi_profile_hosting
 
         home = get_hermes_home()
@@ -694,7 +694,7 @@ class TestSkillsHubPreviewEndpoint:
 
     def test_preview_returns_skill_md_text(self, monkeypatch):
         monkeypatch.setattr(
-            "tools.skills_hub_search.create_source_router", lambda: []
+            "tools.skills_hub_search.create_source_router", list
         )
         bundle = _FakeBundle("github/owner/repo/x")
         meta = _FakeMeta("github/owner/repo/x")
@@ -715,7 +715,7 @@ class TestSkillsHubPreviewEndpoint:
 
     def test_preview_404_when_unresolved(self, monkeypatch):
         monkeypatch.setattr(
-            "tools.skills_hub_search.create_source_router", lambda: []
+            "tools.skills_hub_search.create_source_router", list
         )
         monkeypatch.setattr(
             "hermes_cli.skills_hub._resolve_source_meta_and_bundle",
@@ -732,10 +732,10 @@ class TestSkillsHubScanEndpoint:
 
 
     def test_scan_returns_verdict_and_policy(self, monkeypatch):
-        from tools.skills_guard import ScanResult, Finding
+        from tools.skills_guard import Finding, ScanResult
 
         monkeypatch.setattr(
-            "tools.skills_hub_search.create_source_router", lambda: []
+            "tools.skills_hub_search.create_source_router", list
         )
         bundle = _FakeBundle("github/owner/repo/x", trust_level="community")
         monkeypatch.setattr(
@@ -804,7 +804,6 @@ class TestUpdateCheckEndpoint:
 
         monkeypatch.setattr(_cfg_mod, "detect_install_method", lambda *a, **k: "git")
         # Stub the shared checker so the contract is deterministic (no network).
-        import hermes_cli.banner as banner
 
         monkeypatch.setattr("hermes_cli.source_check.check_for_updates", lambda **kw: {"behind": 5, "commits": []})
 
@@ -1005,8 +1004,8 @@ def test_named_profile_action_isolates_parent_env_and_loads_target_env(monkeypat
     import sys
     from pathlib import Path
 
-    import hermes_cli.env_loader as env_loader
     import hermes_cli.web_server as ws
+    from hermes_cli import env_loader
 
     user_home = tmp_path / "user"
     default_home = user_home / ".hermes"

@@ -30,9 +30,9 @@ Invariants pinned here:
    request-client identity rather than masking the signal used to poison the
    slot.
 """
-from contextlib import contextmanager
 import threading
 import time
+from contextlib import contextmanager
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -180,14 +180,13 @@ def test_relay_managed_close_failure_poisons_request_client(tmp_path, monkeypatc
         side_effect=lambda client, *, reason: abort_reasons.append(
             (client, reason)
         ),
-    ):
-        with pytest.raises(InterruptedError):
-            agent._interruptible_streaming_api_call(
-                {
-                    "model": "test/model",
-                    "messages": [{"role": "user", "content": "hello"}],
-                }
-            )
+    ), pytest.raises(InterruptedError):
+        agent._interruptible_streaming_api_call(
+            {
+                "model": "test/model",
+                "messages": [{"role": "user", "content": "hello"}],
+            }
+        )
 
     assert stream.close_calls == 1
     assert abort_reasons == [(request_client, "interrupt_stream_close_failed")]

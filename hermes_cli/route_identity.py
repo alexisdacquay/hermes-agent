@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
 
@@ -44,7 +44,7 @@ def normalize_route_base_url(base_url: Any) -> str:
     return normalized
 
 
-def provider_owns_route(provider: Any, base_url: Any, config: Any = None) -> Optional[bool]:
+def provider_owns_route(provider: Any, base_url: Any, config: Any = None) -> bool | None:
     """Whether ``model.base_url`` is *provider*'s own endpoint.
 
     ``True``: the host is the provider's registry/plugin endpoint or the endpoint of a
@@ -54,8 +54,14 @@ def provider_owns_route(provider: Any, base_url: Any, config: Any = None) -> Opt
     host (a proxy, a LAN server) — nothing here can say whose it is. Offline: the registry lookup
     never fetches the models.dev catalog.
     """
-    from hermes_cli.providers import get_provider, normalize_provider, resolve_custom_provider, resolve_user_provider
     from utils import base_url_hostname
+
+    from hermes_cli.providers import (
+        get_provider,
+        normalize_provider,
+        resolve_custom_provider,
+        resolve_user_provider,
+    )
 
     host = base_url_hostname(str(base_url or ""))
     if not host:
@@ -83,7 +89,7 @@ def provider_owns_route(provider: Any, base_url: Any, config: Any = None) -> Opt
     return normalize_provider(inferred) == canonical
 
 
-def drop_stale_model_route(model_cfg: Any, provider: Any, config: Any = None) -> "tuple[dict[str, Any], bool]":
+def drop_stale_model_route(model_cfg: Any, provider: Any, config: Any = None) -> tuple[dict[str, Any], bool]:
     """Pop the route keys (``base_url``, ``api_mode``) a previous provider left in ``model:``
     when the block is re-pointed at *provider* without a fresh route (``hermes config set
     model.provider``). Mirrors what a persisted ``/model`` switch writes: the route is synced to

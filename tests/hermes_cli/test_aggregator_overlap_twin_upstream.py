@@ -1,7 +1,6 @@
 """Aggregator overlap strip vs a user row that IS the same upstream as a built-in aggregator (#115623)."""
 
 import pytest
-
 from hermes_cli import inventory
 
 

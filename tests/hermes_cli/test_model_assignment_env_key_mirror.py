@@ -10,11 +10,10 @@ preserved when the entry holds a literal key.
 """
 
 import importlib
-import os
 
-import pytest
-import hermes_yaml as yaml
 import hermes_cli.web_server_config as _web_server_config
+import hermes_yaml as yaml
+import pytest
 
 
 @pytest.fixture()
@@ -38,7 +37,6 @@ def _write_config(home, providers):
 
 
 def _apply(provider, model="local/model"):
-    import hermes_cli.web_server as ws
 
     return _web_server_config._apply_model_assignment_sync("main", provider, model, "", "")
 

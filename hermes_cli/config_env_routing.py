@@ -17,8 +17,6 @@ lifecycle in ``hermes_cli.credential_lifecycle``.
 
 import re
 import sys
-from pathlib import Path
-from typing import Optional
 
 # Environment-variable shape: what every shell and ``os.getenv`` caller treats as a variable name.
 # Case-sensitive on purpose: a lowercase bare name (``my_flag``) stays a config.yaml top-level key.
@@ -44,7 +42,11 @@ def is_env_setting_key(key: str) -> bool:
 def _drop_config_yaml_copies(key: str) -> bool:
     """Remove same-named top-level ``config.yaml`` copies (as typed and upper-cased) so the ``.env``
     value is the only one the gateway bridge and CLI readers can disagree about."""
-    from hermes_cli.config import _write_user_config, get_config_path, require_readable_config_before_write
+    from hermes_cli.config import (
+        _write_user_config,
+        get_config_path,
+        require_readable_config_before_write,
+    )
 
     config_path = get_config_path()
     user_config = require_readable_config_before_write(config_path)
@@ -73,7 +75,7 @@ def remove_env_setting(key: str) -> bool:
     return _drop_config_yaml_copies(key) or removed
 
 
-def read_env_setting(key: str) -> Optional[str]:
+def read_env_setting(key: str) -> str | None:
     """Resolve like the gateway does: ``.env`` first, then a not-yet-converged top-level
     ``config.yaml`` copy under the name as typed, which is reported as stale on stderr."""
     from hermes_cli.config import get_env_value, read_raw_config_readonly

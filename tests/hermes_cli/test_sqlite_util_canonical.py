@@ -10,7 +10,6 @@ from __future__ import annotations
 import sqlite3
 
 import pytest
-
 from hermes_cli import sqlite_util
 
 
@@ -20,10 +19,9 @@ def test_transaction_closes_the_connection_even_when_the_body_raises(tmp_path):
     conn.execute("CREATE TABLE t (x)")
     conn.commit()
 
-    with pytest.raises(RuntimeError):
-        with sqlite_util.transaction(conn) as c:
-            c.execute("INSERT INTO t VALUES (1)")
-            raise RuntimeError("mid-transaction")
+    with pytest.raises(RuntimeError), sqlite_util.transaction(conn) as c:
+        c.execute("INSERT INTO t VALUES (1)")
+        raise RuntimeError("mid-transaction")
 
     # Rolled back AND closed: a closed connection refuses every statement.
     with pytest.raises(sqlite3.ProgrammingError):

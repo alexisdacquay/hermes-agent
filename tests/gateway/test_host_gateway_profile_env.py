@@ -8,11 +8,10 @@ and a duplicate refusal must say which claim came from the environment.
 """
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
 
 import pytest
-
 from gateway.config import GatewayConfig, Platform, PlatformConfig
 
 _WORKER_TOKEN = "worker-profile-token-456"

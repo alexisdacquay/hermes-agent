@@ -18,7 +18,6 @@ import types
 from pathlib import Path
 
 import pytest
-
 from plugins.platforms.photon import adapter as adapter_mod
 from plugins.platforms.photon import cli as cli_mod
 from plugins.platforms.photon import sidecar_paths

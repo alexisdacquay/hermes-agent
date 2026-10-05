@@ -16,23 +16,29 @@ import concurrent.futures
 import logging
 import os
 import threading
+from collections.abc import MutableMapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, MutableMapping, Optional
+
+from hermes_constants import hermes_home_key, normalize_scope
 
 from agent.secret_sources.base import (
-    SECRET_SOURCE_API_VERSION, ErrorKind, FetchResult, SecretSource, is_valid_env_name,
-    reset_source_environment, set_source_environment,
+    SECRET_SOURCE_API_VERSION,
+    ErrorKind,
+    FetchResult,
+    SecretSource,
+    is_valid_env_name,
+    reset_source_environment,
+    set_source_environment,
 )
-from hermes_constants import hermes_home_key, normalize_scope
 
 logger = logging.getLogger(__name__)
 
 # Ordered registry: name → source. Dict insertion order doubles as the default
 # apply order. Origin is recorded so consumers never infer ownership from names.
-_SOURCES: Dict[str, SecretSource] = {}
-_SOURCE_ORIGINS: Dict[str, str] = {}
-_SCOPED_SOURCES: Dict[str, Dict[str, SecretSource]] = {}
+_SOURCES: dict[str, SecretSource] = {}
+_SOURCE_ORIGINS: dict[str, str] = {}
+_SCOPED_SOURCES: dict[str, dict[str, SecretSource]] = {}
 _BUILTINS_LOADED = False
 _REGISTRY_LOCK = threading.RLock()
 
@@ -64,20 +70,20 @@ class SourceReport:
     name: str
     label: str
     result: FetchResult
-    applied: List[str] = field(default_factory=list)
-    skipped_existing: List[str] = field(default_factory=list)   # .env/shell won
-    skipped_claimed: List[str] = field(default_factory=list)    # earlier source won
-    skipped_protected: List[str] = field(default_factory=list)  # bootstrap-auth guard
-    skipped_invalid: List[str] = field(default_factory=list)    # bad env-var name
+    applied: list[str] = field(default_factory=list)
+    skipped_existing: list[str] = field(default_factory=list)   # .env/shell won
+    skipped_claimed: list[str] = field(default_factory=list)    # earlier source won
+    skipped_protected: list[str] = field(default_factory=list)  # bootstrap-auth guard
+    skipped_invalid: list[str] = field(default_factory=list)    # bad env-var name
 
 
 @dataclass
 class ApplyReport:
     """Merged outcome of one orchestrated apply pass."""
 
-    sources: List[SourceReport] = field(default_factory=list)
-    provenance: Dict[str, AppliedVar] = field(default_factory=dict)
-    conflicts: List[str] = field(default_factory=list)  # human-readable warnings
+    sources: list[SourceReport] = field(default_factory=list)
+    provenance: dict[str, AppliedVar] = field(default_factory=dict)
+    conflicts: list[str] = field(default_factory=list)  # human-readable warnings
 
     @property
     def applied_any(self) -> bool:
@@ -87,7 +93,7 @@ class ApplyReport:
 # --- Registration -----------------------------------------------------------
 
 
-def _validate_source(source: SecretSource) -> Optional[str]:
+def _validate_source(source: SecretSource) -> str | None:
     """Reason a source is unregistrable (already formatted for the log), or None."""
     if not isinstance(source, SecretSource):
         return f"Ignoring secret source {source!r}: does not inherit from SecretSource"
@@ -103,7 +109,7 @@ def _validate_source(source: SecretSource) -> Optional[str]:
 
 
 def register_source(source: SecretSource, *, replace: bool = False, builtin: bool = False,
-                    scope: Optional[str] = None) -> bool:
+                    scope: str | None = None) -> bool:
     """Register a secret source; True on success. Rejections are logged, never
     raised. ``replace`` allows same-name override (last-writer-wins); scheme
     collisions across *different* names are always rejected."""
@@ -133,20 +139,20 @@ def register_source(source: SecretSource, *, replace: bool = False, builtin: boo
     return True
 
 
-def _merged(scope: Optional[str]) -> Dict[str, SecretSource]:
+def _merged(scope: str | None) -> dict[str, SecretSource]:
     """Global sources overlaid with the scope's (default: current home) registrations."""
     merged = dict(_SOURCES)
     merged.update(_SCOPED_SOURCES.get(hermes_home_key(scope), {}))
     return merged
 
 
-def get_source(name: str, *, scope: Optional[str] = None) -> Optional[SecretSource]:
+def get_source(name: str, *, scope: str | None = None) -> SecretSource | None:
     _ensure_builtin_sources()
     with _REGISTRY_LOCK:
         return _merged(scope).get(name)
 
 
-def snapshot_registration(name: str, *, scope: Optional[str] = None) -> Optional[SecretSource]:
+def snapshot_registration(name: str, *, scope: str | None = None) -> SecretSource | None:
     """Return the registration owned by exactly one registry layer."""
     _ensure_builtin_sources()
     scope = normalize_scope(scope)
@@ -154,8 +160,8 @@ def snapshot_registration(name: str, *, scope: Optional[str] = None) -> Optional
         return (_SOURCES if scope is None else _SCOPED_SOURCES.get(scope, {})).get(name)
 
 
-def restore_registration(name: str, current: SecretSource, previous: Optional[SecretSource], *,
-                         scope: Optional[str] = None) -> bool:
+def restore_registration(name: str, current: SecretSource, previous: SecretSource | None, *,
+                         scope: str | None = None) -> bool:
     """Restore a host-owned source registration if it is still current."""
     _ensure_builtin_sources()
     scope = normalize_scope(scope)
@@ -172,13 +178,13 @@ def restore_registration(name: str, current: SecretSource, previous: Optional[Se
     return True
 
 
-def list_sources(*, scope: Optional[str] = None) -> List[SecretSource]:
+def list_sources(*, scope: str | None = None) -> list[SecretSource]:
     _ensure_builtin_sources()
     with _REGISTRY_LOCK:
         return list(_merged(scope).values())
 
 
-def list_plugin_sources() -> List[SecretSource]:
+def list_plugin_sources() -> list[SecretSource]:
     """Sources registered outside the bundled set: global ``"plugin"`` origins
     plus every scoped registration (bundled sources register with scope=None).
 
@@ -205,7 +211,7 @@ def _ensure_builtin_sources() -> None:
             try:
                 module = __import__(module_name, fromlist=[class_name])
                 register_source(getattr(module, class_name)(), builtin=True)
-            except Exception:  # noqa: BLE001 — never block startup
+            except Exception:
                 logger.warning("Failed to register bundled %s secret source", label, exc_info=True)
 
 
@@ -264,7 +270,7 @@ def _section(secrets_cfg: dict, name: str) -> dict:
     return cfg if isinstance(cfg, dict) else {}
 
 
-def _ordered_enabled_sources(secrets_cfg: dict, *, scope: Optional[str] = None) -> List[SecretSource]:
+def _ordered_enabled_sources(secrets_cfg: dict, *, scope: str | None = None) -> list[SecretSource]:
     """Enabled sources: ``secrets.sources`` order first, then registration order
     (mapped-vs-bulk precedence is applied on top by :func:`apply_all`)."""
     sources = {source.name: source for source in list_sources(scope=scope)}
@@ -277,12 +283,12 @@ def _ordered_enabled_sources(secrets_cfg: dict, *, scope: Optional[str] = None) 
                        ", ".join(unknown), ", ".join(sources) or "none")
     order = dict.fromkeys([n for n in names if n in sources] + list(sources))  # insertion-ordered set
 
-    enabled: List[SecretSource] = []
+    enabled: list[SecretSource] = []
     for name in order:
         try:
             if sources[name].is_enabled(_section(secrets_cfg, name)):
                 enabled.append(sources[name])
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.warning("Secret source '%s' is_enabled() raised; skipping", name, exc_info=True)
     return enabled
 
@@ -295,7 +301,7 @@ def enabled_source_names(secrets_cfg: dict, home_path: Path) -> frozenset:
     return frozenset(s.name for s in _ordered_enabled_sources(secrets_cfg, scope=hermes_home_key(home_path)))
 
 
-def _active_profile_name(home_path: Optional[Path]) -> str:
+def _active_profile_name(home_path: Path | None) -> str:
     """Active profile name (``~/.hermes/profiles/<name>``); "" for the default profile."""
     if home_path is not None:
         resolved = Path(home_path)
@@ -313,7 +319,7 @@ def _active_profile_name(home_path: Optional[Path]) -> str:
 _ALIAS_SUFFIXES = ("_API_KEY", "_TOKEN", "_SECRET", "_KEY", "_PASSWORD")
 
 
-def _profile_alias_target(var: str, profile: str) -> Optional[str]:
+def _profile_alias_target(var: str, profile: str) -> str | None:
     """Map ``FOO_<PROFILE>`` to ``FOO`` for the active profile when safe."""
     suffix = "_" + profile.replace("-", "_").upper()
     if not profile or not var.endswith(suffix):
@@ -326,9 +332,9 @@ class _Applier:
     """Apply phase state for one orchestrated pass: sequential, first-wins, attributed."""
 
     def __init__(self, env: MutableMapping[str, str], report: ApplyReport,
-                 protected: Dict[str, str], preserve: frozenset) -> None:
+                 protected: dict[str, str], preserve: frozenset) -> None:
         self.env, self.report, self.protected, self.preserve = env, report, protected, preserve
-        self.claimed: Dict[str, str] = {}  # var → source name that won it
+        self.claimed: dict[str, str] = {}  # var → source name that won it
 
     def apply_source(self, source: SecretSource, cfg: dict, result: FetchResult,
                      profile: str, supplied_directly: set) -> None:
@@ -379,7 +385,7 @@ class _Applier:
 
 
 def apply_all(secrets_cfg: dict, home_path: Path,
-              environ: Optional[MutableMapping[str, str]] = None) -> ApplyReport:
+              environ: MutableMapping[str, str] | None = None) -> ApplyReport:
     """Fetch from every enabled source and apply the merged result to ``environ``
     (default ``os.environ``).
 
@@ -413,8 +419,8 @@ def apply_all(secrets_cfg: dict, home_path: Path,
     # Mapped outranks bulk regardless of list order.
     ordered = [s for s in enabled if s.shape == "mapped"] + [s for s in enabled if s.shape == "bulk"]
 
-    fetches: List[tuple[SecretSource, dict, FetchResult]] = []
-    protected: Dict[str, str] = {}  # var → source that protects it
+    fetches: list[tuple[SecretSource, dict, FetchResult]] = []
+    protected: dict[str, str] = {}  # var → source that protects it
     for source in ordered:
         cfg = _section(secrets_cfg, source.name)
         result = _fetch_with_timeout(source, cfg, home_path, env)

@@ -6,7 +6,6 @@ than a guess. On a real install every ACP session predating the fix was
 affected, and every one was recoverable this way.
 """
 import pytest
-
 from hermes_state import SessionDB
 
 

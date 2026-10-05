@@ -14,20 +14,20 @@ Used by hermes_cli/skills_hub.py for CLI commands and the /skills slash command.
 import json
 import logging
 import time
-from contextvars import ContextVar
+from collections.abc import Iterator
 from contextlib import ExitStack, contextmanager
-from datetime import datetime, timezone
+from contextvars import ContextVar
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Any
 from urllib.parse import urljoin
 
 import httpx
-
 from hermes_constants import get_hermes_home
-from tools.url_safety import is_safe_url
-from tools.url_safety import create_ssrf_safe_client
-from tools.website_policy import check_website_access
+
 from tools.skills_hub_models import _normalize_lock_install_path, _validate_skill_name
+from tools.url_safety import create_ssrf_safe_client, is_safe_url
+from tools.website_policy import check_website_access
 
 logger = logging.getLogger(__name__)
 
@@ -90,7 +90,7 @@ _DEFAULT_HTTP_TIMEOUT = 20
 # An inspect resolves metadata and then the preview bundle through the same
 # source adapter. Keeping this context local to that operation lets httpx reuse
 # its verified connection without extending a client beyond the CLI request.
-_skills_hub_http_client: ContextVar[Optional[Any]] = ContextVar(
+_skills_hub_http_client: ContextVar[Any | None] = ContextVar(
     "skills_hub_http_client", default=None
 )
 
@@ -118,14 +118,14 @@ def _skills_hub_http_get(url: str, **kwargs: Any) -> httpx.Response:
 
 
 def _ssrf_safe_http_get(url: str, *, timeout: int = _DEFAULT_HTTP_TIMEOUT,
-                        headers: Optional[Dict[str, str]] = None) -> httpx.Response:
+                        headers: dict[str, str] | None = None) -> httpx.Response:
     """Fetch one URL with connect-time SSRF validation and no automatic redirects."""
     with skills_hub_http_session():
         return _skills_hub_http_client.get().get(url, timeout=timeout, headers=headers)
 
 
 def _guarded_http_get(url: str, *, timeout: int = _DEFAULT_HTTP_TIMEOUT,
-                      headers: Optional[Dict[str, str]] = None) -> Optional[httpx.Response]:
+                      headers: dict[str, str] | None = None) -> httpx.Response | None:
     """Fetch a URL with SSRF and redirect-target validation (each hop re-checked).
 
     *headers* are plain request headers (no credentials) and are sent on every hop."""
@@ -170,15 +170,15 @@ def _guarded_http_get(url: str, *, timeout: int = _DEFAULT_HTTP_TIMEOUT,
 def _guarded_http_stream(
     url: str,
     *,
-    params: Optional[Dict[str, str]] = None,
+    params: dict[str, str] | None = None,
     timeout: int = _DEFAULT_HTTP_TIMEOUT,
-) -> Iterator[Optional[httpx.Response]]:
+) -> Iterator[httpx.Response | None]:
     """Stream one response with bounded, policy-checked redirects."""
     from tools.url_safety import SSRFConnectionBlocked, create_ssrf_safe_client
 
     current_url = url
     current_params = params
-    response: Optional[httpx.Response] = None
+    response: httpx.Response | None = None
     stack = ExitStack()
 
     try:
@@ -234,7 +234,7 @@ def _guarded_http_stream(
 # Shared index cache (used by every adapter)
 # ---------------------------------------------------------------------------
 
-def _read_json_if_fresh(path: Path, ttl: float) -> Optional[Any]:
+def _read_json_if_fresh(path: Path, ttl: float) -> Any | None:
     """Parsed JSON from ``path`` when it exists and is younger than ``ttl`` seconds."""
     try:
         if time.time() - path.stat().st_mtime > ttl:
@@ -244,7 +244,7 @@ def _read_json_if_fresh(path: Path, ttl: float) -> Optional[Any]:
         return None
 
 
-def _read_index_cache(key: str) -> Optional[Any]:
+def _read_index_cache(key: str) -> Any | None:
     return _read_json_if_fresh(_index_cache_dir() / f"{key}.json", INDEX_CACHE_TTL)
 
 
@@ -278,7 +278,7 @@ class _JsonStateFile:
     EMPTY: dict = {}
     DEFAULT_PATH: Any = None
 
-    def __init__(self, path: Optional[Path] = None):
+    def __init__(self, path: Path | None = None):
         self.path = path if path is not None else type(self).DEFAULT_PATH()
 
     def _read(self) -> dict:
@@ -313,16 +313,16 @@ class HubLockFile(_JsonStateFile):
         scan_verdict: str,
         skill_hash: str,
         install_path: str,
-        files: List[str],
-        metadata: Optional[Dict[str, Any]] = None,
-        scan_provenance: Optional[Dict[str, Any]] = None,
+        files: list[str],
+        metadata: dict[str, Any] | None = None,
+        scan_provenance: dict[str, Any] | None = None,
     ) -> None:
         # Validate name and install-path SHAPE at write time: a poisoned lock
         # entry is the precondition for the uninstall_skill rmtree-escape.
         safe_name = _validate_skill_name(name)
         safe_install_path = _normalize_lock_install_path(install_path, safe_name)
         data = self.load()
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         data["installed"][safe_name] = {
             "source": source,
             "identifier": identifier,
@@ -343,10 +343,10 @@ class HubLockFile(_JsonStateFile):
         data["installed"].pop(name, None)
         self.save(data)
 
-    def get_installed(self, name: str) -> Optional[dict]:
+    def get_installed(self, name: str) -> dict | None:
         return self.load()["installed"].get(name)
 
-    def list_installed(self) -> List[dict]:
+    def list_installed(self) -> list[dict]:
         return [{"name": name, **entry} for name, entry in self.load()["installed"].items()]
 
 
@@ -356,10 +356,10 @@ class TapsManager(_JsonStateFile):
     EMPTY = {"taps": []}
     DEFAULT_PATH = staticmethod(_taps_file)
 
-    def load(self) -> List[dict]:
+    def load(self) -> list[dict]:
         return self._read().get("taps", [])
 
-    def save(self, taps: List[dict]) -> None:
+    def save(self, taps: list[dict]) -> None:
         self._write({"taps": taps})
 
     def add(self, repo: str, path: str = "skills/") -> bool:
@@ -388,7 +388,7 @@ def append_audit_log(action: str, skill_name: str, source: str,
     """Append one space-separated line to the audit log (best-effort)."""
     audit_log = _audit_log()
     audit_log.parent.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    timestamp = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     parts = [timestamp, action, skill_name, f"{source}:{trust_level}", verdict]
     if extra:
         parts.append(extra)

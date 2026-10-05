@@ -15,8 +15,8 @@ import time as _time
 import webbrowser
 
 from agent.i18n import t
+
 from hermes_cli.callbacks import prompt_for_secret
-from typing import Optional
 
 _TIMED_OUT = object()  # sentinel returned by _poll_modal_queue when the deadline passes
 
@@ -415,6 +415,7 @@ class CLIModalMixin:
         /help filtered to this surface, plus installed skill commands. Selecting inserts the exact
         command string — never a fuzzy resolution."""
         from cli import _ensure_skill_commands
+
         from hermes_cli.commands import COMMANDS_BY_CATEGORY
 
         entries: list[tuple[str, str, str]] = []
@@ -511,7 +512,7 @@ class CLIModalMixin:
             logger.debug("command palette prefill failed", exc_info=True)
 
     @classmethod
-    def _split_destructive_skip(cls, cmd_text: Optional[str]) -> tuple[str, bool]:
+    def _split_destructive_skip(cls, cmd_text: str | None) -> tuple[str, bool]:
         """Split inline-skip tokens out of a destructive slash command → ``(remainder, skip)``.
 
         ``remainder`` is the text minus the leading "/cmd" word and any skip tokens; ``skip`` is
@@ -527,7 +528,7 @@ class CLIModalMixin:
         return " ".join(kept), len(kept) != len(tokens)
 
     def _confirm_destructive_slash(
-        self, command: str, detail: str, cmd_original: Optional[str] = None) -> Optional[str]:
+        self, command: str, detail: str, cmd_original: str | None = None) -> str | None:
         """Confirm a destructive slash command (``/clear``, ``/new``/``/reset``, ``/undo``): returns
         ``"once"``, ``"always"`` (persists the opt-out) or ``None`` (cancelled). Gate off → "once"
         silently; ``now`` / ``--yes`` / ``-y`` in ``cmd_original`` bypasses the modal (callers strip
@@ -561,7 +562,10 @@ class CLIModalMixin:
         flag = "bell_on_prompt" if prompt else "bell_on_complete"
         if not getattr(self, flag, False) or getattr(self, "_terminal_io_broken", False):
             return
-        from hermes_cli.cli_terminal_mixin import _run_on_app_loop, _write_terminal_sequence
+        from hermes_cli.cli_terminal_mixin import (
+            _run_on_app_loop,
+            _write_terminal_sequence,
+        )
         from hermes_cli.terminal_notify import notification_sequence, write_tty
         body = context or (t("cli.modal.bell_input_needed") if prompt else t("cli.modal.bell_turn_complete"))
         try:
@@ -712,18 +716,18 @@ class CLIModalMixin:
 
     def _connection_callback(self, payload):
         if not isinstance(payload, dict):
-            return None
+            return
         self._capture_modal_input_snapshot()
         installed = self._connection_install_hook()
         self._connection_show_target(payload, 0)
         state = self._connection_state
         if state is None:
-            return None
+            return
         state["owns_hook"] = installed
         state["tool_thread_id"] = threading.current_thread().ident
         if state["phase"] != "waiting":
             self._ring_bell(prompt=True, context=t("cli.connect.bell_context"))
-        return None
+        return
 
     def _connection_answer(self, *, approve: bool) -> None:
         state = self._connection_state
@@ -1001,7 +1005,7 @@ class CLIModalMixin:
         all questions, one active, and blocks until the key bindings lock every answer. Returns
         ``{"answers": {qid: raw | None}, "outcome"}`` (None = skipped): ``submitted`` when every
         question is locked, ``timed_out`` when the deadline expires, ``cancelled`` on an interrupt."""
-        from cli import CLI_CONFIG, _DIM, _RST, _cprint
+        from cli import _DIM, _RST, CLI_CONFIG, _cprint
         from tools.clarify_gateway import resolve_clarify_timeout
 
         timeout = resolve_clarify_timeout(CLI_CONFIG)
@@ -1070,7 +1074,7 @@ class CLIModalMixin:
         commands. ``_approval_lock`` serializes concurrent requests (parallel delegation subtasks)
         so the shared ``_approval_state`` / ``_approval_deadline`` aren't clobbered.
         """
-        from cli import CLI_CONFIG, _DIM, _RST, _cprint
+        from cli import _DIM, _RST, CLI_CONFIG, _cprint
 
         with self._approval_lock:
             timeout = int(CLI_CONFIG.get("approvals", {}).get("timeout", 300))

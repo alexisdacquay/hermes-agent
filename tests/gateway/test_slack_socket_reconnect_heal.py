@@ -14,10 +14,9 @@ from outliving a teardown.
 
 import asyncio
 import sys
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 
 # ---------------------------------------------------------------------------
 # Mock the slack-bolt package if it's not installed
@@ -56,13 +55,12 @@ def _ensure_slack_mock():
 
 _ensure_slack_mock()
 
-import plugins.platforms.slack.adapter as _slack_mod  # noqa: E402
+import plugins.platforms.slack.adapter as _slack_mod
 
 _slack_mod.SLACK_AVAILABLE = True
 
-from plugins.platforms.slack.adapter import SlackAdapter  # noqa: E402
-from gateway.config import PlatformConfig  # noqa: E402
-
+from gateway.config import PlatformConfig
+from plugins.platforms.slack.adapter import SlackAdapter
 
 # ---------------------------------------------------------------------------
 # Minimal stand-ins for the slack_sdk objects involved in teardown

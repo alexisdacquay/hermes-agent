@@ -10,8 +10,6 @@ are unaffected. ``force=True`` registers a transport-less adapter for tests.
 from __future__ import annotations
 
 import pytest
-
-from gateway.config import PlatformConfig
 from gateway.platform_registry import platform_registry
 from gateway.relay import register_relay_adapter, relay_url
 from gateway.relay.adapter import RelayAdapter

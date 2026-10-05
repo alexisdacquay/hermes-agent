@@ -12,8 +12,9 @@ from agent.relay_runtime import (
     RUNTIME_SCHEMA_KEY,
     RUNTIME_SCHEMA_VERSION,
 )
-from hermes_cli.platforms import PLATFORMS
 from toolsets import BUILTIN_TOOL_NAMES, BUILTIN_TOOLSET_NAMES
+
+from hermes_cli.platforms import PLATFORMS
 
 SCHEMA_KEY = "hermes.metrics.schema_version"
 # A random per-emit token (no payload) on rows whose producer waits to learn they were SAVED: facts
@@ -1660,7 +1661,10 @@ def install_snapshot_fields(
     terminal_backend: Any, display_language: Any,
 ) -> dict[str, str]:
     """Bounded daily configuration snapshot: counts, closed enums and public names only."""
-    from .shared_metrics_catalog import display_language_metric_name, provider_metric_name
+    from .shared_metrics_catalog import (
+        display_language_metric_name,
+        provider_metric_name,
+    )
 
     provider = _norm(memory_provider)
     backend = _norm(terminal_backend) or "local"

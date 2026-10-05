@@ -15,7 +15,6 @@ import time
 from unittest import mock
 
 import pytest
-
 from cron import scheduler_delivery as sched_delivery
 from cron.scheduler import _resolve_delivery_targets
 from cron.scheduler_delivery import (
@@ -26,7 +25,6 @@ from cron.scheduler_delivery import (
 )
 from cron.scheduler_preflight import _preflight_check_delivery
 from hermes_cli.quiet_single_query import TURN_REPORT_FILE_ENV
-
 
 # ── token parsing ────────────────────────────────────────────────────────────
 

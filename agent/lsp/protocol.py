@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import Any, Optional, Tuple
+from typing import Any
 
 logger = logging.getLogger("agent.lsp.protocol")
 
@@ -40,7 +40,7 @@ def encode_message(obj: dict) -> bytes:
     return f"Content-Length: {len(body)}\r\n\r\n".encode("ascii") + body
 
 
-async def _read_headers(reader: asyncio.StreamReader) -> Optional[dict]:
+async def _read_headers(reader: asyncio.StreamReader) -> dict | None:
     """Read the header block; ``None`` on clean EOF before any header started."""
     headers: dict = {}
     header_bytes = 0
@@ -68,7 +68,7 @@ async def _read_headers(reader: asyncio.StreamReader) -> Optional[dict]:
         headers[key.strip().lower()] = value.strip()
 
 
-async def read_message(reader: asyncio.StreamReader) -> Optional[dict]:
+async def read_message(reader: asyncio.StreamReader) -> dict | None:
     """Read one framed message.
 
     ``None`` on clean EOF between messages (typical shutdown); :class:`LSPProtocolError` on malformed framing.
@@ -119,7 +119,7 @@ def make_error_response(req_id: Any, code: int, message: str, data: Any = None) 
     return {"jsonrpc": "2.0", "id": req_id, "error": err}
 
 
-def classify_message(msg: dict) -> Tuple[str, Any]:
+def classify_message(msg: dict) -> tuple[str, Any]:
     """Return ``(kind, key)``: kind ∈ request/response/notification/invalid; key is the id (request/response),
     the method (notification) or ``None`` (invalid)."""
     if not isinstance(msg, dict) or msg.get("jsonrpc") != "2.0":
@@ -132,7 +132,15 @@ def classify_message(msg: dict) -> Tuple[str, Any]:
 
 
 __all__ = [
-    "ERROR_CONTENT_MODIFIED", "ERROR_METHOD_NOT_FOUND", "LSPProtocolError", "LSPRequestError",
-    "encode_message", "read_message", "make_request", "make_notification", "make_response",
-    "make_error_response", "classify_message",
+    "ERROR_CONTENT_MODIFIED",
+    "ERROR_METHOD_NOT_FOUND",
+    "LSPProtocolError",
+    "LSPRequestError",
+    "classify_message",
+    "encode_message",
+    "make_error_response",
+    "make_notification",
+    "make_request",
+    "make_response",
+    "read_message",
 ]

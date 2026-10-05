@@ -19,12 +19,10 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
-
 from gateway.config import Platform, PlatformConfig
 from gateway.platforms.base import SendResult
 from gateway.platforms.event import MessageEvent
-from gateway.platforms.webhook import WebhookAdapter, _INSECURE_NO_AUTH
-
+from gateway.platforms.webhook import _INSECURE_NO_AUTH, WebhookAdapter
 
 # ---------------------------------------------------------------------------
 # Helpers

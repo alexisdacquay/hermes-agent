@@ -14,7 +14,6 @@ the two child kinds — a compression continuation keeps inheriting, a delegate/
 from __future__ import annotations
 
 import pytest
-
 from hermes_state import SessionDB
 
 ROUTING_COLUMNS = ("session_key", "chat_id", "chat_type", "thread_id", "user_id")

@@ -2,16 +2,17 @@
 from __future__ import annotations
 
 import hashlib
-import json
-from pathlib import Path
 import hmac
 import http.client
+import json
 import os
 import re
 import sys
 import time
-from datetime import datetime, timezone
-from typing import Callable, Iterable, cast
+from collections.abc import Callable, Iterable
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import cast
 from urllib.parse import quote, urlparse
 
 from scripts.releases.r2_scope import R2Scope
@@ -103,7 +104,7 @@ def _hmac(key: bytes, msg: str) -> bytes:
 
 
 def signature(sts_text: str, secret_key: str, date: str, region: str, service: str) -> str:
-    k_date = _hmac(f"AWS4{secret_key}".encode("utf-8"), date)
+    k_date = _hmac(f"AWS4{secret_key}".encode(), date)
     k_region = _hmac(k_date, region)
     k_service = _hmac(k_region, service)
     k_signing = _hmac(k_service, "aws4_request")
@@ -150,7 +151,7 @@ def encode_key_path(key: str) -> str:
 
 
 def amz_timestamp() -> str:
-    return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    return datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
 
 
 class R2RequestError(Exception):
@@ -305,7 +306,7 @@ def verify_remote_artifact(
         response = fetcher(url)
         if response.status >= 400:
             raise R2RequestError("GET", urlparse(url).path, response.status)
-        data = response._body  # noqa: SLF001 — loopback-test responses are small
+        data = response._body
         hash_obj = hashlib.new(algorithm)
         hash_obj.update(data)
         size = len(data)
@@ -737,12 +738,12 @@ def parse_list_xml(xml: str) -> dict:
         if "." in text:
             return int(
                 datetime.strptime(text, "%Y-%m-%dT%H:%M:%S.%fZ")
-                .replace(tzinfo=timezone.utc)
+                .replace(tzinfo=UTC)
                 .timestamp()
             )
         return int(
             datetime.strptime(text, "%Y-%m-%dT%H:%M:%SZ")
-            .replace(tzinfo=timezone.utc)
+            .replace(tzinfo=UTC)
             .timestamp()
         )
 
@@ -843,7 +844,7 @@ def feed_referenced_keys(dir_key: str, appinstaller_xml: str | None) -> list[str
     for uri in _feed_bundle_uris(appinstaller_xml):
         keys.append(f"{dir_key}/{uri.rsplit('/', 1)[-1]}")
         if "/" in uri and uri.startswith(("http://", "https://")):
-            from urllib.parse import urlsplit, unquote
+            from urllib.parse import unquote, urlsplit
             path = urlsplit(uri).path
             if path.startswith("/releases/"):
                 keys.append(unquote(path[1:]))
@@ -864,7 +865,7 @@ def _feed_bundle_uris(appinstaller_xml: str | None) -> list[str]:
     if len(elements) != 1:
         return []
     uri_match = re.search(r"\bUri=\"([^\"]+)\"", elements[0])
-    if uri_match and re.search(r"\.(?:msixbundle|msix)$", uri_match.group(1), re.I):
+    if uri_match and re.search(r"\.(?:msixbundle|msix)$", uri_match.group(1), re.IGNORECASE):
         return [uri_match.group(1)]
     return []
 
@@ -900,7 +901,7 @@ def stale_feed_bundle_keys(
         for key in keys:
             if not key.startswith(prefix):
                 continue
-            if not re.search(r"\.(?:msixbundle|msix)$", key, re.I):
+            if not re.search(r"\.(?:msixbundle|msix)$", key, re.IGNORECASE):
                 continue  # pointers + metadata stay
             if key[len(prefix):] in referenced:
                 continue

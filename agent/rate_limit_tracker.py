@@ -8,8 +8,9 @@ and formats them for the /usage slash command. Reset values are seconds.
 from __future__ import annotations
 
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any, Mapping, Optional
+from typing import Any
 
 # (state attribute, header tag) for the four windows.
 _BUCKET_TAGS = (
@@ -77,7 +78,7 @@ def _safe_int(value: Any, default: Any = 0) -> Any:
         return default
 
 
-def lower_headers(headers: Optional[Mapping[str, str]]) -> dict[str, str]:
+def lower_headers(headers: Mapping[str, str] | None) -> dict[str, str]:
     """Lowercase header names (HTTP header names are case-insensitive)."""
     return {k.lower(): v for k, v in headers.items()} if headers else {}
 
@@ -86,7 +87,7 @@ def has_rate_limit_headers(lowered: Mapping[str, str]) -> bool:
     return any(k.startswith("x-ratelimit-") for k in lowered)
 
 
-def parse_rate_limit_headers(headers: Mapping[str, str], provider: str = "") -> Optional[RateLimitState]:
+def parse_rate_limit_headers(headers: Mapping[str, str], provider: str = "") -> RateLimitState | None:
     """Parse x-ratelimit-* headers into a RateLimitState (None if none present)."""
     lowered = lower_headers(headers)
     if not has_rate_limit_headers(lowered):

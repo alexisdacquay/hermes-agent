@@ -14,8 +14,8 @@ from __future__ import annotations
 
 import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, Optional
 
 _MARKERS_DIR = "plugin-update-checks"
 _DEFAULT_INTERVAL_HOURS = 24
@@ -72,7 +72,7 @@ def _default_config_get(section: str, key: str):
         return None
 
 
-def check_due(now: Optional[float] = None, interval_hours: Optional[float] = None,
+def check_due(now: float | None = None, interval_hours: float | None = None,
               config_get: Callable = None) -> bool:
     """The clock gate: last-run marker vs the interval."""
     if interval_hours is None:
@@ -98,11 +98,11 @@ def run_scheduled_check(
     *,
     run_checks_fn: Callable[..., list],
     plugins_dir: Path,
-    apply_updates_fn: Optional[Callable[[str], None]] = None,
+    apply_updates_fn: Callable[[str], None] | None = None,
     log=None,
     config_get: Callable = None,
-    now: Optional[float] = None,
-) -> Optional[list]:
+    now: float | None = None,
+) -> list | None:
     """One cadence tick: gate → check → receipt → (opt-in) apply.
 
     Returns the check results, or None when not due / disabled / another
@@ -134,7 +134,7 @@ def _run_check_locked(
     *,
     run_checks_fn: Callable[..., list],
     plugins_dir: Path,
-    apply_updates_fn: Optional[Callable[[str], None]],
+    apply_updates_fn: Callable[[str], None] | None,
     log,
     config_get: Callable = None,
 ) -> list:
@@ -205,12 +205,12 @@ def _run_check_locked(
 
 def maybe_run_gateway_check(
     *,
-    run_checks_fn: Optional[Callable[..., list]] = None,
-    apply_updates_fn: Optional[Callable[[str], None]] = None,
-    plugins_dir: Optional[Path] = None,
+    run_checks_fn: Callable[..., list] | None = None,
+    apply_updates_fn: Callable[[str], None] | None = None,
+    plugins_dir: Path | None = None,
     log=None,
-    now: Optional[float] = None,
-) -> Optional[list]:
+    now: float | None = None,
+) -> list | None:
     """The tick every gateway boot / housekeeping pass calls.
 
     Fills in the REAL seams ``run_scheduled_check`` leaves injectable:
@@ -237,9 +237,9 @@ def maybe_run_gateway_check(
 
         run_checks_fn = run_checks
     if apply_updates_fn is None:
-        from hermes_cli import plugins_cmd
-
         from functools import partial
+
+        from hermes_cli import plugins_cmd
         apply_updates_fn = partial(plugins_cmd.cmd_update, interactive=False)
     return run_scheduled_check(
         run_checks_fn=run_checks_fn,

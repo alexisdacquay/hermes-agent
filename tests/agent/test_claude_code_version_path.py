@@ -9,12 +9,13 @@ bare-name lookup found nothing and detection fell back to the stale constant.
 from __future__ import annotations
 
 import subprocess
-import sys
-
-import pytest
 
 import agent.anthropic_adapter as adapter
-from agent.anthropic_adapter import _CLAUDE_CODE_VERSION_FALLBACK, _detect_claude_code_version
+import pytest
+from agent.anthropic_adapter import (
+    _CLAUDE_CODE_VERSION_FALLBACK,
+    _detect_claude_code_version,
+)
 
 
 def _install(directory, name: str) -> str:

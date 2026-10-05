@@ -13,22 +13,36 @@ import sys
 import threading
 from collections import OrderedDict
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 from hermes_constants import (
-    get_hermes_home, get_scratch_dir, get_skills_dir, is_wsl, reset_hermes_home_override, set_hermes_home_override,
+    get_hermes_home,
+    get_scratch_dir,
+    get_skills_dir,
+    is_wsl,
+    reset_hermes_home_override,
+    set_hermes_home_override,
 )
+from tools.threat_patterns import scan_for_threats as _scan_for_threats
+from utils import atomic_json_write, file_signature
 
 from agent.model_metadata import CHARS_PER_TOKEN
 from agent.runtime_cwd import resolve_agent_cwd
 from agent.skill_utils import (
-    EXCLUDED_SKILL_DIRS, SKILL_SUPPORT_DIRS,
-    TIER_LOCAL, extract_skill_conditions, extract_skill_description, get_disabled_skill_names, get_skill_search_roots,
-    iter_skill_index_files, parse_frontmatter, skill_matches_apps, skill_matches_environment,
-    skill_matches_platform, skill_matches_platform_list,
+    EXCLUDED_SKILL_DIRS,
+    SKILL_SUPPORT_DIRS,
+    TIER_LOCAL,
+    extract_skill_conditions,
+    extract_skill_description,
+    get_disabled_skill_names,
+    get_skill_search_roots,
+    iter_skill_index_files,
+    parse_frontmatter,
+    skill_matches_apps,
+    skill_matches_environment,
+    skill_matches_platform,
+    skill_matches_platform_list,
 )
-from tools.threat_patterns import scan_for_threats as _scan_for_threats
-from utils import atomic_json_write, file_signature
 
 logger = logging.getLogger(__name__)
 
@@ -50,8 +64,8 @@ def _get_context_file_read_timeout() -> float:
 
 
 def _read_text_with_timeout(
-    path: Path, timeout: Optional[float] = None, encoding: str = "utf-8-sig"
-) -> Optional[str]:
+    path: Path, timeout: float | None = None, encoding: str = "utf-8-sig"
+) -> str | None:
     """``path.read_text()`` on a daemon thread so a slow file can't stall startup.
 
     Returns the text, or ``None`` after *timeout* seconds (logged at WARNING;
@@ -61,7 +75,7 @@ def _read_text_with_timeout(
     """
     if timeout is None:
         timeout = _get_context_file_read_timeout()
-    result: "queue.Queue[tuple[bool, object]]" = queue.Queue(maxsize=1)
+    result: queue.Queue[tuple[bool, object]] = queue.Queue(maxsize=1)
 
     def _reader() -> None:
         try:
@@ -96,8 +110,7 @@ def _scan_context_content(content: str, filename: str, *, user_authored: bool = 
     ``load_soul_md`` passes ``user_authored=False`` when ``distribution.yaml`` owns the file).
     """
     # A leading UTF-8 BOM is a Windows-editor artifact, not an injection.
-    if content.startswith("\ufeff"):
-        content = content[1:]
+    content = content.removeprefix("\ufeff")
     findings = _scan_for_threats(content, scope="context")
     if not findings:
         return content
@@ -110,7 +123,7 @@ def _scan_context_content(content: str, filename: str, *, user_authored: bool = 
     return f"[BLOCKED: {filename} contained potential prompt injection ({', '.join(findings)}). Content not loaded.]"
 
 
-def _find_git_root(start: Path) -> Optional[Path]:
+def _find_git_root(start: Path) -> Path | None:
     """Nearest ancestor (or *start* itself) containing ``.git``, else None."""
     current = start.resolve()
     # A parent the process may not stat (locked-down /home on shared hosts) is "no .git here", not a crash.
@@ -138,7 +151,7 @@ def _is_dir_or_denied(path: Path) -> bool:
         return False
 
 
-def _find_hermes_md(cwd: Path) -> Optional[Path]:
+def _find_hermes_md(cwd: Path) -> Path | None:
     """Nearest ``.hermes.md`` / ``HERMES.md`` from *cwd* up to the git root, else None."""
     stop_at = _find_git_root(cwd)
     current = cwd.resolve()
@@ -592,7 +605,7 @@ def format_steer_marker(steer_text: str) -> str:
 STEER_DISPLAY_KIND = "steer"
 
 
-def steer_user_row(steer_text: str) -> Dict[str, Any]:
+def steer_user_row(steer_text: str) -> dict[str, Any]:
     """The standalone ``role:user`` row a mid-turn /steer is delivered as (after the newest tool
     result). Its own row — never smeared onto the already-persisted tool row, which append-only
     persistence would leave divergent from the live request — and typed so the alternation repair
@@ -621,8 +634,8 @@ STEER_CHANNEL_NOTE = (
 )
 
 
-def hud_surface_note(valid_tool_names: "set[str] | None" = None,
-                     deferred_tool_names: "frozenset[str] | set[str]" = frozenset()) -> str:
+def hud_surface_note(valid_tool_names: set[str] | None = None,
+                     deferred_tool_names: frozenset[str] | set[str] = frozenset()) -> str:
     """Per-turn note for a message typed into the desktop's floating HUD ("this"/"here" = the app behind it).
 
     A per-turn fact, not a platform (one session alternates between app window and HUD), so it rides the
@@ -965,7 +978,11 @@ _BACKEND_PROBE_CMD = (
 
 def _run_backend_probe(env_type: str, terminal_tool) -> str:
     """Execute the probe command inside a freshly built backend; "" when it yields nothing."""
-    from tools.terminal_tool_backends import _container_config_from_config, _create_environment, _ssh_config_from_config
+    from tools.terminal_tool_backends import (
+        _container_config_from_config,
+        _create_environment,
+        _ssh_config_from_config,
+    )
     from tools.terminal_tool_lifecycle import _cleanup_env
 
     config = terminal_tool._get_env_config()
@@ -1001,7 +1018,7 @@ def _run_backend_probe(env_type: str, terminal_tool) -> str:
 def _format_backend_probe(output: str) -> str:
     """Render the probe's key=value lines as an indented summary ("" if nothing usable)."""
     parsed = {k.strip(): v.strip() for k, _, v in (line.partition("=") for line in output.splitlines() if "=" in line)}
-    known = lambda key: parsed.get(key) if parsed.get(key) != "unknown" else None  # noqa: E731
+    known = lambda key: parsed.get(key) if parsed.get(key) != "unknown" else None
     os_line = " ".join(x for x in (known("os"), known("kernel")) if x)
     return f"  OS: {os_line}" if os_line else ""
 
@@ -1014,7 +1031,7 @@ def _probe_remote_backend(env_type: str) -> str | None:
     if formatted is None:
         formatted = ""
         try:
-            import tools.terminal_tool as terminal_tool  # heavy; only needed for non-local backends
+            from tools import terminal_tool  # heavy; only needed for non-local backends
         except Exception as e:
             logger.debug("Backend probe unavailable (import failed): %s", e)
         else:
@@ -1063,7 +1080,7 @@ def _local_host_hints() -> list[str]:
     return ["\n".join(host_lines), _WINDOWS_BASH_SHELL_HINT]
 
 
-def bot_screen_note(running: bool, display: "str | None", holder: str) -> str:
+def bot_screen_note(running: bool, display: str | None, holder: str) -> str:
     """The one-line Bot Screen status the model sees — the prompt's ``_bot_screen_hint`` body,
     parameterised so the display watcher can stage the same sentence as a per-turn note when a
     screen starts or stops mid-session (#125830; the byte-stable prompt only converges at
@@ -1093,7 +1110,8 @@ def _bot_screen_hint() -> str:
     bot_desktop module or an unreadable lease must not break prompt construction. ``""`` when
     no screen is running, so the block simply drops out of the environment hints."""
     try:
-        from tools.bot_desktop import lease as _bd_lease, runtime as _bd_runtime
+        from tools.bot_desktop import lease as _bd_lease
+        from tools.bot_desktop import runtime as _bd_runtime
         return bot_screen_note(True, _bd_runtime.published_env().get("DISPLAY"), _bd_lease.get().holder)
     except Exception:
         return ""
@@ -1169,7 +1187,7 @@ _CONTEXT_FILE_WINDOW_FRACTION = 0.06
 _CONTEXT_FILE_DYNAMIC_CEILING = 500_000
 
 
-def _dynamic_context_file_max_chars(context_length: Optional[int]) -> int:
+def _dynamic_context_file_max_chars(context_length: int | None) -> int:
     """Char cap from the model's window, clamped to [20K floor, 500K ceiling]; flat default when unknown."""
     if not isinstance(context_length, int) or context_length <= 0:
         return CONTEXT_FILE_MAX_CHARS
@@ -1177,7 +1195,7 @@ def _dynamic_context_file_max_chars(context_length: Optional[int]) -> int:
     return max(CONTEXT_FILE_MAX_CHARS, min(budget, _CONTEXT_FILE_DYNAMIC_CEILING))
 
 
-def _get_context_file_max_chars(context_length: Optional[int] = None) -> int:
+def _get_context_file_max_chars(context_length: int | None = None) -> int:
     """Context-file truncation limit: explicit config.yaml ``context_file_max_chars`` wins, else the dynamic cap."""
     val = _config_readonly("context_file_max_chars").get("context_file_max_chars")
     return int(val) if isinstance(val, (int, float)) and val > 0 else _dynamic_context_file_max_chars(context_length)
@@ -1185,7 +1203,7 @@ def _get_context_file_max_chars(context_length: Optional[int] = None) -> int:
 
 # Truncation warnings for run_agent to surface. A ContextVar so concurrent gateway prompt builds cannot
 # drain each other's.
-_truncation_warnings: "contextvars.ContextVar[Optional[list]]" = contextvars.ContextVar(
+_truncation_warnings: contextvars.ContextVar[list | None] = contextvars.ContextVar(
     "context_file_truncation_warnings", default=None
 )
 
@@ -1245,7 +1263,7 @@ def _build_skills_manifest(skills_dir: Path) -> dict[str, list[int]]:
     return manifest
 
 
-def _load_skills_snapshot(skills_dir: Path) -> Optional[dict]:
+def _load_skills_snapshot(skills_dir: Path) -> dict | None:
     """The disk snapshot if it exists, is current-version, and its manifest still matches."""
     try:
         snapshot = json.loads(_skills_prompt_snapshot_path().read_text(encoding="utf-8-sig"))
@@ -1295,8 +1313,8 @@ def _parse_skill_file(skill_file: Path) -> tuple[bool, dict, str]:
 
 
 def _skill_should_show(
-    conditions: dict, available_tools: "set[str] | None", available_toolsets: "set[str] | None",
-    session_platform: "str | None" = None,
+    conditions: dict, available_tools: set[str] | None, available_toolsets: set[str] | None,
+    session_platform: str | None = None,
 ) -> bool:
     """False if the skill's conditional activation rules exclude it."""
     # Gateway-channel gate runs regardless of tool info; fails open when the platform is unknown.
@@ -1328,8 +1346,8 @@ def _current_session_platform_hint() -> str:
 
 
 def build_skills_system_prompt(
-    available_tools: "set[str] | None" = None, available_toolsets: "set[str] | None" = None,
-    compact_categories: "frozenset[str] | None" = None, skills_dir_override: "Path | None" = None,
+    available_tools: set[str] | None = None, available_toolsets: set[str] | None = None,
+    compact_categories: frozenset[str] | None = None, skills_dir_override: Path | None = None,
 ) -> str:
     """Compact skill index for the system prompt.
 
@@ -1401,7 +1419,7 @@ def _label_visible_entries(visible_entries: list[dict], skills_by_category: dict
 
 def _render_skills_index(
     skills_by_category: dict[str, list[tuple[str, str]]], category_descriptions: dict[str, str],
-    compact_categories: "frozenset[str] | None", available_tools: "set[str] | None", unloadable: "list[str]" = (),
+    compact_categories: frozenset[str] | None, available_tools: set[str] | None, unloadable: list[str] = (),
 ) -> str:
     """Render the ## Skills block; "" when there is nothing to list. *unloadable* names (different skills
     sharing a name AND relative path within one tier — one root or several) get a rename note instead of a row skill_view would refuse."""
@@ -1434,7 +1452,10 @@ def _render_skills_index(
             if name not in seen:
                 seen.add(name)
                 index_lines.append(f"    - {name}: {desc}" if desc else f"    - {name}")
-    from agent.oneshot_footprint import ONESHOT_SKILLS_LOAD_GUIDANCE, is_single_query_session
+    from agent.oneshot_footprint import (
+        ONESHOT_SKILLS_LOAD_GUIDANCE,
+        is_single_query_session,
+    )
     if is_single_query_session():
         return (
             ONESHOT_SKILLS_LOAD_GUIDANCE
@@ -1470,8 +1491,8 @@ def _oneshot_prompt_variant() -> bool:
 
 
 def _build_skills_system_prompt_inner(
-    skills_dir: "Path", extra_roots: "list[tuple[int, Path]]", available_tools: "set[str] | None",
-    available_toolsets: "set[str] | None", compact_categories: "frozenset[str] | None",
+    skills_dir: Path, extra_roots: list[tuple[int, Path]], available_tools: set[str] | None,
+    available_toolsets: set[str] | None, compact_categories: frozenset[str] | None,
 ) -> str:
     # The resolved platform is part of the key: per-platform disabled-skill lists need distinct cache entries.
     _platform_hint = _current_session_platform_hint()
@@ -1515,7 +1536,12 @@ def _build_skills_system_prompt_inner(
     # Every tier is resolved together, exactly as skill_view resolves names (agent.skill_utils precedence:
     # project > local > create_dir > external_dirs; same-tier duplicates listed by exact path). Hidden and
     # incompatible copies still take part — skill_view sees them too.
-    from agent.skill_utils import TIER_PROJECT, is_disabled_entry, iter_project_skill_files, resolve_skill_catalog
+    from agent.skill_utils import (
+        TIER_PROJECT,
+        is_disabled_entry,
+        iter_project_skill_files,
+        resolve_skill_catalog,
+    )
     project_roots = [d for t, d in extra_roots if t == TIER_PROJECT and d.exists()]
     rows: list[tuple[dict, bool]] = []
     for root in project_roots:
@@ -1553,8 +1579,8 @@ def _build_skills_system_prompt_inner(
 
 
 def _truncate_content(
-    content: str, filename: str, max_chars: Optional[int] = None, context_length: Optional[int] = None,
-    read_path: Optional[str] = None, queue_warning: bool = True,
+    content: str, filename: str, max_chars: int | None = None, context_length: int | None = None,
+    read_path: str | None = None, queue_warning: bool = True,
 ) -> str:
     """Head/tail truncation with a marker in the middle; ``read_path`` (default ``filename``) is what the
     agent is told to ``read_file`` to recover the full content. ``queue_warning=False`` is for bounded
@@ -1602,7 +1628,7 @@ def _omitted_headings(content: str, start: int, end: int, limit: int = 15) -> li
     return headings[:limit] + (["..."] if len(headings) > limit else [])
 
 
-def load_soul_md(context_length: Optional[int] = None, home_override: "Path | None" = None) -> Optional[str]:
+def load_soul_md(context_length: int | None = None, home_override: Path | None = None) -> str | None:
     """SOUL.md from HERMES_HOME (identity slot #1), or None.
 
     Callers must pass ``skip_soul=True`` to ``build_context_files_prompt`` so it isn't injected twice.
@@ -1660,7 +1686,7 @@ def _read_context_file(path: Path) -> str:
         return ""
 
 
-def _context_section(content: str, label: str, warn_name: str, path: Path, context_length: Optional[int]) -> str:
+def _context_section(content: str, label: str, warn_name: str, path: Path, context_length: int | None) -> str:
     """Threat-scan *content*, render it as ``## <label>``, cap it to the budget (*warn_name* labels warnings)."""
     body = f"## {label}\n\n{_scan_context_content(content, label)}"
     return _truncate_content(body, warn_name, context_length=context_length, read_path=str(path))
@@ -1744,7 +1770,7 @@ def discover_context_files(cwd_path: Path) -> list[tuple[str, str, Path, str]]:
             for kind, finder in _CONTEXT_FILE_CANDIDATES.items() for label, path, content in finder(cwd_path)]
 
 
-def _project_context_suppressed(cwd: Optional[str], cwd_path: Path, allow_install_tree_fallback: bool) -> bool:
+def _project_context_suppressed(cwd: str | None, cwd_path: Path, allow_install_tree_fallback: bool) -> bool:
     """A FALLBACK-picked cwd inside the Hermes install tree must not gain system-prompt authority (the desktop
     default would load this repo's contributor AGENTS.md). An explicitly configured cwd is honored verbatim —
     the Hermes tree is a legitimate workspace when the user deliberately points a session at it — and
@@ -1754,7 +1780,7 @@ def _project_context_suppressed(cwd: Optional[str], cwd_path: Path, allow_instal
     return cwd is None and not allow_install_tree_fallback and _is_install_tree(cwd_path)
 
 
-def _load_hermes_md(cwd_path: Path, context_length: Optional[int] = None) -> str:
+def _load_hermes_md(cwd_path: Path, context_length: int | None = None) -> str:
     """.hermes.md / HERMES.md — nearest match walking up to the git root."""
     for label, path, content in _hermes_md_candidates(cwd_path):
         if content:
@@ -1762,7 +1788,7 @@ def _load_hermes_md(cwd_path: Path, context_length: Optional[int] = None) -> str
     return ""
 
 
-def _load_agents_md(cwd_path: Path, context_length: Optional[int] = None) -> str:
+def _load_agents_md(cwd_path: Path, context_length: int | None = None) -> str:
     """AGENTS.md — merged directory chain from git root down to cwd.
 
     Each directory on the chain (see ``_agents_md_candidates``) contributes its ``AGENTS.override.md`` /
@@ -1786,7 +1812,7 @@ def _load_agents_md(cwd_path: Path, context_length: Optional[int] = None) -> str
                              read_path=str(cwd_path.resolve() / "AGENTS.md"))
 
 
-def _load_claude_md(cwd_path: Path, context_length: Optional[int] = None) -> str:
+def _load_claude_md(cwd_path: Path, context_length: int | None = None) -> str:
     """CLAUDE.md / claude.md — cwd only."""
     for name, path, content in _claude_md_candidates(cwd_path):
         if content:
@@ -1794,7 +1820,7 @@ def _load_claude_md(cwd_path: Path, context_length: Optional[int] = None) -> str
     return ""
 
 
-def _load_cursorrules(cwd_path: Path, context_length: Optional[int] = None) -> str:
+def _load_cursorrules(cwd_path: Path, context_length: int | None = None) -> str:
     """.cursorrules + .cursor/rules/*.mdc — cwd only, concatenated."""
     cursorrules_content = "".join(
         f"## {label}\n\n{_scan_context_content(content, label)}\n\n"
@@ -1807,8 +1833,8 @@ def _load_cursorrules(cwd_path: Path, context_length: Optional[int] = None) -> s
 
 
 def build_context_files_prompt(
-    cwd: Optional[str] = None, skip_soul: bool = False, context_length: Optional[int] = None,
-    allow_install_tree_fallback: bool = False, home_override: "Path | None" = None,
+    cwd: str | None = None, skip_soul: bool = False, context_length: int | None = None,
+    allow_install_tree_fallback: bool = False, home_override: Path | None = None,
 ) -> str:
     """Discover and load context files for the system prompt (each capped, see ``_get_context_file_max_chars``).
 

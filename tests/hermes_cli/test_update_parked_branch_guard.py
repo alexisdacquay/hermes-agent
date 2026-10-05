@@ -24,12 +24,8 @@ import subprocess
 from types import SimpleNamespace
 
 import pytest
-
 from hermes_cli import main as hermes_main
-import hermes_cli.main_web_build as main_web_build
-import hermes_cli.main_install_repair as main_install_repair
-from hermes_cli import update_cmd
-
+from hermes_cli import main_install_repair, main_web_build, update_cmd
 
 GIT = ["git"]
 
@@ -84,7 +80,7 @@ def _no_config(monkeypatch):
     """Isolate the guard from the machine's real config.yaml."""
     import hermes_cli.config as hermes_config
 
-    monkeypatch.setattr(hermes_config, "load_config", lambda: {})
+    monkeypatch.setattr(hermes_config, "load_config", dict)
 
 
 # ---------------------------------------------------------------------------

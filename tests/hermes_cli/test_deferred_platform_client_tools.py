@@ -21,9 +21,8 @@ import sys
 import threading
 from pathlib import Path
 
-import pytest
 import hermes_yaml as yaml
-
+import pytest
 
 A2A_CLIENT_TOOLS = {
     "a2a_call",
@@ -42,8 +41,8 @@ def _write_platform_plugin(
     platform: str,
     *,
     with_tools_module: bool,
-    declares_provides_tools: "bool | None" = None,
-) -> "object":
+    declares_provides_tools: bool | None = None,
+) -> object:
     """Create a bundled-style platform plugin and return its manifest.
 
     The adapter import is the expensive thing we must NOT trigger: it is

@@ -3,12 +3,9 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
-
 from hermes_cli import auth as auth_mod
-import hermes_cli.auth_spotify as auth_spotify
+from hermes_cli import auth_spotify
 from hermes_cli.auth import AuthError, resolve_spotify_runtime_credentials
-
-
 
 
 def test_resolve_spotify_runtime_credentials_refreshes_without_changing_active_provider(

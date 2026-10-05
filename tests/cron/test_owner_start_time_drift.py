@@ -10,9 +10,8 @@ reading is still fail-safe.
 
 from __future__ import annotations
 
-import pytest
-
 import cron.executions as executions_mod
+import pytest
 
 
 @pytest.fixture(autouse=True)

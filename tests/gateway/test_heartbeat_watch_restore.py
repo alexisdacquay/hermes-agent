@@ -5,10 +5,9 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
-
 from gateway.config import GatewayConfig, Platform
 from gateway.run import GatewayRunner, _profile_runtime_scope
-from gateway.session import SessionStore, SessionSource
+from gateway.session import SessionSource, SessionStore
 from hermes_cli import goals
 from hermes_cli.heartbeat import HeartbeatManager, HeartbeatState
 from hermes_state import SessionDB
@@ -161,7 +160,7 @@ async def test_startup_arms_retry_poller_even_without_any_watches(monkeypatch):
     runner.hooks = SimpleNamespace(loaded_hooks=[], emit=AsyncMock())
     runner.adapters = {}
     runner._send_update_notification = AsyncMock(return_value=True)
-    runner.session_store = SimpleNamespace(list_sessions=lambda: [])
+    runner.session_store = SimpleNamespace(list_sessions=list)
     runner._run_in_executor_with_context = asyncio.to_thread
     monkeypatch.setattr('gateway.channel_directory.build_channel_directory', AsyncMock(return_value={}))
     await runner._start_post_connect_services(0)
@@ -178,7 +177,6 @@ async def test_startup_arms_retry_poller_even_without_any_watches(monkeypatch):
 @pytest.mark.asyncio
 async def test_restore_enters_each_profile_scope_once_per_scan(tmp_path, monkeypatch):
     """N routed sessions in one profile cost one scope entry, not N (scope entry re-parses config)."""
-    from gateway import run_heartbeat_restore
     from gateway.run_heartbeat_restore import restore_heartbeat_watches
 
     home = tmp_path / '.hermes'

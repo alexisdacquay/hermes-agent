@@ -7,7 +7,6 @@ import stat
 from pathlib import Path
 
 import pytest
-
 from hermes_cli.backup import (
     BackupInProgressError,
     _atomic_output_path,
@@ -22,10 +21,9 @@ def test_backup_lock_rejects_a_second_operation(tmp_path) -> None:
     home = tmp_path / ".hermes"
     home.mkdir()
 
-    with _backup_operation_lock(home):
-        with pytest.raises(BackupInProgressError):
-            with _backup_operation_lock(home, timeout_seconds=0):
-                raise AssertionError("second backup unexpectedly acquired the lock")
+    with _backup_operation_lock(home), pytest.raises(BackupInProgressError):
+        with _backup_operation_lock(home, timeout_seconds=0):
+            raise AssertionError("second backup unexpectedly acquired the lock")
 
 
 def test_atomic_output_publishes_only_after_clean_close(tmp_path) -> None:
@@ -44,10 +42,9 @@ def test_atomic_output_keeps_previous_file_after_failure(tmp_path) -> None:
     final = tmp_path / "backup.zip"
     final.write_bytes(b"previous")
 
-    with pytest.raises(RuntimeError):
-        with _atomic_output_path(final) as partial:
-            partial.write_bytes(b"incomplete")
-            raise RuntimeError("compression failed")
+    with pytest.raises(RuntimeError), _atomic_output_path(final) as partial:
+        partial.write_bytes(b"incomplete")
+        raise RuntimeError("compression failed")
 
     assert final.read_bytes() == b"previous"
     assert not partial.exists()

@@ -20,7 +20,6 @@ import tempfile
 import urllib.error
 import urllib.request
 from pathlib import Path
-from typing import Optional
 
 from gateway.relay.auth import make_upgrade_token
 
@@ -44,15 +43,14 @@ def media_base_url(relay_dial_url: str) -> str:
         raw = "http://" + raw[len("ws://") :]
     elif raw.startswith("wss://"):
         raw = "https://" + raw[len("wss://") :]
-    if raw.endswith("/relay"):
-        raw = raw[: -len("/relay")]
+    raw = raw.removesuffix("/relay")
     return raw
 
 
 class RelayMediaClient:
     """Authenticated client for the connector's ``/relay/media`` routes."""
 
-    def __init__(self, base_url: str, gateway_id: Optional[str], secret: Optional[str]) -> None:
+    def __init__(self, base_url: str, gateway_id: str | None, secret: str | None) -> None:
         self._base_url = base_url.rstrip("/")
         self._gateway_id = gateway_id or ""
         self._secret = secret or ""
@@ -70,8 +68,8 @@ class RelayMediaClient:
         return "/relay/media/" in (url or "")
 
     async def upload(
-        self, file_path: str, *, mime: Optional[str] = None, filename: Optional[str] = None
-    ) -> Optional[str]:
+        self, file_path: str, *, mime: str | None = None, filename: str | None = None
+    ) -> str | None:
         """POST local file bytes to ``/relay/media``; return the reference URL or None on any failure."""
         if not self.enabled:
             return None
@@ -97,7 +95,7 @@ class RelayMediaClient:
         }
         url = f"{self._base_url}/relay/media"
 
-        def _post() -> Optional[str]:
+        def _post() -> str | None:
             req = urllib.request.Request(url, data=data, headers=headers, method="POST")
             try:
                 with urllib.request.urlopen(req, timeout=_REQUEST_TIMEOUT_S) as resp:
@@ -109,7 +107,7 @@ class RelayMediaClient:
 
         return await asyncio.get_running_loop().run_in_executor(None, _post)
 
-    async def download(self, url: str, *, suggested_name: Optional[str] = None) -> Optional[str]:
+    async def download(self, url: str, *, suggested_name: str | None = None) -> str | None:
         """GET an attachment to a local temp file; return its path or None on any failure.
 
         The bearer is presented only for connector re-host URLs; public URLs
@@ -124,7 +122,7 @@ class RelayMediaClient:
         if needs_auth:
             headers["Authorization"] = f"Bearer {self._bearer()}"
 
-        def _get() -> Optional[str]:
+        def _get() -> str | None:
             req = urllib.request.Request(url, headers=headers)
             try:
                 with urllib.request.urlopen(req, timeout=_REQUEST_TIMEOUT_S) as resp:
@@ -156,4 +154,4 @@ class RelayMediaClient:
         return await asyncio.get_running_loop().run_in_executor(None, _get)
 
 
-__all__ = ["RelayMediaClient", "media_base_url", "MEDIA_MAX_BYTES"]
+__all__ = ["MEDIA_MAX_BYTES", "RelayMediaClient", "media_base_url"]

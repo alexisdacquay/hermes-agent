@@ -16,7 +16,6 @@ import shutil
 import subprocess
 
 import pytest
-
 from tools.terminal_tool_sudo import _rewrite_compound_background as rewrite
 
 

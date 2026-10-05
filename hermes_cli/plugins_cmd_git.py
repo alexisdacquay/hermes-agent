@@ -12,13 +12,14 @@ import re
 import subprocess
 import threading
 import urllib.parse
+from collections.abc import Callable
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Callable, Optional
 
-from hermes_cli._subprocess_compat import noninteractive_git_env
 from hermes_constants import get_hermes_home
 from utils import atomic_write_text
+
+from hermes_cli._subprocess_compat import noninteractive_git_env
 
 
 def _pc():
@@ -71,7 +72,7 @@ def _install_metadata_lock():
         yield
 
 
-def _update_install_record(name: str, update: Callable[[Optional[dict]], Optional[dict]]) -> None:
+def _update_install_record(name: str, update: Callable[[dict | None], dict | None]) -> None:
     """Rewrite one plugin's record in the CURRENT sidecar, under the lock. *update* maps the current
     record (None when absent) to the new one (None removes it); every other record is re-read here,
     never carried over from a caller's earlier snapshot."""
@@ -87,7 +88,7 @@ def _update_install_record(name: str, update: Callable[[Optional[dict]], Optiona
         _pc()._write_install_metadata(metadata)
 
 
-def pinned_revision(name: str, metadata: Optional[dict] = None) -> Optional[str]:
+def pinned_revision(name: str, metadata: dict | None = None) -> str | None:
     """Full SHA a ``--ref`` install of *name* is pinned to, else ``None``."""
     entry = (metadata if metadata is not None else _pc()._read_install_metadata()).get(name)
     if isinstance(entry, dict) and entry.get("pinned") is True and isinstance(entry.get("revision"), str):
@@ -95,7 +96,7 @@ def pinned_revision(name: str, metadata: Optional[dict] = None) -> Optional[str]
     return None
 
 
-def _pin_annotation(name: str, metadata: dict) -> Optional[str]:
+def _pin_annotation(name: str, metadata: dict) -> str | None:
     sha = pinned_revision(name, metadata)
     return f"git pinned@{sha[:8]}" if sha else None
 
@@ -187,7 +188,7 @@ def _scrub_git_url(git_url: str) -> str:
     return git_url
 
 
-def _canonical_source(git_url: str, subdir: Optional[str]) -> str:
+def _canonical_source(git_url: str, subdir: str | None) -> str:
     scrubbed = _scrub_git_url(git_url)
     return f"{scrubbed}#{subdir}" if subdir else scrubbed
 
@@ -212,8 +213,8 @@ def _restrict_checkout_to_subdir(repo: Path, git_exe: str, subdir: str) -> None:
     pattern_file.write_text(f"/{escaped}/\n", encoding="utf-8")
 
 
-def _clone_plugin_repo(tmp_clone: Path, git_url: str, revision: Optional[str],
-                       subdir: Optional[str] = None) -> str:
+def _clone_plugin_repo(tmp_clone: Path, git_url: str, revision: str | None,
+                       subdir: str | None = None) -> str:
     """Shallow-clone *git_url* into *tmp_clone* (detached at *revision* when given), scrub any
     credentials from the recorded origin, and return the installed HEAD SHA.
 

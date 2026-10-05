@@ -9,7 +9,6 @@ the budget so visibility no longer shortens discovery.
 """
 
 import pytest
-
 from hermes_cli.model_switch import list_authenticated_providers
 
 

@@ -16,15 +16,15 @@ from __future__ import annotations
 
 import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, Optional
 
 from hermes_cli.web_server_skew_exit import _run_retirement_watchdog
 
 DEFAULT_OWNER_POLL_S = 15.0
 
 
-def should_retire_superseded(*, lock: Optional[dict], my_nonce: str, age_s: float) -> bool:
+def should_retire_superseded(*, lock: dict | None, my_nonce: str, age_s: float) -> bool:
     """Retire only when a valid lock provably names another spawn of this ownership slot. A young
     process may still see the previous spawn's lock, so it must first outlive the same settle window
     the orphan reaper gives the Desktop to write the lock."""
@@ -34,20 +34,20 @@ def should_retire_superseded(*, lock: Optional[dict], my_nonce: str, age_s: floa
 
 
 def start_owner_watchdog(server, *, lock_path: Path, nonce: str,
-                         read_lock: Optional[Callable[[Path], Optional[dict]]] = None,
+                         read_lock: Callable[[Path], dict | None] | None = None,
                          fence=None, poll_s: float = DEFAULT_OWNER_POLL_S,
                          now: Callable[[], float] = time.monotonic,
-                         max_polls: Optional[int] = None) -> threading.Thread:
+                         max_polls: int | None = None) -> threading.Thread:
     """Daemon thread that sets ``server.should_exit`` once this backend is provably superseded and
     provably idle. ``max_polls`` bounds the loop for tests only."""
     if read_lock is None:
         from hermes_cli.dashboard_procs import read_valid_backend_lock
 
         read_lock = read_valid_backend_lock
-    reader: Callable[[Path], Optional[dict]] = read_lock
+    reader: Callable[[Path], dict | None] = read_lock
     started = now()
 
-    def _observe() -> Optional[str]:
+    def _observe() -> str | None:
         lock = reader(lock_path)
         if lock is None or not should_retire_superseded(lock=lock, my_nonce=nonce, age_s=now() - started):
             return None

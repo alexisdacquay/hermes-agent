@@ -3,7 +3,6 @@
 import os
 
 import pytest
-
 from tools import checkpoint_manager as checkpoints
 
 

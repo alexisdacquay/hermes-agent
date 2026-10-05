@@ -51,7 +51,10 @@ class _TerminalSlot:
             # shell state later, after the previous result has been persisted.
             config = tt._get_env_config()
             if isinstance(ref.args.get("command"), str):
-                from tools.approval_context import set_current_observability_context, reset_current_observability_context
+                from tools.approval_context import (
+                    reset_current_observability_context,
+                    set_current_observability_context,
+                )
                 tokens = set_current_observability_context(
                     tool_call_id=ref.call_id, session_id=self.batch.agent.session_id or "",
                     turn_id=getattr(self.batch.agent, "_current_turn_id", "") or "",
@@ -90,8 +93,9 @@ class _TerminalSlot:
 
 class _TerminalBatch:
     def __init__(self, agent, messages, task_id, parsed):
-        from agent.tool_executor import _ConcurrentToolAuthorizationGate
         from tools.daemon_pool import DaemonThreadPoolExecutor
+
+        from agent.tool_executor import _ConcurrentToolAuthorizationGate
         self.agent, self.messages, self.task_id = agent, messages, task_id
         self.cancelled = threading.Event()
         self.pending_approvals = []  # guarded by tools.approval._lock
@@ -122,8 +126,9 @@ class _TerminalBatch:
                     raise TimeoutError("Terminal approval preparation timed out; commands were not started")
 
     def close(self):
-        from agent.tool_executor import _interrupt_worker_tids
         from tools import approval
+
+        from agent.tool_executor import _interrupt_worker_tids
         # Withdraw only this batch's requests, including a worker wedged in
         # notify_cb. Thread interrupts alone leave those requests actionable.
         with approval._lock:
@@ -275,6 +280,7 @@ def validate_prepared_terminal(args):
 def terminal_approval_runs(agent, calls):
     """Keep nonterminal barriers, but batch adjacent terminals in mixed segments."""
     from itertools import groupby
+
     from agent.tool_executor import _parse_tool_call
 
     def is_terminal(call):
@@ -289,6 +295,7 @@ def terminal_approval_runs(agent, calls):
 def terminal_approval_batch(agent, calls, messages, task_id):
     from gateway.session_context import get_session_env
     from tools import approval
+
     from agent.tool_executor import _parse_tool_call
     if (len(calls) < 2 or get_session_env("HERMES_SESSION_SOURCE") != "desktop"
             or approval._gateway_notify_cb(approval.get_current_session_key()) is None):

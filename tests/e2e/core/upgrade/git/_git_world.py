@@ -21,10 +21,10 @@ import json
 import os
 import shutil
 import subprocess
+from collections.abc import Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Iterator
 
 import pytest
 

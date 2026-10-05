@@ -8,7 +8,6 @@ import secrets
 import time
 from typing import Any, Optional
 
-
 FIELD_ORDER = 2**256 - 2**32 - 977
 CURVE_ORDER = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141
 GENERATOR = (
@@ -123,7 +122,7 @@ def public_key_hex(private_key: str) -> str:
     return point[0].to_bytes(32, "big").hex()
 
 
-def schnorr_sign(message: bytes, private_key: str, *, auxiliary_randomness: Optional[bytes] = None) -> bytes:
+def schnorr_sign(message: bytes, private_key: str, *, auxiliary_randomness: bytes | None = None) -> bytes:
     if len(message) != 32:
         raise ValueError("BIP-340 signs a 32-byte message")
     secret = decode_private_key(private_key)
@@ -162,7 +161,7 @@ def parse_auth_tag(raw: Any, label: str) -> list[str]:
 
 def build_auth_event(
     *, private_key: str, challenge: str, relay_url: str, auth_tag_json: str = "",
-    created_at: Optional[int] = None, auxiliary_randomness: Optional[bytes] = None,
+    created_at: int | None = None, auxiliary_randomness: bytes | None = None,
 ) -> dict[str, Any]:
     tags: list[list[str]] = [["relay", relay_url], ["challenge", challenge]]
     if auth_tag_json.strip():

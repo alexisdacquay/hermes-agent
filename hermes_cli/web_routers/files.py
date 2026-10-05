@@ -20,7 +20,7 @@ import tempfile
 import urllib.parse
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
@@ -28,11 +28,18 @@ from fastapi.responses import FileResponse, StreamingResponse
 from hermes_cli._subprocess_compat import windows_hide_flags
 from hermes_cli.sqlite_safe_read import LiveConnectionError, offline_file_access
 from hermes_cli.web_deps import late
-from hermes_cli.web_server_files import (
-    _fs_path, _managed_file_entry, _managed_response_meta, _resolve_managed_path,
-)
 from hermes_cli.web_models import (
-    ChatImageUpload, FsWriteText, ManagedDirectoryCreate, ManagedFileDelete, ManagedFileUpload,
+    ChatImageUpload,
+    FsWriteText,
+    ManagedDirectoryCreate,
+    ManagedFileDelete,
+    ManagedFileUpload,
+)
+from hermes_cli.web_server_files import (
+    _fs_path,
+    _managed_file_entry,
+    _managed_response_meta,
+    _resolve_managed_path,
 )
 
 router = APIRouter()
@@ -203,7 +210,7 @@ def _refuse_live_database(target: Path) -> None:
         pass
 
 
-def _fs_read_bytes(target: Path, limit: Optional[int] = None) -> bytes:
+def _fs_read_bytes(target: Path, limit: int | None = None) -> bytes:
     """Read (a prefix of) ``target``; 403/400 on failure, 409 while a SQLite connection to it is live."""
     try:
         with _serve_offline(target):
@@ -249,7 +256,7 @@ def _fs_git_branch(cwd: str) -> str:
     try:
         # git emits UTF-8 (branch names, localized "not a git repository" stderr); the locale codec
         # (cp936 on zh-CN Windows) raised inside communicate()'s reader threads on every poll (#83851).
-        run_kwargs: Dict[str, Any] = {"capture_output": True, "text": True, "encoding": "utf-8",
+        run_kwargs: dict[str, Any] = {"capture_output": True, "text": True, "encoding": "utf-8",
                                       "errors": "replace", "timeout": 2, "check": False}
         if sys.platform == "win32":
             run_kwargs["creationflags"] = windows_hide_flags()
@@ -259,7 +266,7 @@ def _fs_git_branch(cwd: str) -> str:
         return ""
 
 
-def _fs_backend(profile: Optional[str] = None):
+def _fs_backend(profile: str | None = None):
     """Return the profile's SSH workspace adapter, or None for host-local FS."""
     from hermes_cli.ssh_workspace_fs import get_ssh_workspace_fs
 
@@ -468,7 +475,7 @@ def _decode_chat_image_upload(payload: ChatImageUpload) -> tuple[bytes, str, str
 
 
 @router.post("/api/chat/image-upload")
-async def upload_chat_image(payload: ChatImageUpload, profile: Optional[str] = None):
+async def upload_chat_image(payload: ChatImageUpload, profile: str | None = None):
     """Persist a browser clipboard image where the embedded TUI can read it.
 
     Browser clipboard bytes aren't visible to the server-side clipboard, so the
@@ -505,7 +512,7 @@ async def upload_chat_image(payload: ChatImageUpload, profile: Optional[str] = N
 
 
 @router.get("/api/files")
-async def list_managed_files(request: Request, path: Optional[str] = None):
+async def list_managed_files(request: Request, path: str | None = None):
     policy, target, display_path = _resolve_managed_path(path, request)
     if not target.exists():
         raise HTTPException(status_code=404, detail="Path not found")
@@ -757,7 +764,7 @@ _FS_LIST_ERRNO = (
 
 
 @router.get("/api/fs/list")
-async def fs_list(path: str, profile: Optional[str] = None):
+async def fs_list(path: str, profile: str | None = None):
     backend = await asyncio.to_thread(_fs_backend, profile)
     if backend is not None:
         try:
@@ -786,7 +793,7 @@ async def fs_list(path: str, profile: Optional[str] = None):
 
 
 @router.get("/api/fs/read-text")
-async def fs_read_text(path: str, profile: Optional[str] = None):
+async def fs_read_text(path: str, profile: str | None = None):
     backend = await asyncio.to_thread(_fs_backend, profile)
     if backend is not None:
         try:
@@ -826,7 +833,7 @@ async def fs_read_text(path: str, profile: Optional[str] = None):
 
 
 @router.post("/api/fs/write-text")
-async def fs_write_text(payload: FsWriteText, profile: Optional[str] = None):
+async def fs_write_text(payload: FsWriteText, profile: str | None = None):
     """Overwrite (or create) a UTF-8 text file for the in-app spot editor.
 
     Mirrors the Electron ``hermes:fs:writeText`` hardening: path validated by
@@ -854,7 +861,7 @@ async def fs_write_text(payload: FsWriteText, profile: Optional[str] = None):
         raise HTTPException(status_code=413, detail="Content too large")
 
     try:
-        st: Optional[os.stat_result] = target.stat()
+        st: os.stat_result | None = target.stat()
     except FileNotFoundError:
         st = None
     except PermissionError:
@@ -882,7 +889,7 @@ async def fs_write_text(payload: FsWriteText, profile: Optional[str] = None):
     return {"ok": True, "path": str(target), "byteSize": len(text.encode("utf-8"))}
 
 
-async def _fs_download_path(path: str, profile: Optional[str], session_id: Optional[str]) -> Path:
+async def _fs_download_path(path: str, profile: str | None, session_id: str | None) -> Path:
     if session_id is not None:
         from hermes_cli.web_routers.sessions import get_session_detail
 
@@ -900,7 +907,7 @@ async def _fs_download_path(path: str, profile: Optional[str], session_id: Optio
 
 @router.get("/api/fs/read-data-url")
 async def fs_read_data_url(
-    path: str, profile: Optional[str] = None, session_id: Optional[str] = None,
+    path: str, profile: str | None = None, session_id: str | None = None,
 ):
     from hermes_cli.web_server import _FS_DATA_URL_MAX_BYTES
     backend = await asyncio.to_thread(_fs_backend, profile)
@@ -924,7 +931,7 @@ async def fs_read_data_url(
 
 @router.get("/api/fs/download")
 async def fs_download(
-    path: str, profile: Optional[str] = None, session_id: Optional[str] = None,
+    path: str, profile: str | None = None, session_id: str | None = None,
 ):
     backend = await asyncio.to_thread(_fs_backend, profile)
     if backend is not None:
@@ -952,7 +959,7 @@ async def fs_download(
 
 
 @router.get("/api/fs/git-root")
-async def fs_git_root(path: str, profile: Optional[str] = None):
+async def fs_git_root(path: str, profile: str | None = None):
     backend = await asyncio.to_thread(_fs_backend, profile)
     if backend is not None:
         try:
@@ -969,7 +976,7 @@ async def fs_git_root(path: str, profile: Optional[str] = None):
 
 
 @router.get("/api/fs/default-cwd")
-async def fs_default_cwd(profile: Optional[str] = None):
+async def fs_default_cwd(profile: str | None = None):
     backend = await asyncio.to_thread(_fs_backend, profile)
     if backend is not None:
         cwd = backend.cwd

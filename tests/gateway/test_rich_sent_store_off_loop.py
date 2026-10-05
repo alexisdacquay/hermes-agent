@@ -5,7 +5,6 @@ import threading
 import time
 
 import pytest
-
 from gateway import rich_sent_store
 
 

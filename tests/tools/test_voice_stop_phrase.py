@@ -12,7 +12,6 @@ Contract:
 from unittest.mock import patch
 
 import pytest
-
 from tools.voice_mode_transcript import (
     DEFAULT_VOICE_STOP_PHRASES,
     _load_voice_stop_phrases,

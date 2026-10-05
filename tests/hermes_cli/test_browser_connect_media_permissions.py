@@ -12,9 +12,8 @@ the configured umask/setgid.
 import os
 import stat
 
-import pytest
-
 import hermes_cli.browser_connect as bc
+import pytest
 import tools.computer_use.tool as cu
 import tools.vision_tools as vt
 

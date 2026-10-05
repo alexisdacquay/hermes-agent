@@ -7,7 +7,6 @@ not exact snapshots, so they survive internal tweaks that preserve behavior.
 """
 
 import pytest
-
 from gateway.platforms.helpers import (
     balance_fences_across_chunks,
     greedy_pack_blocks,
@@ -15,7 +14,6 @@ from gateway.platforms.helpers import (
     merge_streaming_fences,
     split_at_paragraph_boundary,
     split_markdown_atoms,
-    split_markdown_table_row,
     split_text_fence_aware,
     text_has_unclosed_fence,
 )

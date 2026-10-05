@@ -11,9 +11,8 @@ import textwrap
 import time
 
 import pytest
-
-from tools.code_execution_env import _scrub_child_env
 from tools import code_execution_env
+from tools.code_execution_env import _scrub_child_env
 
 
 def _no_passthrough(_):

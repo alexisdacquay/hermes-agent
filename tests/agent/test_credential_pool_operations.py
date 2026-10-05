@@ -3,7 +3,6 @@ import time
 from dataclasses import replace
 
 import pytest
-
 from agent.credential_pool import CredentialPool, PooledCredential
 from hermes_cli.auth import read_credential_pool, write_credential_pool
 

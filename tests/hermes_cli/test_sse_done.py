@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import json
 
-from hermes_cli.proxy.sse_done import DONE_SSE_FRAME, SseDoneTracker, content_type_is_sse
+from hermes_cli.proxy.sse_done import (
+    DONE_SSE_FRAME,
+    SseDoneTracker,
+    content_type_is_sse,
+)
 
 
 def _data_line(obj) -> bytes:
@@ -12,7 +16,7 @@ def _data_line(obj) -> bytes:
         return b"data: " + bytes(obj) + b"\n\n"
     if obj == "[DONE]":
         return b"data: [DONE]\n\n"
-    return f"data: {json.dumps(obj)}\n\n".encode("utf-8")
+    return f"data: {json.dumps(obj)}\n\n".encode()
 
 
 def test_complete_stream_without_done_appends():

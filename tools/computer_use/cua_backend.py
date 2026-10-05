@@ -14,17 +14,20 @@ import os
 import subprocess
 import sys
 import uuid
-from pathlib import PureWindowsPath
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from hermes_cli._subprocess_compat import windows_hide_flags
 from hermes_platform.host.runtime import is_wsl
+
 from tools.computer_use.backend import ActionResult, ComputerUseBackend
 from tools.computer_use.cua_backend_capture import _CaptureMixin
 from tools.computer_use.cua_backend_daemon import _EmbeddedCuaDaemon
 from tools.computer_use.cua_backend_driver import (  # noqa: F401 — resolve_cua_driver_cmd: frozen updater surface
-    _CUA_DRIVER_CMD_ENV, cua_driver_binary_available, cua_driver_runtime_contract_status,
-    resolve_cua_driver_cmd)
+    _CUA_DRIVER_CMD_ENV,
+    cua_driver_binary_available,
+    cua_driver_runtime_contract_status,
+    resolve_cua_driver_cmd,
+)
 from tools.computer_use.cua_backend_input import _InputMixin
 from tools.computer_use.cua_backend_parse import _action_result_from
 from tools.computer_use.cua_backend_session import _AsyncBridge, _CuaDriverSession
@@ -35,7 +38,7 @@ _CUA_TELEMETRY_ENV_VAR = "CUA_DRIVER_RS_TELEMETRY_ENABLED"
 _CUA_NATIVE_WAYLAND_ENV_VAR = "CUA_DRIVER_RS_ENABLE_WAYLAND"
 
 
-def _computer_use_cfg() -> Dict[str, Any]:
+def _computer_use_cfg() -> dict[str, Any]:
     """The ``computer_use`` config block, or ``{}`` when config is unreadable."""
     with contextlib.suppress(Exception):
         from hermes_cli.config import load_config
@@ -114,7 +117,7 @@ def _manifest_is_mode_independent(path: str) -> bool:
     version = parsed.get("version") if isinstance(parsed, dict) else None
     return isinstance(version, int) and not isinstance(version, bool) and version >= 3
 
-def _computer_use_max_image_dimension() -> Optional[int]:
+def _computer_use_max_image_dimension() -> int | None:
     """``computer_use.max_image_dimension`` longest-edge cap (default 1456 = aux-vision downscale); ``0``/negative -> None."""
     try:
         dim = int(_computer_use_cfg().get("max_image_dimension", 1456))
@@ -122,7 +125,7 @@ def _computer_use_max_image_dimension() -> Optional[int]:
         dim = 1456
     return dim if dim > 0 else None
 
-def desktop_identity(env: Optional[Dict[str, str]] = None) -> str:
+def desktop_identity(env: dict[str, str] | None = None) -> str:
     """The screen a backend spawned from ``env`` acts on: its DISPLAY (``''`` when none). Recorded next to the
     cached backend so a Bot Desktop that starts (or restarts on another number) AFTER the backend was cached is
     noticed — the cached cua-driver still points at the old seat or at no display at all."""
@@ -134,7 +137,7 @@ def backend_display_stale(recorded: str, current: str) -> bool:
     return (recorded or "") != (current or "")
 
 
-def cua_driver_child_env(base_env: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+def cua_driver_child_env(base_env: dict[str, str] | None = None) -> dict[str, str]:
     """Env for spawning cua-driver: ``base_env`` (default ``os.environ``) plus ``CUA_DRIVER_RS_TELEMETRY_ENABLED=0``
     unless the user opted in, plus the native-Wayland bridge (``computer_use.native_wayland`` config opt-in, only when
     the child has a Wayland display). Used by every spawn site (MCP, status, doctor, install) so CLI and gateway
@@ -150,13 +153,14 @@ def cua_driver_child_env(base_env: Optional[Dict[str, str]] = None) -> Dict[str,
         env[_CUA_NATIVE_WAYLAND_ENV_VAR] = "1"
     return env
 
-def sandbox_mcp_invocation() -> Optional[Tuple[Tuple[str, List[str]], Dict[str, str]]]:
+def sandbox_mcp_invocation() -> tuple[tuple[str, list[str]], dict[str, str]] | None:
     """``((command, args), child_env)`` spawning ``cua-driver mcp`` INSIDE the terminal backend when the Bot
     Desktop is placed there (the driver in the sandbox image drives the sandbox's own screen); None on a
     gateway-hosted desktop, where the local driver is used. Placement is the authority: a ``terminal``
     placement gets its screen started here and a ``refused`` one raises — the host driver is never the
     fallback for a sandbox whose screen is down."""
-    from tools.bot_desktop import placement, runtime as _bd_runtime
+    from tools.bot_desktop import placement
+    from tools.bot_desktop import runtime as _bd_runtime
     if _bd_runtime.tool_placement() == placement.GATEWAY:
         return None
     published = _bd_runtime.published_env()
@@ -172,7 +176,7 @@ def sandbox_mcp_invocation() -> Optional[Tuple[Tuple[str, List[str]], Dict[str, 
     return (command, args), {"PATH": os.environ.get("PATH", "")}
 
 
-def sanitized_cua_driver_env() -> Dict[str, str]:
+def sanitized_cua_driver_env() -> dict[str, str]:
     """``cua_driver_child_env()`` with Hermes provider secrets stripped — cua-driver is a third-party binary and must
     never inherit API keys. Falls back to the unsanitized telemetry env if the sanitizer can't import."""
     env = cua_driver_child_env()
@@ -183,7 +187,7 @@ def sanitized_cua_driver_env() -> Dict[str, str]:
         return _sanitize_subprocess_env(env)
     return env
 
-def _run_quiet(argv: List[str], *, timeout: float, swallow: Any = (), **kw: Any) -> Any:
+def _run_quiet(argv: list[str], *, timeout: float, swallow: Any = (), **kw: Any) -> Any:
     """``subprocess.run`` for short probe verbs: text mode, stdin=DEVNULL unless overridden (older drivers fall into a
     stdin-reading mode on unknown verbs; EOF makes them exit fast instead of blocking until the timeout), output
     captured unless the caller redirects it. Exceptions in ``swallow`` return None; others raise."""
@@ -202,7 +206,7 @@ def _run_driver(driver_cmd: str, *args: str, timeout: float, swallow: Any = ()) 
     return _run_quiet([driver_cmd, *args], timeout=timeout, swallow=swallow, encoding="utf-8",
                       errors="replace", creationflags=windows_hide_flags(), env=sanitized_cua_driver_env())
 
-def cua_daemon_listening(driver_cmd: str, socket_path: Optional[str] = None, *, timeout: float = 3.0) -> Optional[bool]:
+def cua_daemon_listening(driver_cmd: str, socket_path: str | None = None, *, timeout: float = 3.0) -> bool | None:
     """Socket-level liveness of a ``cua-driver serve`` daemon: ``cua-driver status`` connects to the daemon
     socket (the driver's default, or ``socket_path``) and exits 0 only when a daemon answers. False when the
     CLI reports the daemon is not running, None when the probe itself failed (unknown). Never raises.
@@ -215,7 +219,7 @@ def cua_daemon_listening(driver_cmd: str, socket_path: Optional[str] = None, *, 
         return True
     return False if "not running" in f"{proc.stdout}\n{proc.stderr}".lower() else None
 
-def _linux_session_locked() -> Optional[bool]:
+def _linux_session_locked() -> bool | None:
     """Is the graphical session locked? (Linux; best-effort.) A locked KDE/GNOME session freezes renderers and
     half-disables the AX tree, so discovery legitimately returns nothing — which otherwise reads as a driver bug.
     True/False when loginctl answers, None when unavailable (non-Linux, no systemd-logind, probe failure)."""
@@ -252,7 +256,7 @@ class CuaDriverBackend(_CaptureMixin, _InputMixin, ComputerUseBackend):
         if permission_mode not in {"standard", "bounded", "unrestricted"}:
             raise ValueError(f"unsupported cua-driver permission mode: {permission_mode}")
         self.permission_mode = permission_mode
-        self._embedded_daemon: Optional[_EmbeddedCuaDaemon] = None
+        self._embedded_daemon: _EmbeddedCuaDaemon | None = None
         if permission_mode != "standard":
             # Manifest: mandatory for bounded (the daemon validates it), optional for unrestricted where it still
             # caps what an approval-bypassed run may touch.
@@ -357,35 +361,35 @@ class CuaDriverBackend(_CaptureMixin, _InputMixin, ComputerUseBackend):
         # alongside `element_index` so cua-driver detects "stale" explicitly instead of silently
         # re-resolving to a different element. Cleared whenever a fresh capture overwrites the snapshot
         # context.
-        self._snapshot_tokens: Dict[int, str] = {}
+        self._snapshot_tokens: dict[int, str] = {}
 
-    def _set_active_target(self, target: Dict[str, Any]) -> None:
+    def _set_active_target(self, target: dict[str, Any]) -> None:
         self._active_pid = target["pid"]
         self._active_window_id = target["window_id"]
         self._snapshot_tokens = {}  # prior snapshot's tokens: disarm before any capture so an exception can't pair them
         self._last_target = {"pid": self._active_pid, "window_id": self._active_window_id}
 
-    def launch_app(self, *, bundle_id: Optional[str] = None, name: Optional[str] = None,
-                   urls: Optional[List[str]] = None, additional_arguments: Optional[List[str]] = None,
-                   creates_new_application_instance: bool = False) -> Dict[str, Any]:
+    def launch_app(self, *, bundle_id: str | None = None, name: str | None = None,
+                   urls: list[str] | None = None, additional_arguments: list[str] | None = None,
+                   creates_new_application_instance: bool = False) -> dict[str, Any]:
         """Idempotent launch returning ``{pid, bundle_id, name, windows[]}``. ``creates_new_application_instance=True``
         forces a fresh instance so concurrent runs touching the same app get isolated windows."""
         if not bundle_id and not name:
             raise ValueError("launch_app requires either bundle_id or name")
-        args: Dict[str, Any] = {"session": self._session_id, **{k: v for k, v in (
+        args: dict[str, Any] = {"session": self._session_id, **{k: v for k, v in (
             ("bundle_id", bundle_id), ("name", name), ("urls", urls and list(urls)),
             ("additional_arguments", additional_arguments and list(additional_arguments)),
             ("creates_new_application_instance", creates_new_application_instance or None)) if v}}
         out = self._session.call_tool("launch_app", args)
         return out["structuredContent"] or {"data": out["data"]}
 
-    def bring_to_front(self, *, pid: int, window_id: Optional[int] = None) -> ActionResult:
+    def bring_to_front(self, *, pid: int, window_id: int | None = None) -> ActionResult:
         """Activate a window so subsequent foreground-dispatched input lands on it."""
-        args: Dict[str, Any] = {"pid": int(pid), **({} if window_id is None else {"window_id": int(window_id)})}
+        args: dict[str, Any] = {"pid": int(pid), **({} if window_id is None else {"window_id": int(window_id)})}
         # Strict live schema with no session property: a standalone native focus op, not a session-scoped input action.
         return self._action("bring_to_front", args, inject_session=False)
 
-    def set_agent_cursor_enabled(self, enabled: bool, *, cursor_id: Optional[str] = None) -> ActionResult:
+    def set_agent_cursor_enabled(self, enabled: bool, *, cursor_id: str | None = None) -> ActionResult:
         """Toggle the agent cursor overlay's visibility for this run."""
         return self._action("set_agent_cursor_enabled",
                             {"enabled": bool(enabled), **({"cursor_id": cursor_id} if cursor_id else {})})
@@ -394,14 +398,14 @@ class CuaDriverBackend(_CaptureMixin, _InputMixin, ComputerUseBackend):
         """Set cua-driver config keys (e.g. ``max_image_dimension``); unknown keys pass through — cua-driver validates."""
         return self._action("set_config", dict(config))
 
-    def call_tool(self, name: str, args: Optional[Dict[str, Any]] = None, *, timeout: float = 30.0) -> Dict[str, Any]:
+    def call_tool(self, name: str, args: dict[str, Any] | None = None, *, timeout: float = 30.0) -> dict[str, Any]:
         """Generic escape hatch: call any cua-driver MCP tool by name. ``session`` is injected via setdefault, so
         this is the supported path for tools the wrapper does not type-wrap (preferred over ``self._session.call_tool``)."""
         payload = dict(args) if args else {}
         payload.setdefault("session", self._session_id)
         return self._session.call_tool(name, payload, timeout=timeout)
 
-    def _action(self, name: str, args: Dict[str, Any], *, inject_session: bool = True) -> ActionResult:
+    def _action(self, name: str, args: dict[str, Any], *, inject_session: bool = True) -> ActionResult:
         # Attach the snapshot's `element_token` to an `element_index` call so a superseded snapshot yields an explicit
         # 'stale' error. Two ways to establish support, the live input schema first: cua-driver 0.21+ stopped
         # publishing per-tool `capabilities[]` while still accepting `element_token` in its schema, and it REFUSES a

@@ -12,46 +12,82 @@ import os
 import shutil
 import sys
 from pathlib import Path
-from typing import Any, NoReturn, Optional
+from typing import Any, NoReturn
 
 from hermes_constants import get_hermes_home
+from utils import rmtree_readonly  # noqa: F401
+
 from hermes_cli.config import cfg_get
 from hermes_cli.plugin_capabilities import _child_dict
-# Tests patch these two on the facade; the install/remove siblings read them through it.
-from hermes_cli.secret_prompt import masked_secret_prompt  # noqa: F401
-from utils import rmtree_readonly  # noqa: F401
 
 # Topical siblings. The facade re-exports what other modules, tests and the old updater import from
 # ``hermes_cli.plugins_cmd``; sibling bodies read those names back through the facade at call time.
 from hermes_cli.plugins_cmd_capabilities import (  # noqa: F401
-    _declared_capabilities_for_key, _declared_capabilities_from_manifest, _resolve_tool_override_grant,
-    _run_capability_consent, cmd_capabilities,
+    _declared_capabilities_for_key,
+    _declared_capabilities_from_manifest,
+    _resolve_tool_override_grant,
+    _run_capability_consent,
+    cmd_capabilities,
 )
 from hermes_cli.plugins_cmd_git import (  # noqa: F401
-    _EXACT_COMMIT_RE, _canonical_source, _checkout_exact_revision, _clone_plugin_repo, _git_head_revision,
-    _git_or_raise, _git_pull_plugin_dir, _git_resolve_commit, _normalize_exact_revision, _pin_annotation,
-    _read_install_metadata, _run_plugin_git, _safe_git_error, _scrub_cloned_origin, _update_install_record,
-    _write_install_metadata, pinned_revision,
+    _EXACT_COMMIT_RE,
+    _canonical_source,
+    _checkout_exact_revision,
+    _clone_plugin_repo,
+    _git_head_revision,
+    _git_or_raise,
+    _git_pull_plugin_dir,
+    _git_resolve_commit,
+    _normalize_exact_revision,
+    _pin_annotation,
+    _read_install_metadata,
+    _run_plugin_git,
+    _safe_git_error,
+    _scrub_cloned_origin,
+    _update_install_record,
+    _write_install_metadata,
+    pinned_revision,
 )
 from hermes_cli.plugins_cmd_install import (  # noqa: F401
-    _check_manifest_version, _consent_python_deps, _display_after_install, _install_plugin_core,
-    _install_plugin_python_deps, _prompt_plugin_env_vars, _python_dependency_summary,
-    _read_manifest_for_install, cmd_install, dashboard_install_plugin,
+    _check_manifest_version,
+    _consent_python_deps,
+    _display_after_install,
+    _install_plugin_core,
+    _install_plugin_python_deps,
+    _prompt_plugin_env_vars,
+    _python_dependency_summary,
+    _read_manifest_for_install,
+    cmd_install,
+    dashboard_install_plugin,
 )
 from hermes_cli.plugins_cmd_listing import (  # noqa: F401
-    _filter_plugin_entries, cmd_list, cmd_show,
+    _filter_plugin_entries,
+    cmd_list,
+    cmd_show,
 )
 from hermes_cli.plugins_cmd_remove import (  # noqa: F401
-    _remove_plugin_core, cmd_remove, dashboard_remove_user_plugin,
+    _remove_plugin_core,
+    cmd_remove,
+    dashboard_remove_user_plugin,
 )
 from hermes_cli.plugins_cmd_toggle import (  # noqa: F401
-    _discover_context_engines, _persist_plugin_selection, _provider_categories, _run_composite_fallback,
+    _discover_context_engines,
+    _persist_plugin_selection,
+    _provider_categories,
+    _run_composite_fallback,
     cmd_toggle,
 )
 from hermes_cli.plugins_cmd_update import (  # noqa: F401
-    _clear_plugin_bytecode, cmd_adopt, cmd_check_updates, cmd_trust_update_url, cmd_update,
+    _clear_plugin_bytecode,
+    cmd_adopt,
+    cmd_check_updates,
+    cmd_trust_update_url,
+    cmd_update,
     dashboard_update_user_plugin,
 )
+
+# Tests patch these two on the facade; the install/remove siblings read them through it.
+from hermes_cli.secret_prompt import masked_secret_prompt  # noqa: F401
 
 logger = logging.getLogger(__name__)
 _DEFAULT_CLONE_TIMEOUT_SECONDS = 300
@@ -60,7 +96,7 @@ _CLONE_TIMEOUT_HINT = "On a slow connection, raise plugins.clone_timeout_seconds
 
 
 @functools.lru_cache(maxsize=1)
-def _resolve_git_executable() -> Optional[str]:
+def _resolve_git_executable() -> str | None:
     """Resolve a git binary for subprocess use when ``PATH`` may be minimal."""
     found = shutil.which("git")
     if found:
@@ -185,7 +221,11 @@ def _scan_plugin_tree(plugin_dir: Path, identifier: str, *, force: bool, scan_de
     """
     if not _scan_on_install_enabled():
         return None
-    from tools.plugin_guard import format_scan_report, scan_plugin, should_allow_plugin_install
+    from tools.plugin_guard import (
+        format_scan_report,
+        scan_plugin,
+        should_allow_plugin_install,
+    )
     result = scan_plugin(plugin_dir, source=identifier)
     allowed, reason = should_allow_plugin_install(result, force=force)
     if allowed is None and reviewed_pin:
@@ -224,7 +264,7 @@ def _preserved_files_note(exc: PluginScanBlocked, merged: list[str]) -> str:
     return f"{exc}\n\n{note}"
 
 
-def _scan_merged_tree(plugin_dir: Path, identifier: str, merged: Optional[list[str]], **kwargs):
+def _scan_merged_tree(plugin_dir: Path, identifier: str, merged: list[str] | None, **kwargs):
     """:func:`_scan_plugin_tree` for a candidate that may hold carried user files (*merged*).
 
     A block then names the findings that sit in those files, so user data does not read as a
@@ -277,7 +317,7 @@ _GITHUB_BROWSER_SEGMENTS = {
 _URL_SCHEMES = ("https://", "http://", "git@", "ssh://", "file://")
 
 
-def _resolve_git_url(identifier: str) -> tuple[str, Optional[str]]:
+def _resolve_git_url(identifier: str) -> tuple[str, str | None]:
     """Turn an identifier into a cloneable Git URL and optional subdirectory.
 
     ``http://`` and ``file://`` are accepted but trigger a security warning at install time.
@@ -338,7 +378,7 @@ def _repo_name_from_url(url: str) -> str:
     return name
 
 
-def _native_manifest_file(plugin_dir: Path) -> Optional[Path]:
+def _native_manifest_file(plugin_dir: Path) -> Path | None:
     """``plugin.yaml`` (or ``plugin.yml``) under *plugin_dir*, or None when neither exists."""
     from pm.plugin_declarations import native_manifest_file
 
@@ -468,7 +508,7 @@ def _plugin_selection_version() -> str:
 
 def _admit_and_save_plugin_sets(
     enabled: set, disabled: set, *, extra_dirs=(), console=None, action: str = "enable", expected_config=None,
-    plugin: Optional[str] = None,
+    plugin: str | None = None,
 ) -> None:
     """ONE admission authority for proposed enabled/disabled sets (C13):
     the candidate union is resolved against the ACTIVE environment and
@@ -479,7 +519,11 @@ def _admit_and_save_plugin_sets(
     conflict raises its :class:`DependencyConflict` subclass naming *plugin*."""
     from rich.markup import escape
 
-    from hermes_cli.plugins_admission import AdmissionRefused, DependencyConflict, admit_plugin_set_change
+    from hermes_cli.plugins_admission import (
+        AdmissionRefused,
+        DependencyConflict,
+        admit_plugin_set_change,
+    )
 
     try:
         admit_plugin_set_change(
@@ -528,7 +572,7 @@ def _discard_key_and_leaf(names: set, key: str) -> None:
     names.discard(key.split("/")[-1])
 
 
-def _plugin_aliases(key: str, entries: Optional[list] = None) -> set:
+def _plugin_aliases(key: str, entries: list | None = None) -> set:
     """Every spelling a config list may hold for *key*: the key, its bare leaf and the manifest name.
     The loader matches BOTH the canonical key (``web/firecrawl``) and the manifest name
     (``web-firecrawl``), so a stale entry under any form vetoes an enable ("explicit disable wins").
@@ -608,20 +652,20 @@ def _apply_activation(enabled: set, disabled: set, key: str, aliases, *, enable:
     (enabled if enable else disabled).add(key)
 
 
-def _resolve_plugin_key(name: str) -> Optional[str]:
+def _resolve_plugin_key(name: str) -> str | None:
     """Canonical registry key for a manifest name / directory name / path key, or ``None``.
     The single normalization point so enable/disable write the key ``PluginManager`` gates on."""
     resolved = _resolve_plugin_key_and_source(name)
     return resolved[0] if resolved else None
 
 
-def _find_plugin_entry(name: str) -> Optional[tuple]:
+def _find_plugin_entry(name: str) -> tuple | None:
     """First discovered ``(name, version, description, source, dir_path, key)`` entry whose
     manifest name or canonical key equals *name*."""
     return next((entry for entry in _discover_all_plugins() if name in (entry[0], entry[5])), None)
 
 
-def _resolve_plugin_key_and_source(name: str) -> Optional[tuple]:
+def _resolve_plugin_key_and_source(name: str) -> tuple | None:
     """Resolve *name* to ``(canonical_key, source)`` or ``None``. Exact key/manifest-name match
     first; then a bare leaf match (``langfuse`` -> ``observability/langfuse``) only when unique,
     so a same-named nested plugin is never picked silently."""
@@ -633,14 +677,17 @@ def _resolve_plugin_key_and_source(name: str) -> Optional[tuple]:
     return leaf_matches[0] if len(leaf_matches) == 1 else None
 
 
-def cmd_enable(name: str, allow_tool_override: Optional[bool] = None) -> None:
+def cmd_enable(name: str, allow_tool_override: bool | None = None) -> None:
     """Add a plugin to the enabled allow-list (and remove it from disabled).
 
     Non-bundled plugins request consent for declared capabilities. The legacy
     ``allow_tool_override`` grant changes only with an explicit True/False flag;
     None leaves it unchanged. Bundled plugins are trusted.
     """
-    from hermes_cli.relay_plugin_cutover import LEGACY_RELAY_PLUGIN_KEYS, RELAY_PLUGINS_CONFIG_ENV
+    from hermes_cli.relay_plugin_cutover import (
+        LEGACY_RELAY_PLUGIN_KEYS,
+        RELAY_PLUGINS_CONFIG_ENV,
+    )
     console = _console()
 
     def _refuse_legacy_relay(plugin: str) -> None:
@@ -806,7 +853,10 @@ def _discover_all_plugins() -> list:
     seen: dict = {}
     # memory/, context_engine/ and model-providers/ load through dedicated registries, not the
     # PluginManager opt-in surface, so listing them as toggleable plugins would mislead.
-    from hermes_cli.plugins import discover_entrypoint_manifests, get_bundled_plugins_dir
+    from hermes_cli.plugins import (
+        discover_entrypoint_manifests,
+        get_bundled_plugins_dir,
+    )
     for base, source, skip in (
         (get_bundled_plugins_dir(), "bundled", {"memory", "context_engine", "model-providers"}),
         (_plugins_dir(), "user", set()),
@@ -825,7 +875,7 @@ def _category_active_names() -> set:
 
 
 def _plugin_status(name: str, enabled: set, disabled: set, key: str = "", *, source: str = "",
-                   dir_path=None, active: "frozenset | set" = frozenset()) -> str:
+                   dir_path=None, active: frozenset | set = frozenset()) -> str:
     """User-facing activation state for a plugin name or key. Mirrors ``gate_manifest``: an explicit
     disable wins, then the allow-list, then the activations that need no list entry — bundled
     backends/platforms and model providers from any source (*source* + *dir_path*) and category-selected providers
@@ -850,7 +900,7 @@ _save_memory_provider = functools.partial(_write_config_value, "memory", "provid
 _save_context_engine = functools.partial(_write_config_value, "context", "engine")
 
 
-def _get_plugin_toolset_key(name: str) -> Optional[str]:
+def _get_plugin_toolset_key(name: str) -> str | None:
     """Toolset key a plugin registers its tools under, or None: from the live registry (plugin
     already loaded), else from ``provides_tools`` in plugin.yaml looked up in the registry."""
     try:
@@ -858,10 +908,10 @@ def _get_plugin_toolset_key(name: str) -> Optional[str]:
     except Exception:
         return None
 
-    def _first_toolset(tool_names) -> Optional[str]:
+    def _first_toolset(tool_names) -> str | None:
         return next((e.toolset for t in tool_names if (e := registry.get_entry(t)) and e.toolset), None)
 
-    def _from_loaded_plugin() -> Optional[str]:
+    def _from_loaded_plugin() -> str | None:
         from hermes_cli.plugins import discover_plugins, get_plugin_manager
         discover_plugins()  # idempotent — ensures plugins are loaded
         for _key, loaded in get_plugin_manager()._plugins.items():
@@ -869,7 +919,7 @@ def _get_plugin_toolset_key(name: str) -> Optional[str]:
                 return _first_toolset(loaded.tools_registered)
         return None
 
-    def _from_manifest_on_disk() -> Optional[str]:
+    def _from_manifest_on_disk() -> str | None:
         from hermes_cli.plugins import get_bundled_plugins_dir
         return next((
             toolset for base in (get_bundled_plugins_dir(), _plugins_dir())
@@ -945,7 +995,7 @@ def dashboard_set_agent_plugin_enabled(name: str, *, enabled: bool) -> dict[str,
     return {"ok": True, "name": key, "unchanged": not changed, "restart_required": changed}
 
 
-def _user_installed_plugin_dir(name: str) -> Optional[Path]:
+def _user_installed_plugin_dir(name: str) -> Path | None:
     """Resolved path under ``~/.hermes/plugins/<name>`` if it exists."""
     try:
         target = _sanitize_plugin_name(name, _plugins_dir(), allow_subdir=True)
@@ -963,7 +1013,7 @@ def cmd_plugin_doctor(target: str = ".", *, ci: bool = False) -> None:
         raise SystemExit(1)
 
 
-def _tri_state_flag(args, yes_attr: str, no_attr: str) -> Optional[bool]:
+def _tri_state_flag(args, yes_attr: str, no_attr: str) -> bool | None:
     """Map an argparse ``--x`` / ``--no-x`` pair to True / False / None (neither given)."""
     return True if getattr(args, yes_attr, False) else (False if getattr(args, no_attr, False) else None)
 

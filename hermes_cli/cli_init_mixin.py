@@ -10,12 +10,14 @@ import os
 import queue
 import threading
 from datetime import datetime
-from hermes_cli.fallback_config import get_fallback_chain
-from hermes_state_ids import new_session_id
 from pathlib import Path
+from typing import Any
+
+from hermes_state_ids import new_session_id
 from rich.console import Console
-from typing import Any, Dict, List, Optional
 from utils import base_url_host_matches, base_url_hostname, is_truthy_value
+
+from hermes_cli.fallback_config import get_fallback_chain
 
 # Log-record parity with the origin module.
 logger = logging.getLogger("cli")
@@ -40,7 +42,10 @@ class CLIInitMixin:
         self._focus_saved_tool_progress = self._focus_last_counted_tool = None
         self._focus_hidden_lines = 0
         if self._focus_view_enabled:
-            from hermes_cli.focus_view import FOCUS_TOOL_PROGRESS_MODE, normalize_tool_progress_mode
+            from hermes_cli.focus_view import (
+                FOCUS_TOOL_PROGRESS_MODE,
+                normalize_tool_progress_mode,
+            )
 
             self._focus_saved_tool_progress = normalize_tool_progress_mode(self.tool_progress_mode)
             self.tool_progress_mode = FOCUS_TOOL_PROGRESS_MODE
@@ -177,10 +182,10 @@ class CLIInitMixin:
             if _provider_default:
                 self.model = _provider_default
                 self._model_is_default = False
-        self._provider_source: Optional[str] = None
+        self._provider_source: str | None = None
         self.provider = self.requested_provider
         self.api_mode = "chat_completions"
-        self.acp_command: Optional[str] = None
+        self.acp_command: str | None = None
         self.acp_args: list[str] = []
         self.base_url = (
             base_url or _startup_base_url_override or _model_config.get("base_url", "")
@@ -199,6 +204,7 @@ class CLIInitMixin:
     def _init_turn_limits(self, max_turns, run_budget):
         """max_turns: CLI arg > config > env var > default; run budget: CLI flag > config."""
         from cli import CLI_CONFIG
+
         # resolve_turn_limit() accepts "none"/"unlimited" (-> sys.maxsize) alongside ints.
         # KEEP the root-level CLI_CONFIG["max_turns"] fallback: it is never migrated on disk
         # and other config paths may bypass the load-time fold.
@@ -248,9 +254,19 @@ class CLIInitMixin:
 
     def _init_prompt_and_reasoning(self, reasoning):
         """Ephemeral system prompt/prefill, reasoning + service tier, OpenRouter routing knobs, fallback chain."""
-        from cli import CLI_CONFIG, _load_prefill_messages, _parse_reasoning_config, _parse_service_tier_config, _resolve_prefill_messages_file
+        from cli import (
+            CLI_CONFIG,
+            _load_prefill_messages,
+            _parse_reasoning_config,
+            _parse_service_tier_config,
+            _resolve_prefill_messages_file,
+        )
+
         # Env var wins, then hermes_cli.personality (single owner of overlay resolution).
-        from hermes_cli.personality import available_personalities, resolve_ephemeral_system_prompt
+        from hermes_cli.personality import (
+            available_personalities,
+            resolve_ephemeral_system_prompt,
+        )
 
         self.system_prompt = os.getenv("HERMES_EPHEMERAL_SYSTEM_PROMPT", "") or resolve_ephemeral_system_prompt(CLI_CONFIG)
         self.personalities = available_personalities(CLI_CONFIG)
@@ -283,7 +299,7 @@ class CLIInitMixin:
 
         # OpenRouter Pareto Code router coding-score floor; out-of-range = unset.
         _raw_score = (CLI_CONFIG.get("openrouter", {}) or {}).get("min_coding_score")
-        self._openrouter_min_coding_score: Optional[float] = None
+        self._openrouter_min_coding_score: float | None = None
         if _raw_score not in {None, ""}:
             try:
                 _f = float(_raw_score)
@@ -299,18 +315,18 @@ class CLIInitMixin:
         from cli import _hermes_home
         # A signature change across turns (/model, credential rotation) rebuilds the agent.
         self._active_agent_route_signature = None
-        self.agent: Optional[Any] = None  # initialized on first use
+        self.agent: Any | None = None  # initialized on first use
         self._tool_callbacks_installed = self._tirith_security_checked = False
         self._app = None  # prompt_toolkit Application (set in run())
 
-        self.conversation_history: List[Dict[str, Any]] = []
+        self.conversation_history: list[dict[str, Any]] = []
         self.session_start = datetime.now()
         # Per-prompt elapsed timer shown in the status bar.
-        self._prompt_start_time: Optional[float] = None
+        self._prompt_start_time: float | None = None
         self._prompt_duration: float = 0.0
-        self._last_turn_finished_at: Optional[float] = None
+        self._last_turn_finished_at: float | None = None
         self._init_session_store()
-        self._pending_title: Optional[str] = None
+        self._pending_title: str | None = None
         self._resumed = bool(resume)
         self.session_id = resume or new_session_id(self.session_start)
         getattr(self, "_write_terminal_breadcrumb", lambda: None)()
@@ -340,8 +356,11 @@ class CLIInitMixin:
             # the store before relying on resume.
             self._session_db_unavailable = True
             logger.warning("Failed to initialize SessionDB — session will NOT be indexed for search: %s", e)
-            from hermes_state_user_copy import describe_storage_failure, storage_failure_details
             from agent.i18n import t
+            from hermes_state_user_copy import (
+                describe_storage_failure,
+                storage_failure_details,
+            )
             failure = describe_storage_failure(e)
             def _present_store_warning():
                 try:
@@ -415,11 +434,11 @@ class CLIInitMixin:
         self._startup_skills_line_shown = False
         # skills.auto_load rendered in the preload thread; None until joined. Handed to every
         # agent this CLI builds so the prompt bytes never depend on when the agent was created.
-        self._auto_load_skills_result: Optional[tuple] = None
+        self._auto_load_skills_result: tuple | None = None
         # Background --skills preload, joined by finalize_preloaded_skills before any agent is built.
-        self._preload_skills_thread: Optional[threading.Thread] = None
-        self._preload_skills_result: Optional[tuple] = None
-        self._preload_skills_error: Optional[BaseException] = None
+        self._preload_skills_thread: threading.Thread | None = None
+        self._preload_skills_result: tuple | None = None
+        self._preload_skills_error: BaseException | None = None
         self._preload_skills_requested: list = []
         self._preload_skills_finalized = False
         self._active_session_lease = None
@@ -447,9 +466,9 @@ class CLIInitMixin:
         self._resize_recovery_timer = self._status_bar_unsuppress_timer = None  # latter: debounced un-suppress
         self._last_resize_width = None  # width change (reflow, needs viewport clear) vs rows-only
 
-        self._background_tasks: Dict[str, threading.Thread] = {}
+        self._background_tasks: dict[str, threading.Thread] = {}
         self._background_task_counter = 0
 
         # Cache-hit baseline, reset on model switch / compression so the bar shows the current regime.
         self._cache_hit_baseline_prompt = self._cache_hit_baseline_read = self._cache_hit_baseline_compressions = 0
-        self._cache_hit_baseline_model: Optional[str] = None
+        self._cache_hit_baseline_model: str | None = None

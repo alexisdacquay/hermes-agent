@@ -7,19 +7,25 @@ Extracted from ``hermes_cli.web_server``; helpers/state that tests monkeypatch o
 import asyncio
 import concurrent.futures
 import logging
-from typing import Optional
 
+from agent.model_metadata import is_local_endpoint
 from fastapi import APIRouter, HTTPException
+from starlette.concurrency import run_in_threadpool
 
-from hermes_cli.web_deps import LateState, late
+from hermes_cli.web_deps import late
+from hermes_cli.web_models import MoaConfigPayload, MoaModelSlot, ModelAssignment
+from hermes_cli.web_routers._common import (
+    _CONFIG_MUTATION_LOCK,
+    config_write_scope,
+    http_failure,
+)
 from hermes_cli.web_server_config import (
-    _AUX_TASK_SLOTS, _UNSET, _apply_model_assignment_sync, _dashboard_code_skew_guard,
+    _AUX_TASK_SLOTS,
+    _UNSET,
+    _apply_model_assignment_sync,
+    _dashboard_code_skew_guard,
     _prepare_main_assignment,
 )
-from agent.model_metadata import is_local_endpoint
-from starlette.concurrency import run_in_threadpool
-from hermes_cli.web_models import ModelAssignment, MoaConfigPayload, MoaModelSlot
-from hermes_cli.web_routers._common import _CONFIG_MUTATION_LOCK, config_write_scope, http_failure
 
 _log = logging.getLogger("hermes_cli.web_server")
 router = APIRouter()
@@ -46,7 +52,7 @@ def _main_model_fields(model_cfg) -> tuple[str, str]:
     return (str(model_cfg) if model_cfg else ""), ""
 
 
-def _load_config_scoped(profile: Optional[str]) -> dict:
+def _load_config_scoped(profile: str | None) -> dict:
     with _profile_scope(profile):
         return load_config()
 
@@ -87,7 +93,7 @@ def _bounded_context_length_probe(model: str, base_url: str, provider: str) -> i
 
 
 @router.get("/api/model/info")
-def get_model_info(profile: Optional[str] = None):
+def get_model_info(profile: str | None = None):
     """Resolved metadata for the configured model: auto-detected vs configured
     context length (so the UI can show "Auto-detected: 200K" beside the
     override) plus models.dev capabilities when available."""
@@ -136,7 +142,7 @@ def get_model_info(profile: Optional[str] = None):
 
 @router.get("/api/model/options")
 async def get_model_options(
-    profile: Optional[str] = None,
+    profile: str | None = None,
     refresh: bool = False,
     include_unconfigured: bool = False,
     explicit_only: bool = False,
@@ -152,7 +158,10 @@ async def get_model_options(
             _log.warning("GET /api/model/options refused: %s", skew_msg)
             raise HTTPException(status_code=503, detail=f"Restart required: {skew_msg}")
 
-        from hermes_cli.inventory import build_model_options_payload, load_picker_context
+        from hermes_cli.inventory import (
+            build_model_options_payload,
+            load_picker_context,
+        )
 
         def _build_payload_scoped() -> dict:
             # Full sync picker build off the event loop under the requested profile.
@@ -173,7 +182,7 @@ def _nous_recommended_default() -> dict:
 
 
 @router.get("/api/model/recommended-default")
-def get_recommended_default_model(provider: str = "", profile: Optional[str] = None):
+def get_recommended_default_model(provider: str = "", profile: str | None = None):
     """Recommended default model for a freshly-authenticated provider, mirroring
     ``hermes model``'s curation so GUI onboarding lands on a sensible default.
     Nous honors the user's free/paid tier. Any other provider gets the preferred
@@ -216,7 +225,7 @@ def get_recommended_default_model(provider: str = "", profile: Optional[str] = N
 
 
 @router.get("/api/model/auxiliary")
-def get_auxiliary_models(profile: Optional[str] = None):
+def get_auxiliary_models(profile: str | None = None):
     """Current auxiliary task assignments: ``{"tasks": [{task, provider, model,
     base_url}, ...], "main": {provider, model}}``. ``profile`` scopes the read —
     without it the Models page would show the dashboard profile's pins while
@@ -244,7 +253,7 @@ def get_auxiliary_models(profile: Optional[str] = None):
 
 
 @router.get("/api/model/moa")
-def get_moa_models(profile: Optional[str] = None):
+def get_moa_models(profile: str | None = None):
     """Return the configured Mixture-of-Agents provider/model slots."""
     with http_failure("GET /api/model/moa failed", 500, detail="Failed to read MoA config"):
         from hermes_cli.moa_config import normalize_moa_config
@@ -275,7 +284,7 @@ def _preset_dict(preset) -> dict:
 
 
 @router.put("/api/model/moa")
-def set_moa_models(body: MoaConfigPayload, profile: Optional[str] = None):
+def set_moa_models(body: MoaConfigPayload, profile: str | None = None):
     """Persist the Mixture-of-Agents provider/model slots."""
     with http_failure("PUT /api/model/moa failed", 500, detail="Failed to save MoA config"):
         from hermes_cli.moa_config import normalize_moa_config, validate_moa_payload
@@ -315,7 +324,7 @@ def set_moa_models(body: MoaConfigPayload, profile: Optional[str] = None):
 
 
 @router.post("/api/model/set")
-async def set_model_assignment(body: ModelAssignment, profile: Optional[str] = None):
+async def set_model_assignment(body: ModelAssignment, profile: str | None = None):
     """Assign a model to the main slot or an auxiliary task slot. Writes
     ``~/.hermes/config.yaml`` — applies to **new** sessions only; a running chat
     PTY hot-swaps via the ``/model`` slash command instead."""

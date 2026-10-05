@@ -12,7 +12,6 @@ from contextlib import nullcontext
 from unittest import mock
 
 import pytest
-
 from agent import secret_scope
 from agent.secret_scope import UnscopedSecretError, current_secret_scope, get_secret
 from gateway.config import GatewayConfig

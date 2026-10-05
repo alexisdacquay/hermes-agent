@@ -4,7 +4,6 @@ catalog does not know is reported with the one-liner instead of silently droppin
 from pathlib import Path
 
 import pytest
-
 from hermes_cli import memory_provider_migration as mig
 
 
@@ -233,6 +232,7 @@ def test_missing_catalog_provider_recovery_names_the_profile_install_command(tmp
     ``memory status``, ``memory setup honcho``, ``hermes honcho``) names the one command that installs
     the catalog plugin into THIS profile. Real in-tree catalog, nothing installed."""
     from types import SimpleNamespace
+
     from hermes_cli import doctor_state, memory_setup
     from hermes_cli._parser import build_top_level_parser
 

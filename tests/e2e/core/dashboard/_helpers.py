@@ -22,12 +22,13 @@ import subprocess
 import sys
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
-import httpx
 import hermes_yaml as yaml
+import httpx
 
 from tests.fakes.fake_llm_provider import FakeLLMServer
 

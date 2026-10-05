@@ -14,7 +14,6 @@ import json
 from pathlib import Path
 
 import pytest
-
 from tools.environments.local import LocalEnvironment
 from tools.file_operations import ShellFileOperations
 

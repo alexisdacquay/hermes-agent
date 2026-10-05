@@ -22,30 +22,28 @@ import time
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from gateway.config import GatewayConfig, Platform, PlatformConfig
 from gateway.run import (
     GatewayRunner,
     _reconnect_needs_attention,
 )
 
-
 # ── Telegram: type-based auth classification ───────────────────────────
 
 
-class InvalidToken(Exception):  # noqa: N818 — name-matched stand-in
+class InvalidToken(Exception):
     pass
 
 
-class Forbidden(Exception):  # noqa: N818
+class Forbidden(Exception):
     pass
 
 
-class NetworkError(Exception):  # noqa: N818
+class NetworkError(Exception):
     pass
 
 
-class TimedOut(Exception):  # noqa: N818
+class TimedOut(Exception):
     pass
 
 

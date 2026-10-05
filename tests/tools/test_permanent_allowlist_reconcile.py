@@ -17,8 +17,7 @@ what is on disk now, plus what this process approved since its own baseline.
 import logging
 
 import pytest
-
-import tools.approval as approval
+from tools import approval
 
 
 @pytest.fixture

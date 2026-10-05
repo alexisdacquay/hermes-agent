@@ -5,7 +5,6 @@ from __future__ import annotations
 import random
 
 import pytest
-
 from agent.repetition_guard import MIN_FRAGMENT_LENGTH, is_repetition_dominated
 
 # The exact sentence from the #86581 incident (echoed hundreds of times by

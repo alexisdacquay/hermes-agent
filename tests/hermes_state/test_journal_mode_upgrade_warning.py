@@ -25,10 +25,9 @@ from __future__ import annotations
 
 import sqlite3
 
-import pytest
-
 import hermes_state_wal
 import hermes_yaml as yaml
+import pytest
 
 
 def _write_config(monkeypatch: pytest.MonkeyPatch, tmp_path, config: object) -> None:

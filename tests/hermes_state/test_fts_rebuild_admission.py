@@ -18,17 +18,16 @@ prove nothing.
 
 import contextlib
 import errno
-import subprocess
 import sqlite3
+import subprocess
 import sys
 import time
 from pathlib import Path
 
-import pytest
-
 import hermes_state_common
+import pytest
 from hermes_state import SessionDB
-from hermes_state_common import FTS_STALE_KEY, _FTS_TRIGGERS
+from hermes_state_common import _FTS_TRIGGERS, FTS_STALE_KEY
 
 pytestmark = pytest.mark.skipif(
     sys.platform == "win32", reason="POSIX flock child-process harness"
@@ -334,13 +333,13 @@ class TestOrphanedHolderStalenessBreak:
         db_path = tmp_path / "state.db"
         db_path.touch()
 
-        script = """
+        script = f"""
 import os, sys, time
-sys.path.insert(0, {repo!r})
+sys.path.insert(0, {str(Path(hermes_state_common.__file__).parent)!r})
 from pathlib import Path
 import hermes_state_repair
 
-lock_cm = hermes_state_repair._cross_process_repair_lock(Path({db!r}))
+lock_cm = hermes_state_repair._cross_process_repair_lock(Path({str(db_path)!r}))
 assert lock_cm.__enter__() is True
 pid = os.fork()
 if pid == 0:
@@ -348,7 +347,7 @@ if pid == 0:
     os._exit(0)
 print("child", pid, flush=True)
 os._exit(1)
-""".format(repo=str(Path(hermes_state_common.__file__).parent), db=str(db_path))
+"""
         import os
         import signal
 
@@ -571,9 +570,9 @@ class TestDeferredFtsRetryInProcess:
         and reaches shared-registry instances."""
         import threading
 
+        import gateway.run as grun
         import hermes_state_registry
         import hermes_state_schema
-        import gateway.run as grun
 
         monkeypatch.setattr(hermes_state_schema, "_FTS_STALE_RETRY_SECONDS", 0.0)
         db_path = tmp_path / "state.db"

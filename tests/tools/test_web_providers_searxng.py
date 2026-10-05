@@ -18,7 +18,6 @@ import pytest
 
 from tests.tools.conftest import register_all_web_providers
 
-
 # ---------------------------------------------------------------------------
 # SearXNGWebSearchProvider unit tests
 # ---------------------------------------------------------------------------
@@ -139,7 +138,7 @@ class TestGetBackendSearXNG:
     def test_searxng_does_not_override_higher_priority_provider(self, monkeypatch):
         """Exa (higher priority than searxng) should win in auto-detect."""
         from tools import web_tools
-        monkeypatch.setattr(web_tools, "_load_web_config", lambda: {})
+        monkeypatch.setattr(web_tools, "_load_web_config", dict)
         monkeypatch.delenv("FIRECRAWL_API_KEY", raising=False)
         monkeypatch.delenv("FIRECRAWL_API_URL", raising=False)
         monkeypatch.delenv("PARALLEL_API_KEY", raising=False)
@@ -153,7 +152,7 @@ class TestGetBackendSearXNG:
         must still drive auto-detect via the now config-aware ``_has_env``."""
         from hermes_cli import config as hermes_config
         from tools import web_tools
-        monkeypatch.setattr(web_tools, "_load_web_config", lambda: {})
+        monkeypatch.setattr(web_tools, "_load_web_config", dict)
         monkeypatch.delenv("FIRECRAWL_API_KEY", raising=False)
         monkeypatch.delenv("FIRECRAWL_API_URL", raising=False)
         monkeypatch.delenv("PARALLEL_API_KEY", raising=False)
@@ -195,9 +194,9 @@ class TestCheckWebApiKey:
         assert web_tools.check_web_api_key() is True
 
     def test_no_credentials_fails(self, monkeypatch):
-        from tools import web_tools
         from agent import web_search_registry
-        monkeypatch.setattr(web_tools, "_load_web_config", lambda: {})
+        from tools import web_tools
+        monkeypatch.setattr(web_tools, "_load_web_config", dict)
         monkeypatch.delenv("FIRECRAWL_API_KEY", raising=False)
         monkeypatch.delenv("FIRECRAWL_API_URL", raising=False)
         monkeypatch.delenv("PARALLEL_API_KEY", raising=False)
@@ -232,6 +231,7 @@ class TestSearXNGOnlyExtractCrawlErrors:
 
     def test_web_extract_searxng_returns_clear_error(self, monkeypatch):
         import asyncio
+
         from tools import web_tools
 
         monkeypatch.setattr(web_tools, "_load_web_config", lambda: {"backend": "searxng"})

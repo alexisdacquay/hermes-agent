@@ -26,7 +26,6 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from agent.session_activity import ActivityProvenance
 from hermes_state import SessionDB
 

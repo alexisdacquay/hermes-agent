@@ -14,12 +14,9 @@ These tests pin the two contracts that prevent a recurrence:
   2. A healthy crawl exits zero AND writes the file with every source present.
 """
 
-import os
-import sys
 import types
 
 import pytest
-
 import scripts.build_skills_index as build_mod
 
 

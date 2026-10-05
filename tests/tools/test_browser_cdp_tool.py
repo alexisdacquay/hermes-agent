@@ -9,19 +9,16 @@ from __future__ import annotations
 import asyncio
 import json
 import threading
-from typing import Any, Dict, List
+from typing import Any
 
 import pytest
-
-import websockets
-from websockets.asyncio.server import serve
-
-from tools import browser_cdp_tool
 import requests
+import websockets
+from tools import browser_cdp_tool
+from tools import browser_tool_cdp as bt_cdp
 from tools import browser_tool_eval_policy as bt_eval_policy
 from tools import browser_tool_install as bt_install
-from tools import browser_tool_cdp as bt_cdp
-
+from websockets.asyncio.server import serve
 
 # ---------------------------------------------------------------------------
 # In-process CDP mock server
@@ -37,8 +34,8 @@ class _CDPServer:
     """
 
     def __init__(self) -> None:
-        self._handlers: Dict[str, Any] = {}
-        self._responses: List[Dict[str, Any]] = []
+        self._handlers: dict[str, Any] = {}
+        self._responses: list[dict[str, Any]] = []
         self._loop: asyncio.AbstractEventLoop | None = None
         self._server: Any = None
         self._thread: threading.Thread | None = None
@@ -123,7 +120,7 @@ class _CDPServer:
         if self._thread:
             self._thread.join(timeout=3.0)
 
-    def received(self) -> List[Dict[str, Any]]:
+    def received(self) -> list[dict[str, Any]]:
         return list(self._responses)
 
 

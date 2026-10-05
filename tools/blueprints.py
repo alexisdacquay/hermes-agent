@@ -12,12 +12,20 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["BlueprintSpec", "parse_blueprint", "blueprint_spec_for_installed", "blueprint_to_job_spec",
-           "create_blueprint_job", "register_blueprint_suggestion", "export_blueprint", "BlueprintError"]
+__all__ = [
+    "BlueprintError",
+    "BlueprintSpec",
+    "blueprint_spec_for_installed",
+    "blueprint_to_job_spec",
+    "create_blueprint_job",
+    "export_blueprint",
+    "parse_blueprint",
+    "register_blueprint_suggestion",
+]
 
 
 class BlueprintError(ValueError):
@@ -31,15 +39,15 @@ class BlueprintSpec:
     skill_name: str
     schedule: str
     deliver: str = "origin"
-    prompt: Optional[str] = None
+    prompt: str | None = None
     no_agent: bool = False
-    model: Optional[str] = None
-    provider: Optional[str] = None
-    enabled_toolsets: Optional[List[str]] = None
-    raw: Dict[str, Any] = field(default_factory=dict)
+    model: str | None = None
+    provider: str | None = None
+    enabled_toolsets: list[str] | None = None
+    raw: dict[str, Any] = field(default_factory=dict)
 
 
-def _split_frontmatter(text: str) -> Optional[Dict[str, Any]]:
+def _split_frontmatter(text: str) -> dict[str, Any] | None:
     """Return the parsed YAML frontmatter mapping, or None if absent/invalid."""
     if not isinstance(text, str):
         return None
@@ -56,7 +64,7 @@ def _split_frontmatter(text: str) -> Optional[Dict[str, Any]]:
     return data if isinstance(data, dict) else None
 
 
-def parse_blueprint(skill_md_text: str) -> Optional[BlueprintSpec]:
+def parse_blueprint(skill_md_text: str) -> BlueprintSpec | None:
     """Extract a BlueprintSpec from a SKILL.md string, or None if not a blueprint.
 
     A skill is a blueprint iff ``metadata.hermes.blueprint`` is a mapping with a
@@ -96,7 +104,7 @@ def parse_blueprint(skill_md_text: str) -> Optional[BlueprintSpec]:
     )
 
 
-def blueprint_spec_for_installed(skill_name: str) -> Optional[BlueprintSpec]:
+def blueprint_spec_for_installed(skill_name: str) -> BlueprintSpec | None:
     """Find ``<skill_name>/SKILL.md`` anywhere in the skills tree and parse its
     blueprint block; None when not found or not a blueprint."""
     try:
@@ -115,7 +123,7 @@ def blueprint_spec_for_installed(skill_name: str) -> Optional[BlueprintSpec]:
     return None
 
 
-def blueprint_to_job_spec(spec: BlueprintSpec, *, name: Optional[str] = None) -> Dict[str, Any]:
+def blueprint_to_job_spec(spec: BlueprintSpec, *, name: str | None = None) -> dict[str, Any]:
     """``cron.jobs.create_job`` kwargs for a spec — the single translation used by
     both ``create_blueprint_job`` and the suggestion path so they never drift."""
     return {
@@ -126,8 +134,8 @@ def blueprint_to_job_spec(spec: BlueprintSpec, *, name: Optional[str] = None) ->
     }
 
 
-def create_blueprint_job(spec: BlueprintSpec, *, origin: Optional[Dict[str, Any]] = None,
-                         name: Optional[str] = None) -> Dict[str, Any]:
+def create_blueprint_job(spec: BlueprintSpec, *, origin: dict[str, Any] | None = None,
+                         name: str | None = None) -> dict[str, Any]:
     """Create the cron job for a spec (skill preloaded via ``skills=[name]``); returns the job dict."""
     from cron.scheduler import create_job_with_scheduler_registration
 
@@ -137,7 +145,7 @@ def create_blueprint_job(spec: BlueprintSpec, *, origin: Optional[Dict[str, Any]
     return create_job_with_scheduler_registration(**job_spec)
 
 
-def register_blueprint_suggestion(spec: BlueprintSpec) -> Optional[Dict[str, Any]]:
+def register_blueprint_suggestion(spec: BlueprintSpec) -> dict[str, Any] | None:
     """Register an installed blueprint as a Suggested Cron Job (never auto-scheduled;
     the user accepts or dismisses it). None when skipped (seen/dismissed/backlog full)."""
     if not spec.skill_name:
@@ -157,7 +165,7 @@ def register_blueprint_suggestion(spec: BlueprintSpec) -> Optional[Dict[str, Any
     )
 
 
-def export_blueprint(job: Dict[str, Any], body: str, *, blueprint_name: Optional[str] = None) -> str:
+def export_blueprint(job: dict[str, Any], body: str, *, blueprint_name: str | None = None) -> str:
     """Inverse of ``create_blueprint_job``: render a cron job as a SKILL.md (with a
     ``metadata.hermes.blueprint`` block) ready for ``hermes skills publish``.
     ``body`` becomes the SKILL.md body; its first line is the description."""
@@ -167,7 +175,7 @@ def export_blueprint(job: Dict[str, Any], body: str, *, blueprint_name: Optional
     name = str(blueprint_name or job.get("name") or "shared-blueprint").lower()
     name = "".join(c if (c.isalnum() or c in "-_") else "-" for c in name).strip("-_") or "shared-blueprint"
 
-    block: Dict[str, Any] = {"schedule": job.get("schedule_display") or _schedule_to_string(job.get("schedule"))}
+    block: dict[str, Any] = {"schedule": job.get("schedule_display") or _schedule_to_string(job.get("schedule"))}
     if job.get("deliver") and job["deliver"] != "origin":
         block["deliver"] = job["deliver"]
     if job.get("prompt"):

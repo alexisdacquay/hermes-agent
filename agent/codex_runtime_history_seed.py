@@ -13,7 +13,7 @@ per-request cost and keeps the most recent turns (the ones the next answer depen
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any
 
 # Tail cap on the rendered history; ~8k tokens, resent by codex on every request of the thread.
 MAX_HISTORY_SEED_CHARS = 32_000
@@ -32,7 +32,7 @@ def _text_of(content: Any) -> str:
     return ""
 
 
-def _render_row(msg: Dict[str, Any]) -> str:
+def _render_row(msg: dict[str, Any]) -> str:
     role = msg.get("role")
     text = _text_of(msg.get("content")).strip()
     if role == "user":
@@ -50,7 +50,7 @@ def _render_row(msg: Dict[str, Any]) -> str:
     return ""  # system rows are the prompt composition, already sent as developerInstructions
 
 
-def render_history_seed(messages: List[Dict[str, Any]] | None) -> str:
+def render_history_seed(messages: list[dict[str, Any]] | None) -> str:
     """Prior turns as one text block, newest last; empty when there is nothing before the current
     user message. The trailing user row is the turn being submitted and is never included."""
     rows = list(messages or [])

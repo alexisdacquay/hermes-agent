@@ -12,7 +12,6 @@ re-opening the leak it targeted).
 import contextlib
 
 import pytest
-
 from agent.secret_scope import (
     UnscopedSecretError,
     reset_secret_scope,

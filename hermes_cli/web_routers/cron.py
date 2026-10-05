@@ -12,23 +12,39 @@ import time
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
-
-from hermes_cli.web_deps import late
-from hermes_cli.config import cfg_get
-from hermes_cli.web_server_cron import (
-    _create_cron_job_sync, _cron_optional_text, _cron_string_list, _mutate_cron_for_profile, _normalize_dashboard_cron_script, _raise_if_cron_registration_error, _run_cron_dashboard_io, _validate_dashboard_cron_context_from, _validate_dashboard_cron_effective_job,
-)
-from hermes_cli.web_models import AutomationBlueprintInstantiate, CronJobCreate, CronJobUpdate
-from hermes_cli.web_routers._common import log as _log
-from hermes_time import get_timezone as _get_timezone
 from hermes_constants import (
     get_hermes_home as _get_hermes_home,
+)
+from hermes_constants import (
     reset_hermes_home_override as _reset_hermes_home_override,
+)
+from hermes_constants import (
     set_hermes_home_override as _set_hermes_home_override,
+)
+from hermes_time import get_timezone as _get_timezone
+
+from hermes_cli.config import cfg_get
+from hermes_cli.web_deps import late
+from hermes_cli.web_models import (
+    AutomationBlueprintInstantiate,
+    CronJobCreate,
+    CronJobUpdate,
+)
+from hermes_cli.web_routers._common import log as _log
+from hermes_cli.web_server_cron import (
+    _create_cron_job_sync,
+    _cron_optional_text,
+    _cron_string_list,
+    _mutate_cron_for_profile,
+    _normalize_dashboard_cron_script,
+    _raise_if_cron_registration_error,
+    _run_cron_dashboard_io,
+    _validate_dashboard_cron_context_from,
+    _validate_dashboard_cron_effective_job,
 )
 
 router = APIRouter()
@@ -49,7 +65,7 @@ def _job_not_found() -> HTTPException:
     return HTTPException(status_code=404, detail="Job not found")
 
 
-def _normalize_dashboard_cron_updates(updates: Dict[str, Any], profile_home: Path) -> Dict[str, Any]:
+def _normalize_dashboard_cron_updates(updates: dict[str, Any], profile_home: Path) -> dict[str, Any]:
     """Normalize dashboard JSON into cron.jobs.update_job's storage shape.
 
     Stays in the dashboard adapter layer on purpose: cron/jobs.py is the source
@@ -76,7 +92,7 @@ def _normalize_dashboard_cron_updates(updates: Dict[str, Any], profile_home: Pat
     return normalized
 
 
-def _job_owner_profile(job_id: str, profile: Optional[str]) -> Optional[str]:
+def _job_owner_profile(job_id: str, profile: str | None) -> str | None:
     """Profile that holds ``job_id`` (its jobs.json and the state.db with its run sessions).
 
     ``profile`` is a caller *hint*, not proof of ownership: the Desktop lists
@@ -95,7 +111,7 @@ def _job_owner_profile(job_id: str, profile: Optional[str]) -> Optional[str]:
     return _find_cron_job_profile(job_id)
 
 
-def _job_profile(job_id: str, profile: Optional[str]) -> str:
+def _job_profile(job_id: str, profile: str | None) -> str:
     """Owning profile for the get/update/pause/resume/trigger/delete family; 404 when no profile
     holds the job. Same hint validation as the run lookup, so a wrong-profile hint from the
     cross-profile list cannot 404 (or act on the wrong store for) a job the server can locate."""
@@ -122,7 +138,7 @@ def _list_cron_jobs_sync(profile: str = "all"):
     # profile's copy over per-iteration order (#51721): collect all jobs first,
     # then resolve duplicates by id with default-profile priority, rather than
     # keeping whichever copy happened to be seen first during the profile loop.
-    all_jobs: List[Dict[str, Any]] = []
+    all_jobs: list[dict[str, Any]] = []
     for item in _cron_profile_dicts():
         name = str(item.get("name") or "")
         if not name:
@@ -132,8 +148,8 @@ def _list_cron_jobs_sync(profile: str = "all"):
         except Exception:
             _log.exception("Failed to list cron jobs for profile %s", name)
 
-    by_id: Dict[str, Dict[str, Any]] = {}
-    unkeyed: List[Dict[str, Any]] = []
+    by_id: dict[str, dict[str, Any]] = {}
+    unkeyed: list[dict[str, Any]] = []
     for job in all_jobs:
         if not isinstance(job, dict):
             continue
@@ -154,14 +170,14 @@ def _list_cron_jobs_sync(profile: str = "all"):
     return list(by_id.values()) + unkeyed
 
 
-def _get_cron_job_sync(job_id: str, profile: Optional[str] = None):
+def _get_cron_job_sync(job_id: str, profile: str | None = None):
     return _found(_call_cron_for_profile(_job_profile(job_id, profile), "get_job", job_id))
 
 
 _CRON_OUTPUT_FILENAME_FORMAT = "%Y-%m-%d_%H-%M-%S"
 
 
-def _cron_output_runs_dir(profile: Optional[str], job_id: str) -> Path:
+def _cron_output_runs_dir(profile: str | None, job_id: str) -> Path:
     """Output docs live under the job's home — resolve it even without a hint."""
     if profile:
         try:
@@ -174,7 +190,7 @@ def _cron_output_runs_dir(profile: Optional[str], job_id: str) -> Path:
 
 
 @contextmanager
-def _owner_home_scope(profile: Optional[str]):
+def _owner_home_scope(profile: str | None):
     """Keep reads in the owner's profile context for the whole run-history build.
 
     Filename stems, the execution ledger and ``hermes_time``'s configured zone all
@@ -201,7 +217,7 @@ def _owner_home_scope(profile: Optional[str]):
         _reset_hermes_home_override(token)
 
 
-def _cron_output_run_timestamp(path: Path) -> Optional[float]:
+def _cron_output_run_timestamp(path: Path) -> float | None:
     """Epoch seconds for an output filename's wall time.
 
     save_job_output writes the stem with hermes_time.now() — the configured
@@ -233,7 +249,7 @@ def _cron_output_run_preview(path: Path, max_chars: int = 180) -> str:
     return preview[: max_chars - 1].rstrip() + "…"
 
 
-def _cron_job_last_run_timestamp(job: Optional[Dict[str, Any]]) -> Optional[float]:
+def _cron_job_last_run_timestamp(job: dict[str, Any] | None) -> float | None:
     if not isinstance(job, dict):
         return None
     raw = job.get("last_run_at")
@@ -250,7 +266,7 @@ def _cron_job_last_run_timestamp(job: Optional[Dict[str, Any]]) -> Optional[floa
     return None
 
 
-def _cron_output_status_label(job: Optional[Dict[str, Any]]) -> str:
+def _cron_output_status_label(job: dict[str, Any] | None) -> str:
     if not isinstance(job, dict):
         return ""
     status = str(job.get("last_status") or "").strip()
@@ -259,7 +275,7 @@ def _cron_output_status_label(job: Optional[Dict[str, Any]]) -> str:
     return status.replace("_", " ").upper()
 
 
-def _cron_output_run_row(started_at: float, title: str, preview: Optional[str]) -> Dict[str, Any]:
+def _cron_output_run_row(started_at: float, title: str, preview: str | None) -> dict[str, Any]:
     return {
         "title": title,
         "preview": preview or None,
@@ -278,7 +294,7 @@ def _cron_output_run_row(started_at: float, title: str, preview: Optional[str]) 
     }
 
 
-def _iso_to_epoch(text: Any) -> Optional[float]:
+def _iso_to_epoch(text: Any) -> float | None:
     if not isinstance(text, str) or not text.strip():
         return None
     try:
@@ -287,7 +303,7 @@ def _iso_to_epoch(text: Any) -> Optional[float]:
         return None
 
 
-def _owner_profile_executions(canonical_job_id: str) -> List[Dict[str, Any]]:
+def _owner_profile_executions(canonical_job_id: str) -> list[dict[str, Any]]:
     """Terminal execution-ledger rows for the job, newest first.
 
     Each script-only fire creates exactly one ledger row (claimed → completed /
@@ -301,7 +317,7 @@ def _owner_profile_executions(canonical_job_id: str) -> List[Dict[str, Any]]:
         rows = list_executions(job_id=canonical_job_id, limit=100)
     except Exception:
         return []
-    terminal: List[Dict[str, Any]] = []
+    terminal: list[dict[str, Any]] = []
     for row in rows:
         if str(row.get("status") or "") not in ("completed", "failed", "unknown"):
             continue
@@ -316,7 +332,7 @@ def _owner_profile_executions(canonical_job_id: str) -> List[Dict[str, Any]]:
 
 
 def _execution_contains(
-    attempt: Dict[str, Any], started_at: float, grace_seconds: float = 300.0,
+    attempt: dict[str, Any], started_at: float, grace_seconds: float = 300.0,
 ) -> bool:
     """Whether an output doc's timestamp falls inside a ledger attempt's window.
 
@@ -344,11 +360,11 @@ def _execution_status_title(status: str, error: str, fallback: str) -> str:
 
 
 def _list_cron_output_runs(
-    job: Optional[Dict[str, Any]],
+    job: dict[str, Any] | None,
     canonical_job_id: str,
-    profile: Optional[str],
+    profile: str | None,
     limit: int,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """SessionDB-less run history for jobs that never create agent sessions.
 
     Script-only (no_agent) jobs deliberately skip SessionDB (cron/scheduler.run_job),
@@ -375,7 +391,7 @@ def _list_cron_output_runs(
 
     executions = _owner_profile_executions(canonical_job_id)
     represented: set = set()
-    runs: List[Dict[str, Any]] = []
+    runs: list[dict[str, Any]] = []
 
     for path in files[:limit]:
         started_at = _cron_output_run_timestamp(path)
@@ -450,7 +466,7 @@ _CRON_RUN_SESSION_ID = re.compile(r"^cron_(.+)_\d{8}_\d{6}$")
 _OWNERSHIP_CLAIM_GRACE_SECONDS = 5.0
 
 
-def _live_inflight_execution(canonical_job_id: str) -> Optional[Dict[str, Any]]:
+def _live_inflight_execution(canonical_job_id: str) -> dict[str, Any] | None:
     """The job's claimed/running ledger attempt under a live owner, or None (fail closed).
 
     Must run inside the owner-home scope so it reads the OWNER's executions.db.
@@ -463,7 +479,7 @@ def _live_inflight_execution(canonical_job_id: str) -> Optional[Dict[str, Any]]:
         return None
 
 
-def _run_owned_by(session: Dict[str, Any], inflight: Optional[Dict[str, Any]]) -> bool:
+def _run_owned_by(session: dict[str, Any], inflight: dict[str, Any] | None) -> bool:
     """Whether the scheduler still OWNS this never-closed run session (#88443).
 
     ``is_active`` is a 300s activity window, so a live run inside a long tool call
@@ -482,7 +498,7 @@ def _run_owned_by(session: Dict[str, Any], inflight: Optional[Dict[str, Any]]) -
     return claimed_at is not None and started_at >= claimed_at - _OWNERSHIP_CLAIM_GRACE_SECONDS
 
 
-def cron_run_scheduler_owned(session: Dict[str, Any], profile: Optional[str] = None) -> Optional[bool]:
+def cron_run_scheduler_owned(session: dict[str, Any], profile: str | None = None) -> bool | None:
     """``scheduler_owned`` for one session row, or None when it is not a cron run session.
 
     The session-detail endpoint stamps this so a client re-checking a run it
@@ -499,7 +515,7 @@ def cron_run_scheduler_owned(session: Dict[str, Any], profile: Optional[str] = N
         return _run_owned_by(session, _live_inflight_execution(match.group(1)))
 
 
-def _list_cron_job_runs_sync(job_id: str, profile: Optional[str] = None, limit: int = 20):
+def _list_cron_job_runs_sync(job_id: str, profile: str | None = None, limit: int = 20):
     """Run history for a cron job, newest first: agent sessions PLUS script-only fires.
 
     Agent runs are ordinary sessions with id ``cron_{job_id}_{timestamp}`` (see
@@ -554,10 +570,10 @@ def _list_cron_job_runs_sync(job_id: str, profile: Optional[str] = None, limit: 
 
 
 def _reconcile_cron_runs(
-    session_runs: List[Dict[str, Any]],
-    doc_runs: List[Dict[str, Any]],
+    session_runs: list[dict[str, Any]],
+    doc_runs: list[dict[str, Any]],
     limit: int,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Merge session rows and output-doc rows per execution, newest first.
 
     An agent fire writes BOTH a session and an output doc for the same
@@ -581,7 +597,7 @@ def _reconcile_cron_runs(
     return merged[:limit]
 
 
-def _doc_matches_session(doc_ts: float, session: Dict[str, Any], grace_seconds: float) -> bool:
+def _doc_matches_session(doc_ts: float, session: dict[str, Any], grace_seconds: float) -> bool:
     """Whether an output doc belongs to a session's run.
 
     The doc is written when the run FINISHES, so its filename timestamp sits
@@ -597,7 +613,7 @@ def _doc_matches_session(doc_ts: float, session: Dict[str, Any], grace_seconds: 
 _EXECUTION_FIELDS = {"prompt", "skill", "skills", "script", "no_agent"}
 
 
-def _update_cron_job_sync(job_id: str, body: CronJobUpdate, profile: Optional[str] = None):
+def _update_cron_job_sync(job_id: str, body: CronJobUpdate, profile: str | None = None):
     selected = _job_profile(job_id, profile)
     try:
         profile_name, profile_home = _cron_profile_home(selected)
@@ -618,15 +634,15 @@ def _update_cron_job_sync(job_id: str, body: CronJobUpdate, profile: Optional[st
     return _found(job)
 
 
-def _pause_cron_job_sync(job_id: str, profile: Optional[str] = None):
+def _pause_cron_job_sync(job_id: str, profile: str | None = None):
     return _found(_mutate_cron_for_profile(_job_profile(job_id, profile), "pause_job", job_id))
 
 
-def _resume_cron_job_sync(job_id: str, profile: Optional[str] = None):
+def _resume_cron_job_sync(job_id: str, profile: str | None = None):
     return _found(_mutate_cron_for_profile(_job_profile(job_id, profile), "resume_job", job_id))
 
 
-def _trigger_cron_job_sync(job_id: str, profile: Optional[str] = None):
+def _trigger_cron_job_sync(job_id: str, profile: str | None = None):
     selected = _job_profile(job_id, profile)
     job = _found(_call_cron_for_profile(selected, "resolve_job_ref", job_id))
     # Never expose the job as due before claiming it: the built-in ticker and
@@ -648,7 +664,7 @@ def _trigger_cron_job_sync(job_id: str, profile: Optional[str] = None):
     return {**job, "enabled": False, "state": "completed"}
 
 
-def _delete_cron_job_sync(job_id: str, profile: Optional[str] = None):
+def _delete_cron_job_sync(job_id: str, profile: str | None = None):
     selected = _job_profile(job_id, profile)
     try:
         removed = _mutate_cron_for_profile(selected, "remove_job", job_id)
@@ -671,22 +687,22 @@ async def list_cron_jobs(profile: str = "all"):
 
 
 @router.get("/api/cron/jobs/{job_id}")
-async def get_cron_job(job_id: str, profile: Optional[str] = None):
+async def get_cron_job(job_id: str, profile: str | None = None):
     return await _run_cron_dashboard_io(_get_cron_job_sync, job_id, profile)
 
 
 @router.get("/api/cron/jobs/{job_id}/runs")
-async def list_cron_job_runs(job_id: str, profile: Optional[str] = None, limit: int = 20):
+async def list_cron_job_runs(job_id: str, profile: str | None = None, limit: int = 20):
     return await _run_cron_dashboard_io(_list_cron_job_runs_sync, job_id, profile, limit)
 
 
 @router.post("/api/cron/jobs")
-async def create_cron_job(body: CronJobCreate, profile: Optional[str] = None):
+async def create_cron_job(body: CronJobCreate, profile: str | None = None):
     return await _run_cron_dashboard_io(_create_cron_job_sync, body, profile)
 
 
 @router.get("/api/cron/delivery-targets")
-async def get_cron_delivery_targets(profile: Optional[str] = None):
+async def get_cron_delivery_targets(profile: str | None = None):
     """Delivery targets for the cron dropdown: implicit ``local`` plus the
     configured gateway platforms (a platform without a cron home channel is
     still listed with ``home_target_set: false`` so the UI can say so).
@@ -712,27 +728,27 @@ async def get_cron_delivery_targets(profile: Optional[str] = None):
 
 
 @router.put("/api/cron/jobs/{job_id}")
-async def update_cron_job(job_id: str, body: CronJobUpdate, profile: Optional[str] = None):
+async def update_cron_job(job_id: str, body: CronJobUpdate, profile: str | None = None):
     return await _run_cron_dashboard_io(_update_cron_job_sync, job_id, body, profile)
 
 
 @router.post("/api/cron/jobs/{job_id}/pause")
-async def pause_cron_job(job_id: str, profile: Optional[str] = None):
+async def pause_cron_job(job_id: str, profile: str | None = None):
     return await _run_cron_dashboard_io(_pause_cron_job_sync, job_id, profile)
 
 
 @router.post("/api/cron/jobs/{job_id}/resume")
-async def resume_cron_job(job_id: str, profile: Optional[str] = None):
+async def resume_cron_job(job_id: str, profile: str | None = None):
     return await _run_cron_dashboard_io(_resume_cron_job_sync, job_id, profile)
 
 
 @router.post("/api/cron/jobs/{job_id}/trigger")
-async def trigger_cron_job(job_id: str, profile: Optional[str] = None):
+async def trigger_cron_job(job_id: str, profile: str | None = None):
     return await _run_cron_dashboard_io(_trigger_cron_job_sync, job_id, profile)
 
 
 @router.delete("/api/cron/jobs/{job_id}")
-async def delete_cron_job(job_id: str, profile: Optional[str] = None):
+async def delete_cron_job(job_id: str, profile: str | None = None):
     return await _run_cron_dashboard_io(_delete_cron_job_sync, job_id, profile)
 
 
@@ -828,7 +844,7 @@ async def cron_fire_webhook(request: Request):
 
 
 @router.get("/api/cron/blueprints")
-async def list_cron_blueprints(profile: Optional[str] = None):
+async def list_cron_blueprints(profile: str | None = None):
     """Blueprint catalog as form schemas; the ``deliver`` slot's options are
     rewritten from the actually configured gateway platforms."""
     try:
@@ -866,7 +882,11 @@ async def list_cron_blueprints(profile: Optional[str] = None):
 async def instantiate_blueprint(body: AutomationBlueprintInstantiate, profile: str = "default"):
     """Fill a blueprint's slots and create the cron job (form-submit path)."""
     try:
-        from cron.blueprint_catalog import BlueprintFillError, fill_blueprint, get_blueprint
+        from cron.blueprint_catalog import (
+            BlueprintFillError,
+            fill_blueprint,
+            get_blueprint,
+        )
 
         blueprint = get_blueprint(body.blueprint)
         if blueprint is None:

@@ -16,8 +16,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-import agent.compression_facade as compression_facade
-import agent.conversation_compression as conversation_compression
+from agent import compression_facade, conversation_compression
 from agent.conversation_compression import CompressionCommitFence
 from hermes_state import SessionDB
 

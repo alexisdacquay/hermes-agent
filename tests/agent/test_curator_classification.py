@@ -14,7 +14,7 @@ which misled users into thinking consolidated skills had been pruned.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -30,6 +30,7 @@ def curator_env(tmp_path, monkeypatch):
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
 
     import importlib
+
     import hermes_constants
     importlib.reload(hermes_constants)
     from agent import curator
@@ -84,7 +85,7 @@ def test_classify_consolidated_via_write_file_evidence(curator_env):
 def test_report_md_splits_consolidated_and_pruned_sections(curator_env):
     """End-to-end: REPORT.md shows both sections distinctly."""
     curator = curator_env
-    start = datetime.now(timezone.utc)
+    start = datetime.now(UTC)
 
     before = [
         {"name": "absorbed-skill", "state": "active", "pinned": False},
@@ -207,9 +208,9 @@ def test_parse_structured_summary_missing_block(curator_env):
 def test_reconcile_model_block_visible_in_full_report(curator_env):
     """End-to-end: LLM final response with the YAML block → reasons in REPORT.md."""
     import json as _json
-    from datetime import datetime as _dt, timezone as _tz
+    from datetime import datetime as _dt
 
-    start = _dt.now(_tz.utc)
+    start = _dt.now(UTC)
     before = [
         {"name": "anthropic-api", "state": "active", "pinned": False},
         {"name": "stale-thing", "state": "stale", "pinned": False},

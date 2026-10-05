@@ -18,7 +18,6 @@ import shutil
 import subprocess
 
 import pytest
-
 from tools.file_operations import ShellFileOperations
 
 # Big enough to prove containment, small enough to keep the test fast.

@@ -9,13 +9,13 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Mapping
+from typing import Any
 
 from gateway import hosted_rooms
 from gateway.hosted_rooms_common import DbPath, compact_json, fenced_update
-
 
 MAX_ACTIVE_POLICY_EVENTS = 64
 MAX_THREAD_TRANSCRIPT_EVENTS = 24

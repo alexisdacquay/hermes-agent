@@ -30,8 +30,8 @@ import types
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from agent.turn_context import build_turn_context
+
 from tests.agent.test_turn_context import _FakeAgent
 
 

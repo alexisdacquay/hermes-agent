@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Mapping, MutableMapping
 from time import time as wall_time
+from typing import Any, TypeVar
 from uuid import uuid4
-from typing import Any, List, Mapping, MutableMapping, Optional, TypeVar
 
-from agent.conversation_compression_archive import MERGED_DURABLE_ROWS, RETIRED_DURABLE_ROWS, UNNAMED_DURABLE_ROWS
-
+from agent.conversation_compression_archive import (
+    MERGED_DURABLE_ROWS,
+    RETIRED_DURABLE_ROWS,
+    UNNAMED_DURABLE_ROWS,
+)
 
 # These fields describe Hermes' durable record and timeline display, not
 # provider-visible message content. The request builder strips them from every
@@ -62,12 +66,12 @@ def mint_uid() -> str:
     return uuid4().hex
 
 
-def uid_list(value: Any) -> List[str]:
+def uid_list(value: Any) -> list[str]:
     """The unique non-empty string uids of a live list, in order; anything else is ``[]``."""
     return list(dict.fromkeys(u for u in (value if isinstance(value, list) else ()) if isinstance(u, str) and u))
 
 
-def message_uid_or_none(msg: Mapping[str, Any]) -> Optional[str]:
+def message_uid_or_none(msg: Mapping[str, Any]) -> str | None:
     """The dict's ``message_uid`` when it is a non-empty string, else ``None`` (never coerced: an int or a
     blank would be a bug upstream of the write, not an identity)."""
     uid = msg.get(MESSAGE_UID)
@@ -152,7 +156,7 @@ def _uid_occurrences(value: Any) -> list:
     return list(value) if isinstance(value, list) else [value]
 
 
-def per_occurrence_tool_call_uids(uids: Mapping[str, Any], tool_calls: List[Mapping[str, Any]]) -> dict:
+def per_occurrence_tool_call_uids(uids: Mapping[str, Any], tool_calls: list[Mapping[str, Any]]) -> dict:
     """*uids* with every provider id this row names more than once spelled out as one uid per occurrence. A
     single response that repeats an id shares ONE uid (its results carry it, so every call stays paired);
     before a fold appends another turn's occurrences, the shared uid must fill each of this row's slots or
@@ -196,7 +200,7 @@ def index_tool_call_uids(index: MutableMapping[str, str], assistant: Mapping[str
     return named
 
 
-def resolve_tool_call_uid(index: MutableMapping[str, str], tool_call_id: Any) -> Optional[str]:
+def resolve_tool_call_uid(index: MutableMapping[str, str], tool_call_id: Any) -> str | None:
     """The uid an indexed assistant dict minted for ``tool_call_id`` (any variant), else ``None``."""
     from agent.message_sanitization import tool_result_id_variants
 
@@ -209,7 +213,7 @@ def resolve_tool_call_uid(index: MutableMapping[str, str], tool_call_id: Any) ->
     return None
 
 
-def tool_call_uid_from_history(messages: List[dict], tool_index: int, owners: dict) -> Optional[str]:
+def tool_call_uid_from_history(messages: list[dict], tool_index: int, owners: dict) -> str | None:
     """Resolve a tool-result dict's uid from the nearest preceding assistant dict in ``messages`` that
     named its ``tool_call_id`` (the cross-flush case: the assistant row landed in an earlier batch).
     ``owners`` memoizes each assistant's (named variants, uid index) across one flush's results, so K
@@ -244,7 +248,7 @@ _Message = TypeVar("_Message", bound=MutableMapping[str, Any])
 def stamp_message_timestamp(
     message: _Message,
     *,
-    timestamp: Optional[float] = None,
+    timestamp: float | None = None,
 ) -> _Message:
     """Attach a creation timestamp without replacing source-provided time.
 
@@ -260,7 +264,7 @@ def append_message(
     messages: list[Any],
     message: _Message,
     *,
-    timestamp: Optional[float] = None,
+    timestamp: float | None = None,
 ) -> _Message:
     """Stamp and append one live transcript message."""
     messages.append(stamp_message_timestamp(message, timestamp=timestamp))

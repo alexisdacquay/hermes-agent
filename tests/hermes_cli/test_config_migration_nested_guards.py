@@ -10,8 +10,8 @@ import logging
 import os
 from unittest.mock import patch
 
-import pytest
 import hermes_yaml as yaml
+import pytest
 
 
 def _write_config(tmp_path, config):

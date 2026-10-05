@@ -171,6 +171,7 @@ if __name__ == "__main__":
 # ── HOME env propagation tests (from PR #11285) ─────────────────────
 
 from unittest.mock import patch as _patch
+
 import pytest
 
 
@@ -276,9 +277,8 @@ def test_probe_false_when_help_lacks_acp_and_run_prompt_fast_fails(tmp_path):
     with _patch(
         "agent.copilot_acp_client.subprocess.run",
         return_value=_completed(stdout="Usage: claude [--print] [--model]"),
-    ):
-        with pytest.raises(RuntimeError, match="ACP transport not supported"):
-            client._run_prompt("hello", timeout_seconds=1)
+    ), pytest.raises(RuntimeError, match="ACP transport not supported"):
+        client._run_prompt("hello", timeout_seconds=1)
 
 
 def test_probe_inconclusive_falls_through_to_spawn_error(tmp_path):
@@ -287,13 +287,11 @@ def test_probe_inconclusive_falls_through_to_spawn_error(tmp_path):
     with _patch(
         "agent.copilot_acp_client.subprocess.run",
         side_effect=FileNotFoundError("copilot not found"),
-    ):
-        with _patch(
-            "agent.copilot_acp_client.subprocess.Popen",
-            side_effect=FileNotFoundError("copilot not found"),
-        ):
-            with pytest.raises(RuntimeError, match="Could not start Copilot ACP command"):
-                client._run_prompt("hello", timeout_seconds=1)
+    ), _patch(
+        "agent.copilot_acp_client.subprocess.Popen",
+        side_effect=FileNotFoundError("copilot not found"),
+    ), pytest.raises(RuntimeError, match="Could not start Copilot ACP command"):
+        client._run_prompt("hello", timeout_seconds=1)
 
 
 

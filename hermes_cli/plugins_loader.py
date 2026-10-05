@@ -17,15 +17,26 @@ import re
 import sys
 import threading
 import types
+from collections.abc import Callable, Mapping
 from contextlib import contextmanager
 from functools import wraps
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Mapping, Optional, Union
+from typing import TYPE_CHECKING, Any
 
-from hermes_constants import get_hermes_home, reset_hermes_home_override, set_hermes_home_override
+from hermes_constants import (
+    get_hermes_home,
+    reset_hermes_home_override,
+    set_hermes_home_override,
+)
 from registration_lifecycle import replacement_coordinator
+
 from hermes_cli.plugins_discovery import ENTRY_POINTS_GROUP, _select_entry_point_group
-from hermes_cli.plugins_manifest import PluginManifest, manifest_key, portable_mcp_server_name, validate_config_schema
+from hermes_cli.plugins_manifest import (
+    PluginManifest,
+    manifest_key,
+    portable_mcp_server_name,
+    validate_config_schema,
+)
 from hermes_cli.plugins_state import _plugin_settings_entry
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -35,7 +46,7 @@ logger = logging.getLogger("hermes_cli.plugins")
 
 _NS_PARENT = "hermes_plugins"
 _MODULE_NAMESPACE_LOCK = threading.RLock()
-_BARE_MODULE_SCOPE: Dict[str, str] = {}  # bare module name -> owning scope_key
+_BARE_MODULE_SCOPE: dict[str, str] = {}  # bare module name -> owning scope_key
 
 # Per-plugin deadline on import + register(): ``plugins.load_timeout_seconds`` (default 10s, 0 disables,
 # clamped to the max). A plugin that never returns is skipped with a named reason and loading moves on
@@ -45,10 +56,10 @@ _LOAD_TIMEOUT_SECS = 10.0
 _MAX_LOAD_TIMEOUT_SECS = 600.0
 _MAX_ABANDONED_LOADERS = 8
 _LOADER_THREAD_PREFIX = "plugin-load:"  # names each deadline-bounded load worker; the re-arm guard matches it
-_ABANDONED_LOADERS: List[threading.Thread] = []
+_ABANDONED_LOADERS: list[threading.Thread] = []
 _ABANDONED_LOADERS_LOCK = threading.Lock()
 # PluginContexts of the outermost deadline-bounded load; set only inside its worker.
-_IN_PLUGIN_LOAD: contextvars.ContextVar[Optional[List["PluginContext"]]] = contextvars.ContextVar(
+_IN_PLUGIN_LOAD: contextvars.ContextVar[list[PluginContext] | None] = contextvars.ContextVar(
     "hermes_plugin_load_scope", default=None,
 )
 
@@ -101,7 +112,7 @@ def _reserve_abandoned_loader_slot() -> None:
     )
 
 
-def run_with_load_deadline(plugin_key: str, ctx: "PluginContext", fn: Callable[[], Any]) -> Any:
+def run_with_load_deadline(plugin_key: str, ctx: PluginContext, fn: Callable[[], Any]) -> Any:
     """Run ``fn`` (a plugin's import + ``register()``) under the per-plugin deadline.
 
     The worker inherits the caller's context (the Hermes-home override is a ContextVar). On timeout the
@@ -121,8 +132,8 @@ def run_with_load_deadline(plugin_key: str, ctx: "PluginContext", fn: Callable[[
     if timeout <= 0:
         return fn()
     _reserve_abandoned_loader_slot()
-    outcome: List[Any] = []
-    failure: List[BaseException] = []
+    outcome: list[Any] = []
+    failure: list[BaseException] = []
 
     scope = [ctx]
 
@@ -185,7 +196,7 @@ def _load_error_text(exc: BaseException) -> str:
     return str(exc)
 
 
-def _dist_installed(req: str) -> Optional[bool]:
+def _dist_installed(req: str) -> bool | None:
     """Best-effort presence probe on a requirement's distribution name; ``None`` when unprobeable."""
     dist = re.split(r"[<>=!~\[;\s]", req, maxsplit=1)[0].strip()
     if not dist:
@@ -200,7 +211,7 @@ def _dist_installed(req: str) -> Optional[bool]:
 
 
 class PluginLoaderMixin:
-    def on_plugin_loaded(self, callback: Callable[[List[Dict[str, Any]]], Any]) -> Callable[[], None]:
+    def on_plugin_loaded(self, callback: Callable[[list[dict[str, Any]]], Any]) -> Callable[[], None]:
         """Subscribe to "a discovery sweep loaded plugins this process did not have": fires from INSIDE
         :meth:`discover_and_load` (never emitted by an install RPC) with one
         ``{name, key, activated_now, deferred}`` summary per NEWLY loaded plugin — every plugin at boot,
@@ -271,7 +282,11 @@ class PluginLoaderMixin:
         retries the import. A failed load disposes its lease (the registry forgets the platform), so without
         this a load that raised or overran its deadline at startup stays down until a forced re-discovery
         (#126356). True when a loader was re-armed."""
-        from hermes_cli.plugins_discovery import _get_disabled_plugins, _get_enabled_plugins, gate_manifest
+        from hermes_cli.plugins_discovery import (
+            _get_disabled_plugins,
+            _get_enabled_plugins,
+            gate_manifest,
+        )
         from hermes_cli.plugins_manifest import requires_hermes_error
         with self._discovery_lock, _plugin_home_scope(self.home_path):
             failed = next((p.manifest for p in self._plugins.values()
@@ -340,7 +355,7 @@ class PluginLoaderMixin:
         the code is imported from; ``provides_tools`` is what asks for it. A platform that does not declare
         the field is untouched and stays fully deferred.
         """
-        from hermes_cli.plugins import PluginContext, _PLUGINS_DEBUG
+        from hermes_cli.plugins import _PLUGINS_DEBUG, PluginContext
         if not manifest.provides_tools:
             return
         lookup_key = manifest_key(manifest)
@@ -363,7 +378,7 @@ class PluginLoaderMixin:
             return
         before = set(self._plugin_tool_names)  # lets the failure path credit partial registrations
 
-        def _credit() -> List[str]:
+        def _credit() -> list[str]:
             """Attribute every tool registered since ``before`` to this plugin."""
             registered = [t for t in self._plugin_tool_names if t not in before]
             if registered:
@@ -457,7 +472,7 @@ class PluginLoaderMixin:
 
     def _load_plugin_scoped(self, manifest: PluginManifest) -> None:
         """Load one plugin with the manager's home bound as current."""
-        from hermes_cli.plugins import LoadedPlugin, PluginContext, _PLUGINS_DEBUG
+        from hermes_cli.plugins import _PLUGINS_DEBUG, LoadedPlugin, PluginContext
         loaded = LoadedPlugin(manifest=manifest)
         plugin_key = manifest_key(manifest)
         logger.debug(
@@ -579,8 +594,9 @@ class PluginLoaderMixin:
 
     def _track_tool_override_policy(self, manifest: PluginManifest, module_name: str) -> None:
         """Install the plugin's tool-override policy in tools.registry as a ledger-owned lease."""
-        from hermes_cli.plugins import PluginContext
         from tools.registry import registry as _registry
+
+        from hermes_cli.plugins import PluginContext
         scope = self.scope_key
         with replacement_coordinator.transaction():
             previous_policy = _registry.snapshot_plugin_override_policy(module_name, scope=scope)
@@ -605,7 +621,7 @@ class PluginLoaderMixin:
             if r.plugin_key == plugin_key and r.active
         ]
 
-        def _keys(kind: str) -> List[str]:
+        def _keys(kind: str) -> list[str]:
             return [r.key for r in registrations if r.kind == kind]
 
         # Discovery-time tools predate registration_start; credit them back or `hermes plugins list`
@@ -638,8 +654,9 @@ class PluginLoaderMixin:
                     ctx.register_skill(skill.name, skill.skill_md, skill.description, skill.frontmatter)
                 except Exception as exc:
                     logger.warning("Agent Plugin '%s' skill '%s' skipped: %s", lookup_key, skill.name, exc)
-            from hermes_cli.agent_plugins import _clear_liveness, _set_liveness
             from hermes_platform import declaration
+
+            from hermes_cli.agent_plugins import _clear_liveness, _set_liveness
             registered: list[str] = []
             try:
                 for server_name, config in package.mcp_servers.items():
@@ -696,7 +713,7 @@ class PluginLoaderMixin:
         return self._directory_module_name(manifest)
 
     def _load_directory_module(
-        self, manifest: PluginManifest, *, module_name: Optional[str] = None,
+        self, manifest: PluginManifest, *, module_name: str | None = None,
     ) -> types.ModuleType:
         """Import a directory plugin as ``hermes_plugins.<slug>`` (slug from ``manifest.key`` so
         ``image_gen/openai`` cannot collide with ``tts/openai``)."""
@@ -732,7 +749,7 @@ class PluginLoaderMixin:
             raise
         return module
 
-    def _load_entrypoint_module(self, manifest: PluginManifest) -> Union[types.ModuleType, Callable[..., Any]]:
+    def _load_entrypoint_module(self, manifest: PluginManifest) -> types.ModuleType | Callable[..., Any]:
         """Load a pip-installed plugin via its entry-point reference: the module for a bare ``module`` target,
         the referenced attribute (normally ``register``) for the ``module:function`` form."""
         for ep in _select_entry_point_group(importlib.metadata.entry_points(), ENTRY_POINTS_GROUP):

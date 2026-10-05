@@ -11,27 +11,49 @@ from __future__ import annotations
 import concurrent.futures
 import contextlib
 import json
-from pathlib import Path
 import logging
 import os
 import random
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable, Optional
+from pathlib import Path
+from typing import Any
 
+from hermes_cli.observability.shared_metrics_efficiency import (
+    note_tool_result,
+    record_tool_batch,
+)
+from tools.budget_config import DEFAULT_BUDGET, BudgetConfig, budget_for_context_window
+from tools.terminal_tool_lifecycle import get_active_env
+from tools.thread_context import propagate_context_to_thread
+from tools.tool_result_storage import (
+    enforce_turn_budget,
+    extract_persisted_path,
+    maybe_persist_tool_result,
+)
+
+from agent.compression_marker import _COMPRESSION_MARKER_PREFIX
 from agent.display import (
     KawaiiSpinner,
-    build_tool_preview as _build_tool_preview,
-    build_tool_label as _build_tool_label,
-    get_cute_tool_message as _get_cute_tool_message_impl,
-    get_tool_emoji as _get_tool_emoji,
-    tool_row_emoji as _tool_row_emoji,
-    redact_tool_args_for_display as _redact_tool_args_for_display,
     _detect_tool_failure,
 )
-from agent.compression_marker import _COMPRESSION_MARKER_PREFIX
-from agent.message_sanitization import coalesce_tool_call_id
+from agent.display import (
+    build_tool_label as _build_tool_label,
+)
+from agent.display import (
+    build_tool_preview as _build_tool_preview,
+)
+from agent.display import (
+    get_cute_tool_message as _get_cute_tool_message_impl,
+)
+from agent.display import (
+    redact_tool_args_for_display as _redact_tool_args_for_display,
+)
+from agent.display import (
+    tool_row_emoji as _tool_row_emoji,
+)
 from agent.inline_tool_executors import (
     INLINE_TOOL_EXECUTORS,
     InlineToolContext,
@@ -39,25 +61,17 @@ from agent.inline_tool_executors import (
     emit_terminal_post_tool_call,
     tool_hook_ids,
 )
+from agent.message_sanitization import coalesce_tool_call_id
 from agent.tool_dispatch_helpers import (
     _NEVER_PARALLEL_TOOLS,
+    _append_subdir_hint_to_multimodal,
+    _context_pruned_argument_paths,
     _is_destructive_command,
     _is_multimodal_tool_result,
     _multimodal_text_summary,
-    _append_subdir_hint_to_multimodal,
-    _context_pruned_argument_paths,
     _plan_tool_batch_segments,
     make_tool_result_message,
 )
-from tools.terminal_tool_lifecycle import get_active_env
-from tools.thread_context import propagate_context_to_thread
-from tools.tool_result_storage import (
-    maybe_persist_tool_result,
-    enforce_turn_budget,
-    extract_persisted_path,
-)
-from tools.budget_config import BudgetConfig, DEFAULT_BUDGET, budget_for_context_window
-from hermes_cli.observability.shared_metrics_efficiency import note_tool_result, record_tool_batch
 
 # A tool result this large (raw stdout, file dumps) is the biggest allocation a turn ever drops.
 # The commit only flags it: the string is still referenced by the publish frames here, so the
@@ -94,8 +108,12 @@ def _ensure_file_checkpoint(agent, function_name: str, function_args: dict, effe
     file_path = function_args.get("path", "")
     if not file_path:
         return
+    from tools.file_tools_paths import (
+        _resolve_path_for_task,
+        container_backend_for_task,
+    )
+
     from agent.file_safety import is_nt_namespace_path
-    from tools.file_tools_paths import _resolve_path_for_task, container_backend_for_task
 
     if container_backend_for_task(effective_task_id or "default") is not None:
         return  # container paths: nothing to checkpoint on the host
@@ -166,7 +184,7 @@ class _BatchAbandoned(BaseException):
     so ``except Exception`` handlers in the middleware chain can't swallow it."""
 
 
-def _parse_tool_arguments(raw_arguments: Any) -> tuple[dict, Optional[str]]:
+def _parse_tool_arguments(raw_arguments: Any) -> tuple[dict, str | None]:
     """Parse model-emitted arguments without repairing or coercing them."""
     try:
         arguments = json.loads(raw_arguments)
@@ -324,9 +342,9 @@ def _append_skipped_tool_results(
     effective_task_id: str,
     *,
     content: str,
-    hook_error_type: Optional[str] = None,
-    hook_id: Optional[Callable[[Any], str]] = None,
-    flush_stage: Optional[str] = None,
+    hook_error_type: str | None = None,
+    hook_id: Callable[[Any], str] | None = None,
+    flush_stage: str | None = None,
     stop_on_flush_failure: bool = True,
 ) -> bool:
     """Append one ``tool`` result per unstarted call so the assistant tool-call turn never
@@ -392,7 +410,7 @@ def _canonical_tool_name(function_name: str) -> str:
 
 def _unwrap_tool_search_call(
     agent, function_name: str, function_args: dict, *, flatten_probe: bool = False
-) -> tuple[str, dict, Optional[str]]:
+) -> tuple[str, dict, str | None]:
     """Peel the ``tool_call`` bridge so downstream hooks (checkpointing, guardrails, plugin
     hooks, activity feed) see the underlying tool; ``tool_call.function`` stays untouched for
     the transcript and tool_call_id pairing.
@@ -403,7 +421,7 @@ def _unwrap_tool_search_call(
     probe (``flatten_probe`` collapses the probe's JSON payload to one plain string for
     callers that wrap the message in ``{"error": ...}``).
     """
-    scope_block: Optional[str] = None
+    scope_block: str | None = None
     try:
         from tools import tool_search as _ts
         if function_name != _ts.TOOL_CALL_NAME:
@@ -447,8 +465,8 @@ class _ParsedCall:
     name: str
     args: dict
     middleware_trace: list
-    parse_error: Optional[str]
-    scope_block: Optional[str]
+    parse_error: str | None
+    scope_block: str | None
 
     def ref(self, task_id: str) -> _ToolCallRef:
         return _ToolCallRef(self.name, self.args, task_id, _pairing_tool_call_id(self.tool_call), self.middleware_trace)
@@ -707,7 +725,7 @@ def _dispatch_authorized_once(
     block_message, block_error_type = scope_block, "tool_scope_block"
     if block_message is None:
         block_error_type = "plugin_block"
-        resolve = lambda: _pre_tool_block(agent, ref)  # noqa: E731
+        resolve = lambda: _pre_tool_block(agent, ref)
         block_message, ref.args = resolve() if authorization_gate is None else authorization_gate.run(resolve)
         state.args = ref.args
     block_body = None if block_message is None else {"error": block_message}
@@ -765,11 +783,12 @@ def _run_agent_tool_execution_middleware(
     authorization_gate: _ConcurrentToolAuthorizationGate | None = None,
 ) -> _ManagedToolResult:
     """Run Relay rewrites before Hermes policy and dispatch exactly once."""
-    from agent import relay_tools
     from hermes_cli.middleware import (
         apply_tool_request_middleware,
         run_tool_execution_middleware,
     )
+
+    from agent import relay_tools
 
     trace = middleware_trace if middleware_trace is not None else []
     state = _ManagedToolResult(result=None, args=function_args, middleware_trace=trace, blocked=False, dispatched=False)
@@ -1064,7 +1083,7 @@ def _commit_tool_result(
     effect_disposition,
     observed: bool = False,
     error_preview: Callable[[Any], Any] = lambda result: result,
-    success_log_chars: Optional[int] = None,
+    success_log_chars: int | None = None,
     verbose_text: Callable[[Any], Any] = lambda result: result,
 ):
     """Observe (``observed`` results only) and log the outcome; mark the tool done; persist/
@@ -1303,7 +1322,7 @@ class _ConcurrentBatch:
         self.effective_task_id = effective_task_id
         self.parsed_calls = parsed_calls
         self.timeout_s = timeout_s
-        self.results: list[Optional[_ToolOutcome]] = [None] * len(parsed_calls)
+        self.results: list[_ToolOutcome | None] = [None] * len(parsed_calls)
         for i, pc in enumerate(parsed_calls):
             if pc.parse_error is not None:
                 self.results[i] = _ToolOutcome(pc.ref(effective_task_id), pc.parse_error, 0.0, True, True)
@@ -1311,7 +1330,7 @@ class _ConcurrentBatch:
         self.authorization_gate = _ConcurrentToolAuthorizationGate()
         self.timed_out_indices: set[int] = set()
 
-    def _dispatch_worker(self, index: int, ref: _ToolCallRef, scope_block, start_gate: _WorkerStartOnce) -> Optional[_ToolOutcome]:
+    def _dispatch_worker(self, index: int, ref: _ToolCallRef, scope_block, start_gate: _WorkerStartOnce) -> _ToolOutcome | None:
         """Run one call through the middleware and synthesize its slot outcome; ``None`` when
         abandoned at the gate (the main thread already wrote this slot; emitting would
         double-report the tool_call_id)."""
@@ -1491,7 +1510,7 @@ class _ConcurrentBatch:
             executor.shutdown(wait=not abandon_executor, cancel_futures=abandon_executor)
 
 
-def _unfinished_tool_result(agent, ref: _ToolCallRef, *, timed_out: bool, timeout_s: float | None) -> tuple[str, float, Optional[str]]:
+def _unfinished_tool_result(agent, ref: _ToolCallRef, *, timed_out: bool, timeout_s: float | None) -> tuple[str, float, str | None]:
     """Synthesize the result for a slot no worker filled (deadline, interrupt, or a thread
     that never returned), emit its terminal post_tool_call, and return
     ``(function_result, tool_duration, effect_disposition)``."""
@@ -1597,7 +1616,7 @@ def execute_tool_calls_concurrent(agent, assistant_message, messages: list, effe
 # ── Sequential dispatch ─────────────────────────────────────────────────────
 
 
-def _start_quiet_tool_spinner(agent, function_name: str, function_args: dict, *, gate: bool = True, label: Optional[str] = None):
+def _start_quiet_tool_spinner(agent, function_name: str, function_args: dict, *, gate: bool = True, label: str | None = None):
     """Start the quiet-mode kawaii spinner for one tool call, or return None; ``gate=False``
     skips ``_should_start_quiet_spinner`` (context-engine tools always spin)."""
     if not agent._should_emit_quiet_tool_messages() or (gate and not agent._should_start_quiet_spinner()):
@@ -1635,8 +1654,8 @@ class _SequentialDispatch:
 
     execute: Callable[[dict], Any]
     spinner: Any = None
-    middleware_trace_arg: Optional[list] = None  # forwarded to the middleware runner (registry closure reads it)
-    error_result: Optional[Callable[[Exception], str]] = None  # None → exceptions propagate (inline/delegate own failures)
+    middleware_trace_arg: list | None = None  # forwarded to the middleware runner (registry closure reads it)
+    error_result: Callable[[Exception], str] | None = None  # None → exceptions propagate (inline/delegate own failures)
     error_log: str = ""
     handles_keyboard_interrupt: bool = False
     is_delegate: bool = False
@@ -1730,7 +1749,7 @@ def _run_sequential_call(
     dispatch: _SequentialDispatch,
     ref: _ToolCallRef,
     *,
-    scope_block: Optional[str],
+    scope_block: str | None,
     messages: list,
     remaining_calls,
     display_index: int,
@@ -1827,7 +1846,11 @@ def _publish_sequential_result(agent, messages: list, ref: _ToolCallRef, managed
 
 def execute_tool_calls_sequential(agent, assistant_message, messages: list, effective_task_id: str, api_call_count: int = 0, *, finalize: bool = True) -> None:
     from types import SimpleNamespace
-    from agent.terminal_approval_batch import terminal_approval_batch, terminal_approval_runs
+
+    from agent.terminal_approval_batch import (
+        terminal_approval_batch,
+        terminal_approval_runs,
+    )
     for calls in terminal_approval_runs(agent, assistant_message.tool_calls):
         with terminal_approval_batch(agent, calls, messages, effective_task_id):
             _execute_tool_calls_sequential(agent, SimpleNamespace(tool_calls=calls), messages, effective_task_id, api_call_count, finalize=False)
@@ -1924,6 +1947,6 @@ def execute_tool_calls_segmented(agent, assistant_message, messages: list, effec
 
 __all__ = [
     "execute_tool_calls_concurrent",
-    "execute_tool_calls_sequential",
     "execute_tool_calls_segmented",
+    "execute_tool_calls_sequential",
 ]

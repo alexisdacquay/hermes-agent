@@ -7,14 +7,13 @@ between the turns is included, so both inputs that change on turn 2 are covered.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
-import pytest
-
 import gateway.run as gateway_run
 import plugins.platforms.discord.adapter as discord_platform
+import pytest
 from gateway.config import GatewayConfig, Platform, PlatformConfig
 from gateway.session import build_session_context
 from plugins.platforms.discord.adapter import DiscordAdapter
@@ -36,7 +35,7 @@ def _message(channel: object, message_id: int, *, mention: bool) -> SimpleNamesp
     return SimpleNamespace(
         id=message_id, content=("<@999> " if mention else "") + "what broke?",
         mentions=[_BOT] if mention else [], attachments=[], reference=None,
-        created_at=datetime.now(timezone.utc), channel=channel,
+        created_at=datetime.now(UTC), channel=channel,
         author=SimpleNamespace(id=42, display_name="Alice", name="alice"))
 
 

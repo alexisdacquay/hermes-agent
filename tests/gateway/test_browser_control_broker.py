@@ -1,8 +1,6 @@
 import threading
-import time
 
 import pytest
-
 from gateway.browser_control_broker import (
     BrowserControlBroker,
     ControllerCancelled,

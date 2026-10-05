@@ -21,8 +21,9 @@ import sqlite3
 import subprocess
 import sys
 import time
+from collections.abc import Callable, Iterable
 from pathlib import Path
-from typing import Any, Callable, Iterable
+from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 

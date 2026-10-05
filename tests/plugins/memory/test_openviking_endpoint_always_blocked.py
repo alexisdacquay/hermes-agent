@@ -1,12 +1,11 @@
 """OpenViking endpoint always-blocked floor."""
 
 import pytest
-
 from plugins.memory.openviking import (
-    _OpenVikingEndpointError,
     _local_openviking_bind,
     _normalize_openviking_url,
     _openviking_endpoint_is_always_blocked,
+    _OpenVikingEndpointError,
 )
 
 
@@ -48,7 +47,7 @@ def test_openviking_validates_shorthand_ipv6_port():
 
 
 def test_openviking_caches_safety_check_for_unchanged_endpoint(monkeypatch):
-    import tools.url_safety as url_safety
+    from tools import url_safety
 
     calls = []
     _openviking_endpoint_is_always_blocked.cache_clear()

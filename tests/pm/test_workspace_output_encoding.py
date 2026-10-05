@@ -3,14 +3,13 @@
 import importlib
 import locale
 import os
-from pathlib import Path
 import subprocess
 import sys
-
-import pytest
+from pathlib import Path
 
 import pm
 import pm.workspace as ws
+import pytest
 from pm.package import InstallError, Runner
 
 

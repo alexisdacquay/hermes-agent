@@ -4,13 +4,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
-from typing import Optional
 
-from agent.models_dev import ModelInfo, PROVIDER_TO_MODELS_DEV
+from agent.models_dev import PROVIDER_TO_MODELS_DEV, ModelInfo
 
-
-INPUT_COST_WARNING_THRESHOLD = Decimal("20")
-OUTPUT_COST_WARNING_THRESHOLD = Decimal("100")
+INPUT_COST_WARNING_THRESHOLD = Decimal(20)
+OUTPUT_COST_WARNING_THRESHOLD = Decimal(100)
 GPT55_PRO_OPENROUTER_ID = "openai/gpt-5.5-pro"
 GPT55_SUGGESTION = "did you mean to select openai/gpt-5.5?"
 
@@ -21,37 +19,37 @@ class ExpensiveModelWarning:
 
     model: str
     provider: str
-    input_cost_per_million: Optional[Decimal]
-    output_cost_per_million: Optional[Decimal]
+    input_cost_per_million: Decimal | None
+    output_cost_per_million: Decimal | None
     source: str
     message: str
 
 
-def _to_decimal(value: object) -> Optional[Decimal]:
+def _to_decimal(value: object) -> Decimal | None:
     try:
         return None if value is None else Decimal(str(value))
     except (InvalidOperation, ValueError):
         return None
 
 
-def _format_money(value: Optional[Decimal]) -> str:
+def _format_money(value: Decimal | None) -> str:
     return "unknown" if value is None else f"${value:.2f}/M"
 
 
 def _pricing_from_model_info(
-    model_info: Optional[ModelInfo]) -> tuple[Optional[Decimal], Optional[Decimal], str]:
+    model_info: ModelInfo | None) -> tuple[Decimal | None, Decimal | None, str]:
     if model_info is None or not model_info.has_cost_data():
         return None, None, ""
     return _to_decimal(model_info.cost_input), _to_decimal(model_info.cost_output), "models.dev"
 
 
-def _known_models_dev_provider(provider: Optional[str]) -> Optional[str]:
+def _known_models_dev_provider(provider: str | None) -> str | None:
     normalized = (provider or "").strip().lower()
     return PROVIDER_TO_MODELS_DEV.get(normalized) if normalized else None
 
 
 def _can_trust_model_info_pricing(
-    provider: Optional[str], model_info: Optional[ModelInfo]) -> bool:
+    provider: str | None, model_info: ModelInfo | None) -> bool:
     expected_provider = _known_models_dev_provider(provider)
     if not expected_provider or model_info is None:
         return False
@@ -60,7 +58,7 @@ def _can_trust_model_info_pricing(
 
 
 def _can_trust_pricing_lookup(
-    model_name: str, *, provider: Optional[str], base_url: Optional[str]) -> bool:
+    model_name: str, *, provider: str | None, base_url: str | None) -> bool:
     try:
         from agent.usage_pricing import resolve_billing_route
 
@@ -71,17 +69,17 @@ def _can_trust_pricing_lookup(
 
 
 def expensive_model_warning(
-    model_name: str, *, provider: Optional[str] = None, base_url: Optional[str] = None,
-    api_key: Optional[str] = None, model_info: Optional[ModelInfo] = None,
-) -> Optional[ExpensiveModelWarning]:
+    model_name: str, *, provider: str | None = None, base_url: str | None = None,
+    api_key: str | None = None, model_info: ModelInfo | None = None,
+) -> ExpensiveModelWarning | None:
     """Warning payload when KNOWN pricing exceeds the safety thresholds (never fires on unknown
     pricing). Call after model resolution so aliases / provider-specific ids have settled."""
     model = (model_name or "").strip()
     if not model:
         return None
 
-    input_cost: Optional[Decimal] = None
-    output_cost: Optional[Decimal] = None
+    input_cost: Decimal | None = None
+    output_cost: Decimal | None = None
     source = ""
     if _can_trust_model_info_pricing(provider, model_info):
         input_cost, output_cost, source = _pricing_from_model_info(model_info)

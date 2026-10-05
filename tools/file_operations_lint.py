@@ -8,7 +8,7 @@ import ast
 import json
 import os
 import tomllib
-from typing import Callable, Dict, Optional
+from collections.abc import Callable
 
 from tools.file_operations_common import ExecuteResult, LintResult
 
@@ -121,7 +121,7 @@ def _lint_python_inproc(content: str) -> tuple[bool, str]:
 
 # In-process linters, preferred over shell linters (no subprocess). Each returns
 # (ok, error); error ``"__SKIP__"`` = unavailable dependency, counts as "no linter".
-LINTERS_INPROC: Dict[str, Callable[[str], tuple[bool, str]]] = {
+LINTERS_INPROC: dict[str, Callable[[str], tuple[bool, str]]] = {
     '.py': _lint_python_inproc,
     '.json': _lint_json_inproc,
     '.yaml': _lint_yaml_inproc,
@@ -140,7 +140,7 @@ class LintMixin:
     ``_has_command``, ``_escape_shell_arg``, ``_escape_native_tool_arg`` and
     ``env`` from the host class."""
 
-    def _check_lint(self, path: str, content: Optional[str] = None) -> LintResult:
+    def _check_lint(self, path: str, content: str | None = None) -> LintResult:
         """Syntax-check ``path``: in-process linter when one matches the
         extension (``content`` avoids a re-read), else the shell linter table."""
         ext = os.path.splitext(path)[1].lower()
@@ -191,14 +191,19 @@ class LintMixin:
             return LintResult(skipped=True, message=f"{base_cmd} not usable: {first_line[:200]}")
         return LintResult(success=result.exit_code == 0, output=result.stdout.strip())
 
-    def _run_managed_node_linter(self, ext: str, path: str) -> Optional[ExecuteResult]:
+    def _run_managed_node_linter(self, ext: str, path: str) -> ExecuteResult | None:
         """Run the ``ext`` Node linter on the host under PM's Node; None when PM has none."""
         import shutil
         import subprocess
 
         from hermes_cli._subprocess_compat import windows_hide_flags
         from hermes_constants import with_hermes_node_path
-        from tools.environments.local import _IS_WINDOWS, _msys_to_windows_path, hermes_subprocess_env
+
+        from tools.environments.local import (
+            _IS_WINDOWS,
+            _msys_to_windows_path,
+            hermes_subprocess_env,
+        )
 
         tool, *args = _MANAGED_NODE_LINTERS[ext]
         executable = shutil.which(tool, path=with_hermes_node_path({"PATH": ""})["PATH"])
@@ -216,8 +221,8 @@ class LintMixin:
             return ExecuteResult(stdout=f"{tool} timed out after 30s", exit_code=124)
         return ExecuteResult(stdout=proc.stdout or "", exit_code=proc.returncode)
 
-    def _check_lint_delta(self, path: str, pre_content: Optional[str],
-                          post_content: Optional[str] = None) -> LintResult:
+    def _check_lint_delta(self, path: str, pre_content: str | None,
+                          post_content: str | None = None) -> LintResult:
         """Post-write lint; when it fails and ``pre_content`` is known, report only
         errors this edit introduced (pre-existing lines filtered out). Semantic
         (LSP) diagnostics are a separate channel — see ``_maybe_lsp_diagnostics``."""
@@ -328,8 +333,8 @@ class LintMixin:
         """Capture pre-edit LSP diagnostics so the post-write delta is correct. Silent on failure."""
         self._lsp_call("snapshot_baseline", path, None)
 
-    def _maybe_lsp_diagnostics(self, path: str, *, pre_content: Optional[str] = None,
-                               post_content: Optional[str] = None) -> str:
+    def _maybe_lsp_diagnostics(self, path: str, *, pre_content: str | None = None,
+                               post_content: str | None = None) -> str:
         """Formatted LSP diagnostics introduced by this edit, or "" when LSP is
         unavailable/disabled/clean. With both pre and post content a line-shift map
         remaps baseline diagnostics into post-edit coordinates; otherwise every

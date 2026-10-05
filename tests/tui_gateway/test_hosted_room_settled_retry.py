@@ -5,8 +5,8 @@ import time
 from types import SimpleNamespace
 
 import pytest
-
-from gateway import hosted_room_driver as driver, hosted_rooms
+from gateway import hosted_room_driver as driver
+from gateway import hosted_rooms
 from tui_gateway.hosted_room_service import HostedRoomService
 
 

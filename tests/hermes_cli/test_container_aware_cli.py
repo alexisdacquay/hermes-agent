@@ -8,11 +8,9 @@ import os
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from hermes_cli.config import (
     get_container_exec_info,
 )
-
 
 # =============================================================================
 # get_container_exec_info

@@ -8,7 +8,6 @@ exception exists to surface. Contract: scope wins over environ; no scope while m
 from __future__ import annotations
 
 import pytest
-
 from agent import secret_scope
 from agent.azure_identity_adapter import _scoped_env as azure_scoped_env
 from plugins.observability.langfuse import _secret as langfuse_secret

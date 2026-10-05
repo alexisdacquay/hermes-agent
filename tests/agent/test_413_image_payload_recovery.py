@@ -17,7 +17,6 @@ estimate.  These tests assert that invariant directly.
 """
 
 import pytest
-
 from agent.message_sanitization import serialized_messages_bytes
 
 

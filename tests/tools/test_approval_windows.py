@@ -10,7 +10,6 @@ Windows box over SSH).
 """
 
 import pytest
-
 from tools.approval import detect_dangerous_command
 
 

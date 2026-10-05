@@ -14,7 +14,6 @@ import sys
 import urllib.error
 import urllib.request
 from pathlib import Path
-from typing import Optional
 
 
 def _default_gateway_id() -> str:
@@ -27,7 +26,7 @@ def _default_gateway_id() -> str:
     return f"gw-{host or 'hermes'}"
 
 
-def _resolve_connector_url(override: Optional[str]) -> Optional[str]:
+def _resolve_connector_url(override: str | None) -> str | None:
     """Connector base URL (no trailing slash): ``--connector-url`` > ``GATEWAY_RELAY_URL`` >
     ``gateway.relay_url``. The relay URL is a ``ws(s)://…/relay`` dial target; enrollment POSTs to
     ``http(s)://`` on the same host, so map the scheme and strip a pasted ``/relay`` suffix."""
@@ -215,6 +214,7 @@ def _warn_if_secondary_multiplex_profile() -> bool:
     will never read. Returns True when the warning fired (caller suppresses the restart text)."""
     try:
         from hermes_constants import get_default_hermes_root
+
         from hermes_cli.config import get_hermes_home
 
         default_root = Path(get_default_hermes_root()).resolve()

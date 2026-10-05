@@ -7,7 +7,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -276,7 +275,6 @@ class TestGenerate:
 
     def test_timeout(self):
         import requests as req_lib
-
         from plugins.image_gen.xai import XAIImageGenProvider
 
         with patch("plugins.image_gen.xai.requests.post", side_effect=req_lib.Timeout()):

@@ -12,12 +12,10 @@ so they now use load_config_readonly() — the API built for exactly this
 These tests drive the REAL functions against a temp HERMES_HOME config
 (AGENTS.md: E2E with real imports), not mocks of the seam under test.
 """
-import pytest
-
 import hermes_cli.config as hc
+import pytest
 from tools.approval import check_all_command_guards, load_permanent_allowlist
-from tools.approval_context import _get_approval_config
-from tools.approval_context import _get_cron_approval_mode
+from tools.approval_context import _get_approval_config, _get_cron_approval_mode
 from tools.tirith_security import _load_security_config
 
 

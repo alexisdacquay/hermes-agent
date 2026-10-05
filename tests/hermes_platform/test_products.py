@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pytest
-
 from hermes_platform.host import products
 from hermes_platform.host.products import looks_like_nvidia_arm_soc
 

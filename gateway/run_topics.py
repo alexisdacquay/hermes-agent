@@ -11,16 +11,17 @@ import re
 import time
 from contextlib import suppress
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional, Tuple
+from typing import TYPE_CHECKING
 
 from agent.compaction_display import project_compaction_message_for_display
 from agent.i18n import t
+from utils import is_truthy_value
+
 from gateway.config import Platform
 from gateway.platforms.base import _prefix_within_utf16_limit, utf16_len
 from gateway.platforms.event import MessageEvent
 from gateway.session import SessionSource
 from gateway.session_identity import replace_source
-from utils import is_truthy_value
 
 if TYPE_CHECKING:  # string annotations only; never imported at runtime (cycle)
     from gateway.run import GatewayRunner  # noqa: F401
@@ -92,7 +93,7 @@ class GatewayTopicThreadsMixin:
             and bool(tid) and tid not in self._TELEGRAM_GENERAL_TOPIC_IDS
         )
 
-    def _telegram_topic_cooldown_key(self, source: SessionSource) -> Optional[str]:
+    def _telegram_topic_cooldown_key(self, source: SessionSource) -> str | None:
         """Cooldown key (profile, chat_id): profiles sharing a Telegram private chat_id under
         multiplex must not suppress each other's lobby reminders / capability hints.
 
@@ -130,7 +131,7 @@ class GatewayTopicThreadsMixin:
     def _telegram_topic_root_new_message(self) -> str:
         return t("gateway.topic.root_new")
 
-    def _telegram_topic_new_header(self, source: SessionSource) -> Optional[str]:
+    def _telegram_topic_new_header(self, source: SessionSource) -> str | None:
         return t("gateway.topic.new_header") if self._is_telegram_topic_lane(source) else None
 
     def _telegram_topic_help_text(self) -> str:
@@ -163,7 +164,7 @@ class GatewayTopicThreadsMixin:
         except Exception:
             logger.debug("telegram topic binding refresh failed (%s)", reason, exc_info=True)
 
-    def _recover_telegram_topic_thread_id(self, source: SessionSource) -> Optional[str]:
+    def _recover_telegram_topic_thread_id(self, source: SessionSource) -> str | None:
         """Pin lobby-shaped topic-mode DM replies (missing ``message_thread_id`` or General) to the
         user's most-recent bound topic. Never rewrite a non-lobby, unbound thread id: a brand-new DM
         topic is also "unknown" until its first message is recorded. None = leave the source alone."""
@@ -296,7 +297,7 @@ class GatewayTopicThreadsMixin:
         if entry is None:
             return source
 
-        def opens_this_thread(origin: Optional[SessionSource]) -> bool:
+        def opens_this_thread(origin: SessionSource | None) -> bool:
             return (
                 origin is not None and str(origin.thread_id) == str(source.thread_id)
                 and self._is_discord_auto_thread_lane(origin)
@@ -329,7 +330,7 @@ class GatewayTopicThreadsMixin:
             and getattr(source, "delivered_via_upstream_relay", False) is True
         )
 
-    def _relay_auto_thread_info(self, source: SessionSource) -> Optional[Tuple[str, str]]:
+    def _relay_auto_thread_info(self, source: SessionSource) -> tuple[str, str] | None:
         """(thread_id, initial_name) when the RELAY connector auto-threaded our reply — the title-turn
         sibling of _is_discord_auto_thread_lane (whose markers only exist from turn 2 on; the title
         turn's source is the PARENT channel event).
@@ -357,7 +358,7 @@ class GatewayTopicThreadsMixin:
             return _as_thread_info(info_fn(str(source.chat_id)))
         return None
 
-    async def _await_relay_auto_thread_info(self, source: SessionSource) -> Optional[Tuple[str, str]]:
+    async def _await_relay_auto_thread_info(self, source: SessionSource) -> tuple[str, str] | None:
         """``_relay_auto_thread_info``, waited out until this turn delivers (the legacy send-result
         path can only answer once the reply is sent; the caller asks at title time, one turn early).
         The timeout is only a backstop for a turn that never sends: the turn's own inactivity limit."""
@@ -377,7 +378,7 @@ class GatewayTopicThreadsMixin:
 
     async def _rename_discord_auto_thread_for_session_title(
         self, source: SessionSource, session_id: str, title: str,
-        relay_info: Optional[Tuple[str, str]] = None,
+        relay_info: tuple[str, str] | None = None,
     ) -> None:
         """Best-effort semantic rename of a newly auto-created Discord thread. ``relay_info`` is the
         connector's (thread_id, initial_name) feedback, supplied on the title turn where the source

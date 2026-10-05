@@ -20,10 +20,8 @@ from __future__ import annotations
 import json
 import os
 import stat
-import sys
 
 import pytest
-
 
 pytestmark = pytest.mark.platforms("posix")  # POSIX mode bits not enforced on Windows
 

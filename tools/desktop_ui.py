@@ -13,23 +13,24 @@ the frame on the correct transcript transport (#80678).
 """
 
 import json
-from typing import Callable, FrozenSet, Optional
+from collections.abc import Callable
 
 from gateway.session_context import get_session_env
+
 from tools.registry import tool_error
 
 # (sid, event, payload) sink, installed by the desktop gateway.
-_emit: Optional[Callable[[str, str, dict], None]] = None
+_emit: Callable[[str, str, dict], None] | None = None
 
 # Events that target a specific chat session rather than a window/socket.
 # The renderer's gateway-event stream is keyed on the session id, so
 # routing these through HERMES_UI_SESSION_ID (the window identity) means
 # the frame lands on a stream that doesn't own the transcript and is
 # never painted (#80678).
-_SESSION_SCOPED_EVENTS: FrozenSet[str] = frozenset({"message.reaction"})
+_SESSION_SCOPED_EVENTS: frozenset[str] = frozenset({"message.reaction"})
 
 
-def set_emitter(fn: Optional[Callable[[str, str, dict], None]]) -> None:
+def set_emitter(fn: Callable[[str, str, dict], None] | None) -> None:
     """Install (or clear) the renderer-event sink. Called by the desktop gateway."""
     global _emit
     _emit = fn

@@ -5,7 +5,6 @@ import os
 import shutil
 
 import pytest
-
 from gateway.config import GatewayConfig
 from gateway.session import SessionStore
 from hermes_state import SessionDB

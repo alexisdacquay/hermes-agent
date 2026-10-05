@@ -8,7 +8,6 @@ two config.yaml keys (``telemetry.shared_metrics.enabled`` / ``.send``), read an
 from __future__ import annotations
 
 import asyncio
-from typing import Optional
 
 from fastapi import APIRouter
 from pydantic import BaseModel
@@ -32,12 +31,12 @@ def _read_consent() -> dict:
 
 
 @router.get("/api/shared-metrics/consent")
-async def get_shared_metrics_consent(profile: Optional[str] = None):
+async def get_shared_metrics_consent(profile: str | None = None):
     return await scoped_to_thread(profile, _read_consent)
 
 
 @router.put("/api/shared-metrics/consent")
-async def put_shared_metrics_consent(body: ConsentAnswer, profile: Optional[str] = None):
+async def put_shared_metrics_consent(body: ConsentAnswer, profile: str | None = None):
     from hermes_cli.observability.shared_metrics_consent import save_consent
 
     def _write() -> dict:

@@ -11,7 +11,6 @@ import tarfile
 from pathlib import Path
 
 import pytest
-
 from pm.packages import Nodejs
 from pm.store import current_target
 

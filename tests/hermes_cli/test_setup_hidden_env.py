@@ -7,7 +7,6 @@ feature removal.
 """
 
 import pytest
-
 from hermes_cli.setup_hidden_env import is_setup_hidden_env
 
 

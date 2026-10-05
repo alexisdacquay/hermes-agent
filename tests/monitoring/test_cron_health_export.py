@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+
 def _metric(snapshot, name):
     return next(metric for metric in snapshot.metrics if metric.name == name)
 

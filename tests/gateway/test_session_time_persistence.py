@@ -2,7 +2,6 @@
 from datetime import datetime, timedelta
 
 import pytest
-
 from gateway.config import GatewayConfig, Platform
 from gateway.session import SessionSource, SessionStore
 

@@ -14,7 +14,6 @@ import time
 from pathlib import Path
 
 import pytest
-
 from hermes_cli.gitlock import (
     STALE_TMP_PACK_MIN_AGE_SECONDS,
     clear_stale_tmp_packs,

@@ -25,7 +25,6 @@ import asyncio
 from unittest.mock import MagicMock
 
 import pytest
-
 from gateway.platforms.base import (
     BasePlatformAdapter,
     Platform,
@@ -85,7 +84,7 @@ class TestKeepTypingTimeoutPerTick:
         stop_event.set()
         try:
             await asyncio.wait_for(task, timeout=2.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             task.cancel()
             pytest.fail(
                 "_keep_typing did not exit within 2s of stop_event.set() — "

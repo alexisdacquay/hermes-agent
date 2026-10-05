@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import httpx
 import openai
-
 from agent.served_model import install_served_model_capture, result_model_fields
 
 

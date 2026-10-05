@@ -24,6 +24,7 @@ db.row_factory = sqlite3.Row
 
 # collect the whole descendant tree, chronological by started_at
 import collections
+
 children = collections.defaultdict(list)
 for r in db.execute(
     "SELECT id, parent_session_id FROM sessions WHERE parent_session_id IS NOT NULL"

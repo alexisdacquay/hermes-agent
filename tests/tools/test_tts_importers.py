@@ -4,9 +4,8 @@ import sys
 from contextlib import nullcontext
 from unittest.mock import MagicMock
 
-import pytest
-
 import pm
+import pytest
 from tools import tts_tool
 
 

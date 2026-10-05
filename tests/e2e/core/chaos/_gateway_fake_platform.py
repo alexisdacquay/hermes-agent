@@ -25,7 +25,7 @@ import json
 import os
 import time
 import uuid
-from typing import Any, Dict, Optional
+from typing import Any
 
 from gateway.config import Platform, PlatformConfig
 from gateway.platforms.base import BasePlatformAdapter, SendResult
@@ -42,14 +42,14 @@ HEARTBEAT_REPORT_S = 0.5
 class ChaosFakeAdapter(BasePlatformAdapter):
     def __init__(self, config: PlatformConfig):
         super().__init__(config=config, platform=Platform(PLATFORM_NAME))
-        self._reader: Optional[asyncio.StreamReader] = None
-        self._writer: Optional[asyncio.StreamWriter] = None
+        self._reader: asyncio.StreamReader | None = None
+        self._writer: asyncio.StreamWriter | None = None
         self._tasks: list[asyncio.Task] = []
         self._seq = 0
 
     # -- wire ----------------------------------------------------------------
 
-    def _emit(self, payload: Dict[str, Any]) -> None:
+    def _emit(self, payload: dict[str, Any]) -> None:
         writer = self._writer
         if writer is None or writer.is_closing():
             return
@@ -86,7 +86,7 @@ class ChaosFakeAdapter(BasePlatformAdapter):
             if cmd.get("op") == "msg":
                 await self._inbound(cmd)
 
-    async def _inbound(self, cmd: Dict[str, Any]) -> None:
+    async def _inbound(self, cmd: dict[str, Any]) -> None:
         chat = str(cmd.get("chat") or "chaos-chat")
         msg_id = str(cmd.get("id") or uuid.uuid4().hex)
         source = self.build_source(
@@ -129,8 +129,8 @@ class ChaosFakeAdapter(BasePlatformAdapter):
                 pass
             self._writer = None
 
-    async def send(self, chat_id: str, content: str, reply_to: Optional[str] = None,
-                   metadata: Optional[Dict[str, Any]] = None) -> SendResult:
+    async def send(self, chat_id: str, content: str, reply_to: str | None = None,
+                   metadata: dict[str, Any] | None = None) -> SendResult:
         self._seq += 1
         message_id = f"chaos-out-{self._seq}"
         self._emit({"ev": "send", "chat": str(chat_id), "text": content, "id": message_id})
@@ -146,7 +146,7 @@ class ChaosFakeAdapter(BasePlatformAdapter):
     async def on_processing_complete(self, event: MessageEvent, outcome: Any) -> None:
         self._emit({"ev": "complete", "id": event.message_id, "outcome": str(outcome)})
 
-    async def get_chat_info(self, chat_id: str) -> Dict[str, Any]:
+    async def get_chat_info(self, chat_id: str) -> dict[str, Any]:
         return {"name": chat_id, "type": "dm"}
 
 

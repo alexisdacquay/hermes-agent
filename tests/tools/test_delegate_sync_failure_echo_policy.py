@@ -2,7 +2,6 @@
 and honors display.suppress_warning_notifications under the parent's turn snapshot; the child result and the
 relayed subagent.complete event are never gated."""
 import json
-import pytest
 
 
 def configure(home, setting, monkeypatch):
@@ -13,15 +12,17 @@ def configure(home, setting, monkeypatch):
 
 
 def test_sync_failure_real_run_to_spinner_three_modes(tmp_path, monkeypatch):
+    from agent.notification_presentation import notification_policy_snapshot
     from tools.delegate_tool import _run_single_child
     from tools.delegate_tool_progress import _build_child_progress_callback
-    from agent.notification_presentation import notification_policy_snapshot
+
     from tests.tools.test_delegate_output_schema import _StubChild, _StubParent
     rows=[]
     for setting in (None,False,True):
         configure(tmp_path/f'sync-{setting}',setting,monkeypatch)
         import io
         from contextlib import redirect_stdout
+
         from agent.display import KawaiiSpinner
         from agent.notification_presentation import notification_config_snapshot
         buffer=io.StringIO();events=[]

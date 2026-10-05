@@ -12,12 +12,14 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from agent.context_engine import automatic_compaction_status_message
 from agent.conversation_compression import (
-    IDLE_COMPACTION_STATUS_TEMPLATE, PREFLIGHT_COMPRESSION_STATUS_TEMPLATE,
-    compression_skipped_due_to_lock, conversation_history_after_compression,
+    IDLE_COMPACTION_STATUS_TEMPLATE,
+    PREFLIGHT_COMPRESSION_STATUS_TEMPLATE,
+    compression_skipped_due_to_lock,
+    conversation_history_after_compression,
 )
 
 logger = logging.getLogger("agent.turn_context")
@@ -27,9 +29,9 @@ logger = logging.getLogger("agent.turn_context")
 class CompactionOutcome:
     """Locals rebuilt by turn-start compaction (``build_turn_context`` reads them back)."""
 
-    messages: List[Dict[str, Any]]
-    active_system_prompt: Optional[str]
-    conversation_history: Optional[List[Dict[str, Any]]]
+    messages: list[dict[str, Any]]
+    active_system_prompt: str | None
+    conversation_history: list[dict[str, Any]] | None
     current_turn_user_idx: int
     # A preflight pass (threshold or engine-driven) actually rebuilt ``messages``.
     compressed: bool = False
@@ -65,8 +67,8 @@ def _reset_retry_state_after_compaction(agent: Any) -> None:
 
 
 def _blocked_compress_reason(
-    compressor: Any, tokens: int, attempts_spent: Optional[int] = None
-) -> Optional[str]:
+    compressor: Any, tokens: int, attempts_spent: int | None = None
+) -> str | None:
     """Why an over-threshold request is blocked (``None`` below threshold or when the
     engine lacks ``should_compress_info`` / raises).
 
@@ -113,7 +115,7 @@ def _refund_api_call(agent: Any, api_call_count: int) -> int:
     return api_call_count
 
 
-def _reanchor(agent: Any, messages: List[Any], user_message: Any) -> int:
+def _reanchor(agent: Any, messages: list[Any], user_message: Any) -> int:
     """Compaction rebuilt ``messages``: re-anchor this turn's user index so the
     api_content stamp, injection site and persist-override row hit the same dict."""
     from agent.turn_context import reanchor_current_turn_user_idx
@@ -127,8 +129,8 @@ def _reanchor(agent: Any, messages: List[Any], user_message: Any) -> int:
 
 
 def run_turn_start_compaction(
-    agent: Any, *, messages: List[Dict[str, Any]], system_message: Optional[str],
-    active_system_prompt: Optional[str], conversation_history: Optional[List[Dict[str, Any]]],
+    agent: Any, *, messages: list[dict[str, Any]], system_message: str | None,
+    active_system_prompt: str | None, conversation_history: list[dict[str, Any]] | None,
     current_turn_user_idx: int, user_message: Any, effective_task_id: str,
 ) -> CompactionOutcome:
     """Idle compaction, then preflight compression (or the uncompressed guard)."""
@@ -142,7 +144,7 @@ def run_turn_start_compaction(
 
 
 def _idle_compaction(
-    agent: Any, out: CompactionOutcome, system_message: Optional[str], user_message: Any,
+    agent: Any, out: CompactionOutcome, system_message: str | None, user_message: Any,
     effective_task_id: str,
 ) -> None:
     """Idle-triggered compaction (opt-in; ``idle_compact_after_seconds``): fires on the
@@ -228,7 +230,7 @@ def _codex_native_auto_compaction(agent: Any) -> bool:
 
 
 def _preflight_compression(
-    agent: Any, out: CompactionOutcome, system_message: Optional[str], user_message: Any,
+    agent: Any, out: CompactionOutcome, system_message: str | None, user_message: Any,
     effective_task_id: str,
 ) -> None:
     """Preflight context compression; the cheap pre-check gates the full estimate
@@ -346,7 +348,7 @@ def _preflight_compression(
 
 def _run_preflight_passes(
     agent: Any, out: CompactionOutcome, _compressor: Any, _preflight_tokens: int,
-    system_message: Optional[str], effective_task_id: str,
+    system_message: str | None, effective_task_id: str,
 ) -> None:
     """Threshold-triggered preflight passes (honor ``compression.max_attempts`` like
     the loop's sites, default 3)."""
@@ -430,7 +432,7 @@ def _run_preflight_passes(
 
 def _engine_preflight_maintenance(
     agent: Any, out: CompactionOutcome, _compressor: Any, _preflight_tokens: int,
-    system_message: Optional[str], effective_task_id: str,
+    system_message: str | None, effective_task_id: str,
 ) -> None:
     """Engine-driven sub-threshold preflight maintenance: engines overriding
     ``should_compress_preflight()`` get exactly ONE ``compress()`` pass; a no-op never
@@ -471,7 +473,7 @@ def _engine_preflight_maintenance(
 
 
 def _rearm_uncompressed_overflow_warn(
-    agent: Any, messages: List[Any], active_system_prompt: Optional[str]
+    agent: Any, messages: list[Any], active_system_prompt: str | None
 ) -> None:
     """Uncompressed session guard: the warning fires from the loop's pre-API site;
     here we only RE-ARM the dedup once back under the window."""

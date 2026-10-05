@@ -13,7 +13,6 @@ import subprocess
 from pathlib import Path
 
 import pytest
-
 from hermes_cli import gateway, profiles
 from hermes_constants import reset_hermes_home_override, set_hermes_home_override
 

@@ -3,10 +3,8 @@
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
-import hermes_yaml as yaml
-
 import gateway.run as gateway_run
+import pytest
 from gateway.config import Platform
 from gateway.platforms.event import MessageEvent
 from gateway.session import SessionSource

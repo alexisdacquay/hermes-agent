@@ -5,9 +5,10 @@ always exist, resolution reads config (agent.personalities overlays), and
 persistence flows exclusively through persist_personality().
 """
 import os
-import pytest
 from unittest.mock import MagicMock, patch
+
 import hermes_yaml as yaml
+import pytest
 
 # ── CLI tests ──────────────────────────────────────────────────────────────
 

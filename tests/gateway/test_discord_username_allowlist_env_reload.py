@@ -24,9 +24,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
-
 from gateway.session import Platform, SessionSource
-
 
 OPERATOR_ID = "387972437901312000"
 

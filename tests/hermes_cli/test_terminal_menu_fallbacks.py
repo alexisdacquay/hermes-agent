@@ -5,7 +5,6 @@ import subprocess
 from types import SimpleNamespace
 
 import pytest
-
 from hermes_cli.config import load_config, save_config
 
 
@@ -25,18 +24,17 @@ def _raise_menu(*args, **kwargs):
 )
 def test_scoped_numbered_input_handles_navigation_keys(sequence, expected):
     """The curses fallback stays escapable on POSIX and native Windows."""
-    from prompt_toolkit.application import create_app_session
-    from prompt_toolkit.input.defaults import create_pipe_input
-    from prompt_toolkit.output import DummyOutput
-
     from hermes_cli.curses_ui import (
-        MenuNavigationStart,
         _NUMBERED_BACK_ENABLED,
+        MenuNavigationStart,
         _NumberedNavigation,
         _read_numbered_input,
         reset_menu_navigation_handler,
         set_menu_navigation_handler,
     )
+    from prompt_toolkit.application import create_app_session
+    from prompt_toolkit.input.defaults import create_pipe_input
+    from prompt_toolkit.output import DummyOutput
 
     def handler(event, *_args):
         return MenuNavigationStart(allow_back=True) if event == "begin" else None

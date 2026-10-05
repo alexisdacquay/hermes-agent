@@ -17,9 +17,9 @@ import subprocess
 import sys
 import threading
 import time
+from collections.abc import Sequence
 from concurrent.futures import Future
 from pathlib import Path
-from typing import Sequence
 
 from tests.e2e.core.dashboard import _reaper
 from tests.e2e.core.upgrade import _helpers as H

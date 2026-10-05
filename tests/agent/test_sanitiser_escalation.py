@@ -12,7 +12,6 @@ from __future__ import annotations
 import logging
 
 import pytest
-
 from agent.agent_runtime_helpers import (
     _INTERRUPTED_PLACEHOLDER,
     _empty_heal_log_state,
@@ -231,7 +230,7 @@ class TestHealStatsSurface:
 
     def test_debug_report_includes_heal_counters(self, monkeypatch):
         import agent.agent_runtime_helpers as arh
-        from hermes_cli.debug import collect_debug_report, LogSnapshot
+        from hermes_cli.debug import LogSnapshot, collect_debug_report
 
         monkeypatch.setattr(arh, "_heal_escalation_threshold", lambda: 2)
         set_session_context("sess-report")
@@ -284,6 +283,7 @@ class TestProjectionStopsReheal:
         from unittest.mock import patch
 
         import agent.agent_runtime_helpers as _arh
+
         from tests.agent.test_run_agent import _mock_response
 
         agent = self._loop_agent()
@@ -343,6 +343,7 @@ class TestProjectionStopsReheal:
         from unittest.mock import patch
 
         import agent.agent_runtime_helpers as _arh
+
         from tests.agent.test_run_agent import _mock_response
 
         agent = self._loop_agent()

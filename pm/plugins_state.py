@@ -5,9 +5,9 @@ Plugin admission owns writes; discovery never edits a profile's selection.
 
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Any, Optional
 import logging
+from pathlib import Path
+from typing import Any
 
 LOG = logging.getLogger(__name__)
 
@@ -19,7 +19,7 @@ def _profiles_root() -> Path:
     return dependency_home_root() / "profiles"
 
 
-def read_home_selection(home: Path) -> Optional[dict[str, Any]]:
+def read_home_selection(home: Path) -> dict[str, Any] | None:
     """The plugin/memory selection a home's config.yaml declares (None: no config yet).
 
     The public reader for anything that must agree with what PM installs for that home.
@@ -99,6 +99,7 @@ def dependency_homes() -> list[Path]:
     marker-less dirs must not put plugins into the shared environment.
     """
     from hermes_constants import PROFILE_ID_RE, named_profile_is_live
+
     from pm.environments import dependency_home_root
 
     homes = [dependency_home_root()]
@@ -149,7 +150,7 @@ def enabled_plugins_ordered(*, proposed_home=None, enabled=None, disabled=None,
     return out
 
 
-def _provider_from_config(home: Path, config: dict[str, Any], *, installing: Path | None = None) -> Optional[str]:
+def _provider_from_config(home: Path, config: dict[str, Any], *, installing: Path | None = None) -> str | None:
     """The ``memory.provider`` key of an already-parsed config, when its
     plugin dir exists (no dir = not a member)."""
     provider = (config.get("memory") or {}).get("provider")

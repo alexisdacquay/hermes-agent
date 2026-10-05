@@ -15,16 +15,16 @@ import threading
 import time
 import uuid
 
-from tools.interrupt import get_interrupt_reason, is_interrupted
 from tools import approval_context as _ctx
 from tools.approval_human_wait import activity_heartbeat, human_wait_window
+from tools.interrupt import get_interrupt_reason, is_interrupted
 
 logger = logging.getLogger("tools.approval")
 
 
 class _ApprovalEntry:
     """One pending dangerous-command approval inside a gateway session."""
-    __slots__ = ("event", "data", "result", "reason", "acknowledged", "settle", "cancelled")
+    __slots__ = ("acknowledged", "cancelled", "data", "event", "reason", "result", "settle")
 
     def __init__(self, data: dict):
         self.event = threading.Event()
@@ -143,8 +143,13 @@ def _await_gateway_decision(session_key: str, notify_cb, approval_data: dict, *,
     the user must /approve N times while the agent sits wedged. Followers adopt
     the leader's ``session``/``always``/``deny``/timeout; a ``once`` covers only
     the leader, so the follower falls through to a fresh prompt."""
+    from agent.terminal_approval_batch import (
+        approval_published,
+        preparing_terminal_approval,
+        register_prepared_approval,
+    )
+
     from tools import approval as _approval
-    from agent.terminal_approval_batch import approval_published, preparing_terminal_approval, register_prepared_approval
 
     primary_key = approval_data.get("pattern_key", "")
     payload = {

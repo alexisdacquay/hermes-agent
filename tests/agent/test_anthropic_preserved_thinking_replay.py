@@ -5,7 +5,6 @@ import logging
 from types import SimpleNamespace
 
 import pytest
-
 from agent.anthropic_message_convert import convert_messages_to_anthropic
 from agent.message_sanitization import stale_thinking_reaches_wire
 from agent.model_metadata import estimate_tokens_rough

@@ -21,16 +21,16 @@ import contextlib
 import logging
 import os
 import threading
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Dict, Iterator, Optional
 
 logger = logging.getLogger(__name__)
 
 _lock = threading.Lock()
-_snapshot: Optional[Dict[str, str]] = None
+_snapshot: dict[str, str] | None = None
 
 
-def capture_launch_env() -> Dict[str, str]:
+def capture_launch_env() -> dict[str, str]:
     """Freeze the process env as the launch profile's own; the first capture wins.
 
     Called at activation, immediately before the first secondary home is registered as
@@ -59,8 +59,8 @@ def _servable_profile_homes() -> set:
     ``hermes profile create`` leaves behind — counting it would flip a single-profile host
     fail-closed at its next boot.
     """
-    from hermes_constants import named_profile_has_servable_identity
     from hermes_cli.profiles import profiles_to_serve
+    from hermes_constants import named_profile_has_servable_identity
 
     homes = {Path(home).resolve() for name, home in profiles_to_serve(multiplex=True, include_standalone=True, include_parked=True)
              if name == "default" or named_profile_has_servable_identity(home)}
@@ -109,7 +109,7 @@ def activate_multi_profile_hosting_eagerly() -> bool:
     return True
 
 
-def _launch_env() -> Dict[str, str]:
+def _launch_env() -> dict[str, str]:
     """The launch profile's env: frozen once multiplexing is active; the LIVE process env before
     (no secondary has run yet, so it is provably the launch profile's, and freezing it early would
     miss values the launch process still bridges at startup)."""
@@ -117,7 +117,7 @@ def _launch_env() -> Dict[str, str]:
     return capture_launch_env() if is_multiplex_active() else dict(os.environ)
 
 
-def launch_terminal_env() -> Dict[str, str]:
+def launch_terminal_env() -> dict[str, str]:
     """The frozen launch ``TERMINAL_*`` overlay for a launch-profile turn's terminal scope.
 
     Production always captured at activation; a first capture here only happens when the
@@ -126,7 +126,7 @@ def launch_terminal_env() -> Dict[str, str]:
     return {k: v for k, v in capture_launch_env().items() if k.startswith("TERMINAL_")}
 
 
-def launch_secret_scope(launch_home: "str | Path") -> Dict[str, str]:
+def launch_secret_scope(launch_home: str | Path) -> dict[str, str]:
     """The launch profile's secret mapping: its ``.env`` + external sources over the launch env
     (systemd / ``op run`` injection survives the fail-closed flip; a secondary never sees it because
     its scope is built from its own files only). Bound for EVERY launch-profile body, multiplexing or
@@ -149,7 +149,7 @@ def launch_secret_scope(launch_home: "str | Path") -> Dict[str, str]:
 
 
 @contextlib.contextmanager
-def launch_profile_runtime_scope(launch_home: "str | Path") -> Iterator[None]:
+def launch_profile_runtime_scope(launch_home: str | Path) -> Iterator[None]:
     """Bind the launch profile's own runtime scope for one body: HERMES_HOME override naming the
     launch home, ``launch_secret_scope``, and its terminal policy over the frozen launch
     ``TERMINAL_*`` overlay. For hosts whose launch-profile bodies are not RPC sessions (the
@@ -163,7 +163,10 @@ def launch_profile_runtime_scope(launch_home: "str | Path") -> Iterator[None]:
     (``gateway/run.py::_profile_runtime_scope``); the launch profile is a tenant like any other."""
     from agent.secret_scope import reset_secret_scope, set_secret_scope
     from hermes_constants import reset_hermes_home_override, set_hermes_home_override
-    from tools.terminal_scope import install_profile_terminal_scope, reset_terminal_scope
+    from tools.terminal_scope import (
+        install_profile_terminal_scope,
+        reset_terminal_scope,
+    )
 
     home = Path(launch_home)
     home_token = secret_token = terminal_token = None

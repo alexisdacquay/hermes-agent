@@ -29,8 +29,8 @@ import termios  # windows-footgun: ok — tmux/pty suite, skipped off Linux
 import time
 import unicodedata
 from collections import Counter
+from collections.abc import Callable, Iterable
 from pathlib import Path
-from typing import Callable, Iterable
 
 import pytest
 

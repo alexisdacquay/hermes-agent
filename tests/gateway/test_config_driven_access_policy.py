@@ -29,10 +29,8 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from gateway.config import GatewayConfig, Platform, PlatformConfig
 from gateway.session import SessionSource
-
 
 # Platforms whose adapters own their access policy at intake.
 _OWN_POLICY_PLATFORMS = [

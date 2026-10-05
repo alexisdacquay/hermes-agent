@@ -17,7 +17,6 @@ from unittest.mock import AsyncMock
 from urllib.parse import unquote
 
 import pytest
-
 from gateway.config import Platform
 from gateway.platforms.base import BasePlatformAdapter, SendResult
 from gateway.platforms.event import MessageEvent, MessageType

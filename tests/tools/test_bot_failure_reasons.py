@@ -6,7 +6,6 @@ real-world fixtures from live bot runs, and the auto-retryable set.
 """
 
 import pytest
-
 from agent.secret_scope import UnscopedSecretError
 from tools import bot_failure_reasons as fr
 

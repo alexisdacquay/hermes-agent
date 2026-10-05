@@ -15,7 +15,7 @@ string sniffing when absent or partial.
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +76,7 @@ _API_EXC_MODULE_PREFIXES = (
 )
 
 
-def _is_custom_endpoint(provider: Optional[str]) -> bool:
+def _is_custom_endpoint(provider: str | None) -> bool:
     p = (provider or "").strip().lower()
     return p in _CUSTOM_ENDPOINT_PROVIDERS or p.startswith("custom:")
 
@@ -123,7 +123,7 @@ def _provider_label(provider: str) -> str:
         return provider
 
 
-def auth_kind(provider: Optional[str]) -> str:
+def auth_kind(provider: str | None) -> str:
     """``"oauth"`` for providers whose credential is an OAuth/subscription grant
     (desktop Accounts tab), ``"api_key"`` for everything else."""
     try:
@@ -152,7 +152,7 @@ def _result_layer(reason: str, error_text: str, provider: str) -> str:
     return LAYER_STREAMING if _looks_like_stream_drop(error_text) else LAYER_PROVIDER
 
 
-def build_error_surface_from_result(result: Any, provider: str = "", model: str = "") -> Optional[dict]:
+def build_error_surface_from_result(result: Any, provider: str = "", model: str = "") -> dict | None:
     """Descriptor for a returned-error turn result (``failed=True`` dicts).
 
     Uses the stamped ``failure_reason`` plus error text. None when the result
@@ -202,7 +202,7 @@ def build_error_surface_from_result(result: Any, provider: str = "", model: str 
 
 def build_error_surface_from_exception(
     exc: BaseException, provider: str = "", model: str = "", api_key: Any = None,
-) -> Optional[dict]:
+) -> dict | None:
     """Descriptor for an exception that escaped the turn dispatcher.
 
     API/transport exceptions go through ``classify_api_error`` (same taxonomy

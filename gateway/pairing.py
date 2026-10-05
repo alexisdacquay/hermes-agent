@@ -16,11 +16,14 @@ import secrets
 import threading
 import time
 from pathlib import Path
-from typing import Optional
 
-from gateway.whatsapp_identity import expand_whatsapp_aliases, normalize_whatsapp_identifier
 from hermes_constants import get_default_hermes_root, get_hermes_dir, get_hermes_home
 from utils import atomic_json_write, file_signature
+
+from gateway.whatsapp_identity import (
+    expand_whatsapp_aliases,
+    normalize_whatsapp_identifier,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +80,7 @@ _PLATFORM_ALLOWLIST_ENV = {
 }
 
 
-def _allowlist_env_for_platform(platform: str) -> Optional[str]:
+def _allowlist_env_for_platform(platform: str) -> str | None:
     """Allowlist env var name for ``platform`` (plugin registry fallback), or None."""
     platform = (platform or "").lower().strip()
     if env_var := _PLATFORM_ALLOWLIST_ENV.get(platform):
@@ -156,7 +159,7 @@ def _configured_allowlist(platform: str):
 def _write_allowlist_env(env_var: str, ids: list) -> None:
     """Best-effort persist (empty list removes the key); the pairing store grant still authorizes via the union."""
     with contextlib.suppress(Exception):
-        from hermes_cli.config import save_env_value, remove_env_value
+        from hermes_cli.config import remove_env_value, save_env_value
         save_env_value(env_var, ",".join(ids)) if ids else remove_env_value(env_var)
 
 
@@ -289,7 +292,7 @@ def _save_json_file(path: Path, data: dict) -> None:
     atomic_json_write(path, data, mode=0o600)
 
 
-def _migrate_split_pairing_dirs(*, home: Optional[Path] = None, active: Optional[Path] = None) -> None:
+def _migrate_split_pairing_dirs(*, home: Path | None = None, active: Path | None = None) -> None:
     """Merge split legacy (``pairing``) / new (``platforms/pairing``) data into the active dir.
 
     If both exist, approved users in the inactive location must not be silently
@@ -331,7 +334,7 @@ class PairingStore:
     gateways and profile-scoped CLI approvals share one whitelist.
     """
 
-    def __init__(self, profile: Optional[str] = None):
+    def __init__(self, profile: str | None = None):
         profile_home = None
         if profile:
             root = get_default_hermes_root()
@@ -345,7 +348,7 @@ class PairingStore:
         self._approved_cache: dict = {}
 
     @property
-    def profile(self) -> Optional[str]:
+    def profile(self) -> str | None:
         """Profile name this store is scoped to, or None for the global store."""
         return self._profile
 
@@ -376,7 +379,7 @@ class PairingStore:
     _load_json = staticmethod(_load_json_file)
     _save_json = staticmethod(_save_json_file)
 
-    def _platforms(self, platform: Optional[str], suffix: str) -> list:
+    def _platforms(self, platform: str | None, suffix: str) -> list:
         return [platform] if platform else self._all_platforms(suffix)
 
     # ----- Approved users -----
@@ -457,7 +460,7 @@ class PairingStore:
         self._approve_user(platform, result["user_id"], result["user_name"])
         return result
 
-    def generate_code(self, platform: str, user_id: str, user_name: str = "") -> Optional[str]:
+    def generate_code(self, platform: str, user_id: str, user_name: str = "") -> str | None:
         """Generate a pairing code for a new user.
 
         Returns None if the user is rate-limited, the platform hit MAX_PENDING_PER_PLATFORM,
@@ -482,7 +485,7 @@ class PairingStore:
             self._record_rate_limit(platform, user_id)
             return code
 
-    def approve_code(self, platform: str, code: str) -> Optional[dict]:
+    def approve_code(self, platform: str, code: str) -> dict | None:
         """Approve a pairing code and add its user to the approved list.
 
         Returns ``{user_id, user_name}``, or ``None`` if the code is invalid/expired OR the
@@ -520,7 +523,7 @@ class PairingStore:
         value = str(value or "").strip()
         return len(value) == 16 and all(c in "0123456789abcdefABCDEF" for c in value)
 
-    def approve_request(self, platform: str, request_id: str) -> Optional[dict]:
+    def approve_request(self, platform: str, request_id: str) -> dict | None:
         """Approve a pending request by its server-side request id (admin surfaces that
         must never reveal the DM'd code). Returns ``{user_id, user_name}`` or ``None``.
 

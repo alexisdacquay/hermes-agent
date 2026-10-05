@@ -18,8 +18,9 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-from hermes_cli.version_info import get_version_info
 from utils import atomic_json_write
+
+from hermes_cli.version_info import get_version_info
 
 logger = logging.getLogger(__name__)
 
@@ -257,7 +258,10 @@ def refresh_catalogs() -> bool:
         return False
     catalog = get_catalog(force_refresh=True)
     try:
-        from hermes_cli.models import fetch_nous_recommended_models, fetch_openrouter_models
+        from hermes_cli.models import (
+            fetch_nous_recommended_models,
+            fetch_openrouter_models,
+        )
 
         fetch_openrouter_models(force_refresh=True)
         fetch_nous_recommended_models(force_refresh=True)
@@ -324,7 +328,7 @@ def get_default_model_from_cache(provider: str) -> str | None:
     return _default_model_from_block(_block_of(disk_data, provider)) if disk_data is not None else None
 
 
-def seed_cache_from_checkout(project_root: "Path | str") -> bool:
+def seed_cache_from_checkout(project_root: Path | str) -> bool:
     """Overwrite the disk cache with the checkout's ``website/static/api/model-catalog.json``.
     After ``hermes update`` that file IS the newest catalog, so the picker stays current even when
     the remote fetch is bot-gated. Validated, then written via the same atomic writer."""

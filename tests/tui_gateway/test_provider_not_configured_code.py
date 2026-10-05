@@ -7,7 +7,6 @@ but …"), the matcher did not, and a blank install got a dead-end toast instead
 """
 
 import pytest
-
 from agent.auxiliary_unavailable import ProviderNotConfiguredError
 from tui_gateway import server
 

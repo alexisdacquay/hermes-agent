@@ -6,7 +6,6 @@ import types
 from pathlib import Path
 
 import pytest
-
 from gateway.config import GatewayConfig, Platform, PlatformConfig
 from gateway.platforms.base import BasePlatformAdapter, ProcessingOutcome, SendResult
 from gateway.platforms.event import MessageEvent
@@ -160,6 +159,7 @@ async def test_turn_error_preserves_diagnostic_bridge_and_failed_outcome(
         profiles, monkeypatch, setting, diagnostic, caplog):
     import logging
     from types import SimpleNamespace
+
     from agent.monitoring import gateway_health
     root, _ = profiles
     (root / "config.yaml").write_text(

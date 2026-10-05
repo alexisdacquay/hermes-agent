@@ -12,7 +12,6 @@ path executes (E2E, no mocks).
 """
 
 import pytest
-
 from tools.environments.local import LocalEnvironment
 from tools.file_operations import ShellFileOperations
 

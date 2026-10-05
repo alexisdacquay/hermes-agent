@@ -5,31 +5,48 @@ Extracted from ``hermes_cli.web_server``; app state and helpers are late-bound t
 :mod:`hermes_cli.web_deps` (cycle-safe, monkeypatch-friendly).
 """
 
+import asyncio
 import concurrent.futures
 import importlib
 import logging
-import re
-import asyncio
 import os
+import re
 import sys
 import time
-from fastapi import APIRouter
-from hermes_cli.web_deps import LateState, late
-from hermes_cli.web_server_gateway import _display_system_platform
-from starlette.concurrency import run_in_threadpool
-from fastapi import HTTPException, Request
+from pathlib import Path
+from typing import Any
+
+from fastapi import APIRouter, HTTPException, Request
 from gateway.status import (
-    derive_gateway_busy, derive_gateway_drainable, normalize_updated_at, parse_active_agents,
-    profile_platforms_from_multiplexer, resolve_gateway_liveness, retained_gateway_state,
-    runtime_status_heartbeat_age_s, runtime_status_is_stale)
+    derive_gateway_busy,
+    derive_gateway_drainable,
+    normalize_updated_at,
+    parse_active_agents,
+    profile_platforms_from_multiplexer,
+    resolve_gateway_liveness,
+    retained_gateway_state,
+    runtime_status_heartbeat_age_s,
+    runtime_status_is_stale,
+)
+from hermes_constants import get_process_hermes_home, profile_name_for_home
+from starlette.concurrency import run_in_threadpool
+
 from hermes_cli import __release_date__
 from hermes_cli.config import get_config_path, get_env_path
 from hermes_cli.version_info import get_version_info
-from hermes_constants import get_process_hermes_home, profile_name_for_home
-from hermes_cli.web_models import CuratorPause, LearningNodeRef, LearningNodeEdit, DebugShareRequest
-from hermes_cli.web_routers._common import config_scoped_to_thread, destructive_profile, scoped_to_thread
-from pathlib import Path
-from typing import Any, Dict, Optional
+from hermes_cli.web_deps import LateState, late
+from hermes_cli.web_models import (
+    CuratorPause,
+    DebugShareRequest,
+    LearningNodeEdit,
+    LearningNodeRef,
+)
+from hermes_cli.web_routers._common import (
+    config_scoped_to_thread,
+    destructive_profile,
+    scoped_to_thread,
+)
+from hermes_cli.web_server_gateway import _display_system_platform
 
 _log = logging.getLogger("hermes_cli.web_server")
 router = APIRouter()
@@ -95,7 +112,7 @@ async def _status_active_sessions() -> int:
         return await asyncio.wait_for(
             run_in_threadpool(_count_status_active_sessions),
             timeout=_STATUS_ACTIVE_SESSIONS_TIMEOUT)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         _log.debug("/api/status active session count exceeded %.2fs; returning 0",
                    _STATUS_ACTIVE_SESSIONS_TIMEOUT)
     except Exception as exc:
@@ -179,7 +196,7 @@ def _is_profile_platform_status_key(key: object) -> bool:
     return isinstance(key, str) and bool(_PROFILE_PLATFORM_STATUS_KEY_RE.fullmatch(key))
 
 
-def _status_platform_key_allowed(key: object, configured: "set[str] | None") -> bool:
+def _status_platform_key_allowed(key: object, configured: set[str] | None) -> bool:
     """Whether a runtime-status platform key may appear publicly: namespaced
     ``<profile>:<platform>`` keys are validated against the grammar *unconditionally* (a
     failed config-set load must not fail open into projecting arbitrary keys from a
@@ -255,7 +272,7 @@ def _bounded_health_probe():
             return False, None
 
 
-def _project_gateway_platforms(gateway_platforms: dict, configured: "set[str] | None",
+def _project_gateway_platforms(gateway_platforms: dict, configured: set[str] | None,
                                gateway_running: bool, gateway_state) -> dict:
     """Public projection of a runtime's platform map (see ``_status_platform_key_allowed``
     for the key rules). A cleanly stopped gateway's platform states are stale noise and are
@@ -273,7 +290,7 @@ def _project_gateway_platforms(gateway_platforms: dict, configured: "set[str] | 
     return {}
 
 
-async def _resolve_gateway_status(profile_dir: Optional[Path], health_url) -> Dict[str, Any]:
+async def _resolve_gateway_status(profile_dir: Path | None, health_url) -> dict[str, Any]:
     """Liveness + runtime-state readout (running/pid/state/platforms/exit_reason/updated_at
     plus the raw ``runtime`` document).
 
@@ -358,7 +375,7 @@ async def _resolve_gateway_status(profile_dir: Optional[Path], health_url) -> Di
         "gateway_shared_with": [str(p) for p in served] if isinstance(served, list) else None}
 
 
-def _auth_gate_status() -> Dict[str, Any]:
+def _auth_gate_status() -> dict[str, Any]:
     """Dashboard auth gate readout: gate engaged, registered providers, and the RFC 8252
     native-app capability advertisement ``auth_flows`` the desktop reads to pick the
     system-browser + loopback + PKCE flow over the embedded-webview cookie flow. "cookie" is
@@ -369,8 +386,10 @@ def _auth_gate_status() -> Dict[str, Any]:
     auth_providers: list[str] = []
     auth_flows: list[str] = []
     try:
+        from hermes_cli.dashboard_auth import list_providers as _list_providers
         from hermes_cli.dashboard_auth import (
-            list_providers as _list_providers, list_session_providers as _list_session_providers)
+            list_session_providers as _list_session_providers,
+        )
         auth_providers = [p.name for p in _list_providers()]
         if auth_required:
             auth_flows.append("cookie")
@@ -395,14 +414,14 @@ def _nous_session_validity() -> str:
         return "unknown"
 
 
-async def _component_health(gateway: Dict[str, Any]) -> Dict[str, Any]:
+async def _component_health(gateway: dict[str, Any]) -> dict[str, Any]:
     """Component-level health rollup: counts and status enums only (public payload — no
     messages, paths or other detail that could carry secrets). The storage probe reuses the
     gateway readiness state_db check (read-only, 1s-bounded) off-loop."""
     from hermes_cli.web_server import DASHBOARD_HEALTH
     gateway_running, gateway_state = gateway["gateway_running"], gateway["gateway_state"]
     gateway_platforms = gateway["gateway_platforms"]
-    components: Dict[str, Any] = {
+    components: dict[str, Any] = {
         "gateway": {
             "status": "ok" if gateway_running and gateway_state in {"running", "draining"} else "degraded",
             "state": gateway_state or ("running" if gateway_running else "stopped")},
@@ -427,7 +446,7 @@ async def _component_health(gateway: Dict[str, Any]) -> Dict[str, Any]:
     return components
 
 
-async def _advisory_pressure(status: Dict[str, Any], home: Path) -> None:
+async def _advisory_pressure(status: dict[str, Any], home: Path) -> None:
     """Memory / disk pressure rollups + deferred FTS rebuild progress (coarse numbers/enums
     only; public payload). Deliberately NOT folded into components/overall: pressure is
     advisory, not a liveness verdict, and flipping ``overall`` on it would page NAS's
@@ -442,8 +461,8 @@ async def _advisory_pressure(status: Dict[str, Any], home: Path) -> None:
             status[key] = {"pressure": "unknown"}
 
     try:
-        from hermes_state import SessionDB as _SDB
         from hermes_constants import get_hermes_home as _ghh
+        from hermes_state import SessionDB as _SDB
         _db_path = _ghh() / "state.db"
         if _db_path.exists():
             _sdb = _SDB(db_path=_db_path, read_only=True)
@@ -458,7 +477,7 @@ async def _advisory_pressure(status: Dict[str, Any], home: Path) -> None:
 
 
 @router.get("/api/status")
-async def get_status(profile: Optional[str] = None):
+async def get_status(profile: str | None = None):
     """Public machine-level liveness probe (``PUBLIC_API_PATHS``): version, gateway state,
     active session count and the auth-gate shape — no bodies, no session content, no secrets.
 
@@ -469,7 +488,7 @@ async def get_status(profile: Optional[str] = None):
     from hermes_cli.web_server import _GATEWAY_HEALTH_URL
     status_scope = None
     requested_profile = (profile or "").strip()
-    profile_dir: Optional[Path] = None
+    profile_dir: Path | None = None
     if requested_profile and requested_profile.lower() != "current":
         profile_dir = _resolve_profile_dir(requested_profile)
         status_scope = _config_profile_scope(requested_profile)
@@ -566,7 +585,7 @@ async def get_system_stats():
     disk/uptime when available). Non-sensitive: no env values, no paths beyond hermes home."""
     import platform as _platform
 
-    info: Dict[str, Any] = {
+    info: dict[str, Any] = {
         **_display_system_platform(
             system=_platform.system(), release=_platform.release(), version=_platform.version(),
             platform_label=_platform.platform()),
@@ -621,7 +640,7 @@ async def get_system_stats():
 
 
 @router.get("/api/curator")
-async def get_curator_status(profile: Optional[str] = None):
+async def get_curator_status(profile: str | None = None):
     try:
         from agent import curator
     except Exception as exc:
@@ -641,7 +660,7 @@ async def get_curator_status(profile: Optional[str] = None):
 
 
 @router.put("/api/curator/paused")
-async def set_curator_paused(body: CuratorPause, profile: Optional[str] = None):
+async def set_curator_paused(body: CuratorPause, profile: str | None = None):
     from agent import curator
     # ``_state_file()`` is ``get_hermes_home()/skills/.curator_state`` resolved at call
     # time, so the request's home override is what decides which profile pauses.
@@ -649,7 +668,7 @@ async def set_curator_paused(body: CuratorPause, profile: Optional[str] = None):
     return {"ok": True, "paused": bool(body.paused)}
 
 
-def _spawn_action(argv: list, name: str, prefix: str, profile: Optional[str] = None) -> dict:
+def _spawn_action(argv: list, name: str, prefix: str, profile: str | None = None) -> dict:
     """Spawn a background ``hermes -p <profile> <argv>`` action; a spawn failure is
     ``500 "<prefix>: <exc>"``."""
     try:
@@ -660,7 +679,7 @@ def _spawn_action(argv: list, name: str, prefix: str, profile: Optional[str] = N
 
 
 @router.post("/api/curator/run")
-async def run_curator(profile: Optional[str] = None):
+async def run_curator(profile: str | None = None):
     """Trigger a curator review now (backgrounded; tail via action status). The curator
     archives and rewrites skills, so an unnamed target is refused while this backend
     serves several profiles."""
@@ -669,7 +688,7 @@ async def run_curator(profile: Optional[str] = None):
 
 
 @router.get("/api/learning/graph")
-async def get_learning_graph(profile: Optional[str] = None):
+async def get_learning_graph(profile: str | None = None):
     """Learning graph for the desktop panel: profile-scoped learned skills + memory chunks."""
     def _run():
         from agent.learning_graph import build_learning_graph
@@ -686,7 +705,7 @@ async def get_learning_graph(profile: Optional[str] = None):
         raise HTTPException(status_code=500, detail="Failed to build learning graph")
 
 
-async def _learning_mutation(profile: Optional[str], fn, status: int, fallback: str):
+async def _learning_mutation(profile: str | None, fn, status: int, fallback: str):
     """Run a learning_mutations call under ``_profile_scope`` off-loop; a non-ok result
     becomes ``HTTPException(status, message)``."""
     res = await scoped_to_thread(profile, fn)
@@ -696,14 +715,14 @@ async def _learning_mutation(profile: Optional[str], fn, status: int, fallback: 
 
 
 @router.get("/api/learning/node")
-async def get_learning_node(id: str, profile: Optional[str] = None):
+async def get_learning_node(id: str, profile: str | None = None):
     """Current content of a journey node (skill SKILL.md or memory chunk), for an edit prefill."""
     from agent.learning_mutations import node_detail
     return await _learning_mutation(profile, lambda: node_detail(id), 404, "not found")
 
 
 @router.delete("/api/learning/node")
-async def delete_learning_node(body: LearningNodeRef, profile: Optional[str] = None):
+async def delete_learning_node(body: LearningNodeRef, profile: str | None = None):
     """Delete a journey node — skills are archived (restorable), memories removed.
 
     ``?profile=`` is honoured too: a shared-backend Desktop scopes this call by query only, and
@@ -714,7 +733,7 @@ async def delete_learning_node(body: LearningNodeRef, profile: Optional[str] = N
 
 
 @router.put("/api/learning/node")
-async def update_learning_node(body: LearningNodeEdit, profile: Optional[str] = None):
+async def update_learning_node(body: LearningNodeEdit, profile: str | None = None):
     """Rewrite a journey node's content (SKILL.md or memory chunk); profile as for DELETE."""
     from agent.learning_mutations import edit_node
     return await _learning_mutation(
@@ -725,7 +744,7 @@ async def update_learning_node(body: LearningNodeEdit, profile: Optional[str] = 
 
 
 @router.get("/api/portal")
-async def get_portal_status(profile: Optional[str] = None):
+async def get_portal_status(profile: str | None = None):
     # load_config() + auth/subscription snapshots are disk reads on a polled endpoint —
     # keep them off the event loop.
     return await config_scoped_to_thread(profile, _get_portal_status_sync)
@@ -741,7 +760,7 @@ def _feature_state(feat) -> str:
 
 def _get_portal_status_sync():
     cfg = load_config() or {}
-    auth: Dict[str, Any] = {}
+    auth: dict[str, Any] = {}
     try:
         from hermes_cli.auth import get_nous_auth_status_local
         # Refresh-free snapshot so polling never performs an OAuth refresh.
@@ -775,23 +794,23 @@ def _get_portal_status_sync():
 
 
 @router.post("/api/ops/prompt-size")
-async def run_prompt_size(profile: Optional[str] = None):
+async def run_prompt_size(profile: str | None = None):
     return _spawn_action(["prompt-size"], "prompt-size", "Failed", profile)
 
 
 @router.post("/api/ops/dump")
-async def run_dump(profile: Optional[str] = None):
+async def run_dump(profile: str | None = None):
     return _spawn_action(["dump"], "dump", "Failed", profile)
 
 
 @router.post("/api/ops/config-migrate")
-async def run_config_migrate(profile: Optional[str] = None):
+async def run_config_migrate(profile: str | None = None):
     return _spawn_action(["config", "migrate"], "config-migrate", "Failed", profile)
 
 
 @router.post("/api/ops/debug-share")
 async def run_debug_share_endpoint(body: DebugShareRequest | None = None,
-                                   profile: Optional[str] = None):
+                                   profile: str | None = None):
     """Upload a redacted debug report + full logs and return the paste URLs. Synchronous,
     unlike the other diagnostics actions: the point is the shareable URLs, returned as a
     structured payload the dashboard renders as copyable links."""
@@ -818,10 +837,10 @@ async def run_debug_share_endpoint(body: DebugShareRequest | None = None,
 
 @logs_router.get("/api/logs")
 async def get_logs(
-    file: str = "agent", lines: int = 100, level: Optional[str] = None,
-    component: Optional[str] = None, search: Optional[str] = None,
-    profile: Optional[str] = None):
-    from hermes_cli.logs import _read_tail, LOG_FILES
+    file: str = "agent", lines: int = 100, level: str | None = None,
+    component: str | None = None, search: str | None = None,
+    profile: str | None = None):
+    from hermes_cli.logs import LOG_FILES, _read_tail
     log_name = LOG_FILES.get(file)
     if not log_name:
         raise HTTPException(status_code=400, detail=f"Unknown log file: {file}")

@@ -13,23 +13,23 @@ import asyncio
 import os
 import time
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from gateway.kanban_watchers_common import (
     _acquire_singleton_lock,
+    _gc_retention_days,
     _kanban_dispatch_allowed,
     _release_singleton_lock,
     _resolve_auto_decompose_settings,
-    _gc_retention_days,
     _to_thread_process_service,
     logger,
 )
-from gateway.kanban_watchers_notifier import _KanbanNotification, _notifier_collect
 from gateway.kanban_watchers_dispatcher import (
     _KanbanDispatcher,
     _log_spawn_results,
     _resolve_dispatcher_settings,
 )
+from gateway.kanban_watchers_notifier import _KanbanNotification, _notifier_collect
 
 _IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
 _VIDEO_EXTS = {".mp4", ".mov", ".avi", ".mkv", ".webm", ".3gp"}
@@ -120,7 +120,7 @@ class GatewayKanbanWatchersMixin:
                 logger.warning("kanban notifier tick failed: %s", exc)
             await self._sleep_between_ticks(interval)
 
-    def _kanban_sub_op(self, board: Optional[str], op: str, sub: dict, **extra: Any) -> None:
+    def _kanban_sub_op(self, board: str | None, op: str, sub: dict, **extra: Any) -> None:
         """Sync helper (runs in to_thread): call ``kanban_db_notify.<op>`` for one subscription on its board."""
         from hermes_cli import kanban_db as _kb
         from hermes_cli import kanban_db_connect as _kbc
@@ -139,17 +139,17 @@ class GatewayKanbanWatchersMixin:
             finally:
                 conn.close()
 
-    def _kanban_advance(self, sub: dict, cursor: int, board: Optional[str] = None) -> None:
+    def _kanban_advance(self, sub: dict, cursor: int, board: str | None = None) -> None:
         self._kanban_sub_op(board, "advance_notify_cursor", sub, new_cursor=cursor)
 
-    def _kanban_unsub(self, sub: dict, board: Optional[str] = None) -> None:
+    def _kanban_unsub(self, sub: dict, board: str | None = None) -> None:
         self._kanban_sub_op(board, "remove_notify_sub", sub)
 
-    def _kanban_rewind(self, sub: dict, claimed_cursor: int, old_cursor: int, board: Optional[str] = None) -> None:
+    def _kanban_rewind(self, sub: dict, claimed_cursor: int, old_cursor: int, board: str | None = None) -> None:
         """Undo a claimed notification cursor after send failure."""
         self._kanban_sub_op(board, "rewind_notify_cursor", sub, claimed_cursor=claimed_cursor, old_cursor=old_cursor)
 
-    async def _deliver_kanban_artifacts(self, *, adapter, chat_id: str, metadata: dict, event_payload: Optional[dict], task) -> None:
+    async def _deliver_kanban_artifacts(self, *, adapter, chat_id: str, metadata: dict, event_payload: dict | None, task) -> None:
         """Upload artifact files referenced by a completed kanban task.
 
         Sources, in priority order: ``event_payload['artifacts']``,
@@ -206,7 +206,7 @@ class GatewayKanbanWatchersMixin:
             except Exception as exc:
                 logger.warning("kanban notifier: artifact upload (%s) failed: %s", path, exc)
 
-    def _kanban_dispatcher_boot(self) -> Optional[tuple]:
+    def _kanban_dispatcher_boot(self) -> tuple | None:
         """Resolve config, kanban_db and the singleton lock; None when the dispatcher must not run.
 
         Config is read once at boot (restart to apply), except the auto-decompose
@@ -278,7 +278,7 @@ class GatewayKanbanWatchersMixin:
         # broken PATH, missing venv, or credential loss.
         bad_ticks = 0
         last_warn_at = 0
-        results: Optional[list] = None
+        results: list | None = None
         dispatcher = _KanbanDispatcher(_kb, settings)
 
         logger.info("kanban dispatcher: embedded in gateway (interval=%.1fs)", interval)

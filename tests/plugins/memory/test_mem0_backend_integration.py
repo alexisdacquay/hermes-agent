@@ -6,7 +6,6 @@ from types import SimpleNamespace
 
 import pytest
 
-
 pytest.importorskip("mem0", reason="requires the existing mem0 extra")
 
 
@@ -19,7 +18,6 @@ def test_openai_backend_uses_real_mem0_config_and_factory(monkeypatch, tmp_path)
     import openai
     from mem0.memory import main as memory_main
     from mem0.utils.factory import LlmFactory
-
     from plugins.memory.mem0._backend import OSSBackend
     from plugins.memory.mem0._openai_llm import DirectOpenAILLM
 

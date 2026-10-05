@@ -10,7 +10,6 @@ from types import SimpleNamespace
 
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # Plugin discovery: langfuse is opt-in (not loaded unless explicitly enabled).
 # This guards against someone accidentally re-introducing a per-hook
@@ -376,7 +375,7 @@ class _FakeLangfuse:
     can fire.  Patching ``plugin.Langfuse`` with this class lets the
     placeholder validator exercise its full code path."""
 
-    instances: list["_FakeLangfuse"] = []
+    instances: list[_FakeLangfuse] = []
 
     def __init__(self, **kwargs):
         self.kwargs = kwargs
@@ -1609,7 +1608,10 @@ class TestAtexitFinalization(TestTurnTraceIsolation):
         credentials at all — it ends the open roots and flushes each settled client, so neither
         profile loses its pending traces."""
         from agent import secret_scope
-        from hermes_constants import reset_hermes_home_override, set_hermes_home_override
+        from hermes_constants import (
+            reset_hermes_home_override,
+            set_hermes_home_override,
+        )
 
         mod = self._fresh_plugin()
         monkeypatch.setattr(secret_scope, "_MULTIPLEX_ACTIVE", True)
@@ -2148,8 +2150,8 @@ class TestCanonicalCostExport:
         import agent.usage_pricing as pricing
 
         entry = pricing.PricingEntry(
-            input_cost_per_million=Decimal("1"),
-            output_cost_per_million=Decimal("2"),
+            input_cost_per_million=Decimal(1),
+            output_cost_per_million=Decimal(2),
             cache_read_cost_per_million=Decimal("0.5"),
             cache_write_cost_per_million=Decimal("1.5"),
             source="custom_contract",
@@ -2176,8 +2178,8 @@ class TestCanonicalCostExport:
         import agent.usage_pricing as pricing
 
         entry = pricing.PricingEntry(
-            input_cost_per_million=Decimal("1"),
-            output_cost_per_million=Decimal("2"),
+            input_cost_per_million=Decimal(1),
+            output_cost_per_million=Decimal(2),
             cache_read_cost_per_million=Decimal("0.5"),
             cache_write_cost_per_million=Decimal("1.5"),
             request_cost=Decimal("0.01"),
@@ -2216,8 +2218,8 @@ class TestCanonicalCostExport:
         import agent.usage_pricing as pricing
 
         entry = pricing.PricingEntry(
-            input_cost_per_million=Decimal("1"),
-            output_cost_per_million=Decimal("2"),
+            input_cost_per_million=Decimal(1),
+            output_cost_per_million=Decimal(2),
             cache_read_cost_per_million=None,
             source="provider_models_api",
         )

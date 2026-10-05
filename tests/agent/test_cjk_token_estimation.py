@@ -1,13 +1,11 @@
 from unittest.mock import patch
 
-from agent.context_compressor import ContextCompressor, _estimate_msg_budget_tokens
+from agent.context_compressor import ContextCompressor
 from agent.model_metadata import (
     _is_cjk_token_dense_char,
     estimate_messages_tokens_rough,
     estimate_tokens_rough,
 )
-
-
 
 
 def test_message_estimate_counts_korean_content_as_token_dense():

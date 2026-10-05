@@ -11,7 +11,6 @@ Verifies:
 """
 
 import json
-import os
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, call, patch
@@ -24,7 +23,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import batch_runner
 from batch_runner import BatchRunner, _process_batch_worker
-
 
 # =========================================================================
 # Trajectory write durability (fsync)

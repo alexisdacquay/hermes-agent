@@ -3,11 +3,11 @@
 import os
 from unittest.mock import patch
 
-from rich.console import Console
-
-import hermes_cli.banner as banner
 import model_tools
 import tools.mcp_tool_discovery
+from hermes_cli import banner
+from rich.console import Console
+
 
 def _build_banner_with_skills(skills_by_category, term_width=160):
     """Helper: build banner with given skills and return captured output."""

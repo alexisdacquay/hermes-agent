@@ -9,10 +9,17 @@ the agent's worker thread.
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Any
 
 from gateway.stream_events import (
-    Commentary, GatewayNotice, LongToolHint, MessageChunk, MessageStop, StreamEvent, ToolCallChunk,
+    Commentary,
+    GatewayNotice,
+    LongToolHint,
+    MessageChunk,
+    MessageStop,
+    StreamEvent,
+    ToolCallChunk,
 )
 
 logger = logging.getLogger("gateway.stream_events")
@@ -33,11 +40,11 @@ class GatewayEventDispatcher:
         adapter: Any,
         sink: Any = None,
         *,
-        enqueue_tool_line: Optional[Callable[[Any], None]] = None,
+        enqueue_tool_line: Callable[[Any], None] | None = None,
         tool_mode: str = "all",
         preview_max_len: int = 40,
-        on_long_tool: Optional[Callable[[LongToolHint], None]] = None,
-        on_notice: Optional[Callable[[GatewayNotice], None]] = None,
+        on_long_tool: Callable[[LongToolHint], None] | None = None,
+        on_notice: Callable[[GatewayNotice], None] | None = None,
     ) -> None:
         self.adapter = adapter
         self.sink = sink
@@ -46,7 +53,7 @@ class GatewayEventDispatcher:
         self.preview_max_len = preview_max_len
         self._on_long_tool = on_long_tool
         self._on_notice = on_notice
-        self._last_tool: Optional[str] = None  # "new"-mode dedup
+        self._last_tool: str | None = None  # "new"-mode dedup
 
     def dispatch(self, event: StreamEvent) -> None:
         """Route a single event.  Never raises into the agent's worker thread."""

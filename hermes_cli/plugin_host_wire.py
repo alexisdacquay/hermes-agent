@@ -24,9 +24,10 @@ import itertools
 import json
 import logging
 import threading
+from collections.abc import Callable
 from concurrent.futures import Future
 from pathlib import PurePath
-from typing import Any, BinaryIO, Callable, Dict, Optional
+from typing import Any, BinaryIO
 
 logger = logging.getLogger("hermes_cli.plugins")
 
@@ -57,7 +58,7 @@ _REMOTE_EXCEPTIONS = {
 _REMOTE_EXCEPTIONS["PluginHostUnsupported"] = PluginHostUnsupported
 
 
-def raise_remote(error: Dict[str, Any]) -> None:
+def raise_remote(error: dict[str, Any]) -> None:
     """Re-raise a remote error, as the builtin type when it is one plugins commonly catch."""
     type_name = str(error.get("type") or "")
     message = str(error.get("message") or "")
@@ -94,7 +95,7 @@ class Opaque:
         return f"<opaque {self.type_name}>"
 
 
-def encode(value: Any, refs: Optional[Callable[[Any], Optional[dict]]] = None, _depth: int = 0) -> Any:
+def encode(value: Any, refs: Callable[[Any], dict | None] | None = None, _depth: int = 0) -> Any:
     """JSON-safe form of ``value``; ``refs`` may turn callables/objects into reference dicts."""
     if value is None or isinstance(value, (bool, int, float, str)):
         return value
@@ -132,7 +133,7 @@ def encode(value: Any, refs: Optional[Callable[[Any], Optional[dict]]] = None, _
     return {"__opaque__": type(value).__name__, "repr": text}
 
 
-def decode(value: Any, resolve: Optional[Callable[[dict], Any]] = None) -> Any:
+def decode(value: Any, resolve: Callable[[dict], Any] | None = None) -> Any:
     """Inverse of :func:`encode`; ``resolve`` turns ``__callable__``/``__object__`` refs into proxies."""
     if isinstance(value, list):
         return [decode(v, resolve) for v in value]
@@ -155,7 +156,7 @@ def is_async_callable(fn: Any) -> bool:
     return inspect.iscoroutinefunction(target) or inspect.iscoroutinefunction(getattr(fn, "__call__", None))
 
 
-def describe_signature(fn: Any) -> Optional[list]:
+def describe_signature(fn: Any) -> list | None:
     """``[[name, kind, has_default], ...]`` so the peer's proxy presents the same parameters (hook
     dispatch passes only the kwargs a callback declares)."""
     import inspect
@@ -166,7 +167,7 @@ def describe_signature(fn: Any) -> Optional[list]:
     return [[p.name, int(p.kind), p.default is not inspect.Parameter.empty] for p in sig.parameters.values()]
 
 
-def signature_from(spec: Optional[list]):
+def signature_from(spec: list | None):
     import inspect
     if not spec:
         return None
@@ -180,15 +181,15 @@ def signature_from(spec: Optional[list]):
         return None
 
 
-_SERVING: contextvars.ContextVar[Optional[int]] = contextvars.ContextVar("plugin_host_serving", default=None)
+_SERVING: contextvars.ContextVar[int | None] = contextvars.ContextVar("plugin_host_serving", default=None)
 
 
-def serving_request() -> Optional[int]:
+def serving_request() -> int | None:
     """The peer request this code is running for (the ``origin`` of any call it makes), if any."""
     return _SERVING.get()
 
 
-def bind_serving_request(request_id: Optional[int]) -> None:
+def bind_serving_request(request_id: int | None) -> None:
     """Mark the current context (an event-loop task) as working for peer request ``request_id``."""
     _SERVING.set(request_id)
 
@@ -197,33 +198,33 @@ class Channel:
     """Bidirectional request/response over a pair of byte streams (one JSON document per line)."""
 
     def __init__(self, reader: BinaryIO, writer: BinaryIO,
-                 handler: Callable[[str, Dict[str, Any], Optional[int]], Any], *, name: str,
-                 on_close: Optional[Callable[[str], None]] = None,
-                 context_for_origin: Optional[Callable[[Optional[int]], contextvars.Context]] = None):
+                 handler: Callable[[str, dict[str, Any], int | None], Any], *, name: str,
+                 on_close: Callable[[str], None] | None = None,
+                 context_for_origin: Callable[[int | None], contextvars.Context] | None = None):
         self._reader, self._writer = reader, writer
         self._handler, self._name, self._on_close = handler, name, on_close
         self._context_for_origin = context_for_origin
         self._write_lock = threading.Lock()
         self._ids = itertools.count(1)
-        self._pending: Dict[int, Future] = {}
+        self._pending: dict[int, Future] = {}
         self._pending_lock = threading.Lock()
-        self._contexts: Dict[int, contextvars.Context] = {}
-        self._closed_reason: Optional[str] = None
+        self._contexts: dict[int, contextvars.Context] = {}
+        self._closed_reason: str | None = None
         self._thread = threading.Thread(target=self._read_loop, name=f"{name}-reader", daemon=True)
 
-    def start(self) -> "Channel":
+    def start(self) -> Channel:
         self._thread.start()
         return self
 
     @property
-    def closed_reason(self) -> Optional[str]:
+    def closed_reason(self) -> str | None:
         return self._closed_reason
 
-    def context_of(self, request_id: Optional[int]) -> Optional[contextvars.Context]:
+    def context_of(self, request_id: int | None) -> contextvars.Context | None:
         """Caller context recorded when THIS side sent ``request_id`` (still in flight)."""
         return self._contexts.get(request_id) if request_id is not None else None
 
-    def request(self, method: str, params: Dict[str, Any], *, timeout: Optional[float] = None) -> Any:
+    def request(self, method: str, params: dict[str, Any], *, timeout: float | None = None) -> Any:
         if self._closed_reason is not None:
             raise PluginHostUnavailable(self._closed_reason)
         request_id = next(self._ids)
@@ -241,7 +242,7 @@ class Channel:
                 self._pending.pop(request_id, None)
             self._contexts.pop(request_id, None)
 
-    def _send(self, message: Dict[str, Any]) -> None:
+    def _send(self, message: dict[str, Any]) -> None:
         data = (json.dumps(message, separators=(",", ":"), allow_nan=True) + "\n").encode("utf-8")
         with self._write_lock:
             if self._closed_reason is not None:
@@ -276,12 +277,12 @@ class Channel:
             reason = f"{self._name} channel read failed: {exc}"
         self._close(reason)
 
-    def _serve(self, message: Dict[str, Any]) -> None:
+    def _serve(self, message: dict[str, Any]) -> None:
         request_id = message.get("id")
         origin = message.get("origin")
         context = self._context_for_origin(origin) if self._context_for_origin else None
 
-        def run() -> Dict[str, Any]:
+        def run() -> dict[str, Any]:
             token = _SERVING.set(request_id)
             try:
                 result = self._handler(str(message.get("method")), message.get("params") or {}, origin)
@@ -304,12 +305,12 @@ class Channel:
         except (TypeError, ValueError) as exc:  # unserializable result slipped past encode()
             self._send({"id": request_id, "error": {"type": "TypeError", "message": str(exc)}})
 
-    def result_of(self, reply: Dict[str, Any]) -> Any:
+    def result_of(self, reply: dict[str, Any]) -> Any:
         if "error" in reply:
             raise_remote(reply["error"])
         return reply.get("result")
 
-    def call(self, method: str, params: Dict[str, Any], *, timeout: Optional[float] = None) -> Any:
+    def call(self, method: str, params: dict[str, Any], *, timeout: float | None = None) -> Any:
         return self.result_of(self.request(method, params, timeout=timeout))
 
     def _close(self, reason: str) -> None:

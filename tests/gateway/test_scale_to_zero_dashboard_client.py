@@ -19,7 +19,6 @@ import os
 import time
 
 import pytest
-
 from gateway import scale_to_zero as s2z
 from gateway.run import GatewayRunner
 
@@ -112,7 +111,7 @@ def _runner(monkeypatch, *, last_inbound_at):
     r.adapters = {}
     monkeypatch.setattr(r, "_scale_to_zero_idle_timeout_seconds", lambda: 120.0, raising=False)
     monkeypatch.setattr(r, "_scale_to_zero_has_live_background_work", lambda: False, raising=False)
-    monkeypatch.setattr("cron.scheduler.get_running_job_ids", lambda: [])
+    monkeypatch.setattr("cron.scheduler.get_running_job_ids", list)
     return r
 
 
@@ -195,7 +194,8 @@ def test_unreadable_marker_keeps_gateway_awake(hermes_home, monkeypatch):
 
 
 def test_handle_ws_connect_touches_marker(hermes_home, monkeypatch):
-    from tui_gateway import server, ws as ws_mod
+    from tui_gateway import server
+    from tui_gateway import ws as ws_mod
 
     monkeypatch.setattr(server, "_start_backend_heartbeat_refresher", lambda: None)
     monkeypatch.setattr(server, "_schedule_startup_orphan_sweep", lambda: None, raising=False)
@@ -225,7 +225,8 @@ def test_handle_ws_connect_touches_marker(hermes_home, monkeypatch):
 
 
 def test_handle_ws_inbound_frames_refresh_marker(hermes_home, monkeypatch):
-    from tui_gateway import server, ws as ws_mod
+    from tui_gateway import server
+    from tui_gateway import ws as ws_mod
 
     monkeypatch.setattr(server, "_start_backend_heartbeat_refresher", lambda: None)
     monkeypatch.setattr(server, "_schedule_startup_orphan_sweep", lambda: None, raising=False)

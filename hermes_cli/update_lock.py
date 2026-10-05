@@ -353,7 +353,7 @@ class UpdateLock:
         with suppress(OSError):
             self.path.unlink()
 
-    def __enter__(self) -> "UpdateLock":
+    def __enter__(self) -> UpdateLock:
         self.acquire()
         return self
 

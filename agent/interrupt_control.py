@@ -6,11 +6,11 @@ Extracted from ``run_agent.py``; every method resolves through ``AIAgent``'s MRO
 import contextlib
 import logging
 import threading
-from typing import Optional
 
-from agent.interrupt_compat import request_hard_interrupt
 from tools.interrupt import request_yield as _request_yield
 from tools.interrupt import set_interrupt as _set_interrupt
+
+from agent.interrupt_compat import request_hard_interrupt
 
 # Same logger name as the origin module so log records / caplog filters are unchanged.
 logger = logging.getLogger("run_agent")
@@ -24,7 +24,7 @@ _REASON_USER_INTERRUPT = "user interrupt"
 USER_INTERRUPT_REASONS = frozenset({_REASON_HARD_STOP, _REASON_NEW_MESSAGE, _REASON_USER_INTERRUPT})
 
 
-def interrupt_issuer(agent) -> Optional[str]:
+def interrupt_issuer(agent) -> str | None:
     """Slug of the system producer behind the pending interrupt, or ``None`` for a human stop."""
     reason = getattr(agent, "_tool_interrupt_reason", None)
     if not reason or reason in USER_INTERRUPT_REASONS:
@@ -113,8 +113,8 @@ class InterruptControlMixin:
     """interrupt()/hard_interrupt()/clear_interrupt()/steer()/redirect() (see module docstring)."""
 
     def interrupt(
-        self, message: Optional[str] = None, *, hard_cancel: bool = False,
-        tool_reason: Optional[str] = None, require_generation: Optional[int] = None,
+        self, message: str | None = None, *, hard_cancel: bool = False,
+        tool_reason: str | None = None, require_generation: int | None = None,
     ) -> bool:
         """Request the agent to interrupt its current tool-calling loop (call from another thread).
 
@@ -212,7 +212,7 @@ class InterruptControlMixin:
             print("\n⚡ Interrupt requested" + (f": '{message[:40]}...'" if message and len(message) > 40 else f": '{message}'" if message else ""))
         return True
 
-    def hard_interrupt(self, message: Optional[str] = None, *, tool_reason: Optional[str] = None) -> None:
+    def hard_interrupt(self, message: str | None = None, *, tool_reason: str | None = None) -> None:
         """Explicit stop preserving the ``interrupt()`` ABI (frontends feature-detect this and fall back to
         legacy ``interrupt()`` for third-party agents). Bypasses dynamic dispatch: legacy subclasses may
         override interrupt(message=None) without hard_cancel."""
@@ -322,14 +322,14 @@ class InterruptControlMixin:
         with _ic_lock(self, "_pending_redirect_lock"):
             return bool(_ic_slot(self, "_pending_redirect_lock", "_pending_redirect"))
 
-    def _drain_pending_redirect(self) -> Optional[str]:
+    def _drain_pending_redirect(self) -> str | None:
         """Return and clear pending active-turn correction text."""
         with _ic_lock(self, "_pending_redirect_lock"):
             text = _ic_slot(self, "_pending_redirect_lock", "_pending_redirect")
             self._pending_redirect = None
         return text
 
-    def _drain_pending_steer(self) -> Optional[str]:
+    def _drain_pending_steer(self) -> str | None:
         """Return the pending steer text (if any) and clear the slot; None when nothing is pending."""
         with _ic_lock(self, "_pending_steer_lock"):
             text = _ic_slot(self, "_pending_steer_lock", "_pending_steer")

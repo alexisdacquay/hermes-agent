@@ -3,12 +3,12 @@ import logging
 import queue
 from types import SimpleNamespace
 
-import pytest
 import hermes_yaml as yaml
-
+import pytest
 from agent.status_output import StatusOutputMixin
 from tui_gateway import server
-from tests.tui_gateway.test_auto_continue import turn_env, marker_home, _session
+
+from tests.tui_gateway.test_auto_continue import _session
 
 CLARIFY_QUESTIONS = [{"qid": "q0", "question": "Continue recovery?", "choices": ["yes", "no"], "multi_select": False}]
 

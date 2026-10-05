@@ -20,9 +20,19 @@ import secrets
 import time
 from typing import Optional
 
-from hermes_cli.dashboard_auth import DashboardAuthProvider, InvalidCredentialsError, RefreshExpiredError, Session
+from hermes_cli.dashboard_auth import (
+    DashboardAuthProvider,
+    InvalidCredentialsError,
+    RefreshExpiredError,
+    Session,
+)
 from plugins.dashboard_auth._shared import (
-    NonInteractiveMixin, SkipRegistration, load_config_section, register_provider, resolve_env_or_cfg)
+    NonInteractiveMixin,
+    SkipRegistration,
+    load_config_section,
+    register_provider,
+    resolve_env_or_cfg,
+)
 
 logger = logging.getLogger(__name__)
 _TAG = "dashboard-auth-basic"
@@ -90,7 +100,7 @@ def _sign(payload: dict, secret: bytes) -> str:
     return base64.urlsafe_b64encode(raw + sig).decode()
 
 
-def _unsign(token: str, secret: bytes, kind: str) -> Optional[dict]:
+def _unsign(token: str, secret: bytes, kind: str) -> dict | None:
     """Return the payload if the signature is valid, ``kind`` matches and it
     is unexpired; ``None`` otherwise (including on any decode error)."""
     try:
@@ -148,7 +158,7 @@ class BasicAuthProvider(NonInteractiveMixin, DashboardAuthProvider):
 
     # ---- session lifecycle -------------------------------------------------
 
-    def verify_session(self, *, access_token: str) -> Optional[Session]:
+    def verify_session(self, *, access_token: str) -> Session | None:
         payload = _unsign(access_token, self._secret, "access")
         if payload is None:
             return None

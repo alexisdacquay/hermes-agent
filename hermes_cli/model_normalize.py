@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import re
-from typing import Optional
-
 # First hyphen-delimited token of a bare model name → vendor slug used by aggregator APIs
 # ("claude-sonnet-4.6" → "anthropic/claude-sonnet-4.6").
 _VENDOR_PREFIXES: dict[str, str] = {
@@ -144,7 +141,7 @@ def _strip_matching_provider_prefix(model_name: str, target_provider: str) -> st
     return remainder.strip() if normalized_prefix and normalized_prefix == normalized_target else model_name
 
 
-def detect_vendor(model_name: str) -> Optional[str]:
+def detect_vendor(model_name: str) -> str | None:
     """Vendor slug from a bare model name: an existing ``vendor/`` prefix, the first hyphen token,
     or a ``_VENDOR_PREFIXES`` key the name starts with (``qwen3.5-plus`` → ``qwen``)."""
     name = model_name.strip()
@@ -185,7 +182,7 @@ def _repair_prefix_from_catalogue(model_name: str, provider: str) -> str:
     return matches.pop() if len(matches) == 1 else model_name
 
 
-def suggest_prefixed_model_id(provider: str, model_name: str) -> Optional[str]:
+def suggest_prefixed_model_id(provider: str, model_name: str) -> str | None:
     """Prefixed catalogue id for a bare *model_name* if unambiguous, else ``None`` — the diagnostic
     counterpart to :func:`_repair_prefix_from_catalogue` for explaining a content-free 404."""
     name = (model_name or "").strip()

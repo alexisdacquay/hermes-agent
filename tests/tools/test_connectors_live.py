@@ -1,7 +1,6 @@
 """Live operation registry: one open op per session, found by op_id, closed on settle."""
 
 import pytest
-
 from tools.connectors import live
 from tools.connectors import operation as op
 

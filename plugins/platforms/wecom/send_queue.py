@@ -6,7 +6,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from typing import Dict
 
 logger = logging.getLogger("plugins.platforms.wecom.adapter")
 
@@ -19,7 +18,7 @@ class ChatSendQueueMixin:
     _BUCKET_NORMAL_TOKENS = 24
     _BUCKET_RESERVED_TOKENS = 6
 
-    def _get_token_usage(self, chat_id: str) -> Dict[str, float]:
+    def _get_token_usage(self, chat_id: str) -> dict[str, float]:
         return self._chat_token_usage.setdefault(str(chat_id or "").strip(), {"normal": 0.0, "reserved": 0.0, "last_reset": time.monotonic()})
 
     def _bucket_try_consume(self, chat_id: str, is_control: bool = False) -> float:

@@ -22,10 +22,8 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from agent.conversation_loop import _should_rearm_compression_budget
 from run_agent import AIAgent
-
 
 # ---------------------------------------------------------------------------
 # Unit: refund decision

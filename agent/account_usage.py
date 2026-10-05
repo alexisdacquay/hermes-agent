@@ -2,17 +2,22 @@ from __future__ import annotations
 
 import logging
 import math
+from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, Callable, Optional
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any
 
 import httpx
-
-from agent.anthropic_credentials import _is_oauth_token, resolve_anthropic_token
-from hermes_cli.auth import AuthError, _read_codex_tokens, resolve_codex_runtime_credentials
+from hermes_cli.auth import (
+    AuthError,
+    _read_codex_tokens,
+    resolve_codex_runtime_credentials,
+)
 from hermes_cli.auth_codex import _codex_pool_route_base_url
 from hermes_cli.runtime_provider import resolve_runtime_provider
 from hermes_time import safe_strftime
+
+from agent.anthropic_credentials import _is_oauth_token, resolve_anthropic_token
 
 if TYPE_CHECKING:
     from typing import TypeGuard
@@ -23,15 +28,15 @@ _DEPLETED_LINE = "Status: access depleted — top up to restore"
 
 
 def _utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 @dataclass(frozen=True)
 class AccountUsageWindow:
     label: str
-    used_percent: Optional[float] = None
-    reset_at: Optional[datetime] = None
-    detail: Optional[str] = None
+    used_percent: float | None = None
+    reset_at: datetime | None = None
+    detail: str | None = None
 
 
 @dataclass(frozen=True)
@@ -40,13 +45,13 @@ class AccountUsageSnapshot:
     source: str
     fetched_at: datetime
     title: str = "Account limits"
-    plan: Optional[str] = None
+    plan: str | None = None
     windows: tuple[AccountUsageWindow, ...] = ()
     details: tuple[str, ...] = ()
-    unavailable_reason: Optional[str] = None
+    unavailable_reason: str | None = None
     # Exact decoded provider response body (no headers/credentials) for integrations that need
     # fields Hermes does not normalize yet. Only populated by providers that fetch a JSON body.
-    raw: Optional[dict] = None
+    raw: dict | None = None
 
     @property
     def available(self) -> bool:
@@ -57,27 +62,27 @@ def _snapshot(provider: str, source: str, windows: list, details: list, **kw: An
     return AccountUsageSnapshot(provider=provider, source=source, fetched_at=_utc_now(), windows=tuple(windows), details=tuple(details), **kw)
 
 
-def _title_case_slug(value: Optional[str]) -> Optional[str]:
+def _title_case_slug(value: str | None) -> str | None:
     cleaned = str(value or "").strip()
     return cleaned.replace("_", " ").replace("-", " ").title() if cleaned else None
 
 
-def _parse_dt(value: Any) -> Optional[datetime]:
+def _parse_dt(value: Any) -> datetime | None:
     if value in {None, ""}:
         return None
     if isinstance(value, (int, float)):
-        return datetime.fromtimestamp(float(value), tz=timezone.utc)
+        return datetime.fromtimestamp(float(value), tz=UTC)
     if not isinstance(value, str) or not (text := value.strip()):
         return None
     text = text[:-1] + "+00:00" if text.endswith("Z") else text
     try:
         dt = datetime.fromisoformat(text)
-        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+        return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
     except ValueError:
         return None
 
 
-def _format_reset(dt: Optional[datetime]) -> str:
+def _format_reset(dt: datetime | None) -> str:
     if not dt:
         return "unknown"
     stamp = safe_strftime(dt.astimezone(), "%Y-%m-%d %H:%M %Z")
@@ -92,7 +97,7 @@ def _format_reset(dt: Optional[datetime]) -> str:
     return f"in {hours}h {minutes}m ({stamp})" if hours else f"in {minutes}m ({stamp})"
 
 
-def render_account_usage_lines(snapshot: Optional[AccountUsageSnapshot], *, markdown: bool = False) -> list[str]:
+def render_account_usage_lines(snapshot: AccountUsageSnapshot | None, *, markdown: bool = False) -> list[str]:
     if not snapshot:
         return []
     bold = "**" if markdown else ""
@@ -128,14 +133,14 @@ def _is_finite_num(v: Any) -> TypeGuard[float]:
     return _is_num(v) and not isinstance(v, bool) and math.isfinite(v)
 
 
-def _nous_snapshot(windows: list, details: list, tail: list, *, source: str, plan: Optional[str] = None) -> Optional[AccountUsageSnapshot]:
+def _nous_snapshot(windows: list, details: list, tail: list, *, source: str, plan: str | None = None) -> AccountUsageSnapshot | None:
     """Nous snapshot with *tail* lines appended, or None when there is nothing to show."""
     if not windows and not details:
         return None
     return _snapshot("nous", source, windows, details + tail, title="Nous credits", plan=plan)
 
 
-def build_nous_credits_snapshot(account_info) -> Optional[AccountUsageSnapshot]:
+def build_nous_credits_snapshot(account_info) -> AccountUsageSnapshot | None:
     """NousPortalAccountInfo → /usage snapshot: dollar magnitudes + renewal date + portal CTA, plus a ``% used``
     gauge when the portal supplies ``monthly_credits``. Fail-open → None."""
     try:
@@ -198,6 +203,7 @@ def _fetch_portal_account(timeout: float):
     and never blocks the caller or process exit; its eventual exception is
     drained so GC never logs "exception was never retrieved"."""
     import contextvars
+
     from hermes_cli.nous_account import get_nous_portal_account_info
     from tools.daemon_pool import DaemonThreadPoolExecutor
 
@@ -235,7 +241,7 @@ def nous_credits_lines(*, markdown: bool = False, timeout: float = 10.0) -> list
         return []
 
 
-def _snapshot_from_credits_state(state) -> Optional[AccountUsageSnapshot]:
+def _snapshot_from_credits_state(state) -> AccountUsageSnapshot | None:
     """Header-shaped CreditsState (dev fixture) → /usage snapshot, same shape as the portal path. *_usd strings
     are display-only; the % comes from CreditsState.used_fraction. Fail-open → None."""
     try:
@@ -269,8 +275,8 @@ class CreditsView:
 
     logged_in: bool
     balance_lines: tuple[str, ...] = ()
-    identity_line: Optional[str] = None
-    topup_url: Optional[str] = None
+    identity_line: str | None = None
+    topup_url: str | None = None
     depleted: bool = False
 
 
@@ -315,8 +321,8 @@ def _codex_backend_urls(base_url: str) -> tuple[str, str, str]:
 
 
 def _resolve_codex_usage_credentials(
-    base_url: Optional[str], api_key: Optional[str], *, force_refresh: bool = False,
-) -> tuple[str, str, Optional[str]]:
+    base_url: str | None, api_key: str | None, *, force_refresh: bool = False,
+) -> tuple[str, str, str | None]:
     """Codex quota credentials: explicit live-agent creds → native runtime resolver (itself pool-aware) → direct
     pool select. Native OAuth stores device-code logins in the pool, so the singleton store alone is not enough."""
     explicit_key = str(api_key or "").strip()
@@ -348,7 +354,7 @@ def _resolve_codex_usage_credentials(
         if force_refresh:
             resolve_kwargs["force_refresh"] = True
         creds = resolve_codex_runtime_credentials(**resolve_kwargs)
-        account_id: Optional[str] = None
+        account_id: str | None = None
         try:
             tokens = _read_codex_tokens().get("tokens") or {}
             account_id = str(tokens.get("account_id", "") or "").strip() or None
@@ -372,7 +378,7 @@ def _codex_banked_resets(payload: dict) -> int:
     return int(raw) if _is_num(raw) else 0
 
 
-def _codex_headers(token: str, account_id: Optional[str]) -> dict[str, str]:
+def _codex_headers(token: str, account_id: str | None) -> dict[str, str]:
     """auth.json's ``account_id`` wins over the JWT claim; the JWT still supplies the residency header."""
     from agent.codex_headers import codex_account_headers
     return {"Authorization": f"Bearer {token}", "Accept": "application/json", "User-Agent": "codex-cli",
@@ -430,8 +436,8 @@ def _plural(count: int) -> str:
 
 
 def _fetch_codex_account_usage(
-    base_url: Optional[str] = None, api_key: Optional[str] = None,
-) -> Optional[AccountUsageSnapshot]:
+    base_url: str | None = None, api_key: str | None = None,
+) -> AccountUsageSnapshot | None:
     token, resolved_base_url, account_id = _resolve_codex_usage_credentials(base_url, api_key)
     try:
         payload = _get_json(
@@ -484,14 +490,14 @@ def _unavailable(message: str) -> CodexResetRedeemResult:
     return CodexResetRedeemResult(status="unavailable", message=message)
 
 
-def _codex_reset_guard(payload: dict, available: int, force: bool) -> Optional[CodexResetRedeemResult]:
+def _codex_reset_guard(payload: dict, available: int, force: bool) -> CodexResetRedeemResult | None:
     """Refuse a redemption that would be wasted (no banked credits, or no window fully used and not ``force``)."""
     if available <= 0:
         return CodexResetRedeemResult(status="no_credits_banked", message="No banked reset credits on this account — nothing to redeem.")
     rate_limit = payload.get("rate_limit") or {}
     used_pcts = [float(u) for u in ((rate_limit.get(k) or {}).get("used_percent") for k in ("primary_window", "secondary_window"))
                  if _is_num(u)]
-    worst_used: Optional[float] = max(0.0, *used_pcts) if used_pcts else None
+    worst_used: float | None = max(0.0, *used_pcts) if used_pcts else None
     if force or (worst_used is not None and worst_used >= _CODEX_WINDOW_EXHAUSTED_PERCENT):
         return None
     usage_note = (f"your busiest window is only {worst_used:.0f}% used" if worst_used is not None
@@ -533,7 +539,7 @@ def _codex_reset_outcome(body: dict, available: int) -> CodexResetRedeemResult:
 
 
 def redeem_codex_reset_credit(
-    *, base_url: Optional[str] = None, api_key: Optional[str] = None, force: bool = False,
+    *, base_url: str | None = None, api_key: str | None = None, force: bool = False,
 ) -> CodexResetRedeemResult:
     """Redeem one banked Codex rate-limit reset credit (`/usage reset`), mirroring the Codex CLI picker: GET usage →
     guard (a reset restores the WHOLE 5h + weekly allowance, and the backend's own ``nothing_to_reset`` guard is
@@ -587,8 +593,8 @@ def redeem_codex_reset_credit(
 
 
 def _fetch_anthropic_account_usage(
-    base_url: Optional[str] = None, api_key: Optional[str] = None
-) -> Optional[AccountUsageSnapshot]:
+    base_url: str | None = None, api_key: str | None = None
+) -> AccountUsageSnapshot | None:
     token = (resolve_anthropic_token() or "").strip()
     if not token:
         return None
@@ -610,7 +616,7 @@ def _fetch_anthropic_account_usage(
     return _snapshot("anthropic", "oauth_usage_api", windows, details)
 
 
-def _fetch_openrouter_account_usage(base_url: Optional[str], api_key: Optional[str]) -> Optional[AccountUsageSnapshot]:
+def _fetch_openrouter_account_usage(base_url: str | None, api_key: str | None) -> AccountUsageSnapshot | None:
     runtime = resolve_runtime_provider(requested="openrouter", explicit_base_url=base_url, explicit_api_key=api_key)
     token = str(runtime.get("api_key", "") or "").strip()
     if not token:
@@ -647,7 +653,7 @@ def _fetch_openrouter_account_usage(base_url: Optional[str], api_key: Optional[s
     return _snapshot("openrouter", "credits_api", windows, details)
 
 
-_USAGE_FETCHERS: dict[str, Callable[[Optional[str], Optional[str]], Optional[AccountUsageSnapshot]]] = {
+_USAGE_FETCHERS: dict[str, Callable[[str | None, str | None], AccountUsageSnapshot | None]] = {
     "openai-codex": _fetch_codex_account_usage, "anthropic": _fetch_anthropic_account_usage,
     "openrouter": _fetch_openrouter_account_usage,
 }
@@ -660,11 +666,12 @@ _USAGE_FETCHERS: dict[str, Callable[[Optional[str], Optional[str]], Optional[Acc
 PLUGIN_USAGE_HOOK_DEADLINE_S = 10.0
 
 
-def _call_plugin_usage_hook(profile, base_url: Optional[str], api_key: Optional[str]) -> Optional[AccountUsageSnapshot]:
+def _call_plugin_usage_hook(profile, base_url: str | None, api_key: str | None) -> AccountUsageSnapshot | None:
     """Run the profile hook under the shared deadline; past it → None. Exceptions re-raise in the
     caller so ``fetch_account_usage`` fails open without a worker-thread traceback on ``/usage``."""
-    from agent.deadline import run_bounded_sync
     from providers.base import ProviderProfile
+
+    from agent.deadline import run_bounded_sync
 
     if type(profile).fetch_account_usage is ProviderProfile.fetch_account_usage:
         return None  # base no-op: no thread to spawn
@@ -675,8 +682,8 @@ def _call_plugin_usage_hook(profile, base_url: Optional[str], api_key: Optional[
 
 
 def fetch_account_usage(
-    provider: Optional[str], *, base_url: Optional[str] = None, api_key: Optional[str] = None,
-) -> Optional[AccountUsageSnapshot]:
+    provider: str | None, *, base_url: str | None = None, api_key: str | None = None,
+) -> AccountUsageSnapshot | None:
     from agent.account_usage_cache import remember_account_usage
 
     fetcher = _USAGE_FETCHERS.get(str(provider or "").strip().lower())

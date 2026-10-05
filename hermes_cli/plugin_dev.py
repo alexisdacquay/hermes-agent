@@ -59,8 +59,9 @@ def _doctor_runtime(plugin_path: Path):
         stack.close()
         raise
 
-    from hermes_cli.plugins import PluginManager
     from tools.registry import registry
+
+    from hermes_cli.plugins import PluginManager
     entries_before = {entry.name: entry for entry in registry._snapshot_entries()}
     policy_before = dict(registry._plugin_override_policy)
     modules_before = {name for name in sys.modules if _is_plugin_module(name)}
@@ -272,10 +273,11 @@ def _accepts_var_kwargs(callback: Any) -> bool:
     return any(parameter.kind is inspect.Parameter.VAR_KEYWORD for parameter in parameters)
 
 
-def _check_manifest_v2(report: "DoctorReport", manifest: Any) -> None:
+def _check_manifest_v2(report: DoctorReport, manifest: Any) -> None:
     """Manifest v2 checks: versions, deps, pip declarations, config schema."""
     import importlib.metadata
     import re as _re
+
     from hermes_cli.plugins import SUPPORTED_MANIFEST_VERSION
     mv = getattr(manifest, "manifest_version", 1)
     if mv > SUPPORTED_MANIFEST_VERSION:

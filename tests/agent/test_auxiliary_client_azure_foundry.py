@@ -214,8 +214,8 @@ class TestAuxAzureFoundryEntra:
         detects the callable and installs the bearer-injecting httpx
         event hook on a custom ``httpx.Client`` passed to the
         Anthropic SDK via ``http_client=``."""
-        from agent import auxiliary_client as _aux
         from agent import anthropic_adapter as _anthropic
+        from agent import auxiliary_client as _aux
 
         received = {}
 
@@ -326,7 +326,7 @@ class TestResolveProviderClientAzureFoundry:
             "auth_mode": "entra_id",
             "default": "gpt-4o",
         })
-        main_token_provider = lambda: "main-session-jwt"  # noqa: E731
+        main_token_provider = lambda: "main-session-jwt"
         client, resolved, effective = _aux._resolve_auto_route(main_runtime={
             "provider": "azure-foundry", "model": "gpt-4o", "api_mode": "chat_completions",
             "base_url": "https://r.openai.azure.com/openai/v1", "api_key": main_token_provider,
@@ -343,6 +343,7 @@ class TestResolveProviderClientAzureFoundry:
         (e.g. no model + no key), we return (None, None) and log a
         clear warning pointing at ``hermes doctor``."""
         import logging
+
         from agent.auxiliary_client import resolve_provider_client
 
         monkeypatch.delenv("AZURE_FOUNDRY_API_KEY", raising=False)

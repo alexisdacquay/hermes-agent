@@ -5,9 +5,9 @@ Facade-owned state is read through ``_bt`` (``tools.browser_tool``, resolved per
 """
 
 import re
-from typing import Any, Optional
-from tools.browser_tool_origin import origin as _bt
+from typing import Any
 
+from tools.browser_tool_origin import origin as _bt
 
 _SCREENSHOT_PATH_PATTERNS = (
     r"Screenshot saved to ['\"](?P<path>/[^'\"]+?\.png)['\"]",
@@ -16,7 +16,7 @@ _SCREENSHOT_PATH_PATTERNS = (
 )
 
 
-def _extract_screenshot_path_from_text(text: str) -> Optional[str]:
+def _extract_screenshot_path_from_text(text: str) -> str | None:
     """Extract a screenshot file path from agent-browser human-readable output."""
     if not text:
         return None
@@ -30,7 +30,7 @@ def _extract_screenshot_path_from_text(text: str) -> Optional[str]:
     return None
 
 
-def _store_full_snapshot(snapshot_text: str) -> Optional[str]:
+def _store_full_snapshot(snapshot_text: str) -> str | None:
     """Write a full snapshot to cache/web and return its path (None on failure — best-effort).
 
     Mirrors ``web_tools._store_full_text``: cache/web is mounted read-only into
@@ -40,8 +40,9 @@ def _store_full_snapshot(snapshot_text: str) -> Optional[str]:
     """
     try:
         import hashlib
-        from hermes_constants import get_hermes_dir
+
         from agent.redact import redact_sensitive_text
+        from hermes_constants import get_hermes_dir
 
         content = redact_sensitive_text(snapshot_text, force=True)
         if len(content) > _bt.MAX_STORED_SNAPSHOT_CHARS:
@@ -66,7 +67,7 @@ def _store_full_snapshot(snapshot_text: str) -> Optional[str]:
         return None
 
 
-def _truncate_snapshot(snapshot_text: str, max_chars: Optional[int] = None) -> str:
+def _truncate_snapshot(snapshot_text: str, max_chars: int | None = None) -> str:
     """Truncate a snapshot at line boundaries (never mid-element) to ``max_chars``.
 
     Defaults to ``browser.snapshot_threshold``. The full snapshot is stored to

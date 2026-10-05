@@ -5,7 +5,6 @@ traceback. Corruption arrives via partial-write survivors, manual edits of the
 envelope, or format drift."""
 
 import pytest
-
 from agent.vault_store import VaultError, VaultStore
 
 

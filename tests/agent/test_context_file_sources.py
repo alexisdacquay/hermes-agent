@@ -7,8 +7,10 @@ parity: a file is reported ``loaded`` iff its content appears in the built promp
 from pathlib import Path
 
 import pytest
-
-from agent.context_file_sources import list_context_file_sources, render_context_file_lines
+from agent.context_file_sources import (
+    list_context_file_sources,
+    render_context_file_lines,
+)
 from agent.prompt_builder import build_context_files_prompt
 
 

@@ -12,9 +12,8 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 import plugins.image_gen.deepinfra as deepinfra_plugin
+import pytest
 
 # 1×1 transparent PNG — valid bytes for save_b64_image()
 _PNG_HEX = (
@@ -40,7 +39,8 @@ def test_list_models_filters_by_image_gen_tag(monkeypatch):
     """Plugin-side wiring: list_models() returns only ``image-gen``-tagged
     catalog entries and surfaces pricing + default dims when present."""
     import json
-    import hermes_cli.models as models
+
+    from hermes_cli import models
 
     class _Resp:
         def __enter__(self): return self

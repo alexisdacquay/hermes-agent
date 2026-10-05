@@ -7,8 +7,11 @@ block. Every such report was a false positive (546 in one run); the lexer now st
 simple command: an unquoted ``;`` ``|`` ``&`` newline, or the ``)`` / backtick closing its substitution.
 """
 import pytest
-
-from tools.approval_detection import _quoted_grep_pattern_spans, _shell_tokens_with_spans, detect_hardline_command
+from tools.approval_detection import (
+    _quoted_grep_pattern_spans,
+    _shell_tokens_with_spans,
+    detect_hardline_command,
+)
 
 
 @pytest.mark.parametrize("command", [

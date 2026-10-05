@@ -9,14 +9,14 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 from urllib.request import urlopen
 
-import pytest
-
 import hermes_cli.auth
 import providers
+import pytest
 from hermes_cli import auth_oauth_pkce_plugin as pkce
 from hermes_cli.auth_constants import AuthError
 from providers import register_provider
 from providers.base import ProviderProfile
+
 from tests.providers.fake_pkce_idp import FakeIdP
 
 PROVIDER = "example-pkce"

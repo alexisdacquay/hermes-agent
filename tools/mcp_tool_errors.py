@@ -9,9 +9,10 @@ import importlib
 import logging
 import os
 import re
-from typing import Any, List, Optional
+from typing import Any
 from urllib.parse import urlparse
-from tools.mcp_tool_common import _sanitize_error, _core
+
+from tools.mcp_tool_common import _core, _sanitize_error
 from tools.mcp_tool_node_abi import NodeAbiMismatchError
 
 logger = logging.getLogger("tools.mcp_tool")
@@ -232,7 +233,6 @@ def _resolve_identity_header(server_name: str, config: dict):
 
     def _ignore(detail: str, *args):
         logger.warning("MCP server '%s': identity_header " + detail + " — ignoring", server_name, *args)
-        return None
     if not isinstance(raw, dict):
         return _ignore("must be a mapping with 'name' and 'value'/'value_from' keys (got %s)", type(raw).__name__)
     name = raw.get("name")
@@ -265,7 +265,7 @@ def _apply_identity_header(server_name: str, config: dict, headers: dict) -> dic
 
 
 def _make_redirect_header_stripper(httpx_mod, original_url, *, strict: bool = False,
-                                   configured_header_names: "set[str] | frozenset[str]" = frozenset()):
+                                   configured_header_names: set[str] | frozenset[str] = frozenset()):
     """Client factory enforcing the redirect credential boundary: on a cross-origin redirect
     follow-up it strips ``Authorization``; with *strict* (Agent Plugins v1 ``strict_redirect_headers``)
     every configured header (lowercase names in *configured_header_names*) is stripped too — v1 forbids
@@ -386,7 +386,7 @@ def _make_mcp_body_cap_transport(httpx_mod, inner_transport, limit: int = _MCP_H
 _EXC_TRAVERSAL_MAX_NODES = 10_000
 
 
-def _exc_children(exc: BaseException) -> List[BaseException]:
+def _exc_children(exc: BaseException) -> list[BaseException]:
     """A group's sub-exceptions (if any) followed by ``__cause__``/``__context__`` when they are exceptions — a
     group raised inside an ``except`` block carries the caught error as ``__context__``, so the chain is never
     skipped."""
@@ -394,7 +394,7 @@ def _exc_children(exc: BaseException) -> List[BaseException]:
     return [*nested, *(c for c in (exc.__cause__, exc.__context__) if isinstance(c, BaseException))]
 
 
-def _iter_exception_nodes(exc: BaseException) -> List[BaseException]:
+def _iter_exception_nodes(exc: BaseException) -> list[BaseException]:
     """Pre-order, left-to-right walk of an exception tree/chain, each node once. ``__cause__``/``__context__``
     can point back at an ancestor (a raised-and-caught pair does this routinely, e.g. the same OAuth error
     raised on the Streamable-HTTP attempt and again on the SSE fallback), so a naive recursive walk dies with
@@ -402,7 +402,7 @@ def _iter_exception_nodes(exc: BaseException) -> List[BaseException]:
     blow-ups."""
     stack = [exc]
     seen: set[int] = set()
-    ordered: List[BaseException] = []
+    ordered: list[BaseException] = []
     while stack and len(ordered) < _EXC_TRAVERSAL_MAX_NODES:
         current = stack.pop()
         if id(current) in seen:
@@ -417,7 +417,7 @@ def _format_connect_error(exc: BaseException) -> str:
     """Render nested MCP connection errors into an actionable short message."""
     nodes = _iter_exception_nodes(exc)
 
-    def _find_missing() -> Optional[str]:
+    def _find_missing() -> str | None:
         for current in nodes:
             if isinstance(current, FileNotFoundError):
                 if getattr(current, "filename", None):
@@ -427,8 +427,8 @@ def _format_connect_error(exc: BaseException) -> str:
                     return match.group(1)
         return None
 
-    def _flatten_messages() -> List[str]:
-        messages: List[str] = []
+    def _flatten_messages() -> list[str]:
+        messages: list[str] = []
         for current in nodes:
             # A group's own str() is opaque — only its children speak; a message-less leaf still names its type.
             text = "" if getattr(current, "exceptions", None) else str(current).strip()
@@ -462,7 +462,7 @@ def _optional_types(module: str, *names: str) -> list:
 
 
 # Lazily-built ``(auth_types, http_status_types)`` so this module imports without the SDK OAuth module.
-_AUTH_ERROR_TYPES: Optional[tuple] = None
+_AUTH_ERROR_TYPES: tuple | None = None
 
 
 def _get_auth_error_types() -> tuple:

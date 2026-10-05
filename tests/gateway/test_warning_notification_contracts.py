@@ -6,7 +6,6 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
-
 from agent import empty_response_guard
 from agent.status_output import StatusOutputMixin
 from agent.turn_api_call import nous_rate_limit_guard

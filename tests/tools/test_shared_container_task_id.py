@@ -16,7 +16,6 @@ Docker Backend in ``website/docs/user-guide/configuration.md``.
 """
 
 import pytest
-
 from tools import terminal_tool
 
 

@@ -16,7 +16,6 @@ DISCORD_ALLOW_BOTS permits it AND no user allowlist entry exists.
 from types import SimpleNamespace
 
 import pytest
-
 from gateway.session import Platform, SessionSource
 
 

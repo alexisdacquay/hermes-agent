@@ -6,13 +6,13 @@ import logging
 import os
 import time
 import uuid
-from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING, Optional
+from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING
 
 from hermes_state_ids import new_session_id
 
 if TYPE_CHECKING:
-    from gateway.session import SessionEntry, SessionSource
+    from gateway.session import SessionEntry
 
 # Log-record parity with the origin module.
 logger = logging.getLogger("gateway.session")
@@ -27,11 +27,11 @@ def _new_session_id(now: datetime) -> str:
     return new_session_id(now, hex_len=8)
 
 
-def _iso(dt: Optional[datetime]) -> Optional[str]:
+def _iso(dt: datetime | None) -> str | None:
     return dt.isoformat() if dt else None
 
 
-def _parse_iso(value) -> Optional[datetime]:
+def _parse_iso(value) -> datetime | None:
     """``datetime.fromisoformat`` that returns None for empty/malformed input."""
     if not value:
         return None
@@ -58,7 +58,7 @@ def auto_continue_freshness_window() -> float:
 class SessionLifecycleMixin:
     """SessionStore explicit boundaries and crash-recovery markers."""
 
-    def _is_session_ended_in_db(self, session_id: str, session_key: Optional[str] = None) -> bool:
+    def _is_session_ended_in_db(self, session_id: str, session_key: str | None = None) -> bool:
         """True iff state.db says the session is gone: ended (non-null end_reason) or hard-deleted
         (no row in a readable owning DB). No DB or a DB error -> False (same failure mode as
         ``_prune_stale_sessions_locked``). Lets routing self-heal a session finalized or deleted
@@ -89,7 +89,7 @@ class SessionLifecycleMixin:
             return False
         return row is None or row.get("end_reason") is not None
 
-    def _route_reset_reason(self, entry: SessionEntry) -> Optional[str]:
+    def _route_reset_reason(self, entry: SessionEntry) -> str | None:
         """Only explicit suspension replaces a routed conversation; time never does."""
         return "suspended" if entry.suspended else None
 
@@ -137,7 +137,7 @@ class SessionLifecycleMixin:
         if touched is not None:
             entry.updated_at = touched
 
-    def mark_turn_active(self, session_key: str) -> Optional[str]:
+    def mark_turn_active(self, session_key: str) -> str | None:
         """Persist exact ownership of the running agent turn; returns the opaque token for
         :meth:`clear_turn_active`. Re-marking replaces the previous token so a stale asynchronous
         unwind cannot clear a newer turn."""
@@ -148,7 +148,7 @@ class SessionLifecycleMixin:
                 return None
             # Aware UTC, unlike the local wall clock elsewhere: the next process compares it with
             # epoch transcript timestamps and may run in another zone (DST, container vs unit TZ).
-            self._set_turn_marker_locked(session_key, entry, token, datetime.now(timezone.utc))
+            self._set_turn_marker_locked(session_key, entry, token, datetime.now(UTC))
         return token
 
     def clear_turn_active(self, session_key: str, token: str) -> bool:

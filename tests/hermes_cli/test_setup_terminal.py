@@ -1,10 +1,9 @@
 """Tests for hermes_cli/setup_terminal.py backend wizards."""
 
 import pytest
-
-from hermes_cli.config import save_env_value, get_env_value
 from hermes_cli import setup as setup_mod
 from hermes_cli import setup_terminal
+from hermes_cli.config import get_env_value, save_env_value
 
 
 @pytest.fixture

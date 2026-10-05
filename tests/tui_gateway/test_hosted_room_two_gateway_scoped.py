@@ -11,7 +11,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 from aiohttp import web
 from aiohttp.test_utils import TestServer
-
 from gateway.config import PlatformConfig
 from gateway.hosted_rooms import local_authority_gateway_id
 from gateway.platforms.api_server import APIServerAdapter

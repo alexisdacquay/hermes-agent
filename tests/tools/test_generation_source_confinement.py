@@ -11,7 +11,6 @@ import base64
 import json
 
 import pytest
-
 import tools.image_generation_tool as igt
 
 PNG = base64.b64decode(

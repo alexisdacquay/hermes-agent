@@ -10,16 +10,16 @@ in 1-2 sentences; pure function, no I/O or config reads.
 from __future__ import annotations
 
 import re
-from typing import Callable, Optional
+from collections.abc import Callable
 
 _SCAN_CHARS = 4000
 
 
-def _regex_hint(pattern: str, message: str | Callable[[str], str], flags: int = 0) -> Callable[[str, str], Optional[str]]:
+def _regex_hint(pattern: str, message: str | Callable[[str], str], flags: int = 0) -> Callable[[str, str], str | None]:
     """Hint firing when ``pattern`` matches; ``{0}`` = first group, or ``message(group1)``."""
     rx = re.compile(pattern, flags)
 
-    def hint(command: str, output: str) -> Optional[str]:
+    def hint(command: str, output: str) -> str | None:
         m = rx.search(output)
         if m:
             return message(m.group(1)) if callable(message) else message.format(*m.groups())
@@ -44,7 +44,7 @@ def _missing_command_hint(missing: str) -> str:
 
 
 # Ordered by production frequency — first match wins.
-_OUTPUT_HINTS: list[Callable[[str, str], Optional[str]]] = [
+_OUTPUT_HINTS: list[Callable[[str, str], str | None]] = [
     # gh version drift; gh already prints the valid field list.
     _regex_hint(r'Unknown JSON field: "?(\w+)',
                 "The installed gh does not support the JSON field '{0}'. The valid field list is "
@@ -52,7 +52,7 @@ _OUTPUT_HINTS: list[Callable[[str, str], Optional[str]]] = [
     _regex_hint(r"^CONFLICT |Automatic merge failed|needs merge",
                 "Git merge conflict. Do not retry this command. Resolve the conflicted files "
                 "listed above (edit, then `git add`), then continue (`git rebase --continue` / "
-                "commit the merge) — or abort with `--abort`.", re.M),
+                "commit the merge) — or abort with `--abort`.", re.MULTILINE),
     _regex_hint(r"(?:bash: line \d+: |bash: |sh: \d*:? ?)?([\w.+-]+): command not found",
                 _missing_command_hint),
     # Almost always a venv-activation slip, not a missing dependency.
@@ -136,7 +136,7 @@ def _first_token(command: str) -> str:
     return ""
 
 
-def annotate_masked_success(command: str, output: str) -> Optional[str]:
+def annotate_masked_success(command: str, output: str) -> str | None:
     """Warning note when an exit-0 result likely masks a failure (caller gates on exit 0)."""
     cmd = command or ""
     window = (output or "")[:_SCAN_CHARS]
@@ -146,7 +146,7 @@ def annotate_masked_success(command: str, output: str) -> Optional[str]:
     return next((note for rx, note in _MASKING_SHAPES if rx.search(cmd)), None)
 
 
-def annotate_failure(command: str, exit_code: int, output: str) -> Optional[str]:
+def annotate_failure(command: str, exit_code: int, output: str) -> str | None:
     """Return one short recovery hint for a failed command, or None (exit 0)."""
     if exit_code == 0:
         return None

@@ -8,7 +8,6 @@ by ``test_browser_extension_router.py``; here we only pin the plumbing.
 """
 
 import pytest
-
 from tools.registry import registry
 
 
@@ -31,8 +30,7 @@ def _route_spy(monkeypatch):
         )
         return fallback()
 
-    import tools.browser_tool as browser_tool
-    import tools.browser_cdp_tool as browser_cdp_tool
+    from tools import browser_cdp_tool, browser_tool
 
     monkeypatch.setattr(browser_tool, "routed_browser_handler", spy)
     monkeypatch.setattr(browser_cdp_tool, "routed_browser_handler", spy)

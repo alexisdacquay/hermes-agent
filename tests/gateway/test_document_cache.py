@@ -10,7 +10,6 @@ import time
 from pathlib import Path
 
 import pytest
-
 from gateway.platforms.base import (
     SUPPORTED_DOCUMENT_TYPES,
     cache_document_from_bytes,

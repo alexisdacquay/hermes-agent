@@ -19,7 +19,6 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
-
 from agent.repetition_guard import STOP_PATH_MIN_CHARS
 
 _TURN_BOUND_S = 30.0

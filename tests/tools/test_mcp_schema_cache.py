@@ -5,7 +5,6 @@ fingerprint keying, read/write round-trip, and invalidation behavior.
 """
 
 import pytest
-
 import tools.mcp_schema_cache as msc
 from tools import mcp_tool_registration as _mcp_registration
 
@@ -120,9 +119,8 @@ class TestWriteThroughPreservesSchema:
         import json
         from unittest.mock import MagicMock, patch
 
-        from mcp.types import Tool
-
         import tools.mcp_tool as mt
+        from mcp.types import Tool
         from tools.registry import ToolRegistry
 
         monkeypatch.setattr(msc, "_cache_path", lambda: tmp_path / "cache.json")

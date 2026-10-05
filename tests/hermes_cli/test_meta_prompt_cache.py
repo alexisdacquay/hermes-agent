@@ -1,9 +1,9 @@
 """Behavior contracts for Meta Muse prompt-caching host mandate."""
 
 import pytest
-
-from hermes_cli.providers import determine_api_mode, host_mandated_api_mode
 from hermes_cli import runtime_provider as rp
+from hermes_cli.providers import determine_api_mode, host_mandated_api_mode
+
 
 class TestHostMandatedMetaResponses:
     @pytest.mark.parametrize(

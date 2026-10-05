@@ -2,8 +2,6 @@
 
 from unittest.mock import patch
 
-import pytest
-
 
 class TestResolveRuntimeAgentKwargsAuthFallback:
     """_resolve_runtime_agent_kwargs should try fallback on AuthError."""

@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import os
 import subprocess
-from typing import Dict, Optional
 
 from hermes_cli._subprocess_compat import harden_git_argv, noninteractive_repo_git_env
 
@@ -22,7 +21,7 @@ TAIL_CHARS = 2_000
 _GIT_TIMEOUT_S = 5
 
 
-def transcript_tail(path: str, *, lines: int = TAIL_LINES, chars: int = TAIL_CHARS) -> Optional[str]:
+def transcript_tail(path: str, *, lines: int = TAIL_LINES, chars: int = TAIL_CHARS) -> str | None:
     """Last ``lines`` lines (at most ``chars`` characters) of a live transcript; None when unreadable."""
     try:
         with open(path, "rb") as fh:
@@ -38,11 +37,11 @@ def transcript_tail(path: str, *, lines: int = TAIL_LINES, chars: int = TAIL_CHA
     return tail or None
 
 
-def transcript_tails(paths: Dict[str, str]) -> Dict[str, str]:
+def transcript_tails(paths: dict[str, str]) -> dict[str, str]:
     return {index: tail for index, path in (paths or {}).items() if (tail := transcript_tail(path))}
 
 
-def git_state_hint(cwd: Optional[str]) -> Optional[str]:
+def git_state_hint(cwd: str | None) -> str | None:
     """``branch @ sha (N uncommitted file(s))`` for the owner's cwd; None when not a git checkout."""
     if not cwd or not os.path.isdir(cwd):
         return None
@@ -53,7 +52,7 @@ def git_state_hint(cwd: Optional[str]) -> Optional[str]:
     if env is None:
         return None
 
-    def run(*args: str) -> Optional[str]:
+    def run(*args: str) -> str | None:
         try:
             out = subprocess.run(["git", "-C", cwd, *harden_git_argv(args)], capture_output=True,
                                  text=True, encoding="utf-8", errors="replace",

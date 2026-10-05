@@ -6,21 +6,27 @@ from __future__ import annotations
 
 import logging
 import os
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
+from typing import Any
 
 from agent.image_gen_provider import (
-    ImageGenProvider, error_response, normalize_reference_images, save_b64_image, save_url_image)
+    ImageGenProvider,
+    error_response,
+    normalize_reference_images,
+    save_b64_image,
+    save_url_image,
+)
 
 logger = logging.getLogger(__name__)
 
 # OpenAI-style ``size`` per semantic aspect, shared by every OpenAI-compatible backend.
-OPENAI_SIZES: Dict[str, str] = {"landscape": "1536x1024", "square": "1024x1024", "portrait": "1024x1536"}
+OPENAI_SIZES: dict[str, str] = {"landscape": "1536x1024", "square": "1024x1024", "portrait": "1024x1536"}
 
 # gpt-image-2 quality tiers as virtual model ids (same API model, different ``quality`` knob).
 GPT_IMAGE_2_API_MODEL = "gpt-image-2"
 GPT_IMAGE_2_DEFAULT = "gpt-image-2-medium"
-GPT_IMAGE_2_TIERS: Dict[str, Dict[str, Any]] = {
+GPT_IMAGE_2_TIERS: dict[str, dict[str, Any]] = {
     "gpt-image-2-low": {
         "display": "GPT Image 2 (Low)",
         "speed": "~15s",
@@ -44,7 +50,7 @@ GPT_IMAGE_2_TIERS: Dict[str, Dict[str, Any]] = {
 PROMPT_REQUIRED = "Prompt is required and must be a non-empty string"
 OPENAI_MISSING = "openai Python package not installed (pip install openai)"
 
-ErrorFn = Callable[..., Dict[str, Any]]
+ErrorFn = Callable[..., dict[str, Any]]
 
 
 def size_for(aspect: str) -> str:
@@ -52,7 +58,7 @@ def size_for(aspect: str) -> str:
     return OPENAI_SIZES.get(aspect, OPENAI_SIZES["square"])
 
 
-def load_image_gen_config(sub: Optional[str] = None) -> Dict[str, Any]:
+def load_image_gen_config(sub: str | None = None) -> dict[str, Any]:
     """Read ``image_gen`` (or ``image_gen.<sub>``) from config.yaml; ``{}`` on any failure."""
     label = "image_gen" if sub is None else f"image_gen.{sub}"
     try:
@@ -69,10 +75,10 @@ def load_image_gen_config(sub: Optional[str] = None) -> Dict[str, Any]:
 
 
 def resolve_static_model(
-    models: Dict[str, Dict[str, Any]], default: str, *, env_var: str, config_key: str,
-    explicit: Optional[str] = None, include_top_level: bool = True,
-    config: Optional[Dict[str, Any]] = None, passthrough: bool = False,
-) -> Tuple[str, Dict[str, Any]]:
+    models: dict[str, dict[str, Any]], default: str, *, env_var: str, config_key: str,
+    explicit: str | None = None, include_top_level: bool = True,
+    config: dict[str, Any] | None = None, passthrough: bool = False,
+) -> tuple[str, dict[str, Any]]:
     """``(model_id, meta)`` from a fixed catalog; first *known* id wins (unknown ids fall through):
     explicit → ``env_var`` → ``image_gen.<config_key>.model`` → ``image_gen.model`` → ``default``.
 
@@ -101,10 +107,10 @@ def resolve_static_model(
 
 
 def collect_source_images(
-    image_url: Optional[str], reference_image_urls: Optional[List[str]], limit: Optional[int] = None
-) -> List[str]:
+    image_url: str | None, reference_image_urls: list[str] | None, limit: int | None = None
+) -> list[str]:
     """Primary ``image_url`` first, then normalized references, clamped to ``limit``."""
-    sources: List[str] = []
+    sources: list[str] = []
     if isinstance(image_url, str) and image_url.strip():
         sources.append(image_url.strip())
     sources.extend(normalize_reference_images(reference_image_urls) or [])
@@ -112,14 +118,14 @@ def collect_source_images(
 
 
 def catalog_rows(
-    models: Dict[str, Dict[str, Any]],
+    models: dict[str, dict[str, Any]],
     fields: Iterable[str] = ("display", "speed", "strengths", "price"), *,
-    price: Optional[str] = None,
-) -> List[Dict[str, Any]]:
+    price: str | None = None,
+) -> list[dict[str, Any]]:
     """Picker rows: ``id`` + ``fields`` (missing ``display`` → id, else ``""``); ``price`` overrides."""
     rows = []
     for model_id, meta in models.items():
-        row: Dict[str, Any] = {"id": model_id}
+        row: dict[str, Any] = {"id": model_id}
         for field in fields:
             row[field] = meta.get(field, model_id if field == "display" else "")
         if price is not None:
@@ -130,7 +136,7 @@ def catalog_rows(
 
 def api_key_setup_schema(
     name: str, badge: str, tag: str, *, key: str, prompt: str, url: str
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """``get_setup_schema()`` dict for a provider authenticated by one env var."""
     return {
         "name": name, "badge": badge, "tag": tag, "env_vars": [{"key": key, "prompt": prompt, "url": url}],
@@ -144,11 +150,11 @@ class StaticImageGenProvider(ImageGenProvider):
 
     provider_id: str
     label: str
-    models: Dict[str, Dict[str, Any]] = {}
-    default_model_id: Optional[str] = None
-    price: Optional[str] = None
-    catalog_fields: Tuple[str, ...] = ("display", "speed", "strengths", "price")
-    setup: Dict[str, Any] = {}
+    models: dict[str, dict[str, Any]] = {}
+    default_model_id: str | None = None
+    price: str | None = None
+    catalog_fields: tuple[str, ...] = ("display", "speed", "strengths", "price")
+    setup: dict[str, Any] = {}
 
     @property
     def name(self) -> str:
@@ -158,20 +164,20 @@ class StaticImageGenProvider(ImageGenProvider):
     def display_name(self) -> str:
         return self.label
 
-    def list_models(self) -> List[Dict[str, Any]]:
+    def list_models(self) -> list[dict[str, Any]]:
         return catalog_rows(self.models, self.catalog_fields, price=self.price)
 
-    def default_model(self) -> Optional[str]:
+    def default_model(self) -> str | None:
         return self.default_model_id
 
-    def get_setup_schema(self) -> Dict[str, Any]:
+    def get_setup_schema(self) -> dict[str, Any]:
         return api_key_setup_schema(**self.setup)
 
 
 def error_factory(provider: str, aspect: str, *, model: str = "", prompt: str = "") -> ErrorFn:
     """Return ``fail(error, error_type, **override)`` pre-bound to this call's context."""
 
-    def fail(error: str, error_type: str, **override: Any) -> Dict[str, Any]:
+    def fail(error: str, error_type: str, **override: Any) -> dict[str, Any]:
         kwargs = dict(provider=provider, model=model, prompt=prompt, aspect_ratio=aspect)
         kwargs.update(override)
         return error_response(error=error, error_type=error_type, **kwargs)
@@ -179,7 +185,7 @@ def error_factory(provider: str, aspect: str, *, model: str = "", prompt: str = 
     return fail
 
 
-def prompt_required_error(provider: str, aspect: str) -> Dict[str, Any]:
+def prompt_required_error(provider: str, aspect: str) -> dict[str, Any]:
     return error_factory(provider, aspect)(PROMPT_REQUIRED, "invalid_argument")
 
 
@@ -187,7 +193,7 @@ def openai_importable() -> bool:
     return import_openai("", "")[0] is not None
 
 
-def import_openai(provider: str, aspect: str) -> Tuple[Any, Optional[Dict[str, Any]]]:
+def import_openai(provider: str, aspect: str) -> tuple[Any, dict[str, Any] | None]:
     """Return ``(openai_module, None)`` or ``(None, missing_dependency error)``."""
     try:
         import openai
@@ -197,10 +203,10 @@ def import_openai(provider: str, aspect: str) -> Tuple[Any, Optional[Dict[str, A
 
 
 def materialize_image(
-    b64: Optional[str], url: Optional[str], *, prefix: str, label: str, provider: str, model: str,
+    b64: str | None, url: str | None, *, prefix: str, label: str, provider: str, model: str,
     prompt: str, aspect: str, log: logging.Logger = logger,
-    on_url_fail: Optional[Callable[[Exception], None]] = None,
-) -> Tuple[Optional[str], Optional[Dict[str, Any]]]:
+    on_url_fail: Callable[[Exception], None] | None = None,
+) -> tuple[str | None, dict[str, Any] | None]:
     """``(image_ref, None)`` or ``(None, error)`` for a ``(b64_json, url)`` pair. Base64 is always
     cached (write failure → ``io_error``); a URL is cached best-effort, falling back to the bare URL."""
     fail = error_factory(provider, aspect, model=model, prompt=prompt)
@@ -216,7 +222,7 @@ def materialize_image(
 
 def cache_url_best_effort(
     url: str, *, prefix: str, label: str, log: logging.Logger = logger,
-    on_fail: Optional[Callable[[Exception], None]] = None,
+    on_fail: Callable[[Exception], None] | None = None,
 ) -> str:
     """Cache ``url`` locally; on failure warn (or call ``on_fail``) and return the bare URL."""
     try:
@@ -251,7 +257,7 @@ class HttpFailure:
     response: Any = None
 
 
-def record_token_usage(usage: Any, *, model: str, provider: str, base_url: Optional[str] = None) -> None:
+def record_token_usage(usage: Any, *, model: str, provider: str, base_url: str | None = None) -> None:
     """Record a token-billed image call against the ambient session as task ``image_generation``.
 
     Token-metered image models (OpenRouter chat-image and Image API models, OpenAI ``gpt-image``)
@@ -271,10 +277,10 @@ def record_token_usage(usage: Any, *, model: str, provider: str, base_url: Optio
 
 
 def post_json(
-    url: str, *, headers: Dict[str, str], payload: Dict[str, Any], timeout: Any, label: str,
+    url: str, *, headers: dict[str, str], payload: dict[str, Any], timeout: Any, label: str,
     error_message: Callable[[Any, Exception], str] = requests_error_message,
     catch_request_exception: bool = False,
-) -> Tuple[Optional[Any], Optional[HttpFailure]]:
+) -> tuple[Any | None, HttpFailure | None]:
     """POST ``payload`` → ``(json_body, None)`` or ``(None, failure)``. ``timeout`` goes to ``requests``
     verbatim (message reports the read component); ``error_message(response, exc)`` extracts the
     backend-specific HTTP error text."""

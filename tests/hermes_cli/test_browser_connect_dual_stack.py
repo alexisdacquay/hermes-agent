@@ -14,7 +14,6 @@ import socket
 import threading
 
 import pytest
-
 from hermes_cli.browser_connect import (
     DEFAULT_BROWSER_CDP_PORT,
     discover_local_cdp_url,

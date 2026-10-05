@@ -11,7 +11,7 @@ import re
 import signal
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger("tools.terminal_tool")
 
@@ -115,12 +115,15 @@ def _interpret_exit_code(command: str, exit_code: int) -> str | None:
 
 def _sudo_annotations(command: str, output: str, env_type: str) -> tuple[str, bool, bool]:
     """Sudo failure handling -> (output, auth_failed, cache_cleared)."""
+    from utils import env_var_enabled
+
     import tools.terminal_tool as tt
     from tools.terminal_tool_sudo import (
-        _handle_sudo_failure, _invalidate_cached_sudo_on_auth_failure, _no_sudo_user,
+        _handle_sudo_failure,
+        _invalidate_cached_sudo_on_auth_failure,
+        _no_sudo_user,
         _sudo_wrong_password_failure,
     )
-    from utils import env_var_enabled
     output = _handle_sudo_failure(output, env_type)
     auth_failed = _sudo_wrong_password_failure(output)
     cache_cleared = _invalidate_cached_sudo_on_auth_failure(command, output)
@@ -138,6 +141,7 @@ def _apply_output_transform_hook(command, output, returncode, task_id, env_type)
     Replacements are still subject to the output limit applied afterwards."""
     with _quiet("transform_terminal_output hook"):
         from hermes_cli.lifecycle import invoke_hook
+
         from tools.approval_context import _approval_tool_call_id
         # Concurrent terminal calls in one turn must gate per call, not collapse into one;
         # an empty id is treated as "no identity" by the hook gate.
@@ -154,7 +158,7 @@ def _truncate_head_tail(output: str) -> str:
     return truncate_head_tail(output, get_max_bytes())
 
 
-def _failure_hint(command: str, returncode: int, output: str, exit_note) -> Optional[str]:
+def _failure_hint(command: str, returncode: int, output: str, exit_note) -> str | None:
     """Recovery hints for well-known failure shapes (tools/terminal_hints.py);
     on rc=0, warn when a pipeline tail / `|| echo` may mask an upstream
     failure and the output carries strong failure indicators (advisory only)."""
@@ -175,6 +179,7 @@ def _redact_spill_file(path, total_chars, command) -> list[tuple[str, Any]]:
         return []
     try:
         from agent.redact import redact_terminal_output
+
         from tools.ansi_strip import strip_ansi
         from tools.spill_safety import write_text_exclusive
         raw_spill = Path(path).read_text(encoding="utf-8-sig", errors="replace")
@@ -193,7 +198,7 @@ def _redact_spill_file(path, total_chars, command) -> list[tuple[str, Any]]:
     return [("output_total_chars", total_chars), ("full_output_path", path), ("truncation_note", note)]
 
 
-def _verification_evidence(command, cwd, session_id, returncode, output) -> Optional[dict]:
+def _verification_evidence(command, cwd, session_id, returncode, output) -> dict | None:
     with _quiet("verification evidence recording"):
         from agent.verification_evidence import record_terminal_result
         evidence = record_terminal_result(command=command, cwd=cwd, session_id=session_id,
@@ -205,8 +210,8 @@ def _verification_evidence(command, cwd, session_id, returncode, output) -> Opti
 
 def finalize_foreground_result(
     *, command: str, result: dict, env: Any, env_type: str, effective_task_id: str,
-    task_id: Optional[str], session_id: Optional[str], session_key: str,
-    workdir: Optional[str], command_cwd: Optional[str], approval_note: Optional[str],
+    task_id: str | None, session_id: str | None, session_key: str,
+    workdir: str | None, command_cwd: str | None, approval_note: str | None,
 ) -> str:
     """Turn a raw ``env.execute`` result into the tool's JSON result string."""
     from tools.terminal_tool import record_session_cwd
@@ -232,6 +237,7 @@ def finalize_foreground_result(
     # redact secrets; redact_terminal_output is command-aware (env-dump
     # commands get the KEY=value pass, source/config dumps skip it).
     from agent.redact import redact_terminal_output
+
     from tools.ansi_strip import strip_ansi
     output = strip_ansi(output)
     # For source/config dumps (MAX_TOKENS=100, "apiKey": "x" fixtures, postgresql:// f-string templates) the

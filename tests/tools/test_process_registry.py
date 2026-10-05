@@ -9,15 +9,15 @@ import subprocess
 import sys
 import threading
 import time
-import pytest
 from unittest.mock import MagicMock, patch
 
+import pytest
 from tools.environments.local_env_policy import _HERMES_PROVIDER_ENV_FORCE_PREFIX
 from tools.process_registry import (
-    ProcessRegistry,
-    ProcessSession,
     FINISHED_TTL_SECONDS,
     MAX_PROCESSES,
+    ProcessRegistry,
+    ProcessSession,
 )
 
 
@@ -1629,8 +1629,8 @@ class TestTerminateHostPidPosix:
     """POSIX branch gives a managed parent its shutdown window first."""
 
     def test_posix_terminates_parent_before_snapshot_descendants(self, monkeypatch):
-        from tools import process_registry as pr
         import psutil
+        from tools import process_registry as pr
 
         terminate_order = []
 
@@ -1706,8 +1706,8 @@ class TestTerminateHostPidPosix:
             parent.wait()
 
     def test_posix_oserror_falls_back_to_os_kill(self, monkeypatch):
-        from tools import process_registry as pr
         import psutil
+        from tools import process_registry as pr
 
         def boom(pid):
             raise PermissionError("can't read /proc")
@@ -2535,9 +2535,8 @@ class TestSystemdCgroupIsolation:
             side_effect=RuntimeError("PTY wrapper failed after scope creation"),
         ), patch("subprocess.Popen") as pipe_spawn, patch(
             "tools.process_registry._stop_systemd_unit", return_value=False
-        ) as stop_unit:
-            with pytest.raises(RuntimeError, match="could not be reaped"):
-                registry.spawn_local("codex", cwd="/tmp", use_pty=True)
+        ) as stop_unit, pytest.raises(RuntimeError, match="could not be reaped"):
+            registry.spawn_local("codex", cwd="/tmp", use_pty=True)
 
         stop_unit.assert_called_once()
         pipe_spawn.assert_not_called()

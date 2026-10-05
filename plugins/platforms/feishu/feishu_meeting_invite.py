@@ -7,7 +7,7 @@ import json
 import logging
 from dataclasses import dataclass
 from types import SimpleNamespace
-from typing import Any, Dict, Optional
+from typing import Any
 
 from gateway.platforms.event import MessageEvent, MessageType
 
@@ -29,18 +29,18 @@ class MeetingInviteMeeting:
     meeting_no: str = ""
     start_time_ms: int = 0
     end_time_ms: int = 0
-    host_user: Optional[MeetingInviteUser] = None
+    host_user: MeetingInviteUser | None = None
 
 
 @dataclass(frozen=True)
 class MeetingInvitedPayload:
     event_id: str = ""
-    meeting: Optional[MeetingInviteMeeting] = None
-    inviter: Optional[MeetingInviteUser] = None
+    meeting: MeetingInviteMeeting | None = None
+    inviter: MeetingInviteUser | None = None
     invite_time_s: int = 0
 
 
-def _as_dict(value: Any) -> Dict[str, Any]:
+def _as_dict(value: Any) -> dict[str, Any]:
     """Coerce a lark SDK object / dict / JSON string into a plain dict."""
     if isinstance(value, SimpleNamespace) or (value is not None and hasattr(value, "__dict__")):
         value = vars(value)
@@ -51,7 +51,7 @@ def _as_dict(value: Any) -> Dict[str, Any]:
     return {str(k): v for k, v in value.items()} if isinstance(value, dict) else {}
 
 
-def _content_payload(container: Dict[str, Any]) -> Dict[str, Any]:
+def _content_payload(container: dict[str, Any]) -> dict[str, Any]:
     """Unwrap a Feishu ``body.content`` list carrying an application/json payload."""
     content = _as_dict(container.get("body")).get("content")
     for item in map(_as_dict, content if isinstance(content, list) else ()):
@@ -62,7 +62,7 @@ def _content_payload(container: Dict[str, Any]) -> Dict[str, Any]:
     return {}
 
 
-def _str_field(raw: Dict[str, Any], key: str, strip: bool = True) -> str:
+def _str_field(raw: dict[str, Any], key: str, strip: bool = True) -> str:
     return str(raw.get(key) or "").strip() if strip else str(raw.get(key) or "")
 
 
@@ -73,14 +73,14 @@ def _int_field(value: Any) -> int:
         return 0
 
 
-def _parse_user(value: Any) -> Optional[MeetingInviteUser]:
+def _parse_user(value: Any) -> MeetingInviteUser | None:
     raw = _as_dict(value)
     raw_id = _as_dict(raw.get("id"))
     return MeetingInviteUser(open_id=_str_field(raw_id, "open_id"), user_id=_str_field(raw_id, "user_id"), union_id=_str_field(raw_id, "union_id"),
                              user_name=_str_field(raw, "user_name", strip=False)) if raw else None
 
 
-def _parse_meeting(value: Any) -> Optional[MeetingInviteMeeting]:
+def _parse_meeting(value: Any) -> MeetingInviteMeeting | None:
     raw = _as_dict(value)
     return MeetingInviteMeeting(
         id=_str_field(raw, "id"), topic=_str_field(raw, "topic", strip=False), meeting_no=_str_field(raw, "meeting_no", strip=False),
@@ -88,7 +88,7 @@ def _parse_meeting(value: Any) -> Optional[MeetingInviteMeeting]:
     ) if raw else None
 
 
-def parse_meeting_invited_event(data: Any) -> Optional[MeetingInvitedPayload]:
+def parse_meeting_invited_event(data: Any) -> MeetingInvitedPayload | None:
     root = _as_dict(data)
     event = _as_dict(root.get("event")) or root
     event = {**event, **(_content_payload(event) or _content_payload(root))}

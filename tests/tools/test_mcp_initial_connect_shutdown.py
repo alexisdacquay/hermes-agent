@@ -112,9 +112,9 @@ def test_initial_connect_failure_revives_same_registered_server(monkeypatch, tmp
     """A cached parked failure must revive through register_mcp_servers()."""
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
 
+    import tools.registry as registry_module
     from tools import mcp_tool
     from tools.registry import ToolRegistry
-    import tools.registry as registry_module
 
     _reset_mcp_state(mcp_tool)
     created = []

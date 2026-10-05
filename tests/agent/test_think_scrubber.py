@@ -10,7 +10,6 @@ break the older per-delta regex strip.
 from __future__ import annotations
 
 import pytest
-
 from agent.think_scrubber import StreamingThinkScrubber
 
 

@@ -9,7 +9,7 @@ Both share one handler (``cmd_dashboard`` → ``start_server``).
 from __future__ import annotations
 
 import argparse
-from typing import Callable
+from collections.abc import Callable
 
 
 def _add_server_runtime_args(parser) -> None:

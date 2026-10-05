@@ -8,6 +8,7 @@ subprocess. Anything that waits belongs in the async helper, never in the probe.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import shutil
@@ -16,12 +17,14 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from gateway.restart import DEFAULT_GATEWAY_CRON_DRAIN_TIMEOUT, resolve_systemd_timeout_stop_sec
-import contextlib
+from gateway.restart import (
+    DEFAULT_GATEWAY_CRON_DRAIN_TIMEOUT,
+    resolve_systemd_timeout_stop_sec,
+)
 
-_SIGNAL_NAME_BY_NUM: Dict[int, str] = {
+_SIGNAL_NAME_BY_NUM: dict[int, str] = {
     int(getattr(signal, _name)): _name
     for _name in ("SIGTERM", "SIGINT", "SIGHUP", "SIGQUIT", "SIGUSR1", "SIGUSR2")
     if getattr(signal, _name, None) is not None
@@ -39,7 +42,7 @@ def _signal_name(sig: Any) -> str:
     return _SIGNAL_NAME_BY_NUM.get(sig_int, f"signal#{sig_int}")
 
 
-def _read_proc_field(pid: int, key: str) -> Optional[str]:
+def _read_proc_field(pid: int, key: str) -> str | None:
     """Read a single field from /proc/<pid>/status.  Linux only; None elsewhere."""
     with contextlib.suppress(OSError), open(f"/proc/{pid}/status", encoding="utf-8") as fh:
         for line in fh:
@@ -48,10 +51,10 @@ def _read_proc_field(pid: int, key: str) -> Optional[str]:
     return None
 
 
-def _proc_summary(pid: int) -> Dict[str, Any]:
+def _proc_summary(pid: int) -> dict[str, Any]:
     """Compact /proc/<pid> identity (pid, name, state, ppid, uid). Never reads cmdline/argv —
     those bytes are not safe to persist (tokens, URIs, ``-e KEY=`` overlays)."""
-    summary: Dict[str, Any] = {"pid": pid}
+    summary: dict[str, Any] = {"pid": pid}
     if pid <= 0:
         return summary
     for out_key, proc_key in (("name", "Name"), ("state", "State")):
@@ -65,7 +68,7 @@ def _proc_summary(pid: int) -> Dict[str, Any]:
     return summary
 
 
-def _read_marker(path: Path) -> Optional[str]:
+def _read_marker(path: Path) -> str | None:
     """Return the marker file's text, or None if absent/unreadable."""
     try:
         return path.read_text(encoding="utf-8-sig")
@@ -73,12 +76,12 @@ def _read_marker(path: Path) -> Optional[str]:
         return None
 
 
-def snapshot_shutdown_context(received_signal: Any = None) -> Dict[str, Any]:
+def snapshot_shutdown_context(received_signal: Any = None) -> dict[str, Any]:
     """Fast (<10ms) snapshot of who/what is asking us to shut down: signal name/number, own + parent
     /proc summaries, systemd parentage, takeover/planned-stop markers, TracerPid, 1-min load,
     timestamps. Pure stdlib, never raises, never blocks."""
     pid, ppid = os.getpid(), os.getppid()
-    ctx: Dict[str, Any] = {
+    ctx: dict[str, Any] = {
         "ts": time.time(), "ts_monotonic": time.monotonic(),
         "signal": _signal_name(received_signal),
         "signal_num": int(received_signal) if received_signal is not None else None,
@@ -101,7 +104,7 @@ def snapshot_shutdown_context(received_signal: Any = None) -> Dict[str, Any]:
     # Race hint: a takeover marker on disk that does NOT name us is a smoking gun for "another
     # --replace instance is killing us". Filenames mirror gateway.status; literals keep the signal-
     # handler path import-light.
-    with contextlib.suppress(Exception):  # noqa: BLE001 — never raise from a signal handler
+    with contextlib.suppress(Exception):
         hermes_home_str = os.path.expanduser(os.environ.get("HERMES_HOME", ""))
         if hermes_home_str:
             raw = _read_marker(Path(hermes_home_str) / ".gateway-takeover.json")
@@ -133,7 +136,7 @@ def _async_diagnostic_script(signal_name: str, self_pid: int) -> str:
 
 
 def spawn_async_diagnostic(log_path: Path, signal_name: str, *,
-                           timeout_seconds: float = 5.0) -> Optional[int]:
+                           timeout_seconds: float = 5.0) -> int | None:
     """Fire-and-forget ``ps``-style snapshot appended to ``log_path``: a detached subprocess (own
     ``timeout`` so a wedged ``ps`` self-cleans) rather than a blocking process listing in the signal
     handler, which can freeze the loop >2s on a busy host. Returns the subprocess PID, or ``None``
@@ -169,11 +172,11 @@ def spawn_async_diagnostic(log_path: Path, signal_name: str, *,
             os.close(fd)
 
 
-def format_context_for_log(ctx: Dict[str, Any]) -> str:
+def format_context_for_log(ctx: dict[str, Any]) -> str:
     """Render a shutdown context dict as one scannable log line (parent identity, never argv)."""
     parent = ctx.get("parent") or {}
     load_str = f"{load:.2f}" if isinstance(load := ctx.get("loadavg_1m"), (int, float)) else "?"
-    extras: List[str] = []
+    extras: list[str] = []
     if ctx.get("takeover_marker") is not None:
         who = 'self' if ctx.get('takeover_marker_for_self') else 'other'
         extras.append(f"takeover_marker_present={who}")
@@ -189,7 +192,7 @@ def format_context_for_log(ctx: Dict[str, Any]) -> str:
     )
 
 
-def context_as_json(ctx: Dict[str, Any]) -> str:
+def context_as_json(ctx: dict[str, Any]) -> str:
     """JSON-serialise a context dict for structured ingestion.  Never raises."""
     try:
         return json.dumps(ctx, default=str, sort_keys=True)
@@ -199,7 +202,7 @@ def context_as_json(ctx: Dict[str, Any]) -> str:
 
 def check_systemd_timing_alignment(
     drain_timeout: float, cron_drain_timeout: float = DEFAULT_GATEWAY_CRON_DRAIN_TIMEOUT
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     """At startup, sanity-check that systemd's TimeoutStopSec covers stop. A stale unit file
     (upgraded without re-running ``hermes setup``) can have ``TimeoutStopSec`` below the stop
     budget, so systemd SIGKILLs the cgroup mid-drain (a phantom ``code=killed status=9`` in the
@@ -209,7 +212,7 @@ def check_systemd_timing_alignment(
     if not os.environ.get("INVOCATION_ID"):
         return None  # Not running under systemd (or at least not directly)
     # /proc/self/cgroup: "0::/user.slice/.../hermes-gateway.service"
-    unit_name: Optional[str] = None
+    unit_name: str | None = None
     with contextlib.suppress(OSError), open("/proc/self/cgroup", encoding="utf-8") as fh:
         for line in fh:
             parts = reversed(line.strip().split("/"))
@@ -225,7 +228,7 @@ def check_systemd_timing_alignment(
             "mismatch": timeout_stop_sec < expected}
 
 
-def _systemd_timeout_stop_us(unit_name: str) -> Optional[int]:
+def _systemd_timeout_stop_us(unit_name: str) -> int | None:
     """``TimeoutStopUSec`` of ``unit_name`` in microseconds; ``--user`` first (hermes' usual)."""
     for flag in (["--user"], []):
         try:
@@ -245,7 +248,7 @@ def _systemd_timeout_stop_us(unit_name: str) -> Optional[int]:
     return None
 
 
-def parse_systemd_duration_to_us(raw: str) -> Optional[int]:
+def parse_systemd_duration_to_us(raw: str) -> int | None:
     """Parse 'TimeoutStopUSec=1min 30s' / '90s' style values to microseconds. Covers us, ms, s, min,
     h, d, w, month, y; a bare number is seconds. None on anything unexpected; never raises. Public: also consumed by
     hermes_cli.gateway's restart-wait sizing.

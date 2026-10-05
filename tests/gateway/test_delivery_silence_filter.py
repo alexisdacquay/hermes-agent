@@ -6,14 +6,12 @@ loop that crashes a model with "no content after all retries".
 """
 
 import pytest
-
 from gateway.config import GatewayConfig, Platform
 from gateway.delivery import (
     DeliveryRouter,
     DeliveryTarget,
     _is_silence_narration,
 )
-
 
 # --- Truth table -----------------------------------------------------------
 

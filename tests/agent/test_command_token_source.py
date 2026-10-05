@@ -15,10 +15,10 @@ behaviours that make the feature work:
 from __future__ import annotations
 
 import time
+from datetime import UTC
 from types import SimpleNamespace
 
 import pytest
-
 from agent.command_token_source import (
     CommandTokenError,
     CommandTokenSource,
@@ -243,10 +243,10 @@ class TestAbsoluteExpiry:
 
     @staticmethod
     def _iso(seconds_from_now: float) -> str:
-        from datetime import datetime, timedelta, timezone
+        from datetime import datetime, timedelta
 
         return (
-            datetime.now(timezone.utc) + timedelta(seconds=seconds_from_now)
+            datetime.now(UTC) + timedelta(seconds=seconds_from_now)
         ).isoformat()
 
     def test_iso_expiry_yields_a_ttl(self):

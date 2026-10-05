@@ -17,9 +17,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
-
 import hermes_state
+import pytest
 from gateway.config import GatewayConfig
 from gateway.session import SessionStore
 from hermes_state import SessionDB

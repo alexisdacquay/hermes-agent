@@ -20,7 +20,6 @@ import time as _time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from gateway.config import PlatformConfig
 from plugins.platforms.telegram.adapter import TelegramAdapter
 

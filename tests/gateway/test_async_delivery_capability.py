@@ -20,7 +20,6 @@ not snapshots of a current value.
 import json
 
 import pytest
-
 from gateway.session_context import (
     async_delivery_supported,
     clear_session_vars,
@@ -28,7 +27,6 @@ from gateway.session_context import (
     reset_session_vars,
     set_session_vars,
 )
-
 
 # ---------------------------------------------------------------------------
 # Capability helper

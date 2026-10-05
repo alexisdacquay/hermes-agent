@@ -9,17 +9,29 @@ from __future__ import annotations
 import logging
 import uuid
 import webbrowser
-from datetime import datetime, timezone
-from typing import Any, Dict, Optional, Tuple
+from datetime import UTC, datetime
+from typing import Any
 from urllib.parse import urlencode, urlparse
+
 from hermes_cli.auth_constants import (
-    AuthError, DEFAULT_SPOTIFY_ACCOUNTS_BASE_URL, DEFAULT_SPOTIFY_API_BASE_URL, DEFAULT_SPOTIFY_REDIRECT_URI,
-    DEFAULT_SPOTIFY_SCOPE, SPOTIFY_ACCESS_TOKEN_REFRESH_SKEW_SECONDS, SPOTIFY_DASHBOARD_URL, SPOTIFY_DOCS_URL,
-    _spotify_err, httpx,
+    DEFAULT_SPOTIFY_ACCOUNTS_BASE_URL,
+    DEFAULT_SPOTIFY_API_BASE_URL,
+    DEFAULT_SPOTIFY_REDIRECT_URI,
+    DEFAULT_SPOTIFY_SCOPE,
+    SPOTIFY_ACCESS_TOKEN_REFRESH_SKEW_SECONDS,
+    SPOTIFY_DASHBOARD_URL,
+    SPOTIFY_DOCS_URL,
+    AuthError,
+    _spotify_err,
+    httpx,
 )
 from hermes_cli.auth_device_flow import (
-    _bind_loopback_callback_server, _make_loopback_callback_handler, _pkce_code_challenge,
-    _pkce_code_verifier, _serve_loopback_callback)
+    _bind_loopback_callback_server,
+    _make_loopback_callback_handler,
+    _pkce_code_challenge,
+    _pkce_code_verifier,
+    _serve_loopback_callback,
+)
 
 logger = logging.getLogger("hermes_cli.auth")
 
@@ -28,14 +40,14 @@ def _clean(value: Any) -> str:
     return str(value or "").strip()
 
 
-def _spotify_scope_string(raw_scope: Optional[str] = None) -> str:
+def _spotify_scope_string(raw_scope: str | None = None) -> str:
     """Requested scope, whitespace-normalized and de-duplicated (order kept)."""
     return " ".join(dict.fromkeys((raw_scope or DEFAULT_SPOTIFY_SCOPE).split()))
 
 
 def _spotify_setting(
-    state: Optional[Dict[str, Any]], state_key: str, env_vars: Tuple[str, ...], default: str, *,
-    explicit: Optional[str] = None, strip_slash: bool = False,
+    state: dict[str, Any] | None, state_key: str, env_vars: tuple[str, ...], default: str, *,
+    explicit: str | None = None, strip_slash: bool = False,
 ) -> str:
     """First non-empty of explicit arg, env vars (``.env`` aware), stored state, then *default*."""
     from hermes_cli.config import get_env_value
@@ -52,7 +64,7 @@ def _spotify_setting(
     return default
 
 
-def _spotify_client_id(explicit: Optional[str] = None, state: Optional[Dict[str, Any]] = None) -> str:
+def _spotify_client_id(explicit: str | None = None, state: dict[str, Any] | None = None) -> str:
     client_id = _spotify_setting(
         state, "client_id", ("HERMES_SPOTIFY_CLIENT_ID", "SPOTIFY_CLIENT_ID"), "", explicit=explicit,
     )
@@ -64,20 +76,20 @@ def _spotify_client_id(explicit: Optional[str] = None, state: Optional[Dict[str,
     )
 
 
-def _spotify_redirect_uri(explicit: Optional[str] = None, state: Optional[Dict[str, Any]] = None) -> str:
+def _spotify_redirect_uri(explicit: str | None = None, state: dict[str, Any] | None = None) -> str:
     return _spotify_setting(
         state, "redirect_uri", ("HERMES_SPOTIFY_REDIRECT_URI", "SPOTIFY_REDIRECT_URI"),
         DEFAULT_SPOTIFY_REDIRECT_URI, explicit=explicit,
     )
 
 
-def _spotify_api_base_url(state: Optional[Dict[str, Any]] = None) -> str:
+def _spotify_api_base_url(state: dict[str, Any] | None = None) -> str:
     return _spotify_setting(
         state, "api_base_url", ("HERMES_SPOTIFY_API_BASE_URL",), DEFAULT_SPOTIFY_API_BASE_URL, strip_slash=True,
     )
 
 
-def _spotify_accounts_base_url(state: Optional[Dict[str, Any]] = None) -> str:
+def _spotify_accounts_base_url(state: dict[str, Any] | None = None) -> str:
     return _spotify_setting(
         state, "accounts_base_url", ("HERMES_SPOTIFY_ACCOUNTS_BASE_URL",), DEFAULT_SPOTIFY_ACCOUNTS_BASE_URL,
         strip_slash=True,
@@ -120,13 +132,13 @@ def _spotify_wait_for_callback(redirect_uri: str, *, timeout_seconds: float = 18
 
 
 def _spotify_token_payload_to_state(
-    token_payload: Dict[str, Any], *, client_id: str, redirect_uri: str, requested_scope: str,
-    accounts_base_url: str, api_base_url: str, previous_state: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+    token_payload: dict[str, Any], *, client_id: str, redirect_uri: str, requested_scope: str,
+    accounts_base_url: str, api_base_url: str, previous_state: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     from hermes_cli.auth import _coerce_ttl_seconds
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     expires_in = _coerce_ttl_seconds(token_payload.get("expires_in", 0))
-    expires_at = datetime.fromtimestamp(now.timestamp() + expires_in, tz=timezone.utc)
+    expires_at = datetime.fromtimestamp(now.timestamp() + expires_in, tz=UTC)
     state = dict(previous_state or {})
     state.update({
         "client_id": client_id, "redirect_uri": redirect_uri,
@@ -143,10 +155,10 @@ def _spotify_token_payload_to_state(
 
 
 def _spotify_token_post(
-    accounts_base_url: str, data: Dict[str, str], *, timeout_seconds: float, what: str,
+    accounts_base_url: str, data: dict[str, str], *, timeout_seconds: float, what: str,
     failed_code: str, invalid_code: str, invalid_message: str, failed_suffix: str = "",
     relogin_required: bool = False,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """POST to Spotify's ``/api/token`` and return the JSON payload, or raise a shaped AuthError."""
     try:
         response = httpx.post(
@@ -170,7 +182,7 @@ def _spotify_token_post(
     return payload
 
 
-def _refresh_spotify_oauth_state(state: Dict[str, Any], *, timeout_seconds: float = 20.0) -> Dict[str, Any]:
+def _refresh_spotify_oauth_state(state: dict[str, Any], *, timeout_seconds: float = 20.0) -> dict[str, Any]:
     refresh_token = _clean(state.get("refresh_token"))
     if not refresh_token:
         raise _spotify_err(
@@ -200,8 +212,17 @@ def _refresh_spotify_oauth_state(state: Dict[str, Any], *, timeout_seconds: floa
 def resolve_spotify_runtime_credentials(
     *, force_refresh: bool = False, refresh_if_expiring: bool = True,
     refresh_skew_seconds: int = SPOTIFY_ACCESS_TOKEN_REFRESH_SKEW_SECONDS,
-) -> Dict[str, Any]:
-    from hermes_cli.auth import _auth_store_lock, _is_expiring, _load_auth_store, _load_provider_state, _quarantine_flat_oauth_state, _refresh_spotify_oauth_state, _save_auth_store, _store_provider_state
+) -> dict[str, Any]:
+    from hermes_cli.auth import (
+        _auth_store_lock,
+        _is_expiring,
+        _load_auth_store,
+        _load_provider_state,
+        _quarantine_flat_oauth_state,
+        _refresh_spotify_oauth_state,
+        _save_auth_store,
+        _store_provider_state,
+    )
     with _auth_store_lock():
         auth_store = _load_auth_store()
         state = _load_provider_state(auth_store, "spotify")
@@ -246,7 +267,7 @@ def resolve_spotify_runtime_credentials(
     }
 
 
-def get_spotify_auth_status() -> Dict[str, Any]:
+def get_spotify_auth_status() -> dict[str, Any]:
     from hermes_cli.auth import _is_expiring, get_provider_auth_state
     state = get_provider_auth_state("spotify")
     if not state:
@@ -312,7 +333,16 @@ def _spotify_interactive_setup(redirect_uri_hint: str) -> str:
 
 
 def login_spotify_command(args) -> None:
-    from hermes_cli.auth import _auth_store_lock, _can_open_graphical_browser, _is_remote_session, _load_auth_store, _print_loopback_ssh_hint, _save_auth_store, _store_provider_state, get_provider_auth_state
+    from hermes_cli.auth import (
+        _auth_store_lock,
+        _can_open_graphical_browser,
+        _is_remote_session,
+        _load_auth_store,
+        _print_loopback_ssh_hint,
+        _save_auth_store,
+        _store_provider_state,
+        get_provider_auth_state,
+    )
     existing_state = get_provider_auth_state("spotify") or {}
 
     # No client_id anywhere -> wizard instead of "HERMES_SPOTIFY_CLIENT_ID is required".

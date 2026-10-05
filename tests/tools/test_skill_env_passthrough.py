@@ -6,7 +6,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
 import tools.env_passthrough as _ep_mod
 from tools.env_passthrough import clear_env_passthrough, is_env_passthrough
 

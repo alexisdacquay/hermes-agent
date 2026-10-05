@@ -4,7 +4,6 @@ import json
 from unittest.mock import patch
 
 import pytest
-
 from utils import atomic_json_write
 
 

@@ -1,12 +1,11 @@
 """Packaged facts describe final tool bytes without changing their identity."""
 import copy
 import json
-from pathlib import Path
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
-
 from pm.lock import Facts, Lockfile
 from pm.store import current_target, tree_digest
 from scripts.bundles import payload

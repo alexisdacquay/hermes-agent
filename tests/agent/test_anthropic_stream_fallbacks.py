@@ -3,7 +3,6 @@
 from types import SimpleNamespace
 
 import pytest
-
 from agent.anthropic_adapter import create_anthropic_message
 from agent.chat_completion_helpers import _build_partial_stream_stub
 from agent.transports.anthropic import AnthropicTransport

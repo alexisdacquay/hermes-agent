@@ -4,10 +4,15 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, Optional
+from typing import Any
 
 from hermes_cli.config import load_config
-from plugins.video_gen.xai import has_xai_video_credentials, run_xai_video_edit, run_xai_video_extend
+from plugins.video_gen.xai import (
+    has_xai_video_credentials,
+    run_xai_video_edit,
+    run_xai_video_extend,
+)
+
 from tools.registry import registry, tool_error
 
 
@@ -23,11 +28,11 @@ def _check_xai_video_requirements() -> bool:
     return _configured_for_xai_video() and has_xai_video_credentials()
 
 
-def _clean_string(value: Any) -> Optional[str]:
+def _clean_string(value: Any) -> str | None:
     return value.strip() if isinstance(value, str) and value.strip() else None
 
 
-def _coerce_int(value: Any) -> Optional[int]:
+def _coerce_int(value: Any) -> int | None:
     # bool is rejected (unlike video_generation_tool._coerce_int) so duration=true never becomes 1.
     if value is None or isinstance(value, bool):
         return None
@@ -46,7 +51,7 @@ _VIDEO_URL_PARAM = {
 }
 
 
-def _xai_video_schema(name: str, verb: str, noun: str, prompt_verb: str, extra: Dict[str, Any]) -> Dict[str, Any]:
+def _xai_video_schema(name: str, verb: str, noun: str, prompt_verb: str, extra: dict[str, Any]) -> dict[str, Any]:
     return {
         "name": name,
         "description": (
@@ -70,9 +75,9 @@ def _xai_video_schema(name: str, verb: str, noun: str, prompt_verb: str, extra: 
     }
 
 
-XAI_VIDEO_EDIT_SCHEMA: Dict[str, Any] = _xai_video_schema("xai_video_edit", "Edit", "editing", "modify", {})
+XAI_VIDEO_EDIT_SCHEMA: dict[str, Any] = _xai_video_schema("xai_video_edit", "Edit", "editing", "modify", {})
 
-XAI_VIDEO_EXTEND_SCHEMA: Dict[str, Any] = _xai_video_schema(
+XAI_VIDEO_EXTEND_SCHEMA: dict[str, Any] = _xai_video_schema(
     "xai_video_extend", "Extend", "extension", "continue", {
         "duration": {
             "type": "integer",
@@ -85,7 +90,7 @@ XAI_VIDEO_EXTEND_SCHEMA: Dict[str, Any] = _xai_video_schema(
 )
 
 
-def _run_xai_video_tool(args: Dict[str, Any], op: str, run, **extra: Any) -> str:
+def _run_xai_video_tool(args: dict[str, Any], op: str, run, **extra: Any) -> str:
     prompt, video_url = _clean_string(args.get("prompt")), _clean_string(args.get("video_url"))
     if not prompt:
         return tool_error(f"prompt is required for xAI video {op}")
@@ -107,11 +112,11 @@ def _run_xai_video_tool(args: Dict[str, Any], op: str, run, **extra: Any) -> str
     return json.dumps(run(prompt=prompt, video_url=video_url, **extra))
 
 
-def _handle_xai_video_edit(args: Dict[str, Any], **_kw: Any) -> str:
+def _handle_xai_video_edit(args: dict[str, Any], **_kw: Any) -> str:
     return _run_xai_video_tool(args, "edit", run_xai_video_edit)
 
 
-def _handle_xai_video_extend(args: Dict[str, Any], **_kw: Any) -> str:
+def _handle_xai_video_extend(args: dict[str, Any], **_kw: Any) -> str:
     return _run_xai_video_tool(args, "extend", run_xai_video_extend, duration=_coerce_int(args.get("duration")))
 
 

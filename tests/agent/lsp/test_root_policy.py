@@ -9,7 +9,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
 from agent.lsp import eventlog
 from agent.lsp.manager import LSPService, _client_key
 from agent.lsp.servers import find_server_for_file

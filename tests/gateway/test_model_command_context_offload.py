@@ -12,13 +12,13 @@ test fail because the blocking work lands back on the loop thread.
 """
 
 import threading
-
-import pytest
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
 from gateway.config import Platform
 from gateway.platforms.event import MessageEvent, MessageType
 from gateway.session import SessionSource
+
 
 def _make_source() -> SessionSource:
     return SessionSource(
@@ -38,9 +38,8 @@ def _event(text: str) -> MessageEvent:
 
 def _runner_with_store(tmp_path, monkeypatch):
     """Minimal GatewayRunner harness driving the real /model handler."""
-    import hermes_yaml as _yaml
-
     import gateway.run as gateway_run
+    import hermes_yaml as _yaml
     from gateway.run import GatewayRunner
     from hermes_cli.model_switch import ModelSwitchResult
 
@@ -51,7 +50,7 @@ def _runner_with_store(tmp_path, monkeypatch):
         encoding="utf-8",
     )
     monkeypatch.setattr(gateway_run, "_hermes_home", hermes_home)
-    monkeypatch.setattr("agent.models_dev.fetch_models_dev", lambda: {})
+    monkeypatch.setattr("agent.models_dev.fetch_models_dev", dict)
     monkeypatch.setattr(
         "hermes_cli.model_switch.switch_model",
         lambda **kw: ModelSwitchResult(

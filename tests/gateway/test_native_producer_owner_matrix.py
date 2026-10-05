@@ -6,8 +6,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 from gateway.config import GatewayConfig, PlatformConfig
-from gateway.run import GatewayRunner
 from gateway.platforms.base import SendResult
+from gateway.run import GatewayRunner
 from hermes_constants import get_hermes_home
 
 
@@ -84,7 +84,7 @@ async def test_signal_pacing_owner_scope_keeps_acquisition_and_upload(owners, tm
     root, suppressed = owners
     adapter = module.SignalAdapter(PlatformConfig())
     adapter.gateway_runner = GatewayRunner(GatewayConfig(multiplex_profiles=True))
-    scheduler = SimpleNamespace(state=lambda: {}, estimate_wait=lambda n: 120,
+    scheduler = SimpleNamespace(state=dict, estimate_wait=lambda n: 120,
         acquire=AsyncMock(), report_rpc_duration=AsyncMock())
     monkeypatch.setattr(module, "get_scheduler", lambda: scheduler)
     adapter._stop_typing_indicator = AsyncMock()

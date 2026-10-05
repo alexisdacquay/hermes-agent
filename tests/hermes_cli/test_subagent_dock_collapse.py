@@ -6,6 +6,8 @@ from agent.i18n import t
 
 
 def test_collapsed_dock_reserves_one_shaded_row_without_changing_editor():
+    from hermes_cli import cli_subagent_monitor as dock
+    from hermes_cli.skin_engine import get_prompt_toolkit_style_overrides
     from prompt_toolkit.application import Application
     from prompt_toolkit.data_structures import Size
     from prompt_toolkit.document import Document
@@ -14,8 +16,6 @@ def test_collapsed_dock_reserves_one_shaded_row_without_changing_editor():
     from prompt_toolkit.output import DummyOutput
     from prompt_toolkit.styles import Style
     from prompt_toolkit.widgets import TextArea
-    from hermes_cli import cli_subagent_monitor as dock
-    from hermes_cli.skin_engine import get_prompt_toolkit_style_overrides
 
     cli = SimpleNamespace(agent=None)
     dock.install_dock(cli)
@@ -75,8 +75,8 @@ def test_collapsed_dock_reserves_one_shaded_row_without_changing_editor():
 
 
 def test_collapsed_summary_prioritizes_live_count_and_controls_at_small_widths():
-    from prompt_toolkit.utils import get_cwidth
     from hermes_cli.cli_subagent_monitor import SubagentMonitor
+    from prompt_toolkit.utils import get_cwidth
 
     monitor = SubagentMonitor(SimpleNamespace())
     monitor.entries = [dict(goal='Inspect 界 ' * 40, elapsed=12,

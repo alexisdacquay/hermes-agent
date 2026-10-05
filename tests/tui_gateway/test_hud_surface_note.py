@@ -15,7 +15,6 @@ import threading
 import types
 
 import pytest
-
 from agent.prompt_builder import hud_surface_note
 from tui_gateway import server
 

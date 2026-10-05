@@ -10,7 +10,8 @@ import asyncio
 import contextlib
 import io
 import logging
-from typing import Any, Callable, Dict, Optional
+from collections.abc import Callable
+from typing import Any
 
 from agent.i18n import t
 
@@ -31,8 +32,8 @@ async def _run_captured(fn: Callable[..., Any], *args: Any) -> str:
 
 
 async def handle_setup_files_command(
-    adapter: Any, chat_id: str, thread_id: Optional[str], raw_text: str,
-    sender_email: Optional[str] = None) -> bool:
+    adapter: Any, chat_id: str, thread_id: str | None, raw_text: str,
+    sender_email: str | None = None) -> bool:
     """Run the in-chat OAuth setup flow. Returns True when the message was consumed.
 
     ``sender_email`` is the per-user OAuth key; ``None`` falls back to the legacy
@@ -48,7 +49,7 @@ async def handle_setup_files_command(
     arg = parts[1].strip() if len(parts) > 1 else ""
 
     async def _reply(text: str) -> None:
-        body: Dict[str, Any] = {"text": text}
+        body: dict[str, Any] = {"text": text}
         if thread_id:
             body["thread"] = {"name": thread_id}
         try:
@@ -56,7 +57,7 @@ async def handle_setup_files_command(
         except Exception:
             logger.debug("[GoogleChat] /setup-files reply send failed", exc_info=True)
 
-    async def _run_helper(step: str, exit_key: Optional[str], fn: Callable[..., Any], *args: Any):
+    async def _run_helper(step: str, exit_key: str | None, fn: Callable[..., Any], *args: Any):
         """Captured helper output; ``None`` after replying on failure. ``exit_key``
         is the catalog key of the reply on ``SystemExit`` (the helpers' failure signal);
         ``None`` tolerates the exit and returns ``_EXITED``."""

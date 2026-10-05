@@ -10,7 +10,6 @@ from __future__ import annotations
 import threading
 
 import pytest
-
 from agent.pet import store
 from agent.pet.constants import FRAME_H, FRAME_W
 from agent.pet.render import PetRenderer

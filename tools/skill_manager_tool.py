@@ -10,30 +10,44 @@ existing skills (bundled, hub, user) are modified in place. Layout:
 import contextvars as _ctxvars
 import hashlib
 import json
-from contextlib import ExitStack, suppress
 import logging
 import re
 import shutil
+from contextlib import ExitStack, suppress
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import hermes_yaml as yaml
-
-from hermes_constants import get_hermes_home
-from utils import atomic_write_text, is_truthy_value
-from hermes_cli.config import cfg_get
 from agent.skill_utils import (
+    SKILL_PROMPT_DESC_LIMIT,
     extract_skill_description,
     is_skill_description_truncated_for_prompt,
-    parse_frontmatter as _parse_frontmatter,
-    SKILL_PROMPT_DESC_LIMIT)
-from tools.skill_manager_guards import (
-    _background_review_preflight, _background_review_read_before_write_guard, _background_review_write_guard,
-    _containing_skills_root, _curator_consolidation_delete_guard, _is_path_redirect, _pinned_guard,
-    _validate_delete_target, _is_background_review, _refusal as _err)
+)
+from agent.skill_utils import parse_frontmatter as _parse_frontmatter
+from hermes_cli.config import cfg_get
+from hermes_constants import get_hermes_home
+from utils import atomic_write_text, is_truthy_value
+
 from tools.skill_manager_batch import (
-    _PATCH_EITHER_OR, _PATCH_NEEDS_NEW_STRING, _PATCH_NEEDS_OLD_STRING, _op_shape_error, _skill_manage_batch)
-from tools.skills_guard import scan_skill, should_allow_install, format_scan_report
+    _PATCH_EITHER_OR,
+    _PATCH_NEEDS_NEW_STRING,
+    _PATCH_NEEDS_OLD_STRING,
+    _op_shape_error,
+    _skill_manage_batch,
+)
+from tools.skill_manager_guards import (
+    _background_review_preflight,
+    _background_review_read_before_write_guard,
+    _background_review_write_guard,
+    _containing_skills_root,
+    _curator_consolidation_delete_guard,
+    _is_background_review,
+    _is_path_redirect,
+    _pinned_guard,
+    _validate_delete_target,
+)
+from tools.skill_manager_guards import _refusal as _err
+from tools.skills_guard import format_scan_report, scan_skill, should_allow_install
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +61,7 @@ def _guard_agent_created_enabled() -> bool:
         return False
 
 
-def _security_scan_skill(skill_dir: Path) -> Optional[str]:
+def _security_scan_skill(skill_dir: Path) -> str | None:
     """Post-write scan (opt-in); error string if blocked, else None. An "ask" verdict
     (dangerous findings) is surfaced as an error so the agent can retry without them."""
     if not _guard_agent_created_enabled():
@@ -117,20 +131,20 @@ _NAME_RULE = "Use lowercase letters, numbers, hyphens, dots, and underscores."
 
 # --- Validation helpers -------------------------------------------------------
 
-def _check_identifier(value: str, label: str, invalid: str) -> Optional[str]:
+def _check_identifier(value: str, label: str, invalid: str) -> str | None:
     if len(value) > MAX_NAME_LENGTH:
         return f"{label} exceeds {MAX_NAME_LENGTH} characters."
     return None if VALID_NAME_RE.match(value) else invalid
 
 
-def _validate_name(name: str) -> Optional[str]:
+def _validate_name(name: str) -> str | None:
     if not name:
         return "Skill name is required."
     return _check_identifier(
         name, "Skill name", f"Invalid skill name '{name}'. {_NAME_RULE} Must start with a letter or digit.")
 
 
-def _validate_category(category: Optional[str]) -> Optional[str]:
+def _validate_category(category: str | None) -> str | None:
     if category is None or (isinstance(category, str) and not category.strip()):
         return None
     if not isinstance(category, str):
@@ -143,7 +157,7 @@ def _validate_category(category: Optional[str]) -> Optional[str]:
     return _check_identifier(category, "Category", invalid)
 
 
-def _validate_frontmatter(content: str, *, new_skill: bool = False) -> Optional[str]:
+def _validate_frontmatter(content: str, *, new_skill: bool = False) -> str | None:
     """Validate frontmatter (name + description) and a non-empty body. ``new_skill`` (create
     only) also enforces SKILL_PROMPT_DESC_LIMIT so new skills never lose routing signal to
     index truncation; edit/patch skip it so existing over-limit skills stay maintainable."""
@@ -179,7 +193,7 @@ def _validate_frontmatter(content: str, *, new_skill: bool = False) -> Optional[
     return None
 
 
-def _validate_content_size(content: str, label: str = "SKILL.md") -> Optional[str]:
+def _validate_content_size(content: str, label: str = "SKILL.md") -> str | None:
     if len(content) > MAX_SKILL_CONTENT_CHARS:
         return (
             f"{label} content is {len(content):,} characters (limit: {MAX_SKILL_CONTENT_CHARS:,}). "
@@ -215,7 +229,7 @@ def _iter_skill_dirs(root: Path):
             yield skill_md.parent
 
 
-def _find_skill(name: str) -> Optional[Dict[str, Any]]:
+def _find_skill(name: str) -> dict[str, Any] | None:
     """Find a skill (local skills dir, then skills.external_dirs) -> ``{"path": Path}`` | None.
 
     Accepts the bare dir name (``axolotl``; matches category-nested skills too) and the
@@ -245,10 +259,10 @@ def _find_skill(name: str) -> Optional[Dict[str, Any]]:
     return None
 
 
-def _find_skill_in_other_profiles(name: str) -> List[Tuple[str, Path]]:
+def _find_skill_in_other_profiles(name: str) -> list[tuple[str, Path]]:
     """``(profile, skill_dir)`` pairs for OTHER profiles holding ``name`` (so the not-found
     error can explain a wrong-profile mistake). Fail-quiet."""
-    matches: List[Tuple[str, Path]] = []
+    matches: list[tuple[str, Path]] = []
     try:
         from hermes_constants import get_default_hermes_root
         root = get_default_hermes_root()
@@ -258,7 +272,7 @@ def _find_skill_in_other_profiles(name: str) -> List[Tuple[str, Path]]:
     active_dir = _active.resolve() if _active.exists() else _active
     # Every profile's skills dir EXCEPT the active one (already searched). A candidate whose
     # path cannot be resolved is skipped (not a fatal error); is_dir() checks stay unguarded.
-    candidates: List[Tuple[str, Path]] = []
+    candidates: list[tuple[str, Path]] = []
     with suppress(OSError, RuntimeError):
         if (root / "skills").resolve() != active_dir:
             candidates.append(("default", root / "skills"))
@@ -304,7 +318,7 @@ def _skill_not_found_error(name: str, suffix: str = "") -> str:
     return base + suffix
 
 
-def _validate_file_path(file_path: str) -> Optional[str]:
+def _validate_file_path(file_path: str) -> str | None:
     """Validate a write_file/remove_file path: under an allowed subdir, no escape."""
     from tools.path_security import has_traversal_component
     if not file_path:
@@ -344,7 +358,7 @@ def _locate_for_write(name: str, action: str, not_found_suffix: str = ""):
 
 
 def _guarded_write(name: str, skill_dir: Path, target: Path, action: str, label: str,
-                   content: str) -> Optional[Dict[str, Any]]:
+                   content: str) -> dict[str, Any] | None:
     """Read-before-write guard (existing targets only), atomic write, then the security scan;
     a blocked scan restores the original (or unlinks a new file). Error dict or None."""
     original = None
@@ -365,7 +379,7 @@ def _guarded_write(name: str, skill_dir: Path, target: Path, action: str, label:
     return _err(scan_error)
 
 
-def _add_description_prompt_preview(result: Dict[str, Any], content: str) -> Dict[str, Any]:
+def _add_description_prompt_preview(result: dict[str, Any], content: str) -> dict[str, Any]:
     fm, _ = _parse_frontmatter(content)
     if is_skill_description_truncated_for_prompt(fm):
         result["system_prompt_preview"] = (
@@ -374,12 +388,15 @@ def _add_description_prompt_preview(result: Dict[str, Any], content: str) -> Dic
     return result
 
 
-def _attach_lint_findings(result: Dict[str, Any], skill_md: Path, before: Optional[str] = None) -> None:
+def _attach_lint_findings(result: dict[str, Any], skill_md: Path, before: str | None = None) -> None:
     """Attach ADVISORY authoring findings (hard rejects already ran in _validate_frontmatter).
     With ``before`` (the pre-write content) only rules the write INTRODUCED are attached, so a
     patch reports the line it crossed rather than re-listing the skill's standing findings."""
     try:
-        from tools.skill_linter import lint_content, lint_skill  # local import: optional path
+        from tools.skill_linter import (  # local import: optional path
+            lint_content,
+            lint_skill,
+        )
         findings = lint_skill(skill_md)
         if before is not None:
             standing = {f.rule for f in lint_content(before, skill_dir=skill_md.parent)}
@@ -401,7 +418,7 @@ def _clip(text: str, n: int, ellipsis: str) -> str:
 
 # --- Core actions -------------------------------------------------------------
 
-def _create_skill(name: str, content: str, category: str = None) -> Dict[str, Any]:
+def _create_skill(name: str, content: str, category: str = None) -> dict[str, Any]:
     if err := (_validate_name(name) or _validate_category(category)
                or _validate_frontmatter(content, new_skill=True) or _validate_content_size(content)):
         return _err(err)
@@ -442,7 +459,7 @@ def _create_skill(name: str, content: str, category: str = None) -> Dict[str, An
     return result
 
 
-def _edit_skill(name: str, content: str) -> Dict[str, Any]:
+def _edit_skill(name: str, content: str) -> dict[str, Any]:
     """Replace the SKILL.md of any existing skill (full rewrite)."""
     if err := _validate_frontmatter(content) or _validate_content_size(content):
         return _err(err)
@@ -457,7 +474,7 @@ def _edit_skill(name: str, content: str) -> Dict[str, Any]:
 
 
 def _patch_skill(name: str, old_string: str, new_string: str, file_path: str = None,
-                 replace_all: bool = False) -> Dict[str, Any]:
+                 replace_all: bool = False) -> dict[str, Any]:
     """Targeted find-and-replace in SKILL.md (default) or a supporting file; unique match unless replace_all."""
     if not old_string:
         return _err(_PATCH_NEEDS_OLD_STRING)
@@ -507,7 +524,7 @@ def _patch_skill(name: str, old_string: str, new_string: str, file_path: str = N
     return result
 
 
-def _delete_skill(name: str, absorbed_into: Optional[str] = None) -> Dict[str, Any]:
+def _delete_skill(name: str, absorbed_into: str | None = None) -> dict[str, Any]:
     """Delete a skill. ``absorbed_into``: None = undeclared (legacy, accepted); "" = explicit prune;
     "<skill>" = absorbed into that umbrella, which must exist (so the model can't claim one)."""
     skill_dir, guard = _locate_for_write(name, "delete")
@@ -549,7 +566,7 @@ def _rmdir_if_empty(parent: Path, stop: Path) -> None:
         parent.rmdir()
 
 
-def _write_file(name: str, file_path: str, file_content: str) -> Dict[str, Any]:
+def _write_file(name: str, file_path: str, file_content: str) -> dict[str, Any]:
     """Add or overwrite a supporting file within any skill directory."""
     if err := _validate_file_path(file_path):
         return _err(err)
@@ -574,7 +591,7 @@ def _write_file(name: str, file_path: str, file_content: str) -> Dict[str, Any]:
     return result
 
 
-def _remove_file(name: str, file_path: str) -> Dict[str, Any]:
+def _remove_file(name: str, file_path: str) -> dict[str, Any]:
     """Remove a supporting file from any skill directory."""
     if err := _validate_file_path(file_path):
         return _err(err)
@@ -598,7 +615,7 @@ def _remove_file(name: str, file_path: str) -> Dict[str, Any]:
 # --- Main entry point ---------------------------------------------------------
 
 # Set while replaying an approved staged skill write so skill_manage() does not re-gate it.
-_skill_gate_bypass: "_ctxvars.ContextVar[bool]" = _ctxvars.ContextVar(
+_skill_gate_bypass: _ctxvars.ContextVar[bool] = _ctxvars.ContextVar(
     "skill_gate_bypass", default=False)
 
 
@@ -638,7 +655,7 @@ _FLAT_OP_KEYS = ("content", "category", "file_path", "file_content", "old_string
                  "absorbed_into", "operations")
 
 
-def _skill_manage_from(payload: Dict[str, Any], **extra) -> str:
+def _skill_manage_from(payload: dict[str, Any], **extra) -> str:
     """Call ``skill_manage`` with the flat-shape fields (and absorbed_into/operations) of ``payload``."""
     return skill_manage(
         action=payload.get("action", ""), name=payload.get("name", ""),
@@ -646,7 +663,7 @@ def _skill_manage_from(payload: Dict[str, Any], **extra) -> str:
         **{k: payload.get(k) for k in _FLAT_OP_KEYS}, **extra)
 
 
-def apply_skill_pending(payload: Dict[str, Any]) -> str:
+def apply_skill_pending(payload: dict[str, Any]) -> str:
     """Replay a staged skill write, bypassing the gate (the /skills approve handler)."""
     token = _skill_gate_bypass.set(True)
     try:
@@ -697,13 +714,13 @@ def _record_success(action, name, result, *, file_path, absorbed_into, task_id,
     # (foreground creates belong to the user). A recoverable curator archive keeps its
     # record as STATE_ARCHIVED (`hermes curator status`/`restore`); only a hard delete forgets.
     with suppress(Exception):
-        from tools.skill_usage import bump_patch, forget, record_created
         # During the curator consolidation pass, a verified consolidation must be RECOVERABLE: archival into
         # ~/.hermes/skills/.archive/ is documented as the maximum destructive action the curator may take,
         # and `hermes curator restore` promises the skill can be brought back. Route through the recoverable
         # archive primitive instead of permanent rmtree so a misjudged consolidation can be undone (#29912).
         # Foreground, user-directed deletes keep their existing hard-delete semantics.
         from tools.skill_provenance import is_background_review
+        from tools.skill_usage import bump_patch, forget, record_created
         if action == "create":
             record_created(name, agent_created=is_background_review(),
                            task_id=task_id, session_id=session_id)

@@ -5,10 +5,9 @@ Ghostty/macOS window and tab navigation can deliver terminal focus reports
 not inserted into the prompt buffer and cleaned up later.
 """
 
+from hermes_cli.pt_input_extras import install_ignored_terminal_sequences
 from prompt_toolkit.input.vt100_parser import Vt100Parser
 from prompt_toolkit.keys import Keys
-
-from hermes_cli.pt_input_extras import install_ignored_terminal_sequences
 
 
 def _parse_keys(data: str):

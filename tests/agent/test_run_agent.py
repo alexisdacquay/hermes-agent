@@ -17,15 +17,13 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from agent.codex_responses_adapter import _normalize_codex_response
-
 import run_agent
-from run_agent import AIAgent
+from agent.codex_responses_adapter import _normalize_codex_response
 from agent.error_classifier import FailoverReason
 from agent.memory_manager import MemoryManager
 from agent.prompt_builder import DEFAULT_AGENT_IDENTITY
+from run_agent import AIAgent
 from tui_gateway import server as tui_server
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -2314,7 +2312,7 @@ class TestAgentRuntimePostHookOwnershipSync:
         # manage_connections / setup_mcp shim: no card on this fake agent, so the MCP leg runs the
         # backend at once; pin the catalog and the backend so the run is hermetic.
         monkeypatch.setattr("tools.connectors.mcp._catalog_names", lambda: ["linear"])
-        monkeypatch.setattr("tools.connectors.mcp._configured_names", lambda: [])
+        monkeypatch.setattr("tools.connectors.mcp._configured_names", list)
 
         class _NoInstallBackend:
             def required_env(self, name):
@@ -2458,7 +2456,7 @@ class TestMcpParallelToolBatch:
     def test_mcp_tools_parallel_when_server_opted_in(self):
         """MCP tools from a parallel-safe server can run concurrently."""
         from agent.tool_dispatch_helpers import _should_parallelize_tool_batch
-        from tools.mcp_tool import _mcp_tool_server_names, _parallel_safe_servers, _lock
+        from tools.mcp_tool import _lock, _mcp_tool_server_names, _parallel_safe_servers
         with _lock:
             _parallel_safe_servers.add("github")
             _mcp_tool_server_names["mcp__github__list_repos"] = "github"
@@ -4231,7 +4229,7 @@ class TestRunConversation:
         protect_first = agent.context_compressor.protect_first_n
         protect_last = agent.context_compressor.protect_last_n
         prefill = []
-        for _i in range((protect_first + protect_last + 4)):
+        for _i in range(protect_first + protect_last + 4):
             prefill.append({"role": "user", "content": f"q{_i}"})
             prefill.append({"role": "assistant", "content": f"a{_i}"})
 
@@ -5649,8 +5647,9 @@ class TestSafeWriter:
 
     def test_write_delegates_normally(self):
         """When stdout is healthy, _SafeWriter is transparent."""
-        from agent.process_bootstrap import _SafeWriter
         from io import StringIO
+
+        from agent.process_bootstrap import _SafeWriter
         inner = StringIO()
         writer = _SafeWriter(inner)
         writer.write("hello")
@@ -5660,6 +5659,7 @@ class TestSafeWriter:
     def test_installed_in_run_conversation(self, agent):
         """run_conversation installs _SafeWriter on stdio."""
         import sys
+
         from agent.process_bootstrap import _SafeWriter
         resp = _mock_response(content="Done", finish_reason="stop")
         agent.client.chat.completions.create.return_value = resp
@@ -6171,10 +6171,10 @@ class TestStreamingApiCall:
     def test_named_non_json_sse_error_preserves_provider_message(self, agent):
         """SDK-level plain-text SSE errors retain their actionable message."""
         import httpx
-        from openai import OpenAI, Stream
-        from openai.types.chat import ChatCompletionChunk
         from agent.chat_completion_helpers import ProviderStreamError
         from agent.error_classifier import PROVIDER_STREAM_NON_JSON_ERROR_CODE
+        from openai import OpenAI, Stream
+        from openai.types.chat import ChatCompletionChunk
 
         provider_message = (
             "request validation failed: unsupported reasoning_effort"
@@ -6189,7 +6189,7 @@ class TestStreamingApiCall:
             headers={"x-request-id": "req-plain-text"},
             content=(
                 f"event: error\ndata: {provider_message}\n\n"
-            ).encode("utf-8"),
+            ).encode(),
         )
         agent.stream_delta_callback = MagicMock()
 
@@ -6216,9 +6216,9 @@ class TestStreamingApiCall:
     def test_named_non_json_sse_error_force_redacts_secrets(self, agent):
         """SDK-level SSE errors cannot expose credentials in exceptions."""
         import httpx
+        from agent.chat_completion_helpers import ProviderStreamError
         from openai import OpenAI, Stream
         from openai.types.chat import ChatCompletionChunk
-        from agent.chat_completion_helpers import ProviderStreamError
 
         secret = "sk-" + ("a" * 48)
         request = httpx.Request(
@@ -6231,7 +6231,7 @@ class TestStreamingApiCall:
             content=(
                 "event: error\n"
                 f"data: request validation failed: token={secret}\n\n"
-            ).encode("utf-8"),
+            ).encode(),
         )
         agent.stream_delta_callback = MagicMock()
 
@@ -6604,6 +6604,7 @@ class TestAnthropicInterruptHandler:
         """
         import time
         from unittest.mock import MagicMock
+
         from agent.chat_completion_helpers import interruptible_api_call
 
         agent.api_mode = "anthropic_messages"

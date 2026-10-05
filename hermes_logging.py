@@ -15,13 +15,16 @@ import os
 import queue
 import sys
 import threading
+from collections.abc import Sequence
 from logging.handlers import QueueHandler, QueueListener
 from pathlib import Path
 from time import monotonic as _monotonic
-from typing import Optional, Sequence
 
 from hermes_constants import (
-    get_config_path, get_hermes_home, mkdir_under_hermes_home, named_profile_is_deleted,
+    get_config_path,
+    get_hermes_home,
+    mkdir_under_hermes_home,
+    named_profile_is_deleted,
 )
 
 # setup_logging() is idempotent: a second call is a no-op unless ``force=True``.
@@ -51,8 +54,9 @@ def _portalocker_probe() -> bool:
     if sys.platform != "win32":
         return True
     try:
-        import portalocker
         import tempfile
+
+        import portalocker
     except Exception as exc:
         _WINDOWS_CLH_FALLBACK_REASON = repr(exc)
         return False
@@ -83,7 +87,7 @@ def _portalocker_probe() -> bool:
 # 0660 chmod and eager file creation; CLH opens lazily and rotates differently.
 if sys.platform == "win32":
     if _portalocker_probe():
-        from concurrent_log_handler import (  # noqa: E402
+        from concurrent_log_handler import (
             ConcurrentRotatingFileHandler as RotatingFileHandler,
         )
     else:
@@ -94,11 +98,11 @@ if sys.platform == "win32":
         # below; fall back to stdlib rotation instead. Rollover is disabled in
         # the fallback: multi-process appends make Windows renames fail with
         # WinError 32, the exact #44873 trap CLH exists to avoid.
-        from logging.handlers import RotatingFileHandler  # noqa: E402
+        from logging.handlers import RotatingFileHandler
 
         _WINDOWS_CLH_FALLBACK = True
 else:
-    from logging.handlers import RotatingFileHandler  # noqa: E402
+    from logging.handlers import RotatingFileHandler
 
 # Thread-local per-conversation session context.
 _session_context = threading.local()
@@ -325,11 +329,11 @@ def _adopt_secondary_home(home: Path) -> bool:
 
 def setup_logging(
     *,
-    hermes_home: Optional[Path] = None,
-    log_level: Optional[str] = None,
-    max_size_mb: Optional[int] = None,
-    backup_count: Optional[int] = None,
-    mode: Optional[str] = None,
+    hermes_home: Path | None = None,
+    log_level: str | None = None,
+    max_size_mb: int | None = None,
+    backup_count: int | None = None,
+    mode: str | None = None,
     force: bool = False,
 ) -> Path:
     """Configure the Hermes logging subsystem; returns the ``logs/`` directory.
@@ -461,7 +465,7 @@ class _ManagedRotatingFileHandler(RotatingFileHandler):
             except OSError:
                 pass
 
-    def _record_stream_stat(self, st: Optional[os.stat_result] = None) -> None:
+    def _record_stream_stat(self, st: os.stat_result | None = None) -> None:
         """Snapshot dev/ino of ``baseFilename`` so emit() can detect external rotation."""
         try:
             st = st or os.stat(self.baseFilename)
@@ -581,7 +585,7 @@ class _ManagedRotatingFileHandler(RotatingFileHandler):
 
 def _new_file_handler(
     path: Path, *, level: int, max_bytes: int, backup_count: int, formatter
-) -> "_ManagedRotatingFileHandler":
+) -> _ManagedRotatingFileHandler:
     """Create the ``logs/`` directory and a configured ``_ManagedRotatingFileHandler``."""
     mkdir_under_hermes_home(path.parent)
     if _WINDOWS_CLH_FALLBACK:
@@ -682,7 +686,10 @@ class _ProfileRoutingFileHandler(logging.Handler):
                 return
             # Formatted here, on the listener thread, where the record's profile scope is gone: bind its home so
             # RedactingFormatter applies THAT profile's redact_secrets policy and vault values, not the launch's.
-            from hermes_constants import reset_hermes_home_override, set_hermes_home_override
+            from hermes_constants import (
+                reset_hermes_home_override,
+                set_hermes_home_override,
+            )
             token = set_hermes_home_override(str(home))
             try:
                 handler.handle(record)
@@ -722,8 +729,8 @@ class _ProfileRoutingFileHandler(logging.Handler):
 # drops WebSocket clients. Every file handler is therefore driven by a single
 # QueueListener thread; loggers only do a non-blocking enqueue.
 
-_log_queue: "Optional[queue.SimpleQueue]" = None
-_queue_listener: Optional[QueueListener] = None
+_log_queue: queue.SimpleQueue | None = None
+_queue_listener: QueueListener | None = None
 _queued_file_handlers: list = []
 _queue_atexit_registered = False
 # Guards every read-modify-write of the four globals above. setup_logging()
@@ -905,7 +912,7 @@ def _reset_queued_handlers() -> None:
         for h in list(root.handlers):
             if getattr(h, "_hermes_queue", False):
                 root.removeHandler(h)
-        for h in list(_queued_file_handlers):
+        for h in _queued_file_handlers:
             _quietly(h.close)
         _queued_file_handlers.clear()
         _log_queue = None
@@ -918,7 +925,7 @@ def _add_rotating_handler(
     max_bytes: int,
     backup_count: int,
     formatter: logging.Formatter,
-    log_filter: Optional[logging.Filter] = None,
+    log_filter: logging.Filter | None = None,
 ) -> None:
     """Register a queued ``RotatingFileHandler`` for *path*; idempotent per resolved path."""
     resolved = path.resolve()

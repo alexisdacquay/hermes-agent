@@ -8,9 +8,10 @@ import json
 from contextlib import contextmanager
 from typing import Any
 
-from agent.redact import redact_sensitive_text
 from hermes_constants import reset_hermes_home_override, set_hermes_home_override
 from utils import is_truthy_value
+
+from agent.redact import redact_sensitive_text
 
 
 @contextmanager

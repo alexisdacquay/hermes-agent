@@ -14,9 +14,15 @@ import os
 import subprocess
 import sys
 import time
-from typing import Any, Dict, Optional
+from typing import Any
 
-from plugins.web._common import BaseWebSearchProvider, search_fail, search_ok, setup_schema, title_hit
+from plugins.web._common import (
+    BaseWebSearchProvider,
+    search_fail,
+    search_ok,
+    setup_schema,
+    title_hit,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -27,8 +33,8 @@ logger = logging.getLogger(__name__)
 _SEARCH_TIMEOUT_SECS = 30
 _POLL_INTERVAL_SECS = 0.1  # parent stdout / interrupt-flag poll cadence
 _TERMINATE_GRACE_SECS = 1.0  # wait after terminate() before escalating to kill()
-_test_hook: Optional[str] = None  # test-only hook forwarded to the child (see _search_worker.py)
-_last_worker_proc: Optional[subprocess.Popen] = None  # last worker Popen (test reap checks)
+_test_hook: str | None = None  # test-only hook forwarded to the child (see _search_worker.py)
+_last_worker_proc: subprocess.Popen | None = None  # last worker Popen (test reap checks)
 
 
 class _SearchInterrupted(Exception):
@@ -64,7 +70,7 @@ def _plugins_path_entry() -> str:
     return os.path.abspath(os.path.join(__file__, *([os.pardir] * 4)))
 
 
-def _terminate_and_reap(proc: Optional[subprocess.Popen], *, grace: float = _TERMINATE_GRACE_SECS) -> None:
+def _terminate_and_reap(proc: subprocess.Popen | None, *, grace: float = _TERMINATE_GRACE_SECS) -> None:
     """Terminate a worker, escalate to kill, and wait so no orphan remains. Does not close
     the parent's pipe ends — closing stdout while another thread is blocked in ``read()``
     deadlocks on some platforms; the caller drains first."""
@@ -143,8 +149,8 @@ def _run_ddgs_search_bounded(query: str, safe_limit: int) -> list[dict[str, Any]
     never joins a child that may be in native code holding *its* GIL — it polls a
     communicator thread and, on timeout/interrupt, kills the OS process.
     Raises ``TimeoutError``, ``_SearchInterrupted``, or ``RuntimeError``."""
-    from tools.interrupt import is_interrupted  # lazy: keep plugin import light
     from tools.environments.local import _sanitize_subprocess_env
+    from tools.interrupt import is_interrupted  # lazy: keep plugin import light
     global _last_worker_proc
     request: dict[str, Any] = {"query": query, "safe_limit": safe_limit}
     env = _sanitize_subprocess_env(dict(os.environ))
@@ -196,7 +202,7 @@ class DDGSWebSearchProvider(BaseWebSearchProvider):
         except ImportError:
             return False
 
-    def search(self, query: str, limit: int = 5) -> Dict[str, Any]:
+    def search(self, query: str, limit: int = 5) -> dict[str, Any]:
         """Run the search in a disposable child with a hard wall-clock timeout so a
         hung native ``primp`` call cannot freeze the Hermes process.
 
@@ -222,7 +228,7 @@ class DDGSWebSearchProvider(BaseWebSearchProvider):
         logger.info("DDGS search '%s': %d results (limit %d)", query, len(web_results), limit)
         return search_ok(web_results)
 
-    def get_setup_schema(self) -> Dict[str, Any]:
+    def get_setup_schema(self) -> dict[str, Any]:
         # post_setup triggers `_run_post_setup("ddgs")` so the package gets pip-installed on first pick.
         return setup_schema(
             "DuckDuckGo (ddgs)", "free · no key · search only",

@@ -14,7 +14,6 @@ from argparse import Namespace
 from pathlib import Path
 
 import pytest
-
 from hermes_cli import main as cli_main
 from hermes_cli import main_desktop
 

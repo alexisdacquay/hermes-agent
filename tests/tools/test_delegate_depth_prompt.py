@@ -5,7 +5,6 @@ import threading
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from tools import delegate_tool
 from tools.registry import registry
 

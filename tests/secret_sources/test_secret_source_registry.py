@@ -10,7 +10,6 @@ against the bundled Bitwarden source.
 from __future__ import annotations
 
 import sys
-import time
 from pathlib import Path
 
 import pytest
@@ -19,18 +18,18 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from agent.secret_sources.base import (  # noqa: E402
+from agent.secret_sources import registry as reg
+from agent.secret_sources.base import (
     SECRET_SOURCE_API_VERSION,
     ErrorKind,
     FetchResult,
     SecretSource,
     is_valid_env_name,
     run_secret_cli,
-    scrub_ansi,
 )
-from agent.secret_sources import registry as reg  # noqa: E402
-from agent.secret_sources.bitwarden import BitwardenSource  # noqa: E402
-from tests.secret_sources.conformance import SecretSourceConformance  # noqa: E402
+from agent.secret_sources.bitwarden import BitwardenSource
+
+from tests.secret_sources.conformance import SecretSourceConformance
 
 
 @pytest.fixture(autouse=True)

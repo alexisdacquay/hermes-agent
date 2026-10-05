@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 
-def read_json(path: Path) -> Optional[Any]:
+def read_json(path: Path) -> Any | None:
     """Parsed JSON from *path*, or None when missing/unreadable/malformed."""
     if not path.is_file():
         return None

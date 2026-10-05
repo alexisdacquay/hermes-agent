@@ -7,13 +7,18 @@ import os
 import re
 import shlex
 import subprocess
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable
 
 from tools.approval_detection import (
-    _bash_exec_payload, _deobfuscate_shell_word_for_detection, _iter_shell_command_starts,
-    _is_shell_comment_start, _read_shell_word, _scan_shell)
+    _bash_exec_payload,
+    _deobfuscate_shell_word_for_detection,
+    _is_shell_comment_start,
+    _iter_shell_command_starts,
+    _read_shell_word,
+    _scan_shell,
+)
 
 # bisect drives repeated checkouts of the running root — the exact skew hazard guarded here.
 _WORKTREE_MUTATIONS = frozenset({

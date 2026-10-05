@@ -7,11 +7,10 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from tools.vision_tools import (
     _detect_video_mime_type,
-    _video_to_base64_data_url,
     _handle_video_analyze,
+    _video_to_base64_data_url,
     video_analyze_tool,
 )
 

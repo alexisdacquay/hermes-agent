@@ -16,6 +16,7 @@ import pytest
 from hermes_cli.config import DEFAULT_CONFIG, cfg_get
 from tools import browser_tool_lifecycle as bt_lifecycle
 
+
 def _make_runner():
     """Create a minimal GatewayRunner with just the cache infrastructure."""
     from gateway.run import GatewayRunner
@@ -98,7 +99,7 @@ class TestAgentConfigSignature:
                 },
             },
         )
-        monkeypatch.setattr(runtime_provider, "_get_model_config", lambda: {})
+        monkeypatch.setattr(runtime_provider, "_get_model_config", dict)
 
         runtime = _resolve_runtime_agent_kwargs()
 
@@ -156,7 +157,7 @@ class TestExtractCacheBustingConfig:
 
         default_cap = DEFAULT_CONFIG["compression"]["threshold_tokens"]
         other_cap = (default_cap or 0) + 100_000
-        sig = lambda cfg: GatewayRunner._extract_cache_busting_config(cfg)["compression.threshold_tokens"]  # noqa: E731
+        sig = lambda cfg: GatewayRunner._extract_cache_busting_config(cfg)["compression.threshold_tokens"]
         assert sig({}) == sig({"compression": {"threshold_tokens": default_cap}}) == default_cap
         assert sig({"compression": {"threshold_tokens": other_cap}}) == other_cap != sig({})
 
@@ -228,6 +229,7 @@ class TestExtractCacheBustingConfig:
 
     def test_provider_identity_signature_enters_under_memory_prefix_and_is_re_read_from_one_instance(self, monkeypatch):
         from gateway.run import GatewayRunner
+
         from tests.agent.test_memory_provider import FakeMemoryProvider
 
         class IdentityProvider(FakeMemoryProvider):
@@ -252,6 +254,7 @@ class TestExtractCacheBustingConfig:
     @pytest.mark.parametrize("kind", ["no hook", "no provider", "raising hook"])
     def test_provider_contributes_nothing_without_a_working_identity_hook(self, monkeypatch, kind):
         from gateway.run import GatewayRunner
+
         from tests.agent.test_memory_provider import FakeMemoryProvider
 
         class BrokenProvider(FakeMemoryProvider):
@@ -297,6 +300,7 @@ class TestAgentCacheBoundedGrowth:
     def _bounded_runner(self):
         """Runner with an OrderedDict cache (matches real gateway init)."""
         from collections import OrderedDict
+
         from gateway.run import GatewayRunner
 
         runner = GatewayRunner.__new__(GatewayRunner)
@@ -359,6 +363,7 @@ class TestAgentCacheActiveSafety:
 
     def _runner(self):
         from collections import OrderedDict
+
         from gateway.run import GatewayRunner
 
         runner = GatewayRunner.__new__(GatewayRunner)
@@ -433,6 +438,7 @@ class TestAgentCacheSpilloverLive:
 
     def _runner(self):
         from collections import OrderedDict
+
         from gateway.run import GatewayRunner
 
         runner = GatewayRunner.__new__(GatewayRunner)
@@ -500,6 +506,7 @@ class TestAgentCacheIdleResume:
 
     def _runner(self):
         from collections import OrderedDict
+
         from gateway.run import GatewayRunner
 
         runner = GatewayRunner.__new__(GatewayRunner)
@@ -553,8 +560,8 @@ class TestAgentCacheIdleResume:
         (full teardown — session is done), cache-eviction path uses
         release_clients() (soft — session may resume).
         """
-        from run_agent import AIAgent
         import run_agent as _ra
+        from run_agent import AIAgent
 
         # Agent A: evicted from cache (soft) — terminal survives.
         # Agent B: session expired (hard) — terminal torn down.

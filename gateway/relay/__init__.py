@@ -65,7 +65,7 @@ def _env_or_cfg(env_var: str, cfg_key: str) -> str:
     return value or str(_gateway_cfg().get(cfg_key, "") or "").strip()
 
 
-def _env_or_cfg_url(env_var: str, cfg_key: str) -> Optional[str]:
+def _env_or_cfg_url(env_var: str, cfg_key: str) -> str | None:
     """``_env_or_cfg`` for URL-shaped values: trailing slash stripped, None when unset."""
     return _env_or_cfg(env_var, cfg_key).rstrip("/") or None
 
@@ -80,9 +80,14 @@ def relay_explicitly_disabled() -> bool:
     authoritative — a legacy ``gateway.json`` block is advisory for relay exactly as it
     is for every other platform, and an absent key keeps URL-only activation.
     """
-    from gateway.config import Platform, PlatformConfig
-    from gateway.config_loader import bridge_platform_shared_keys, merge_platform_sections, read_yaml_layers
     from hermes_constants import get_hermes_home
+
+    from gateway.config import Platform, PlatformConfig
+    from gateway.config_loader import (
+        bridge_platform_shared_keys,
+        merge_platform_sections,
+        read_yaml_layers,
+    )
 
     try:
         cfg = read_yaml_layers(get_hermes_home())
@@ -99,7 +104,7 @@ def relay_explicitly_disabled() -> bool:
     return not PlatformConfig.from_dict(block).enabled
 
 
-def relay_url() -> Optional[str]:
+def relay_url() -> str | None:
     """Effective connector URL; an explicit platform disable vetoes even an env URL."""
     if relay_explicitly_disabled():
         return None
@@ -152,7 +157,7 @@ def relay_platform_identity() -> tuple[str, str]:
     return relay_platform_identities()[0]
 
 
-def relay_connection_auth() -> tuple[Optional[str], Optional[str]]:
+def relay_connection_auth() -> tuple[str | None, str | None]:
     """The (gateway_id, upgrade_secret) from enrollment (``GATEWAY_RELAY_ID`` /
     ``GATEWAY_RELAY_SECRET``, then ``gateway.relay_id`` / ``gateway.relay_secret``).
     Either absent -> ``(None, None)`` and the transport dials unauthenticated."""
@@ -161,7 +166,7 @@ def relay_connection_auth() -> tuple[Optional[str], Optional[str]]:
     return (gateway_id or None, secret or None)
 
 
-def relay_endpoint() -> Optional[str]:
+def relay_endpoint() -> str | None:
     """The gateway's own PUBLIC inbound URL, asserted to the connector at provision
     (``GATEWAY_RELAY_ENDPOINT`` / ``gateway.relay_endpoint``). Stored on the tenant's
     route rows; gateway-asserted but tenant-scoped, so a dishonest gateway can only
@@ -183,7 +188,7 @@ def relay_route_keys() -> list[str]:
     return [k.strip() for k in raw.split(",") if k.strip()]
 
 
-def relay_instance_id() -> Optional[str]:
+def relay_instance_id() -> str | None:
     """Stable per-instance id forwarded at provision (``GATEWAY_RELAY_INSTANCE_ID`` /
     ``gateway.relay_instance_id``): binds the connector's ``gatewayId -> instanceId``
     so inbound routes per-instance rather than tenant-broadcast (NAS stamps its
@@ -191,7 +196,7 @@ def relay_instance_id() -> Optional[str]:
     return _env_or_cfg("GATEWAY_RELAY_INSTANCE_ID", "relay_instance_id") or None
 
 
-def relay_wake_url() -> Optional[str]:
+def relay_wake_url() -> str | None:
     """The gateway's WAKE URL forwarded at provision (``GATEWAY_RELAY_WAKE_URL`` /
     ``gateway.relay_wake_url``): a payload-free poke the connector GETs when a
     going-idle destination receives its first buffered event, so a suspended gateway
@@ -199,7 +204,7 @@ def relay_wake_url() -> Optional[str]:
     return _env_or_cfg_url("GATEWAY_RELAY_WAKE_URL", "relay_wake_url")
 
 
-def relay_display_name() -> Optional[str]:
+def relay_display_name() -> str | None:
     """The human-facing agent display name forwarded at provision — the connector's
     multi-agent reply-attribution prefix (``**<displayName>:** ``).
     ``GATEWAY_RELAY_DISPLAY_NAME`` env, then the skin's branded agent name (a skin
@@ -259,7 +264,7 @@ def _json_post(url: str, token: str, body: dict, timeout: float):
     return urllib.request.urlopen(req, timeout=timeout)
 
 
-def relay_relevance_policy(platform: Optional[str] = None) -> Optional[dict]:
+def relay_relevance_policy(platform: str | None = None) -> dict | None:
     """Project a fronted platform's RELEVANCE config into the connector's generic vocabulary.
 
     The connector's relevance gate reasons over a platform-agnostic policy keyed by
@@ -328,11 +333,11 @@ def _post_provision(
     gateway_id: str,
     platform: str,
     bot_id: str,
-    gateway_endpoint: Optional[str],
+    gateway_endpoint: str | None,
     route_keys: list[str],
-    instance_id: Optional[str] = None,
-    wake_url: Optional[str] = None,
-    display_name: Optional[str] = None,
+    instance_id: str | None = None,
+    wake_url: str | None = None,
+    display_name: str | None = None,
     timeout: float = _HTTP_TIMEOUT_S,
 ) -> dict:
     """POST ``/relay/provision``; return ``{secret, deliveryKey, tenant, gatewayId,
@@ -673,7 +678,7 @@ def send_relay_policy() -> bool:
     return any_declared
 
 
-def register_relay_adapter(force: bool = False, url: Optional[str] = None) -> bool:
+def register_relay_adapter(force: bool = False, url: str | None = None) -> bool:
     """Register the generic ``relay`` platform when a relay URL is configured (or
     ``force=True`` for tests: transport-less adapter). Neither overrides an
     explicit profile disable. Returns True if registered.

@@ -17,7 +17,7 @@ clear "sign in" error from :meth:`search` rather than a silently different backe
 from __future__ import annotations
 
 import json
-from typing import Any, Dict
+from typing import Any
 
 from plugins.web._common import BaseWebSearchProvider, search_fail
 
@@ -71,13 +71,13 @@ class OpenAINativeWebSearchProvider(BaseWebSearchProvider):
     def is_available(self) -> bool:
         return has_codex_credentials()
 
-    def search(self, query: str, limit: int = 5) -> Dict[str, Any]:
+    def search(self, query: str, limit: int = 5) -> dict[str, Any]:
         """Never called on a successful native turn — the transport replaces the tool
         before the request goes out. Reached only when the active transport cannot host
         the built-in, so fail loudly instead of returning an empty result set."""
         return search_fail(_UNSUPPORTED_MSG)
 
-    def get_setup_schema(self) -> Dict[str, Any]:
+    def get_setup_schema(self) -> dict[str, Any]:
         from plugins.web._common import setup_schema
 
         return setup_schema(

@@ -12,7 +12,6 @@ The live profile on disk must stay untouched.
 import tarfile
 
 import pytest
-
 from agent.file_safety import HOME_CREDENTIAL_DIRS
 from hermes_cli.profiles import export_profile
 from plugins.teams_pipeline.store import DEFAULT_TEAMS_PIPELINE_STORE_FILENAME
@@ -155,7 +154,10 @@ class TestCredentialExclusion:
         from pathlib import Path
 
         from hermes_cli.profile_distribution import (
-            DistributionError, DistributionManifest, install_distribution, write_manifest,
+            DistributionError,
+            DistributionManifest,
+            install_distribution,
+            write_manifest,
         )
 
         monkeypatch.setattr(Path, "home", lambda: tmp_path)

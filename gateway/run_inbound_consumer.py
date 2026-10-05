@@ -17,7 +17,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
-from typing import Any, Optional, Tuple
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +33,7 @@ def _routed_scope(runner: Any, source: Any):
 
 async def run_post_admission_hook(
     runner: Any, event: Any, source: Any, session_key: str
-) -> Tuple[bool, Optional[str]]:
+) -> tuple[bool, str | None]:
     """Return ``(handled, reply)``; ``handled=False`` means run the ordinary agent turn."""
     try:
         async with _routed_scope(runner, source):

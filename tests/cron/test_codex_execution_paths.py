@@ -9,6 +9,7 @@ sys.modules.setdefault("fal_client", types.SimpleNamespace())
 import cron.scheduler as cron_scheduler
 import run_agent
 
+
 def _patch_agent_bootstrap(monkeypatch):
     monkeypatch.setattr(
         "model_tools.get_tool_definitions",
@@ -23,7 +24,7 @@ def _patch_agent_bootstrap(monkeypatch):
             }
         ],
     )
-    monkeypatch.setattr("model_tools.check_toolset_requirements", lambda: {})
+    monkeypatch.setattr("model_tools.check_toolset_requirements", dict)
 
 def _codex_message_response(text: str):
     return SimpleNamespace(

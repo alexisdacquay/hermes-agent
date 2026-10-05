@@ -25,7 +25,6 @@ from pathlib import Path
 
 import psutil
 import pytest
-
 from gateway import status
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]

@@ -6,9 +6,7 @@ import time
 from pathlib import Path
 
 import pytest
-
 from hermes_cli import active_sessions
-
 
 
 def _backdate_leases(*homes, age_seconds=600.0):

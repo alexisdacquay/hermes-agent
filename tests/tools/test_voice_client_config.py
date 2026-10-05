@@ -8,8 +8,8 @@ gateway's own relay endpoints would resolve for the same profile.
 import importlib
 import sys
 
-import pytest
 import hermes_yaml as yaml
+import pytest
 
 
 @pytest.fixture()

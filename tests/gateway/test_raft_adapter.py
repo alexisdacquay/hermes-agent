@@ -9,17 +9,16 @@ from unittest.mock import AsyncMock
 import pytest
 from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
-
 from gateway.config import PlatformConfig
 from plugins.platforms.raft.adapter import (
     ACTIVITY_DRAIN_SCHEMA,
     ACTIVITY_EVENT_SCHEMA,
-    ActivityQueue,
     BRIDGE_TOKEN_HEADER,
     DEFAULT_PATH,
+    ActivityQueue,
     RaftAdapter,
-    _has_content_field,
     _env_enablement,
+    _has_content_field,
     interactive_setup,
     register,
 )

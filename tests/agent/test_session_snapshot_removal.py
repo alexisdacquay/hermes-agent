@@ -1,10 +1,8 @@
 """Automatic persistence stays in SQLite; explicit exports remain available."""
 import json
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-
 from agent.agent_init import _init_session_state
 from agent.session_persistence import SessionPersistenceMixin
 from hermes_state import SessionDB

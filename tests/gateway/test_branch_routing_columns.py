@@ -26,11 +26,10 @@ runs — closing the gap the same way the compression fix does.
 from __future__ import annotations
 
 import pytest
-
 from gateway.config import GatewayConfig, Platform
 from gateway.platforms.event import MessageEvent
-from gateway.session import SessionSource, SessionStore, build_session_key
-from hermes_state import AsyncSessionDB, SessionDB
+from gateway.session import SessionSource, SessionStore
+from hermes_state import AsyncSessionDB
 
 
 @pytest.fixture()
@@ -108,7 +107,7 @@ class TestBranchRoutingColumns:
             captured_new_session_id["id"] = target_session_id
             raise RuntimeError("simulated crash before switch_session")
 
-        import unittest.mock as mock
+        from unittest import mock
 
         with mock.patch.object(store, "switch_session", side_effect=_crash_before_switch):
             with pytest.raises(RuntimeError, match="simulated crash"):

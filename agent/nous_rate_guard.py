@@ -13,12 +13,20 @@ import json
 import logging
 import os
 import time
-from typing import Any, Mapping, Optional
+from collections.abc import Mapping
+from typing import Any
+
 from utils import atomic_write_text
-from agent.retry_utils import parse_retry_after_seconds
+
 from agent.rate_limit_tracker import (
-    _BUCKET_TAGS, _fmt_seconds, _safe_float, _safe_int, has_rate_limit_headers, lower_headers,
+    _BUCKET_TAGS,
+    _fmt_seconds,
+    _safe_float,
+    _safe_int,
+    has_rate_limit_headers,
+    lower_headers,
 )
+from agent.retry_utils import parse_retry_after_seconds
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +54,7 @@ def _state_path(*, anonymous: bool = False) -> str:
     return os.path.join(base, "rate_limits", "nous-anonymous.json" if anonymous else "nous.json")
 
 
-def _parse_reset_seconds(headers: Optional[Mapping[str, str]]) -> Optional[float]:
+def _parse_reset_seconds(headers: Mapping[str, str] | None) -> float | None:
     """Best reset estimate (seconds from now) from hourly, per-minute, then retry-after headers."""
     lowered = lower_headers(headers)
     for key in ("x-ratelimit-reset-requests-1h", "x-ratelimit-reset-requests"):
@@ -58,7 +66,7 @@ def _parse_reset_seconds(headers: Optional[Mapping[str, str]]) -> Optional[float
 
 
 def record_nous_rate_limit(
-    *, headers: Optional[Mapping[str, str]] = None, error_context: Optional[dict[str, Any]] = None,
+    *, headers: Mapping[str, str] | None = None, error_context: dict[str, Any] | None = None,
     default_cooldown: float = 300.0,
     anonymous: bool = False,
 ) -> None:
@@ -87,7 +95,7 @@ def record_nous_rate_limit(
         logger.debug("Failed to write Nous rate limit state: %s", exc)
 
 
-def nous_rate_limit_remaining(*, anonymous: bool = False) -> Optional[float]:
+def nous_rate_limit_remaining(*, anonymous: bool = False) -> float | None:
     """Seconds remaining until reset, or None if not rate-limited (expired state is removed)."""
     path = _state_path(anonymous=anonymous)
     try:
@@ -113,7 +121,7 @@ def clear_nous_rate_limit(*, anonymous: bool = False) -> None:
         logger.debug("Failed to clear Nous rate limit state: %s", exc)
 
 
-def _is_exhausted(remaining: Optional[int], reset: Optional[float]) -> bool:
+def _is_exhausted(remaining: int | None, reset: float | None) -> bool:
     """remaining == 0 AND a reset window long enough to be a real quota exhaustion."""
     return (
         remaining is not None
@@ -124,7 +132,7 @@ def _is_exhausted(remaining: Optional[int], reset: Optional[float]) -> bool:
 
 
 def is_genuine_nous_rate_limit(
-    *, headers: Optional[Mapping[str, str]] = None, last_known_state: Optional[Any] = None,
+    *, headers: Mapping[str, str] | None = None, last_known_state: Any | None = None,
 ) -> bool:
     """Decide whether a 429 from Nous Portal is a real account rate limit.
 
@@ -153,13 +161,13 @@ def is_long_welcome_rate_limit(error_context: Any) -> bool:
 
 
 def _parse_buckets_from_headers(
-    headers: Optional[Mapping[str, str]],
-) -> dict[str, tuple[Optional[int], Optional[float]]]:
+    headers: Mapping[str, str] | None,
+) -> dict[str, tuple[int | None, float | None]]:
     """(remaining, reset_seconds) per bucket from x-ratelimit-* headers ({} if none)."""
     lowered = lower_headers(headers)
     if not has_rate_limit_headers(lowered):
         return {}
-    result: dict[str, tuple[Optional[int], Optional[float]]] = {}
+    result: dict[str, tuple[int | None, float | None]] = {}
     for _attr, tag in _BUCKET_TAGS:
         remaining = _safe_int(lowered.get(f"x-ratelimit-remaining-{tag}"), None)
         reset = _safe_float(lowered.get(f"x-ratelimit-reset-{tag}"), None)
@@ -168,7 +176,7 @@ def _parse_buckets_from_headers(
     return result
 
 
-def _has_exhausted_bucket(buckets: Mapping[str, tuple[Optional[int], Optional[float]]]) -> bool:
+def _has_exhausted_bucket(buckets: Mapping[str, tuple[int | None, float | None]]) -> bool:
     return any(_is_exhausted(remaining, reset) for remaining, reset in buckets.values())
 
 

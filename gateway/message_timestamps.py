@@ -11,11 +11,10 @@ import errno
 import re
 import sys
 import time
-from datetime import datetime, timezone
-from typing import Any, Optional, Tuple
+from datetime import UTC, datetime
+from typing import Any
 
 from hermes_time import safe_strftime
-
 
 # Leading timestamp prefix, either the current human format
 # ``[Tue 2026-04-28 13:40:53 CEST]`` or the older ISO one
@@ -31,7 +30,7 @@ _TIMESTAMP_PREFIX_RE = re.compile(
 )
 
 
-def _localize(dt: datetime, tz) -> Optional[float]:
+def _localize(dt: datetime, tz) -> float | None:
     """Epoch for ``dt`` in ``tz`` or the local zone; None outside platform limits."""
     naive_local = dt.tzinfo is None and tz is None
     try:
@@ -56,7 +55,7 @@ def _localize(dt: datetime, tz) -> Optional[float]:
         return None
 
 
-def _parse_iso(text: str, tz=None) -> Optional[float]:
+def _parse_iso(text: str, tz=None) -> float | None:
     """Parse an ISO-8601 string (incl. ``+0200`` offsets fromisoformat rejects)."""
     for parse in (datetime.fromisoformat, lambda t: datetime.strptime(t, "%Y-%m-%dT%H:%M:%S%z")):
         try:
@@ -66,7 +65,7 @@ def _parse_iso(text: str, tz=None) -> Optional[float]:
     return None
 
 
-def _parse_timestamp_match(match: re.Match, tz=None) -> Optional[float]:
+def _parse_timestamp_match(match: re.Match, tz=None) -> float | None:
     if match.group("iso"):
         return _parse_iso(match.group("iso"), tz)
     try:
@@ -76,7 +75,7 @@ def _parse_timestamp_match(match: re.Match, tz=None) -> Optional[float]:
     return _localize(dt, tz)
 
 
-def coerce_message_timestamp(ts_value: Any, tz=None) -> Optional[float]:
+def coerce_message_timestamp(ts_value: Any, tz=None) -> float | None:
     """Epoch seconds from a number, datetime, ISO string, or the gateway's bracketed
     format; ``None`` when uninterpretable."""
     if isinstance(ts_value, (int, float)):
@@ -107,13 +106,13 @@ def format_message_timestamp(ts_value: Any, tz=None) -> str:
     try:
         # An early positive epoch can fall in 1969 locally. Starting from aware
         # UTC avoids Windows' negative-time fold probe in naive astimezone().
-        dt = datetime.fromtimestamp(epoch, tz=tz) if tz is not None else datetime.fromtimestamp(epoch, tz=timezone.utc).astimezone()
+        dt = datetime.fromtimestamp(epoch, tz=tz) if tz is not None else datetime.fromtimestamp(epoch, tz=UTC).astimezone()
     except (OSError, OverflowError, ValueError):
         return ""
     return f"[{safe_strftime(dt, '%a %Y-%m-%d %H:%M:%S %Z')}]"
 
 
-def strip_leading_message_timestamps(content: str, tz=None) -> Tuple[str, Optional[float]]:
+def strip_leading_message_timestamps(content: str, tz=None) -> tuple[str, float | None]:
     """Strip leading gateway timestamp prefixes → ``(clean_content, embedded_epoch)``.
     With several prefixes the one closest to the text wins, preserving the platform-send
     time of legacy rows like ``[processing time] [platform time] [sender] message``."""

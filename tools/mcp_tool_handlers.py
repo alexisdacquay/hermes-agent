@@ -1,27 +1,34 @@
 """Registry-facing sync handlers for MCP tools and utility tools (resources/prompts), plus the per-call recovery
 ladder: trust gating, circuit breaker, auth (401) refresh, session-expired reconnect and dead-stdio respawn retry."""
 
-import logging
 import asyncio
 import contextvars
 import inspect
 import json
+import logging
 import time
+from collections.abc import Callable
 from contextlib import asynccontextmanager
 from functools import partial
 from types import SimpleNamespace
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any
 
 from hermes_platform import declaration
-from tools.registry import invalidate_check_fn_cache, tool_error
-from tools.ansi_strip import strip_unicode_tags
-from tools.mcp_tool_common import _exc_str, _sanitize_error, mcp_field, _core
+
 from tools import mcp_tool_loop as _loop
+from tools.ansi_strip import strip_unicode_tags
+from tools.mcp_tool_common import _core, _exc_str, _sanitize_error, mcp_field
 from tools.mcp_tool_content import (
-    _MCP_HARD_RESULT_CAP_CHARS, _cache_mcp_audio_block, _cache_mcp_image_block,
-    _render_mcp_dropped_block_notice, _render_mcp_resource_block, _strip_reserved_meta_keys,
-    _truncate_mcp_text_result)
+    _MCP_HARD_RESULT_CAP_CHARS,
+    _cache_mcp_audio_block,
+    _cache_mcp_image_block,
+    _render_mcp_dropped_block_notice,
+    _render_mcp_resource_block,
+    _strip_reserved_meta_keys,
+    _truncate_mcp_text_result,
+)
 from tools.mcp_tool_errors import _is_auth_error, _is_session_expired_error
+from tools.registry import invalidate_check_fn_cache, tool_error
 
 logger = logging.getLogger("tools.mcp_tool")
 _MISSING = object()
@@ -56,7 +63,7 @@ def _tool_is_read_only(server_name: str, tool_name: str) -> bool:
     return _core._tool_read_only_hints.get(_resolve_server_key(server_name), {}).get(tool_name) is True
 
 
-def _trust_gate_check(server_name: str, tool_name: str) -> Optional[str]:
+def _trust_gate_check(server_name: str, tool_name: str) -> str | None:
     """Approval gate for write-capable tools on ``trust: untrusted`` servers. None to proceed,
     else a ``tool_error``. Fail-closed: approval-system errors block."""
     from tools.mcp_tool_scope import _server_key
@@ -84,7 +91,7 @@ def _trust_gate_check(server_name: str, tool_name: str) -> Optional[str]:
                       f"'{server_name}'. The command was NOT run. Do not retry without explicit user direction.")
 
 
-def _check_circuit_breaker(server_name: str) -> Optional[str]:
+def _check_circuit_breaker(server_name: str) -> str | None:
     """Open-breaker error, or None when calls may proceed. After the cooldown the breaker is
     half-open: the next call probes; success resets, failure re-bumps and re-arms the cooldown."""
     from tools.mcp_tool_scope import _resolve_server_key
@@ -109,7 +116,9 @@ def _acquire_call_server(server_name: str, tool_timeout: float):
     """``(server, None)`` when a call may be dispatched, else ``(None, error)``. No session: a
     reconnect may be completing, so wait briefly before a breaker strike; still down -> ask the
     server task to rebuild (probing a dead transport would re-arm the breaker forever)."""
-    from tools import mcp_tool_discovery as _discovery  # lazy: discovery -> registration -> handlers cycle
+    from tools import (
+        mcp_tool_discovery as _discovery,  # lazy: discovery -> registration -> handlers cycle
+    )
     not_connected = tool_error(f"MCP server '{server_name}' is not connected")
     from tools.mcp_liveness import unavailable_details
     details = unavailable_details(server_name)
@@ -437,12 +446,12 @@ def _error_result_text(result) -> str:
     return "".join(str(t) for t in texts if t)
 
 
-def _render_content_blocks(result, server_name: str) -> Tuple[str, int]:
+def _render_content_blocks(result, server_name: str) -> tuple[str, int]:
     """Text passes through; image/audio blocks are cached (MEDIA: tags); resource blocks are
     materialized rather than silently dropped; unsupported blocks become an inline drop notice
     (kimi-code#3227). Returns ``(text, usable_parts)`` — the count of REAL rendered blocks
     (whitespace-only text and drop notices excluded) that the structuredContent arbitration uses."""
-    parts: List[str] = []
+    parts: list[str] = []
     usable_parts = 0
     # MCP tool results can also include ImageContent blocks (screenshot / Blockbench / Playwright etc.);
     # cache those via the gateway's image-cache helper so they flow through Hermes' MEDIA: tag convention
@@ -537,7 +546,7 @@ def _render_call_tool_result(result, server_name: str) -> str:
     if structured is None and meta is None:
         return json.dumps({"result": text_result}, ensure_ascii=False)
     # Key order is part of the output: "result" leads when there is text, otherwise "_meta" precedes it.
-    payload: Dict[str, Any] = {"result": text_result} if text_result else {}
+    payload: dict[str, Any] = {"result": text_result} if text_result else {}
     # Cap structuredContent too — a malicious server could flood context via a multi-MB JSON payload
     # (#56059). When the serialized form exceeds the hard cap, replace it with the truncated string (head +
     # tail preserved) so it degrades gracefully instead of flooding downstream.
@@ -590,7 +599,7 @@ def _make_tool_handler(server_name: str, tool_name: str, tool_timeout: float):
     return _handler
 
 
-def _make_utility_handler(op: str, log_label: str, rpc, render, required: Optional[str] = None):
+def _make_utility_handler(op: str, log_label: str, rpc, render, required: str | None = None):
     """``(server_name, tool_timeout) -> sync handler`` for one utility tool: ``rpc(session, args,
     server_name)`` awaited under ``_rpc_lock``, ``render(result, server_name)`` -> JSON-able
     payload, ``required`` validated before any transport work."""
@@ -640,7 +649,7 @@ def _render_resource_list(all_resources, server_name: str) -> dict:
 
 
 def _render_read_resource(result, server_name: str) -> dict:
-    parts: List[str] = []
+    parts: list[str] = []
     for block in getattr(result, "contents", []):
         if getattr(block, "text", None) is not None:
             parts.append(strip_unicode_tags(block.text))

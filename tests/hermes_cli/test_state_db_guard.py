@@ -8,7 +8,6 @@ issue #68474 (file kept at original size, 100% null bytes, header gone).
 import sqlite3
 
 import pytest
-
 from hermes_cli.backup import verify_sqlite_integrity
 
 
@@ -91,8 +90,8 @@ class TestPreUpdateBackupIntegrityGuard:
 
     @pytest.fixture()
     def hermes_home(self, tmp_path, monkeypatch):
-        from pathlib import Path
         import sys
+        from pathlib import Path
 
         root = tmp_path / ".hermes"
         root.mkdir()

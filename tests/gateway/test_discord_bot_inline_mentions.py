@@ -6,7 +6,6 @@ from unittest.mock import Mock
 
 import discord
 import pytest
-
 from gateway.platforms.helpers import MessageDeduplicator
 from plugins.platforms.discord.adapter import DiscordAdapter
 

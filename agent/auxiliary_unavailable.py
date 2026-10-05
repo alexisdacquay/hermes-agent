@@ -12,7 +12,7 @@ import logging
 import threading
 import time
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from hermes_time import safe_strftime
 
@@ -24,7 +24,7 @@ class AuxiliaryClientUnavailable(RuntimeError):
 
 
 _lock = threading.Lock()
-_last_nous_detail: Optional[str] = None
+_last_nous_detail: str | None = None
 _warned_nous_details: set[str] = set()
 
 
@@ -55,7 +55,7 @@ def _sentence(text: object) -> str:
     return str(text).strip().rstrip(".") + "."
 
 
-def pool_cooldown_message(provider_id: str) -> Optional[str]:
+def pool_cooldown_message(provider_id: str) -> str | None:
     """The "all N credentials … are cooling down" error when the provider's pool is fully benched.
 
     ``resolve_provider_client()`` returns ``None`` both when no credential exists and when every
@@ -65,8 +65,9 @@ def pool_cooldown_message(provider_id: str) -> Optional[str]:
     the cooldown and its reset time instead; ``None`` when the pool is empty or a credential is
     usable (the caller keeps the missing-credential diagnostic).
     """
-    from agent.credential_pool import STATUS_DEAD, PooledCredential, _exhausted_until
     from hermes_cli.auth import read_credential_pool
+
+    from agent.credential_pool import STATUS_DEAD, PooledCredential, _exhausted_until
 
     entries = []
     with contextlib.suppress(Exception):
@@ -98,7 +99,7 @@ class ProviderCredentialsExhaustedError(RuntimeError):
     of the provider-setup flow a plain "No LLM provider configured" would trigger (#94785).
     """
 
-    def __init__(self, message: str, *, provider: Optional[str] = None):
+    def __init__(self, message: str, *, provider: str | None = None):
         super().__init__(message)
         self.provider = provider
 
@@ -106,9 +107,9 @@ class ProviderCredentialsExhaustedError(RuntimeError):
 def pool_billing_message(
     provider_id: str,
     *,
-    model: Optional[str] = None,
-    pool: Optional[Any] = None,
-) -> Optional[str]:
+    model: str | None = None,
+    pool: Any | None = None,
+) -> str | None:
     """The "Provider 'X' … is out of usable credentials (402)" error for a billing-burned pool.
 
     ``resolve_provider_client()`` returns ``None`` both when no credential exists and when every
@@ -269,7 +270,7 @@ def clear_nous_credential_failure() -> None:
         _last_nous_detail = None
 
 
-def nous_credential_failure_detail() -> Optional[str]:
+def nous_credential_failure_detail() -> str | None:
     """The latest recorded Nous credential failure, or None when the last resolution succeeded."""
     with _lock:
         return _last_nous_detail

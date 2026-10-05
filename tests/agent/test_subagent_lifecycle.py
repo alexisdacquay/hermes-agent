@@ -5,13 +5,10 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
-
 from agent.subagent_lifecycle import (
     SubagentLaunchRequest,
-    SubagentLifecycleError,
     SubagentLifecycleService,
     SubagentState,
-    bind_subagent_parent,
     get_active_subagent_parent,
 )
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import argparse
-from typing import Callable
+from collections.abc import Callable
 
 
 def build_debug_parser(subparsers, *, cmd_debug: Callable) -> None:

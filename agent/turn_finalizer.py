@@ -9,18 +9,19 @@ from __future__ import annotations
 import logging
 import os
 import time
+from collections.abc import Callable
 from contextlib import suppress
-from typing import Any, Callable, List, Optional, Tuple
+from typing import Any
 
 from agent.codex_responses_adapter import _summarize_user_message_for_log
+from agent.context_compressor import _DB_PERSISTED_MARKER
 from agent.delegation_context import is_dispatcher_owned_worker_context
 from agent.interrupt_control import interrupted_during_api_call_reason
-from agent.turn_failure_copy import exit_reason_failure, stamp_failure
-from agent.context_compressor import _DB_PERSISTED_MARKER
 from agent.message_content import flatten_message_text
 from agent.message_metadata import append_message, stamp_message_timestamp
 from agent.message_sanitization import _sanitize_surrogates
 from agent.served_model import result_model_fields
+from agent.turn_failure_copy import exit_reason_failure, stamp_failure
 
 # Verification-continuation nudges (verify-on-stop / pre_verify) must be stripped from
 # returned/live history to avoid role-alternation breaks; the assistant response is
@@ -58,7 +59,6 @@ def _record_kanban_budget_exhausted(
     from multiple exit paths.
     """
     try:
-        from hermes_cli import kanban_db as _kb
         from hermes_cli import kanban_db_connect as _kbc
         from hermes_cli import kanban_db_dispatch as _kbd
         _conn = _kbc.connect()
@@ -111,7 +111,7 @@ def _invoke_hook_safely(name: str, logger: logging.Logger, **kwargs) -> list:
         return []
 
 
-def _guarded_cleanup(label: str, fn: Callable[[], Any], errors: List[str], logger) -> None:
+def _guarded_cleanup(label: str, fn: Callable[[], Any], errors: list[str], logger) -> None:
     """Post-loop cleanup must never lose the response: each step is guarded
     independently and errors surface via ``cleanup_errors`` (#8049)."""
     try:
@@ -124,7 +124,7 @@ def _guarded_cleanup(label: str, fn: Callable[[], Any], errors: List[str], logge
 def _resolve_budget_fallback(
     agent, *, final_response, api_call_count, interrupted, failed, messages, _turn_exit_reason,
     _pending_verification_response, _pending_verification_response_previewed, logger,
-) -> Tuple[Any, Any, bool, Any]:
+) -> tuple[Any, Any, bool, Any]:
     """Iteration-budget exhaustion. Returns ``(final_response, _turn_exit_reason,
     preserved_verification_fallback, interrupted)``."""
     budget_exhausted = (
@@ -222,7 +222,7 @@ def _drop_transcript_scaffolding(agent, messages) -> None:
     _drop_verification_continuation_scaffolding(messages)
 
 
-def _recover_final_from_stream(agent, final_response, interrupted, failed) -> Tuple[Any, bool]:
+def _recover_final_from_stream(agent, final_response, interrupted, failed) -> tuple[Any, bool]:
     """An empty terminal completion is not authoritative when the stream already
     delivered text; recover before persist so a blank tail isn't frozen (#95514).
     Returns ``(final_response, recovered_from_stream)``. Called by the finalizer BEFORE
@@ -435,7 +435,7 @@ def _explain_abnormal_exit(agent, final_response, _turn_exit_reason, preserved_v
     return final_response
 
 
-def _last_turn_reasoning(messages) -> Optional[Any]:
+def _last_turn_reasoning(messages) -> Any | None:
     """Reasoning from the CURRENT turn only: stop at this turn's user message (#17055),
     but take the most recent non-empty reasoning since many providers emit it on the
     tool-call step and leave the final step with reasoning=None."""
@@ -450,7 +450,7 @@ def _last_turn_reasoning(messages) -> Optional[Any]:
 def _apply_output_hooks(
     agent, final_response, logger, *, platform, effective_task_id, turn_id, original_user_message,
     messages,
-) -> Tuple[Any, bool, Optional[Any]]:
+) -> tuple[Any, bool, Any | None]:
     """Resolve the turn's ``transform_llm_output`` outcome, then fire ``post_llm_call`` once per
     turn after the tool loop. Returns ``(final_response, transformed, pre_transform_response)``.
 
@@ -479,7 +479,7 @@ def _apply_output_hooks(
 
 def apply_llm_output_transform(
     agent, final_response, *, turn_id, platform=None, logger=None,
-) -> Tuple[Any, bool, Optional[Any]]:
+) -> tuple[Any, bool, Any | None]:
     """Fire ``transform_llm_output`` once per turn and return
     ``(final_response, transformed, pre_transform_response)``.
 
@@ -594,7 +594,7 @@ def finalize_turn(
     from hermes_cli.observability.shared_metrics_harness import finish_turn
     finish_turn(agent, _turn_exit_reason, final_response, interrupted=interrupted, failed=failed)
 
-    _cleanup_errors: List[str] = []
+    _cleanup_errors: list[str] = []
     # The model has answered (or the loop gave up): a title upgrade held back because it shares a
     # self-hosted endpoint with the main request (#117296) may go out now.
     from agent.turn_context import start_deferred_title_upgrade

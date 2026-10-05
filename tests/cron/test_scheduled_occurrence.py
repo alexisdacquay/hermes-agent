@@ -1,12 +1,12 @@
 """Completed scheduled attempts survive a jobs.json rollback, not just a process restart."""
 import json
 import os
-from pathlib import Path
 import subprocess
 import sys
+from datetime import UTC
+from pathlib import Path
 
 import pytest
-
 
 _FIRE = """
 import json
@@ -55,6 +55,7 @@ def _fire(home, mode):
 @pytest.mark.parametrize('mode', ['builtin', 'provider', 'worker'])
 def test_completed_occurrence_survives_restart_and_prestamp_rollback(tmp_path, mode):
     from datetime import timedelta
+
     from hermes_time import now
 
     home = tmp_path / mode
@@ -97,6 +98,7 @@ def test_completed_occurrence_survives_restart_and_prestamp_rollback(tmp_path, m
 
 def test_ledger_migration_and_completion_identity(tmp_path, monkeypatch):
     import sqlite3
+
     from cron import executions, jobs
     from cron.occurrences import completed_occurrence
     from cron.scheduler_provider import InProcessCronScheduler
@@ -148,6 +150,7 @@ def test_ledger_migration_and_completion_identity(tmp_path, monkeypatch):
 
         # A runnable legacy wall-clock value cannot establish an exact UTC identity.
         from datetime import timedelta
+
         from hermes_time import now
         naive = jobs.create_job(prompt='legacy', schedule='every 4h')
         rows = jobs.load_jobs()
@@ -160,20 +163,20 @@ def test_ledger_migration_and_completion_identity(tmp_path, monkeypatch):
 
 
 def test_completion_before_occurrence_does_not_prove_slot_completed(tmp_path, monkeypatch):
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from cron import executions
     from cron.occurrences import completed_occurrence
 
     monkeypatch.setattr(executions, 'EXECUTIONS_FILE', tmp_path / 'executions.db')
     slot = '2026-01-05T00:00:00+00:00'
-    monkeypatch.setattr(executions, '_hermes_now', lambda: datetime(2026, 1, 1, tzinfo=timezone.utc))
+    monkeypatch.setattr(executions, '_hermes_now', lambda: datetime(2026, 1, 1, tzinfo=UTC))
     poisoned = executions.create_execution('job', source='control', scheduled_instant=slot)
     executions.finish_execution(poisoned['id'], success=True)
 
     assert not completed_occurrence({'id': 'job'}, slot)
 
-    monkeypatch.setattr(executions, '_hermes_now', lambda: datetime(2026, 1, 5, tzinfo=timezone.utc))
+    monkeypatch.setattr(executions, '_hermes_now', lambda: datetime(2026, 1, 5, tzinfo=UTC))
     legitimate = executions.create_execution('job', source='builtin', scheduled_instant=slot)
     executions.finish_execution(legitimate['id'], success=True)
 

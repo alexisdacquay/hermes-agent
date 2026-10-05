@@ -8,8 +8,8 @@ previously rendered 1 TiB as '1024.0 GB').
 """
 
 import pytest
-
 from hermes_cli.sizefmt import format_bytes
+
 
 @pytest.mark.parametrize(
     "n,expected",

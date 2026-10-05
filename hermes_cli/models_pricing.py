@@ -13,9 +13,9 @@ import json
 import os
 import time
 import urllib.request
-from typing import Any, Optional
-from hermes_cli.models_reasoning_caps import _seed_reasoning_caps
+from typing import Any
 
+from hermes_cli.models_reasoning_caps import _seed_reasoning_caps
 
 # Cache: maps model_id → {"prompt": str, "completion": str} per endpoint
 _pricing_cache: dict[str, dict[str, dict[str, str]]] = {}
@@ -31,7 +31,7 @@ _FAILED_CATALOG_TTL_SECONDS = 120.0
 _pricing_cache_retry_after: dict[str, float] = {}
 
 
-def _cached_catalog(cache_key: str) -> Optional[dict[str, dict[str, Any]]]:
+def _cached_catalog(cache_key: str) -> dict[str, dict[str, Any]] | None:
     """The cached catalog for *cache_key*, or None to go fetch it."""
     cached = _pricing_cache.get(cache_key)
     if cached is None:
@@ -47,7 +47,7 @@ def _cached_catalog(cache_key: str) -> Optional[dict[str, dict[str, Any]]]:
 def _cache_catalog(
     cache_key: str,
     result: dict[str, dict[str, Any]],
-    ttl_seconds: Optional[float] = None,
+    ttl_seconds: float | None = None,
 ) -> dict[str, dict[str, Any]]:
     """Cache a catalog result, giving an empty one an expiry. *ttl_seconds* expires a non-empty
     result too — only for a catalog whose contents depend on server-side state the client cannot
@@ -177,7 +177,7 @@ def compute_sale_discount(prompt: str, completion: str, original: Any) -> tuple[
     return None
 
 
-def _get_json(url: str, headers: dict[str, str], timeout: float, opener=None) -> Optional[dict]:
+def _get_json(url: str, headers: dict[str, str], timeout: float, opener=None) -> dict | None:
     """GET *url* as JSON via the origin's catalog opener (or *opener*); None on any failure."""
     from hermes_cli.models import _urlopen_model_catalog_request
 
@@ -218,7 +218,7 @@ def fetch_models_with_pricing(
     *,
     force_refresh: bool = False,
     include_sale_original: bool = False,
-    cache_ttl_seconds: Optional[float] = None,
+    cache_ttl_seconds: float | None = None,
 ) -> dict[str, dict[str, Any]]:
     """Fetch ``/v1/models`` (any OpenRouter-compatible endpoint) → ``{model_id: {prompt, completion,
     ...}}``, cached per *base_url* and per credential so one caller's catalog never answers
@@ -317,8 +317,7 @@ def _resolve_nous_pricing_credentials() -> tuple[str, str]:
     except Exception:
         pass
     base_url = (env_base or creds_base or _DEFAULT_NOUS_INFERENCE_BASE).rstrip("/")
-    if base_url.endswith("/v1"):
-        base_url = base_url[:-3]
+    base_url = base_url.removesuffix("/v1")
     return (api_key, base_url)
 
 
@@ -339,7 +338,7 @@ def _fetch_nous_pricing(api_key: str, base_url: str, *, force_refresh: bool) -> 
     )
 
 
-def nous_policy_allowed_ids(*, force_refresh: bool = False) -> Optional[set[str]]:
+def nous_policy_allowed_ids(*, force_refresh: bool = False) -> set[str] | None:
     """The Nous model ids the caller's org may reach (keys of an authenticated ``GET /v1/models``,
     which omits policy-blocked rows), or ``None`` to not filter: no policy (or a token too old to
     say), an anonymous read (unfiltered catalog), or an empty read (a fetch failure, not an org
@@ -365,7 +364,7 @@ _NOUS_POLICY_APPEND_MAX = 64
 
 def restrict_to_nous_policy(
     model_ids: list[str],
-    allowed: Optional[set[str]],
+    allowed: set[str] | None,
     *,
     rescue_empty: bool = False,
 ) -> list[str]:
@@ -437,7 +436,10 @@ def get_cached_nous_inference_base_url() -> str:
     """The profile's persisted Nous endpoint (bare origin, no ``/v1``) without refreshing auth."""
     try:
         from hermes_cli.auth import (
-            _load_auth_store, _load_provider_state, _optional_base_url, _validate_nous_inference_url_from_network,
+            _load_auth_store,
+            _load_provider_state,
+            _optional_base_url,
+            _validate_nous_inference_url_from_network,
         )
 
         state = _load_provider_state(_load_auth_store(), "nous") or {}
@@ -494,7 +496,11 @@ def pricing_cache_scope(
     """The current endpoint identity a provider's pricing cache is keyed on. Resolves local configuration
     only, never fetches: picker prewarm single-flight uses it so an endpoint rotation can start a new
     worker while the previous endpoint is still slow or unreachable."""
-    from hermes_cli.models import _deepinfra_catalog_url, _pricing_profile_key, normalize_provider
+    from hermes_cli.models import (
+        _deepinfra_catalog_url,
+        _pricing_profile_key,
+        normalize_provider,
+    )
     normalized = resolve_pricing_provider(provider, base_url=base_url)
     static = _STATIC_PRICING_SCOPES.get(normalized)
     if static:
@@ -521,7 +527,11 @@ def pricing_cache_scope(
 
 def _cached_only_pricing(normalized: str) -> dict[str, dict[str, str]]:
     """Process-resident pricing for *normalized* without any provider I/O."""
-    from hermes_cli.models import _deepinfra_catalog_cache, _deepinfra_catalog_url, _pricing_profile_key
+    from hermes_cli.models import (
+        _deepinfra_catalog_cache,
+        _deepinfra_catalog_url,
+        _pricing_profile_key,
+    )
     if normalized == "deepinfra":
         cache_key, _url = _deepinfra_catalog_url()
         return _fetch_deepinfra_pricing() if cache_key in _deepinfra_catalog_cache else {}

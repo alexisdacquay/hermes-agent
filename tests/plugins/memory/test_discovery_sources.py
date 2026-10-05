@@ -15,9 +15,8 @@ import sys
 import textwrap
 from pathlib import Path
 
-import pytest
-
 import plugins.memory as memory_plugins
+import pytest
 
 PROVIDER_SOURCE = """\
 from agent.memory_provider import MemoryProvider

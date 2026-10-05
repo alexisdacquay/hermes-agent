@@ -9,11 +9,15 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
-from tests.tools._child_env_fixtures import child_env, observe_child, observe_terminal  # noqa: F401
 from tools.environments import local
 from tools.environments import local_pythonpath as pp
 from tools.environments.local_env_policy import _HERMES_PROVIDER_ENV_BLOCKLIST
+
+from tests.tools._child_env_fixtures import (  # noqa: F401
+    child_env,
+    observe_child,
+    observe_terminal,
+)
 
 
 def _running_venv_site_packages() -> Path:
@@ -32,34 +36,8 @@ def _physical_repo_root(tmp_path: Path) -> Path:
 
 # Expectations come from independent provider/config declarations and literal
 # policy examples, never the finished blocklist or a test-owned scrubber.
-STATIC_BLOCKED = """
-OPENAI_BASE_URL OPENAI_API_KEY OPENAI_API_BASE OPENAI_ORG_ID OPENAI_ORGANIZATION
-OPENROUTER_API_KEY ANTHROPIC_BASE_URL ANTHROPIC_API_KEY ANTHROPIC_TOKEN LLM_MODEL
-VERTEX_CREDENTIALS_PATH GOOGLE_APPLICATION_CREDENTIALS AWS_BEARER_TOKEN_BEDROCK
-GOOGLE_API_KEY DEEPSEEK_API_KEY MISTRAL_API_KEY GROQ_API_KEY TOGETHER_API_KEY
-PERPLEXITY_API_KEY COHERE_API_KEY FIREWORKS_API_KEY XAI_API_KEY HELICONE_API_KEY
-TELEGRAM_HOME_CHANNEL TELEGRAM_HOME_CHANNEL_NAME DISCORD_HOME_CHANNEL
-DISCORD_HOME_CHANNEL_NAME DISCORD_REQUIRE_MENTION DISCORD_FREE_RESPONSE_CHANNELS
-DISCORD_AUTO_THREAD SLACK_HOME_CHANNEL SLACK_HOME_CHANNEL_NAME SLACK_ALLOWED_USERS
-WHATSAPP_ENABLED WHATSAPP_MODE WHATSAPP_ALLOWED_USERS SIGNAL_HTTP_URL SIGNAL_ACCOUNT
-SIGNAL_ALLOWED_USERS SIGNAL_GROUP_ALLOWED_USERS SIGNAL_HOME_CHANNEL SIGNAL_HOME_CHANNEL_NAME
-SIGNAL_IGNORE_STORIES HASS_TOKEN HASS_URL EMAIL_ADDRESS EMAIL_PASSWORD EMAIL_IMAP_HOST
-EMAIL_SMTP_HOST EMAIL_HOME_ADDRESS EMAIL_HOME_ADDRESS_NAME HERMES_DASHBOARD_SESSION_TOKEN
-HERMES_DASHBOARD_BASIC_AUTH_PASSWORD HERMES_DASHBOARD_BASIC_AUTH_SECRET HERMES_DASHBOARD_DRAIN_SECRET
-HERMES_DASHBOARD_OIDC_CLIENT_SECRET HERMES_ANON_API_SECRET HERMES_MEET_REALTIME_KEY
-GATEWAY_ALLOWED_USERS GATEWAY_ALLOW_ALL_USERS GH_TOKEN GITHUB_APP_ID
-GITHUB_APP_PRIVATE_KEY_PATH GITHUB_APP_INSTALLATION_ID MODAL_TOKEN_ID MODAL_TOKEN_SECRET
-DAYTONA_API_KEY VERCEL_OIDC_TOKEN VERCEL_TOKEN VERCEL_PROJECT_ID VERCEL_TEAM_ID GATEWAY_RELAY_ID
-AUXILIARY_VISION_API_KEY AUXILIARY_WEB_EXTRACT_API_KEY AUXILIARY_APPROVAL_API_KEY
-AUXILIARY_MY_PLUGIN_TASK_API_KEY AUXILIARY_VISION_BASE_URL AUXILIARY_COMPRESSION_BASE_URL
-GATEWAY_RELAY_SECRET GATEWAY_RELAY_DELIVERY_KEY GATEWAY_RELAY_SESSION_TOKEN
-""".split()
-OPERATOR_ALLOWED = """
-AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_PROFILE AWS_DEFAULT_REGION
-AWS_REGION AWS_SHARED_CREDENTIALS_FILE AWS_CONFIG_FILE AWS_WEB_IDENTITY_TOKEN_FILE AWS_ROLE_ARN
-CLAUDE_CODE_OAUTH_TOKEN AUXILIARY_VISION_PROVIDER AUXILIARY_VISION_MODEL GATEWAY_RELAY_URL
-GATEWAY_RELAY_PLATFORMS MY_APP_KEY MY_CUSTOM_VAR
-""".split()
+STATIC_BLOCKED = ["OPENAI_BASE_URL", "OPENAI_API_KEY", "OPENAI_API_BASE", "OPENAI_ORG_ID", "OPENAI_ORGANIZATION", "OPENROUTER_API_KEY", "ANTHROPIC_BASE_URL", "ANTHROPIC_API_KEY", "ANTHROPIC_TOKEN", "LLM_MODEL", "VERTEX_CREDENTIALS_PATH", "GOOGLE_APPLICATION_CREDENTIALS", "AWS_BEARER_TOKEN_BEDROCK", "GOOGLE_API_KEY", "DEEPSEEK_API_KEY", "MISTRAL_API_KEY", "GROQ_API_KEY", "TOGETHER_API_KEY", "PERPLEXITY_API_KEY", "COHERE_API_KEY", "FIREWORKS_API_KEY", "XAI_API_KEY", "HELICONE_API_KEY", "TELEGRAM_HOME_CHANNEL", "TELEGRAM_HOME_CHANNEL_NAME", "DISCORD_HOME_CHANNEL", "DISCORD_HOME_CHANNEL_NAME", "DISCORD_REQUIRE_MENTION", "DISCORD_FREE_RESPONSE_CHANNELS", "DISCORD_AUTO_THREAD", "SLACK_HOME_CHANNEL", "SLACK_HOME_CHANNEL_NAME", "SLACK_ALLOWED_USERS", "WHATSAPP_ENABLED", "WHATSAPP_MODE", "WHATSAPP_ALLOWED_USERS", "SIGNAL_HTTP_URL", "SIGNAL_ACCOUNT", "SIGNAL_ALLOWED_USERS", "SIGNAL_GROUP_ALLOWED_USERS", "SIGNAL_HOME_CHANNEL", "SIGNAL_HOME_CHANNEL_NAME", "SIGNAL_IGNORE_STORIES", "HASS_TOKEN", "HASS_URL", "EMAIL_ADDRESS", "EMAIL_PASSWORD", "EMAIL_IMAP_HOST", "EMAIL_SMTP_HOST", "EMAIL_HOME_ADDRESS", "EMAIL_HOME_ADDRESS_NAME", "HERMES_DASHBOARD_SESSION_TOKEN", "HERMES_DASHBOARD_BASIC_AUTH_PASSWORD", "HERMES_DASHBOARD_BASIC_AUTH_SECRET", "HERMES_DASHBOARD_DRAIN_SECRET", "HERMES_DASHBOARD_OIDC_CLIENT_SECRET", "HERMES_ANON_API_SECRET", "HERMES_MEET_REALTIME_KEY", "GATEWAY_ALLOWED_USERS", "GATEWAY_ALLOW_ALL_USERS", "GH_TOKEN", "GITHUB_APP_ID", "GITHUB_APP_PRIVATE_KEY_PATH", "GITHUB_APP_INSTALLATION_ID", "MODAL_TOKEN_ID", "MODAL_TOKEN_SECRET", "DAYTONA_API_KEY", "VERCEL_OIDC_TOKEN", "VERCEL_TOKEN", "VERCEL_PROJECT_ID", "VERCEL_TEAM_ID", "GATEWAY_RELAY_ID", "AUXILIARY_VISION_API_KEY", "AUXILIARY_WEB_EXTRACT_API_KEY", "AUXILIARY_APPROVAL_API_KEY", "AUXILIARY_MY_PLUGIN_TASK_API_KEY", "AUXILIARY_VISION_BASE_URL", "AUXILIARY_COMPRESSION_BASE_URL", "GATEWAY_RELAY_SECRET", "GATEWAY_RELAY_DELIVERY_KEY", "GATEWAY_RELAY_SESSION_TOKEN"]
+OPERATOR_ALLOWED = ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN", "AWS_PROFILE", "AWS_DEFAULT_REGION", "AWS_REGION", "AWS_SHARED_CREDENTIALS_FILE", "AWS_CONFIG_FILE", "AWS_WEB_IDENTITY_TOKEN_FILE", "AWS_ROLE_ARN", "CLAUDE_CODE_OAUTH_TOKEN", "AUXILIARY_VISION_PROVIDER", "AUXILIARY_VISION_MODEL", "GATEWAY_RELAY_URL", "GATEWAY_RELAY_PLATFORMS", "MY_APP_KEY", "MY_CUSTOM_VAR"]
 
 
 def _running_site():
@@ -96,12 +74,7 @@ def test_terminal_child_observes_declared_policy(child_env, monkeypatch):
 # Secrets adapters read straight from the environment (webhook signing secrets, access tokens,
 # app secrets), declared in the gateway env-override table, a plugin manifest, or the policy's
 # own short list, none of them among the hand-written OPTIONAL_ENV_VARS entries.
-ADAPTER_SECRETS = """
-TEAMS_INCOMING_WEBHOOK_URL WHATSAPP_CLOUD_ACCESS_TOKEN WHATSAPP_CLOUD_APP_SECRET WHATSAPP_CLOUD_VERIFY_TOKEN WEIXIN_TOKEN
-YUANBAO_APP_SECRET FEISHU_ENCRYPT_KEY FEISHU_VERIFICATION_TOKEN TELEGRAM_WEBHOOK_SECRET
-PHOTON_SIDECAR_TOKEN A2A_PUSH_SECRET TEAMS_GRAPH_ACCESS_TOKEN QQ_STT_API_KEY
-MSGRAPH_WEBHOOK_CLIENT_STATE MSGRAPH_CLIENT_SECRET
-""".split()
+ADAPTER_SECRETS = ["TEAMS_INCOMING_WEBHOOK_URL", "WHATSAPP_CLOUD_ACCESS_TOKEN", "WHATSAPP_CLOUD_APP_SECRET", "WHATSAPP_CLOUD_VERIFY_TOKEN", "WEIXIN_TOKEN", "YUANBAO_APP_SECRET", "FEISHU_ENCRYPT_KEY", "FEISHU_VERIFICATION_TOKEN", "TELEGRAM_WEBHOOK_SECRET", "PHOTON_SIDECAR_TOKEN", "A2A_PUSH_SECRET", "TEAMS_GRAPH_ACCESS_TOKEN", "QQ_STT_API_KEY", "MSGRAPH_WEBHOOK_CLIENT_STATE", "MSGRAPH_CLIENT_SECRET"]
 # The user's own credentials that merely start with a platform name. Hermes never reads them, so
 # they reach the terminal like any other variable, and passthrough can forward them.
 OPERATOR_SECRETS = ["MY_APP_KEY", "DEPLOY_WEBHOOK_SECRET", "SLACK_USER_TOKEN", "LOCAL_LLM_API_KEY",
@@ -216,6 +189,7 @@ def test_a_partial_scan_is_rescanned_on_the_next_spawn(child_env, monkeypatch):
     """A manifest read that fails once (same file signature afterwards) must not pin the partial
     result: the next spawn reads it and strips the secret."""
     import builtins
+
     from hermes_constants import reset_hermes_home_override, set_hermes_home_override
     home = child_env / "profiles" / "a"
     plugin_dir = home / "plugins" / "chatx"
@@ -324,6 +298,7 @@ def test_unreadable_bundled_manifest_fails_the_policy_instead_of_dropping_it(mon
     """The import-time read keeps the bundled secret set only when every bundled manifest was
     read; otherwise the policy's strict re-read raises rather than building without them."""
     import builtins
+
     import hermes_cli.config as cfg
     target = next(path for _name, path, _kind, _st in cfg._platform_manifest_paths(source="bundled") if path)
     real_open = builtins.open
@@ -447,7 +422,7 @@ def test_builders_strip_runtime_markers_and_owned_paths(child_env, monkeypatch, 
     ("nonterminal", None, None),
 ])
 def test_force_prefix_is_not_plugin_passthrough(child_env, monkeypatch, builder, base_force, extra_force):
-    from tools.env_passthrough import register_env_passthrough, is_env_passthrough
+    from tools.env_passthrough import is_env_passthrough, register_env_passthrough
     register_env_passthrough(["OPENAI_API_KEY", "AUXILIARY_VISION_API_KEY", "SERVICE_TOKEN"])
     assert not is_env_passthrough("OPENAI_API_KEY")
     assert not is_env_passthrough("AUXILIARY_VISION_API_KEY")
@@ -480,7 +455,7 @@ def test_buzz_context_and_plain_process_value(child_env, monkeypatch, managed, p
     from agent import secret_scope as ss
     from gateway.session_context import _SESSION_PLATFORM
     from tools.code_execution_env import _scrub_child_env
-    from tools.env_passthrough import register_env_passthrough, is_env_passthrough
+    from tools.env_passthrough import is_env_passthrough, register_env_passthrough
     buzz = {"BUZZ_PRIVATE_KEY": "fake-process", "BUZZ_AUTH_TAG": "fake-tag", "BUZZ_RELAY_URL": "fake-relay"}
     for k, v in buzz.items():
         monkeypatch.setenv(k, v)
@@ -787,8 +762,7 @@ class TestNativeEnvironmentContracts:
         runner: sys.prefix represents base Python, while validated VIRTUAL_ENV
         identifies ``<repo>/venv`` as the Hermes runtime producer contract.
         """
-        import tools.environments.local as local
-        from tools.environments import local_pythonpath
+        from tools.environments import local
 
         repo_root = tmp_path / "hermes-agent"
         runtime_venv = repo_root / "venv"
@@ -817,8 +791,7 @@ class TestNativeEnvironmentContracts:
 
     def test_unrelated_virtual_env_is_not_runtime_provenance(self, tmp_path, monkeypatch):
         """An arbitrary inherited VIRTUAL_ENV cannot claim PYTHONPATH ownership."""
-        import tools.environments.local as local
-        from tools.environments import local_pythonpath
+        from tools.environments import local, local_pythonpath
 
         repo_root = tmp_path / "hermes-agent"
         repo_root.mkdir()
@@ -1033,9 +1006,8 @@ class TestNativeEnvironmentContracts:
 
     def test_configured_home_alias_matches_launcher_output(self, tmp_path, monkeypatch):
         """The real producer spelling is derived and consumed end to end."""
-        import tools.environments.local as local
-        from tools.environments import local_pythonpath
         from hermes_cli.gateway_windows import _preserve_hermes_home_path
+        from tools.environments import local, local_pythonpath
 
         physical_home = tmp_path / "physical-home"
         physical_root = _physical_repo_root(tmp_path)
@@ -1082,9 +1054,8 @@ class TestNativeEnvironmentContracts:
         builder must still recover the lexical root so the inherited lexical
         repo-root entry is stripped.
         """
-        import tools.environments.local as local
-        from tools.environments import local_pythonpath
         from hermes_cli.profiles import resolve_profile_env
+        from tools.environments import local, local_pythonpath
 
         physical_home = tmp_path / "physical-home"
         physical_root = physical_home / "hermes-agent"
@@ -1127,8 +1098,7 @@ class TestNativeEnvironmentContracts:
         alias builder must recover the lexical spelling via exact-identity
         proof (strict resolve), not a name-based guess.
         """
-        import tools.environments.local as local
-        from tools.environments import local_pythonpath
+        from tools.environments import local, local_pythonpath
 
         physical_root = _physical_repo_root(tmp_path)
         configured_home = tmp_path / "configured-home"
@@ -1158,8 +1128,7 @@ class TestNativeEnvironmentContracts:
         is never aliased or stripped.  Exact filesystem identity decides,
         not the name; no ownership provenance means no strip.
         """
-        import tools.environments.local as local
-        from tools.environments import local_pythonpath
+        from tools.environments import local, local_pythonpath
 
         physical_root = _physical_repo_root(tmp_path)
         configured_home = tmp_path / "configured-home"
@@ -1187,8 +1156,7 @@ class TestNativeEnvironmentContracts:
         The root spelling must be derived (profiles -> grandparent) and then
         the lexical repo alias recovered from it.
         """
-        import tools.environments.local as local
-        from tools.environments import local_pythonpath
+        from tools.environments import local, local_pythonpath
 
         physical_root = _physical_repo_root(tmp_path)
         configured_root = tmp_path / "configured-root"
@@ -1219,8 +1187,7 @@ class TestNativeEnvironmentContracts:
         VIRTUAL_ENV (<lexical repo>/venv) validates and its site-packages is
         stripped together with the repo root, while user entries survive.
         """
-        import tools.environments.local as local
-        from tools.environments import local_pythonpath
+        from tools.environments import local, local_pythonpath
 
         physical_root = _physical_repo_root(tmp_path)
         venv_dir = physical_root / "venv"
@@ -1326,7 +1293,10 @@ class TestProfileScopedPassthrough:
     def test_make_run_env_uses_active_profile_for_passthrough(self, monkeypatch):
         """Allowlisted values must come from the routed profile, not os.environ."""
         from agent import secret_scope as ss
-        from tools.env_passthrough import clear_env_passthrough, register_env_passthrough
+        from tools.env_passthrough import (
+            clear_env_passthrough,
+            register_env_passthrough,
+        )
         from tools.environments.local import _make_run_env
 
         clear_env_passthrough()
@@ -1346,7 +1316,10 @@ class TestProfileScopedPassthrough:
     def test_make_run_env_omits_missing_scoped_passthrough(self, monkeypatch):
         """A missing routed secret must not fall back to the default profile."""
         from agent import secret_scope as ss
-        from tools.env_passthrough import clear_env_passthrough, register_env_passthrough
+        from tools.env_passthrough import (
+            clear_env_passthrough,
+            register_env_passthrough,
+        )
         from tools.environments.local import _make_run_env
 
         clear_env_passthrough()
@@ -1530,7 +1503,7 @@ class TestSanePathIncludesHomebrew:
         """
         from tools.environments import local as local_mod
         from tools.environments.local import _SANE_PATH, _make_run_env
-        monkeypatch.setattr(local_mod, "_git_bash_bin_dirs", lambda: [])
+        monkeypatch.setattr(local_mod, "_git_bash_bin_dirs", list)
         minimal_env = {"PATH": "/some/custom/bin"}
         with patch.dict(os.environ, minimal_env, clear=True):
             result = _make_run_env({})
@@ -1576,7 +1549,7 @@ class TestSanePathIncludesHomebrew:
         windows_env = {"Path": r"C:\Windows\System32;C:\Program Files\Git\bin",
                        **{k: os.environ[k] for k in ("USERPROFILE", "HOMEDRIVE", "HOMEPATH", "HERMES_HOME")
                           if k in os.environ}}
-        monkeypatch.setattr(local_mod, "_git_bash_bin_dirs", lambda: [])
+        monkeypatch.setattr(local_mod, "_git_bash_bin_dirs", list)
         with patch.object(local_mod.os, "environ", windows_env):
             result = _make_run_env({})
         assert result["Path"] == windows_env["Path"]

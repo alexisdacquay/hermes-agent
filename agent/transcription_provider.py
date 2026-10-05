@@ -11,7 +11,7 @@ built-in ``local_command`` path). :meth:`TranscriptionProvider.transcribe` envel
 from __future__ import annotations
 
 import abc
-from typing import Any, Dict, Optional
+from typing import Any
 
 from agent.provider_base import CatalogProviderBase
 
@@ -25,8 +25,8 @@ class TranscriptionProvider(CatalogProviderBase):
 
     @abc.abstractmethod
     def transcribe(
-        self, file_path: str, *, model: Optional[str] = None, language: Optional[str] = None, **extra: Any,
-    ) -> Dict[str, Any]:
+        self, file_path: str, *, model: str | None = None, language: str | None = None, **extra: Any,
+    ) -> dict[str, Any]:
         """Transcribe ``file_path`` (existence + size already validated) into the module envelope.
 
         Must NOT raise — convert exceptions to the error envelope. ``model`` None →

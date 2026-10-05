@@ -7,7 +7,6 @@ must appear only when that probe row exists.
 from argparse import Namespace
 
 import pytest
-
 from hermes_cli import sessions_cmd
 
 

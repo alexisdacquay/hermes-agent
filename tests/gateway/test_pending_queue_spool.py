@@ -12,7 +12,6 @@ import threading
 import time
 
 import pytest
-
 from gateway import shutdown_flush
 from gateway.session import SessionStore
 

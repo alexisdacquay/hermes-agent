@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 import subprocess
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-
 
 _CREATE_NO_WINDOW = 0x08000000
 

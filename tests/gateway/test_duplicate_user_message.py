@@ -19,10 +19,9 @@ import types
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
-
-from agent.turn_failure_copy import FAILED_TURN_NOTICE, PARTIAL_FAILED_TURN_NOTICE
 import gateway.run as gateway_run
+import pytest
+from agent.turn_failure_copy import FAILED_TURN_NOTICE, PARTIAL_FAILED_TURN_NOTICE
 from gateway.config import GatewayConfig, Platform
 from gateway.platforms.event import MessageEvent
 from gateway.session import SessionEntry, SessionSource

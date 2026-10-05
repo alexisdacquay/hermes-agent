@@ -10,7 +10,6 @@ import os
 from unittest.mock import patch
 
 import pytest
-
 from tools.environments.local import (
     LocalEnvironment,
     _prepend_shell_init,

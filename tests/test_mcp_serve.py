@@ -13,8 +13,8 @@ import inspect
 import json
 import os
 import sqlite3
-import time
 import threading
+import time
 from unittest.mock import MagicMock
 
 import pytest
@@ -249,7 +249,7 @@ def fake_mcp_server(populated_sessions_dir, mock_session_db, monkeypatch):
 
     monkeypatch.setattr(mcp_serve, "_get_sessions_dir", lambda: populated_sessions_dir)
     monkeypatch.setattr(mcp_serve, "_get_session_db", lambda: mock_session_db)
-    monkeypatch.setattr(mcp_serve, "_load_channel_directory", lambda: {})
+    monkeypatch.setattr(mcp_serve, "_load_channel_directory", dict)
     monkeypatch.setattr(mcp_serve, "_MCP_SERVER_AVAILABLE", True)
     monkeypatch.setattr(mcp_serve, "MCPServer", _FakeMCPServer)
 
@@ -424,7 +424,7 @@ class TestEventBridge:
         assert result[0]["session_key"] == "wake"
 
     def test_queue_limit(self):
-        from mcp_serve import EventBridge, QueueEvent, QUEUE_LIMIT
+        from mcp_serve import QUEUE_LIMIT, EventBridge, QueueEvent
         b = EventBridge()
         for i in range(QUEUE_LIMIT + 50):
             b._enqueue(QueueEvent(cursor=0, type="message", session_key=f"s{i}"))
@@ -480,7 +480,7 @@ def mcp_server_e2e(populated_sessions_dir, mock_session_db, monkeypatch, require
     import mcp_serve
     monkeypatch.setattr(mcp_serve, "_get_sessions_dir", lambda: populated_sessions_dir)
     monkeypatch.setattr(mcp_serve, "_get_session_db", lambda: mock_session_db)
-    monkeypatch.setattr(mcp_serve, "_load_channel_directory", lambda: {})
+    monkeypatch.setattr(mcp_serve, "_load_channel_directory", dict)
 
     bridge = mcp_serve.EventBridge()
     server = mcp_serve.create_mcp_server(event_bridge=bridge)

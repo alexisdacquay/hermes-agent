@@ -7,10 +7,9 @@ gateway restart. Two homes, A -> B -> A, per AGENTS.md § "One process may serve
 import asyncio
 import time
 
-import pytest
-import hermes_yaml as yaml
-
 import gateway.run as gateway_run
+import hermes_yaml as yaml
+import pytest
 from gateway.config import Platform
 from gateway.run import GatewayRunner
 

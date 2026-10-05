@@ -1,9 +1,8 @@
 """Concrete CLI sinks own filtering; generic agent callbacks remain observable."""
 from types import SimpleNamespace
 
-import pytest
 import hermes_yaml as yaml
-
+import pytest
 from agent.status_output import StatusOutputMixin
 from hermes_cli.cli_stream_mixin import CLIStreamMixin
 

@@ -6,12 +6,13 @@ fires. Adapters render inline buttons (an "Other" row flips the entry into text-
 mode) or a numbered-list text fallback."""
 
 from __future__ import annotations
+
 import json
 import logging
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -22,18 +23,18 @@ class _ClarifyEntry:
     clarify_id: str
     session_key: str
     question: str
-    choices: Optional[List[str]]
+    choices: list[str] | None
     multi_select: bool = False
     event: threading.Event = field(default_factory=threading.Event)
-    response: Optional[str] = None
+    response: str | None = None
     awaiting_text: bool = False  # set when user picked "Other" or clarify is open-ended
 
 
 _lock = threading.RLock()
-_entries: Dict[str, _ClarifyEntry] = {}  # clarify_id -> entry (button callbacks)
-_session_index: Dict[str, List[str]] = {}  # session_key -> [clarify_id] FIFO (text intercept, cleanup)
+_entries: dict[str, _ClarifyEntry] = {}  # clarify_id -> entry (button callbacks)
+_session_index: dict[str, list[str]] = {}  # session_key -> [clarify_id] FIFO (text intercept, cleanup)
 # Per-session notify callbacks (gateway -> adapter bridge); mirrors tools.approval. Tests clear it.
-_notify_cbs: Dict[str, Callable[[_ClarifyEntry], None]] = {}
+_notify_cbs: dict[str, Callable[[_ClarifyEntry], None]] = {}
 
 # Outcomes for typed clarify replies. Gateway cancels the pending prompt on
 # free prose (deadlock break) but keeps it armed for a retryable bad selection.
@@ -46,7 +47,7 @@ SKIPPED = "\x00skipped"
 CANCELLED = "\x00cancelled"
 
 
-def register(clarify_id: str, session_key: str, question: str, choices: Optional[List[str]],
+def register(clarify_id: str, session_key: str, question: str, choices: list[str] | None,
              multi_select: bool = False) -> _ClarifyEntry:
     """Register a pending clarify request; caller then blocks on ``wait_for_response``.
     Open-ended (no choices) entries start in text mode: the next message IS the response."""
@@ -58,7 +59,7 @@ def register(clarify_id: str, session_key: str, question: str, choices: Optional
     return entry
 
 
-def wait_for_response(clarify_id: str, timeout: float) -> Optional[str]:
+def wait_for_response(clarify_id: str, timeout: float) -> str | None:
     """Block until the entry resolves or ``timeout`` (``<= 0`` = unlimited) elapses; None on
     timeout/unknown id. Polls in 1s slices so the inactivity heartbeat keeps firing (a
     single long ``Event.wait`` would let the gateway watchdog kill a live prompt)."""
@@ -101,7 +102,7 @@ def resolve_gateway_clarify(clarify_id: str, response: str) -> bool:
         return True
 
 
-def get_pending_for_session(session_key: str, *, include_choice_prompts: bool = False) -> Optional[_ClarifyEntry]:
+def get_pending_for_session(session_key: str, *, include_choice_prompts: bool = False) -> _ClarifyEntry | None:
     """Oldest pending entry awaiting free text (open-ended, or after "Other");
     ``include_choice_prompts=True`` returns the oldest unresolved entry of any kind (user
     typed at an active choice prompt: resolve it rather than queue a follow-up turn)."""
@@ -113,7 +114,7 @@ def get_pending_for_session(session_key: str, *, include_choice_prompts: bool = 
         return None
 
 
-def _match_label(text: str, choices: List[str]) -> Optional[str]:
+def _match_label(text: str, choices: list[str]) -> str | None:
     """Stripped choice text matching ``text`` case-insensitively, ignoring the '(Recommended)'
     suffix the first choice carries by the time it reaches adapters; None if no match."""
     from tools.clarify_tool import strip_recommended
@@ -124,7 +125,7 @@ def _match_label(text: str, choices: List[str]) -> Optional[str]:
     return None
 
 
-def _split_tokens(text: str) -> Optional[List[str]]:
+def _split_tokens(text: str) -> list[str] | None:
     """Comma-separated tokens, or space-separated all-numeric tokens ("1 3"); else None."""
     if "," in text:
         return [t.strip() for t in text.split(",") if t.strip()]
@@ -140,7 +141,7 @@ def _is_int(text: str) -> bool:
         return False
 
 
-def _selection_attempt_tokens(text: str, choices: Optional[List[str]] = None) -> Optional[List[str]]:
+def _selection_attempt_tokens(text: str, choices: list[str] | None = None) -> list[str] | None:
     """Tokens when ``text`` looks like a typed selection (bare int, comma list,
     all-numeric space list); None for free prose so the gateway can release the
     clarify. Comma-list labels may span up to the longest choice's word count."""
@@ -149,7 +150,7 @@ def _selection_attempt_tokens(text: str, choices: Optional[List[str]] = None) ->
         return None
     tokens = _split_tokens(stripped)
     if tokens is None:
-        digits = stripped[1:] if stripped.startswith("-") else stripped
+        digits = stripped.removeprefix("-")
         return [stripped] if digits.isdigit() or _is_int(stripped) else None
     if "," not in stripped or not tokens:
         return tokens or None
@@ -157,12 +158,12 @@ def _selection_attempt_tokens(text: str, choices: Optional[List[str]] = None) ->
     return tokens if all(t.isdigit() or len(t.split()) <= max_words for t in tokens) else None
 
 
-def _coerce_text_response(entry: _ClarifyEntry, response: str) -> Optional[str]:
+def _coerce_text_response(entry: _ClarifyEntry, response: str) -> str | None:
     """Accepted value for a typed reply, or None on any rejection."""
     return _coerce_text_response_detailed(entry, response)[0]
 
 
-def _coerce_text_response_detailed(entry: _ClarifyEntry, response: str) -> tuple[Optional[str], Optional[str]]:
+def _coerce_text_response_detailed(entry: _ClarifyEntry, response: str) -> tuple[str | None, str | None]:
     """Map a typed reply to ``(value, None)`` or ``(None, reason)``: ``"invalid_selection"``
     (selection-shaped but out of range/unrecognised — keep the clarify armed for a retry) or
     ``"prose"`` (free text on a native choice prompt — the gateway may cancel and route normally
@@ -190,7 +191,7 @@ def _coerce_text_response_detailed(entry: _ClarifyEntry, response: str) -> tuple
     return None, "invalid_selection" if selection_shaped else "prose"
 
 
-def _coerce_multi_select_text(entry: _ClarifyEntry, text: str) -> Optional[str]:
+def _coerce_multi_select_text(entry: _ClarifyEntry, text: str) -> str | None:
     """Parse "1,3" / "1 3" / "staging, prod" into a JSON array of choice labels;
     None when any token is out of range or unrecognised (reject the whole reply)."""
     choices, selected = entry.choices or [], []

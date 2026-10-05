@@ -8,17 +8,17 @@ the provider; only --provider → error (ambiguous).
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import logging
 import os
 import sys
 from contextlib import redirect_stderr, redirect_stdout
-import dataclasses
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 from gateway.session_context import declare_stateless_channel
+
 from hermes_cli.fallback_config import get_fallback_chain
 
 _ALL_TOOLSETS = {"all", "*"}
@@ -43,7 +43,7 @@ _AUX_COUNTERS = (
 )
 
 
-def _auxiliary_usage(session_db, session_id: Optional[str]) -> dict[str, dict]:
+def _auxiliary_usage(session_db, session_id: str | None) -> dict[str, dict]:
     """Per-task aux usage recorded for *session_id*'s lineage (``{}`` without a store / session)."""
     if session_db is None or not session_id:
         return {}
@@ -55,7 +55,7 @@ def _auxiliary_usage(session_db, session_id: Optional[str]) -> dict[str, dict]:
 
 
 def _attach_auxiliary_usage(result: dict, session_db, before: dict[str, dict],
-                            fallback_session_id: Optional[str] = None) -> None:
+                            fallback_session_id: str | None = None) -> None:
     """Store this run's auxiliary usage on *result* as the delta against the pre-turn snapshot
     (a resumed session already carries earlier runs' aux rows). Waits (bounded) for the auto-title
     thread first: it bills from a daemon thread and can still be in flight when the turn returns.
@@ -89,7 +89,7 @@ def _auxiliary_report(report: dict, by_task: dict[str, dict]) -> None:
 _INTERRUPTED_EXIT_CODE = 130
 
 
-def _oneshot_exit_code(response: Optional[str], result: dict) -> int:
+def _oneshot_exit_code(response: str | None, result: dict) -> int:
     """Map a finished ``-z`` turn onto its exit code: ``0`` only when the turn completed;
     ``130`` interrupted; ``2`` failed or stopped partway (``partial``, ``completed: False`` such
     as the iteration budget); ``1`` a completed turn that produced no text at all.
@@ -127,7 +127,10 @@ def _build_preloaded_skills_prompt(skills: object = None) -> str | None:
     if not parsed_skills:
         return None
 
-    from agent.skill_commands import build_preloaded_skills_prompt, format_missing_skills
+    from agent.skill_commands import (
+        build_preloaded_skills_prompt,
+        format_missing_skills,
+    )
 
     skills_prompt, loaded_skills, missing_skills = build_preloaded_skills_prompt(parsed_skills)
     if missing_skills:
@@ -144,8 +147,9 @@ def _build_preloaded_skills_prompt(skills: object = None) -> str | None:
 def _configured_mcp_servers() -> tuple[set[str], set[str]]:
     """``(enabled, disabled)`` MCP server names from config; both empty on any error."""
     try:
-        from hermes_cli.config import read_raw_config
         from tools.mcp_tool_common import mcp_server_enabled
+
+        from hermes_cli.config import read_raw_config
 
         cfg = read_raw_config()
         mcp_servers = cfg.get("mcp_servers") if isinstance(cfg.get("mcp_servers"), dict) else {}
@@ -212,7 +216,7 @@ def _validate_explicit_toolsets(toolsets: object = None) -> tuple[list[str] | No
     return valid, None
 
 
-def _write_usage_file(path: Optional[str], result: dict, failure: Optional[str] = None) -> None:
+def _write_usage_file(path: str | None, result: dict, failure: str | None = None) -> None:
     """Best-effort JSON usage report for pipelines (``-z --usage-file``).
 
     Written even on failure so callers can always account for spend. Never raises — a broken usage
@@ -237,12 +241,12 @@ def _write_usage_file(path: Optional[str], result: dict, failure: Optional[str] 
 
 def run_oneshot(
     prompt: str,
-    model: Optional[str] = None,
-    provider: Optional[str] = None,
+    model: str | None = None,
+    provider: str | None = None,
     toolsets: object = None,
     skills: object = None,
-    usage_file: Optional[str] = None,
-    resume: Optional[str] = None,
+    usage_file: str | None = None,
+    resume: str | None = None,
     reasoning: object = None,
 ) -> int:
     """Execute a single prompt and print only the final content block.
@@ -289,7 +293,7 @@ def run_oneshot(
     real_stdout = sys.stdout
     real_stderr = sys.stderr
 
-    response: Optional[str] = None
+    response: str | None = None
     result: dict = {}
     failure: BaseException | None = None
     with open(os.devnull, "w", encoding="utf-8") as devnull, redirect_stdout(devnull), redirect_stderr(devnull):
@@ -376,7 +380,7 @@ def _configured_model(model_cfg: object) -> str:
     return str(raw or "")
 
 
-def _resolve_model_and_provider(cfg: dict, model: Optional[str], provider: Optional[str]) -> _ModelChoice:
+def _resolve_model_and_provider(cfg: dict, model: str | None, provider: str | None) -> _ModelChoice:
     """Effective model = arg → env → config; provider = arg → auto-detect → config/env.
 
     Auto-detection only runs when the model was explicitly requested (arg or env var) — same
@@ -434,7 +438,7 @@ def _resolve_model_and_provider(cfg: dict, model: Optional[str], provider: Optio
     return choice
 
 
-def _load_resume_target(session_db, resume: Optional[str]) -> tuple[Optional[str], list, Optional[dict]]:
+def _load_resume_target(session_db, resume: str | None) -> tuple[str | None, list, dict | None]:
     """Resolve ``resume`` to ``(session_id, conversation_history, session_meta)`` for a oneshot turn.
 
     Follows the same contract as the interactive CLI resume: compression-chain redirect via
@@ -471,7 +475,7 @@ def _load_resume_target(session_db, resume: Optional[str]) -> tuple[Optional[str
 
 
 def _apply_stored_session_runtime(
-    choice: _ModelChoice, session_meta: Optional[dict], *, explicit_model: bool,
+    choice: _ModelChoice, session_meta: dict | None, *, explicit_model: bool,
 ) -> _ModelChoice:
     """Run a resumed one-shot on the session's stored runtime, not the ambient config — the same
     contract as the interactive ``_restore_session_model``, via the shared ``stored_session_route``.
@@ -497,22 +501,23 @@ def _apply_stored_session_runtime(
 
 def _run_agent(
     prompt: str,
-    model: Optional[str] = None,
-    provider: Optional[str] = None,
+    model: str | None = None,
+    provider: str | None = None,
     toolsets: object = None,
     use_config_toolsets: bool = True,
     skills: object = None,
-    resume: Optional[str] = None,
+    resume: str | None = None,
     reasoning: object = None,
     ledger: bool = False,
 ) -> tuple[str, dict]:
     """Build an AIAgent exactly like a normal CLI chat turn, run one conversation, and return
     ``(final_response, run_result)``. Imports are local to keep CLI startup cheap. *ledger* (set when
     ``--usage-file`` is requested) attaches this run's auxiliary usage to the result."""
+    from run_agent import AIAgent
+
     from hermes_cli.config import load_config
     from hermes_cli.runtime_provider import resolve_runtime_with_fallback
     from hermes_cli.tools_config import _get_platform_tools
-    from run_agent import AIAgent
 
     cfg = load_config()
     choice = _resolve_model_and_provider(cfg, model, provider)

@@ -6,9 +6,7 @@ import json
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
-
-from gateway.config import PlatformConfig
-from gateway.config import GatewayConfig, Platform
+from gateway.config import GatewayConfig, Platform, PlatformConfig
 from gateway.platforms import weixin
 from gateway.platforms.weixin import ContextTokenStore, WeixinAdapter
 from tools.send_message_targets import _parse_target_ref

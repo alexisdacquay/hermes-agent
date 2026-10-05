@@ -2,9 +2,8 @@
 import json
 from types import SimpleNamespace
 
-import pytest
 import hermes_yaml as yaml
-
+import pytest
 from hermes_cli.plugins_updates import run_checks
 
 

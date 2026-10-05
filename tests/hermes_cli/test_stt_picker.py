@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from hermes_cli.tools_config import (  # noqa: E402
+from hermes_cli.tools_config import (
     STT_MODEL_CATALOG,
     TOOL_CATEGORIES,
     _checklist_toolset_keys,
@@ -20,6 +20,7 @@ from hermes_cli.tools_config import (  # noqa: E402
     _write_provider_config,
     apply_provider_selection,
 )
+
 
 def _stt_cat():
     return TOOL_CATEGORIES["stt"]

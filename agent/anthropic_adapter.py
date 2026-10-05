@@ -4,7 +4,6 @@ OpenAI-style internals. Auth: API keys (``sk-ant-api*``) -> x-api-key; OAuth set
 payload conversion and credentials live in ``agent/anthropic_{endpoints,message_convert,
 credentials}.py``; import them from there."""
 
-from pm import install_hint
 import logging
 import math
 import os
@@ -12,31 +11,38 @@ import re
 import shutil
 import subprocess
 from contextlib import suppress
-from typing import Any, Dict, List, Optional
+from typing import Any
 
+from hermes_cli.version_info import get_version_info
+from pm import install_hint
 from utils import normalize_proxy_env_vars
 
 from agent.anthropic_credentials import _is_oauth_token
 from agent.anthropic_endpoints import (
-    _base_url_needs_context_1m_beta, _is_azure_anthropic_endpoint, _is_kimi_coding_endpoint,
-    _is_minimax_anthropic_endpoint, _is_nous_portal_endpoint, _is_opencode_endpoint,
-    _is_third_party_anthropic_endpoint, _model_name_is_kimi_family, _normalize_base_url_text,
+    _base_url_needs_context_1m_beta,
+    _is_azure_anthropic_endpoint,
+    _is_kimi_coding_endpoint,
+    _is_minimax_anthropic_endpoint,
+    _is_nous_portal_endpoint,
+    _is_opencode_endpoint,
+    _is_third_party_anthropic_endpoint,
+    _model_name_is_kimi_family,
+    _normalize_base_url_text,
     _requires_bearer_auth,
 )
 from agent.anthropic_message_convert import (
-    convert_messages_to_anthropic, convert_tools_to_anthropic, normalize_model_name,
+    convert_messages_to_anthropic,
+    convert_tools_to_anthropic,
+    normalize_model_name,
 )
 from agent.errors import EmptyStreamError
-
-from hermes_cli.version_info import get_version_info
-
 
 # ``import anthropic`` is deliberately NOT at module top: the SDK costs ~220 ms of imports and
 # every usage site is a cold user-triggered path. ``...`` = not yet tried; None = tried, missing.
 _anthropic_sdk: Any = ...
 # Why the lazy install did not make the SDK importable. A completed install that needs a restart
 # (PM activates a new dependency environment only at boot) must not be reported as "install it".
-_anthropic_install_error: Optional[Exception] = None
+_anthropic_install_error: Exception | None = None
 
 
 def _get_anthropic_sdk():
@@ -141,7 +147,7 @@ def _get_anthropic_max_output(model: str) -> int:
     return _ANTHROPIC_OUTPUT_LIMITS[best_key] if best_key else _ANTHROPIC_DEFAULT_OUTPUT_LIMIT
 
 
-def _resolve_positive_anthropic_max_tokens(value) -> Optional[int]:
+def _resolve_positive_anthropic_max_tokens(value) -> int | None:
     """``value`` floored to a positive int, or None when it is not a finite positive number.
     Anthropic 400s on max_tokens that are 0, negative, fractional or non-finite; the ``max_tokens
     or fallback`` idiom catches 0 but lets ``-1``/``0.5`` through. Booleans are excluded (they
@@ -156,7 +162,7 @@ def _resolve_positive_anthropic_max_tokens(value) -> Optional[int]:
     return int(value) if int(value) > 0 else None  # int() truncates toward zero for floats
 
 
-def _resolve_anthropic_messages_max_tokens(requested, model: str, context_length: Optional[int] = None) -> int:
+def _resolve_anthropic_messages_max_tokens(requested, model: str, context_length: int | None = None) -> int:
     """``requested`` when it is a positive finite number, else the model's output ceiling. Raises
     ValueError if neither is positive. The context-window clamp is the caller's job so the
     positive-value contract stays endpoint-agnostic."""
@@ -231,7 +237,7 @@ _OAUTH_ONLY_BETAS = ["claude-code-20250219", "oauth-2025-04-20"]
 # requests whose user-agent version is too far behind the actual release, so the installed
 # version is detected and this fallback kept current.
 _CLAUDE_CODE_VERSION_FALLBACK = "2.1.74"
-_claude_code_version_cache: Optional[str] = None
+_claude_code_version_cache: str | None = None
 
 # Install prefixes probed in addition to PATH. GUI launches (the Electron desktop app, macOS
 # LaunchAgents) inherit the bare ``/usr/bin:/bin:/usr/sbin:/sbin``, which carries none of these,
@@ -248,14 +254,14 @@ _CLAUDE_CODE_PREFIXES = (
 _CLAUDE_CODE_NAMES = ("claude", "claude-code")
 
 
-def _claude_code_candidates() -> List[str]:
+def _claude_code_candidates() -> list[str]:
     """Executable paths to try, deduped and filtered to files that exist.
 
     Two passes: every PATH hit first (what the user's shell would run), then the
     well-known install prefixes. A single nested loop would probe a stale prefix
     ``claude`` before a current PATH ``claude-code``.
     """
-    seen: Dict[str, None] = {}
+    seen: dict[str, None] = {}
     for name in _CLAUDE_CODE_NAMES:
         hit = shutil.which(name)
         if hit:
@@ -268,7 +274,7 @@ def _claude_code_candidates() -> List[str]:
     return list(seen)
 
 
-def find_claude_code_cli(command: str) -> Optional[str]:
+def find_claude_code_cli(command: str) -> str | None:
     """Path of a bare Claude Code command name on PATH, else in an install prefix; None for any other command.
 
     Core's own presence checks (external-process providers, ``claude setup-token``) ask this so they
@@ -351,12 +357,12 @@ def _common_betas_for_base_url(base_url: str | None, *, drop_context_1m_beta: bo
     return betas
 
 
-def _beta_header(betas: list) -> Dict[str, str]:
+def _beta_header(betas: list) -> dict[str, str]:
     """``{"anthropic-beta": ...}`` when there are betas, else ``{}``."""
     return {"anthropic-beta": ",".join(betas)} if betas else {}
 
 
-def _attribution_headers() -> Dict[str, str]:
+def _attribution_headers() -> dict[str, str]:
     """Same client-attribution set sent to OpenRouter / Vercel AI Gateway / Fireworks."""
     return {
         "HTTP-Referer": "https://hermes-agent.nousresearch.com", "X-Title": "Hermes Agent",
@@ -371,13 +377,13 @@ def _client_timeout(timeout):
     return Timeout(timeout=float(read), connect=10.0)
 
 
-def _base_client_kwargs(base_url, timeout) -> tuple[str, Dict[str, Any]]:
+def _base_client_kwargs(base_url, timeout) -> tuple[str, dict[str, Any]]:
     """Shared SDK constructor kwargs -> ``(normalized_base_url, kwargs)``. Retry is delegated to
     hermes's outer loop (``max_retries=0``): the SDK default of 2 uses its own backoff that ignores
     Retry-After and double-retries inside our loop. Any trailing ``/v1`` is stripped because the
     SDK appends ``/v1/messages``. Azure's ``api-version`` goes through ``default_query`` so the
     base_url is not corrupted into ``/anthropic?api-version=.../v1/messages``."""
-    kwargs: Dict[str, Any] = {"timeout": _client_timeout(timeout), "max_retries": 0}
+    kwargs: dict[str, Any] = {"timeout": _client_timeout(timeout), "max_retries": 0}
     normalized = re.sub(r"/v1/?$", "", _normalize_base_url_text(base_url).rstrip("/"))
     if normalized:
         kwargs["base_url"] = normalized
@@ -414,7 +420,7 @@ def _build_anthropic_client_with_bearer_hook(
     return _new_sdk_client(sdk, kwargs, headers, route=base_url)
 
 
-def _new_sdk_client(sdk, kwargs: Dict[str, Any], headers: Dict[str, str], route: str = None):
+def _new_sdk_client(sdk, kwargs: dict[str, Any], headers: dict[str, str], route: str = None):
     """``sdk.Anthropic(**kwargs)`` with ``headers`` attached, sending exactly ONE credential.
     ``route`` is the caller's un-normalized base_url (the ``/v1`` form ``custom_providers`` entries are
     keyed by; ``kwargs["base_url"]`` has it stripped) for the per-provider ``extra_headers`` lookup.
@@ -439,7 +445,7 @@ def _new_sdk_client(sdk, kwargs: Dict[str, Any], headers: Dict[str, str], route:
     return sdk.Anthropic(**kwargs)
 
 
-def _custom_provider_extra_headers(base_url) -> Dict[str, str]:
+def _custom_provider_extra_headers(base_url) -> dict[str, str]:
     """``extra_headers`` of the ``custom_providers`` entry routed at *base_url*, else ``{}``.
     SECURITY: values routinely carry credentials (Cloudflare Access tokens) — never log them."""
     if not base_url:
@@ -510,7 +516,10 @@ def build_anthropic_bedrock_client(region: str):
     ``context-1m-2025-08-07`` are attached: without the latter Bedrock caps Opus 4.6/4.7 at 200K.
     A configured ``bedrock.guardrail`` rides as InvokeModel headers so every client built here
     (primary, auxiliary, per-request rebuild) enforces it."""
-    from agent.bedrock_adapter import bedrock_guardrail_headers, scoped_aws_session_kwargs
+    from agent.bedrock_adapter import (
+        bedrock_guardrail_headers,
+        scoped_aws_session_kwargs,
+    )
     sdk = _require_sdk("the Bedrock provider")
     if not hasattr(sdk, "AnthropicBedrock"):
         raise ImportError("anthropic.AnthropicBedrock not available. Run: hermes pm repair")
@@ -537,7 +546,7 @@ def _normalize_to_mcp_wire(name: str) -> str:
     return _MCP_TOOL_PREFIX + name.removeprefix("mcp_")
 
 
-def _oauth_wire_namer(anthropic_tools: List[Dict[str, Any]]):
+def _oauth_wire_namer(anthropic_tools: list[dict[str, Any]]):
     """Return ``name -> OAuth wire name`` for this request's tool set. An alias must never collide
     with a wire name owned by a non-alias tool: two identical tool names in one request is a hard
     400, strictly worse than the bug being fixed. Mirrors normalize_response's "registered tool
@@ -596,7 +605,7 @@ def _apply_claude_code_identity(system, anthropic_tools, anthropic_messages, to_
     return system
 
 
-def _thinking_kwargs(reasoning_config: Dict[str, Any], model: str, effective_max_tokens: int) -> Dict[str, Any]:
+def _thinking_kwargs(reasoning_config: dict[str, Any], model: str, effective_max_tokens: int) -> dict[str, Any]:
     """Map ``reasoning_config`` to Anthropic thinking kwargs. Adaptive models (Claude 4.6+,
     Kimi/Moonshot) get ``thinking.type=adaptive`` + ``output_config.effort``; older models and
     manual-only compat endpoints (MiniMax) get budget_tokens. Haiku has no extended thinking. On
@@ -630,11 +639,11 @@ _TOOL_CHOICE_MAP = {None: {"type": "auto"}, "auto": {"type": "auto"}, "required"
 
 
 def build_anthropic_kwargs(
-    model: str, messages: List[Dict], tools: Optional[List[Dict]], max_tokens: Optional[int],
-    reasoning_config: Optional[Dict[str, Any]], tool_choice: Optional[str] = None,
-    is_oauth: bool = False, preserve_dots: bool = False, context_length: Optional[int] = None,
+    model: str, messages: list[dict], tools: list[dict] | None, max_tokens: int | None,
+    reasoning_config: dict[str, Any] | None, tool_choice: str | None = None,
+    is_oauth: bool = False, preserve_dots: bool = False, context_length: int | None = None,
     base_url: str | None = None, fast_mode: bool = False, drop_context_1m_beta: bool = False,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Build kwargs for anthropic.messages.create(). ``max_tokens`` is the OUTPUT cap for one
     response; ``context_length`` is the TOTAL window (input + output). ``max_tokens=None`` uses the
     model's native output ceiling; if that exceeds ``context_length`` (small local endpoints) it is
@@ -656,7 +665,7 @@ def build_anthropic_kwargs(
     to_wire = _oauth_wire_namer(anthropic_tools) if is_oauth else None
     if to_wire:
         system = _apply_claude_code_identity(system, anthropic_tools, anthropic_messages, to_wire)
-    kwargs: Dict[str, Any] = {"model": model, "messages": anthropic_messages, "max_tokens": effective_max_tokens}
+    kwargs: dict[str, Any] = {"model": model, "messages": anthropic_messages, "max_tokens": effective_max_tokens}
     if system:
         kwargs["system"] = system
     if anthropic_tools:

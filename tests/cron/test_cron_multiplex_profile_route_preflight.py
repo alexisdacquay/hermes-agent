@@ -11,18 +11,15 @@ blocked before any LLM call (#97476). The guard: when the primary home's
 delivery is the primary gateway's to make — pass it through.
 """
 
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
 import hermes_yaml as yaml
-
+import pytest
 from cron.scheduler_preflight import (
     _delivery_platform_routed_from_primary_gateway,
     _preflight_check_delivery,
 )
 from hermes_constants import reset_hermes_home_override, set_hermes_home_override
-
 
 PRIMARY_YAML = {
     "gateway": {

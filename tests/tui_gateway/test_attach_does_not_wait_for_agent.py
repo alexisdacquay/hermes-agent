@@ -17,7 +17,6 @@ import base64
 import threading
 
 import pytest
-
 from tui_gateway import server
 
 PNG_BYTES = b"\x89PNG\r\n\x1a\n" + bytes(range(256)) * 4

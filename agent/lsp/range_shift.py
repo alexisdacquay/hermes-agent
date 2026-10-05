@@ -10,9 +10,10 @@ Keeping range in the key preserves the "same error at a new line" signal.
 from __future__ import annotations
 
 import difflib
-from typing import Any, Callable, Dict, List, Optional
+from collections.abc import Callable
+from typing import Any
 
-_Shift = Callable[[int], Optional[int]]
+_Shift = Callable[[int], int | None]
 
 
 def build_line_shift(pre_text: str, post_text: str) -> _Shift:
@@ -28,7 +29,7 @@ def build_line_shift(pre_text: str, post_text: str) -> _Shift:
     # Opcodes are (tag, i1, i2, j1, j2): i-range in pre, j-range in post.
     opcodes = difflib.SequenceMatcher(a=pre_lines, b=post_lines, autojunk=False).get_opcodes()
 
-    def shift(line: int) -> Optional[int]:
+    def shift(line: int) -> int | None:
         for tag, i1, i2, j1, _j2 in opcodes:
             if i1 <= line < i2:
                 # 'equal' maps by offset; 'delete'/'replace' lines have no
@@ -42,7 +43,7 @@ def build_line_shift(pre_text: str, post_text: str) -> _Shift:
     return shift
 
 
-def shift_diagnostic_range(diag: Dict[str, Any], shift: _Shift) -> Optional[Dict[str, Any]]:
+def shift_diagnostic_range(diag: dict[str, Any], shift: _Shift) -> dict[str, Any] | None:
     """Copy of ``diag`` with its line range remapped; ``None`` if the start line was deleted.
 
     A multi-line diagnostic whose end straddles the deletion collapses to a
@@ -67,10 +68,10 @@ def shift_diagnostic_range(diag: Dict[str, Any], shift: _Shift) -> Optional[Dict
     }
 
 
-def shift_baseline(baseline: List[Dict[str, Any]], shift: _Shift) -> List[Dict[str, Any]]:
+def shift_baseline(baseline: list[dict[str, Any]], shift: _Shift) -> list[dict[str, Any]]:
     """Apply ``shift`` to every diagnostic in ``baseline``, dropping deleted entries."""
     shifted = (shift_diagnostic_range(d, shift) for d in baseline if isinstance(d, dict))
     return [s for s in shifted if s is not None]
 
 
-__all__ = ["build_line_shift", "shift_diagnostic_range", "shift_baseline"]
+__all__ = ["build_line_shift", "shift_baseline", "shift_diagnostic_range"]

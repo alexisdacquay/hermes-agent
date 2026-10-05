@@ -4,7 +4,6 @@ import os
 from unittest.mock import patch
 
 import pytest
-
 import tools.skills_tool as skills_tool_module
 from agent.skill_commands import (
     build_preloaded_skills_prompt,
@@ -189,7 +188,10 @@ class TestScanSkillCommands:
         """
         import agent.skill_commands as sc_mod
         from agent.skill_commands import get_skill_commands
-        from hermes_constants import reset_hermes_home_override, set_hermes_home_override
+        from hermes_constants import (
+            reset_hermes_home_override,
+            set_hermes_home_override,
+        )
 
         empty_local_dir = tmp_path / "no-local-skills"
         empty_local_dir.mkdir()
@@ -240,8 +242,14 @@ class TestScanSkillCommands:
         Deliberately does NOT patch ``tools.skills_tool.SKILLS_DIR``.
         """
         import agent.skill_commands as sc_mod
-        from agent.skill_commands import build_skill_invocation_message, get_skill_commands
-        from hermes_constants import reset_hermes_home_override, set_hermes_home_override
+        from agent.skill_commands import (
+            build_skill_invocation_message,
+            get_skill_commands,
+        )
+        from hermes_constants import (
+            reset_hermes_home_override,
+            set_hermes_home_override,
+        )
 
         profile_b = tmp_path / "profiles" / "b"
         _make_skill(profile_b / "skills", "b-only", body="Body of b-only.")
@@ -376,19 +384,18 @@ class TestScanSkillCommands:
 
         with patch("tools.skills_tool.SKILLS_DIR", tmp_path), patch(
             "tools.skills_tool._parse_frontmatter", parking_parse
-        ):
-            with caplog.at_level(_logging.WARNING, logger="agent.skill_commands"):
-                background = threading.Thread(
-                    target=scan_skill_commands, name="parked-scan", daemon=True
-                )
-                background.start()
-                assert parked.wait(timeout=10), "background scan never parked"
+        ), caplog.at_level(_logging.WARNING, logger="agent.skill_commands"):
+            background = threading.Thread(
+                target=scan_skill_commands, name="parked-scan", daemon=True
+            )
+            background.start()
+            assert parked.wait(timeout=10), "background scan never parked"
 
-                foreground = scan_skill_commands()
+            foreground = scan_skill_commands()
 
-                other_scan_finished.set()
-                background.join(timeout=10)
-                assert not background.is_alive()
+            other_scan_finished.set()
+            background.join(timeout=10)
+            assert not background.is_alive()
 
         collisions = [r for r in caplog.records if "already claimed" in r.message]
         assert collisions == [], (
@@ -555,7 +562,8 @@ class TestDuplicateNamesAgreeAcrossSurfaces:
         duplicate (same relative path, local + external) loads the local copy everywhere."""
         import json
 
-        from agent import prompt_builder as pb, skill_utils
+        from agent import prompt_builder as pb
+        from agent import skill_utils
         from cron.scheduler_prompt import _load_cron_skill_parts
         from tools.skills_tool import skill_view, skills_list
         local, ext = tmp_path / "local", tmp_path / "ext"

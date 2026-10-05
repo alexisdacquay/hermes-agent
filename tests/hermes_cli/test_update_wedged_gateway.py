@@ -21,9 +21,8 @@ import time
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
 import hermes_cli.gateway as gateway_cli
+import pytest
 from gateway.shutdown_watchdog import (
     get_loop_heartbeat_path,
     get_loop_tick_socket_path,
@@ -806,7 +805,7 @@ class TestLoopTickTcpWitness:
             while not stop.is_set():
                 try:
                     conn, _ = srv.accept()
-                except socket.timeout:
+                except TimeoutError:
                     continue
                 try:
                     conn.sendall(b"1")

@@ -6,11 +6,10 @@ background reconnection (#31049).
 """
 
 
+import plugins.platforms.telegram.adapter as telegram_mod
 import pytest
-
 from gateway.config import PlatformConfig
-import plugins.platforms.telegram.adapter as telegram_mod  # noqa: E402
-from plugins.platforms.telegram.adapter import TelegramAdapter  # noqa: E402
+from plugins.platforms.telegram.adapter import TelegramAdapter
 
 
 class TestTelegramUnconfiguredNonRetryable:

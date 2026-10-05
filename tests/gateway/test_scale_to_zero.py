@@ -9,7 +9,6 @@ test without a live gateway.
 from __future__ import annotations
 
 import pytest
-
 from gateway.scale_to_zero import (
     DEFAULT_IDLE_TIMEOUT_MINUTES,
     SCALE_TO_ZERO_ENV,
@@ -19,7 +18,6 @@ from gateway.scale_to_zero import (
     scale_to_zero_enabled,
     should_arm,
 )
-
 
 # ── scale_to_zero_enabled (the Labs HERMES_SCALE_TO_ZERO stamp, D11/Q8=A) ────
 
@@ -202,8 +200,7 @@ import tempfile
 import threading
 from pathlib import Path
 
-
-from gateway.scale_to_zero import (  # noqa: E402 - grouped with their section
+from gateway.scale_to_zero import (
     FLY_APP_NAME_ENV,
     FLY_MACHINE_ID_ENV,
     self_suspend_available,
@@ -313,7 +310,7 @@ def test_self_suspend_available_needs_identity_and_socket():
 # Brokered suspend: Azure's stop verb needs a credential the sandbox lacks, so
 # NAS stamps a signed sleep URL and stops the machine on our POST.
 
-from gateway.scale_to_zero import (  # noqa: E402 - grouped with their section
+from gateway.scale_to_zero import (
     SLEEP_URL_ENV,
     brokered_sleep_url,
     request_brokered_suspend,

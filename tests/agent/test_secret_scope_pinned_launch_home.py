@@ -12,9 +12,8 @@ a multiplexing gateway/dashboard, since neither calls the pin itself. Two contra
 """
 from __future__ import annotations
 
-import pytest
-
 import hermes_constants
+import pytest
 from agent.secret_scope import serves_routed_profile, set_multiplex_active
 from hermes_constants import (
     get_hermes_home,

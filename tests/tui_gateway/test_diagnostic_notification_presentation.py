@@ -4,7 +4,6 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
-
 from agent.notification_presentation import notification_turn
 from tui_gateway import server
 

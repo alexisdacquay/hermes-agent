@@ -14,9 +14,8 @@ import logging
 from pathlib import Path
 from types import SimpleNamespace
 
-import pytest
-
 import gateway.run as gateway_run
+import pytest
 
 
 class _Ticks:
@@ -68,7 +67,7 @@ def two_homes(tmp_path, monkeypatch):
 
 def _record_credential_chores(monkeypatch):
     """Replace the credential-reading chores with recorders of (home, Nous override) they see."""
-    import agent.curator as curator
+    from agent import curator
     from hermes_cli.auth_nous import _nous_inference_env_override
     from hermes_constants import get_hermes_home
 
@@ -231,9 +230,8 @@ def test_profile_scope_setup_failure_restores_the_callers_home(two_homes, monkey
 
     monkeypatch.setattr(gateway_run, "_load_profile_secret_scope", _boom)
 
-    with pytest.raises(OSError):
-        with gateway_run._profile_runtime_scope(b):
-            pass
+    with pytest.raises(OSError), gateway_run._profile_runtime_scope(b):
+        pass
 
     assert get_hermes_home() == a
     assert current_secret_scope() == scope_before

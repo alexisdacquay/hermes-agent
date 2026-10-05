@@ -35,10 +35,11 @@ import ssl
 import threading
 import time
 import urllib.parse
+from collections.abc import Callable
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any, Callable, Union
+from typing import Any, Union
 
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
@@ -128,7 +129,7 @@ def _write_pem(path: Path, data: bytes) -> Path:
 def make_tls_material(root: Path, hosts: list[str]) -> tuple[Path, Path, Path]:
     """A throwaway CA (PEM for ``SSL_CERT_FILE``) and a leaf for ``hosts`` signed by it."""
     root.mkdir(parents=True, exist_ok=True)
-    now = _dt.datetime.now(_dt.timezone.utc)
+    now = _dt.datetime.now(_dt.UTC)
     ca_key = ec.generate_private_key(ec.SECP256R1())
     ca_ski = x509.SubjectKeyIdentifier.from_public_key(ca_key.public_key())
     ca_cert = (
@@ -389,7 +390,7 @@ class FakeVertex:
         self._tls: ssl.SSLContext | None = None
 
     # lifecycle
-    def __enter__(self) -> "FakeVertex":
+    def __enter__(self) -> FakeVertex:
         self.start()
         return self
 
@@ -514,7 +515,7 @@ def _handler_for(fake: FakeVertex) -> type[BaseHTTPRequestHandler]:
         protocol_version = "HTTP/1.1"
         tunnel_host: str | None = None
 
-        def log_message(self, format: str, *args: Any) -> None:  # noqa: A002
+        def log_message(self, format: str, *args: Any) -> None:
             pass
 
         def _send(self, status: int, body: bytes, headers: dict[str, str] | None = None) -> None:
@@ -528,7 +529,7 @@ def _handler_for(fake: FakeVertex) -> type[BaseHTTPRequestHandler]:
             self.wfile.flush()
 
         # proxy
-        def do_CONNECT(self) -> None:  # noqa: N802
+        def do_CONNECT(self) -> None:
             host, _, port = self.path.partition(":")
             allowed = host == fake.host and port == "443"
             with fake._lock:
@@ -553,7 +554,7 @@ def _handler_for(fake: FakeVertex) -> type[BaseHTTPRequestHandler]:
             self.close_connection = False
 
         # token endpoint (plain loopback) and Vertex (inside the TLS tunnel)
-        def do_POST(self) -> None:  # noqa: N802
+        def do_POST(self) -> None:
             raw = self.rfile.read(int(self.headers.get("Content-Length", 0) or 0))
             if self.tunnel_host is None:
                 if self.path != "/token":
@@ -565,7 +566,7 @@ def _handler_for(fake: FakeVertex) -> type[BaseHTTPRequestHandler]:
                 return
             self._vertex(raw)
 
-        def do_GET(self) -> None:  # noqa: N802
+        def do_GET(self) -> None:
             self._send(404, _vertex_error(404, f"The requested URL {self.path} was not found on this server."))
 
         def _vertex(self, raw: bytes) -> None:
@@ -703,7 +704,22 @@ def signatures_on_wire(body: dict[str, Any]) -> list[str]:
 
 
 __all__ = [
-    "MODEL", "PROJECT", "REGION", "SA_EMBEDDED_PROJECT", "hermes_setup",
-    "Call", "Drop", "Fail", "FakeVertex", "GRPC_STATUS", "Say", "ServiceAccount", "TokenPolicy",
-    "make_service_account", "make_tls_material", "signatures_on_wire", "validate_chat_body", "verify_jwt_assertion",
+    "GRPC_STATUS",
+    "MODEL",
+    "PROJECT",
+    "REGION",
+    "SA_EMBEDDED_PROJECT",
+    "Call",
+    "Drop",
+    "Fail",
+    "FakeVertex",
+    "Say",
+    "ServiceAccount",
+    "TokenPolicy",
+    "hermes_setup",
+    "make_service_account",
+    "make_tls_material",
+    "signatures_on_wire",
+    "validate_chat_body",
+    "verify_jwt_assertion",
 ]

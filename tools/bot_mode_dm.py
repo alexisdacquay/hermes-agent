@@ -29,7 +29,7 @@ import tempfile
 import threading
 import time
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 # Top-level imports stay stdlib-only: this module also runs directly as the background
 # delivery runner (``python bot_mode_dm.py --run-delivery …``); Hermes helpers import lazily.
@@ -167,7 +167,7 @@ def ensure_message_agent_tool(agent: Any) -> bool:
         return False
 
 
-def _resolve_local_name(target: str, roster: list[str], root: Path | None = None) -> Optional[str]:
+def _resolve_local_name(target: str, roster: list[str], root: Path | None = None) -> str | None:
     """Map a target to a local profile FOLDER id: 'hermes' → 'default'; an exact folder id
     (case-insensitive); else — when ``root`` is given — a friendly name or its Desktop @-slug
     (profile.yaml ``display_name`` / Bot Mode title: 'Scribe', '@scribe', 'Dr. Foo' → 'foo').
@@ -198,14 +198,22 @@ def _err(message: str, *, roster: list[str] | None = None, peers: list[str] | No
     return json.dumps(payload)
 
 
-def message_agent_tool(target: str = "", message: str = "", task_id: Optional[str] = None, agent: Any = None) -> str:
+def message_agent_tool(target: str = "", message: str = "", task_id: str | None = None, agent: Any = None) -> str:
     """Deliver ``message`` to ``target``'s Bot Chat. Returns a JSON ack/error.
     ``agent`` is the calling AIAgent — used for the Bot Chat gate and sender identity."""
     home = _agent_home(agent)
     try:
         from tools.bot_mode_probe import (
-            BOT_CHAT_TITLE, _display_name, _handle, _hermes_root, _peers, _profile_name as _self_profile_name,
-            _roster, is_bot_mode_managed,
+            BOT_CHAT_TITLE,
+            _display_name,
+            _handle,
+            _hermes_root,
+            _peers,
+            _roster,
+            is_bot_mode_managed,
+        )
+        from tools.bot_mode_probe import (
+            _profile_name as _self_profile_name,
         )
         from tools.bot_relay import BOT_CHAT_TURN_ARGS, _hermes_cli
 
@@ -296,7 +304,7 @@ def message_agent_tool(target: str = "", message: str = "", task_id: Optional[st
 
 
 def _try_relay_delivery(root: Path, raw_target: str, content: str, me: str, *,
-                        task_id: Optional[str], agent: Any) -> Optional[str]:
+                        task_id: str | None, agent: Any) -> str | None:
     """Cross-connection delivery via the Desktop relay; None when the target doesn't
     resolve against the relay roster. The envelope is queued on disk for the Desktop
     to drain; a background waiter is spawned immediately so the relayed reply wakes
@@ -304,8 +312,13 @@ def _try_relay_delivery(root: Path, raw_target: str, content: str, me: str, *,
     try:
         from tools.bot_mode_probe import _handle, local_taken_forms
         from tools.bot_relay import (
-            EnvelopeRefusedError, _target_aliases, enqueue_envelope, read_remote_roster, remote_target_forms,
-            resolve_remote_target, waiter_command,
+            EnvelopeRefusedError,
+            _target_aliases,
+            enqueue_envelope,
+            read_remote_roster,
+            remote_target_forms,
+            resolve_remote_target,
+            waiter_command,
         )
 
         roster = read_remote_roster(root)
@@ -420,7 +433,7 @@ def _delivery_lock(argv: list[str], *, stdin_file: bool):
     return acquire_turn_lock(_hermes_root(Path(_default_home())), argv[2])
 
 
-def _run_local_turn(argv: list[str], dm_file: str, *, env: Optional[dict[str, str]] = None) -> int:
+def _run_local_turn(argv: list[str], dm_file: str, *, env: dict[str, str] | None = None) -> int:
     """One Bot Chat turn via ``--query-file`` (plus one policy-gated retry); re-emits
     the transport's streams and returns its exit code. Transient failures re-run the
     same session; a context_overflow re-run lets the retried turn's pre-API compaction
@@ -432,7 +445,12 @@ def _run_local_turn(argv: list[str], dm_file: str, *, env: Optional[dict[str, st
 
     proc = _turn()
     if proc.returncode != 0:
-        from tools.bot_failure_reasons import RETRY_NONE, classify_agent_error, retry_action, turn_failure_text
+        from tools.bot_failure_reasons import (
+            RETRY_NONE,
+            classify_agent_error,
+            retry_action,
+            turn_failure_text,
+        )
         from tools.bot_relay import retry_turn_env
 
         # The re-run replays the same session and payload; the failed attempt already persisted the
@@ -474,21 +492,26 @@ def _run_local_turn(argv: list[str], dm_file: str, *, env: Optional[dict[str, st
     return proc.returncode
 
 
-def _live_intent_file(dm_file: "str | os.PathLike") -> str:
+def _live_intent_file(dm_file: str | os.PathLike) -> str:
     """The pinned live-delivery intent beside a DM file (the cache sweep globs ``*.live.json``)."""
     return f"{os.fspath(dm_file)}.live.json"
 
 
-def _dm_delivery_id(dm_file: "str | os.PathLike") -> str:
+def _dm_delivery_id(dm_file: str | os.PathLike) -> str:
     """One delivery id per DM file: the dispatch ack, the live-owner intent and every retry
     of the runner derive it the same way, so the sender can correlate all of them."""
     return hashlib.sha256(str(Path(dm_file).resolve()).encode()).hexdigest()
 
 
-def _admit_live_dm(profile_home: Path | None, dm_file: str, author: Optional[dict] = None) -> dict | None:
+def _admit_live_dm(profile_home: Path | None, dm_file: str, author: dict | None = None) -> dict | None:
     """Pin intent before admission; retries may inspect, never change transport."""
-    from tools.bot_live_delivery import deliver_to_live_owner, find_canonical_live_owner, read_delivery_result
     from utils import fsync_directory
+
+    from tools.bot_live_delivery import (
+        deliver_to_live_owner,
+        find_canonical_live_owner,
+        read_delivery_result,
+    )
 
     intent: dict[str, Any]
     intent_path = Path(_live_intent_file(dm_file))
@@ -520,9 +543,13 @@ def _admit_live_dm(profile_home: Path | None, dm_file: str, author: Optional[dic
     return record
 
 
-def _wait_live_dm(home: str, delivery_id: str, *, dm_file: "str | os.PathLike | None" = None) -> int:
+def _wait_live_dm(home: str, delivery_id: str, *, dm_file: str | os.PathLike | None = None) -> int:
     from tools.bot_failure_reasons import RUNTIME_OFFLINE
-    from tools.bot_live_delivery import await_delivery, cancel_queued_delivery, owner_holds_delivery
+    from tools.bot_live_delivery import (
+        await_delivery,
+        cancel_queued_delivery,
+        owner_holds_delivery,
+    )
 
     deadline = time.monotonic() + _LIVE_WAIT_MAX_SECONDS
     missed = 0
@@ -584,7 +611,7 @@ def _live_outcome_unknown(dm_file: str, cause: object) -> str:
                        "evidence_file": dm_file})
 
 
-def _runner_argv(args: list[str]) -> tuple[Optional[str], str, str, list[str]] | None:
+def _runner_argv(args: list[str]) -> tuple[str | None, str, str, list[str]] | None:
     """Split ``--run-delivery [--author <json>] <mode> <dm_file> <argv…>`` into
     ``(author_json, mode, dm_file, argv)``; None when malformed. Stdlib only: the boot-failure
     report runs it when no Hermes import is available."""
@@ -601,7 +628,7 @@ def _runner_argv(args: list[str]) -> tuple[Optional[str], str, str, list[str]] |
 
 
 def _run_delivery(argv: list[str], dm_file: str, *, stdin_file: bool,
-                  profile_home: Path | None = None, author: Optional[dict] = None) -> int:
+                  profile_home: Path | None = None, author: dict | None = None) -> int:
     """Route to the live owner before attempting a CLI transport. Live deliveries
     retain their intent/payload and immutable receipt; only CLI/peer payloads are
     removed after consumption. The CLI turn window holds the profile lock, so two
@@ -642,7 +669,7 @@ def _run_delivery(argv: list[str], dm_file: str, *, stdin_file: bool,
 
 
 def _delivery_command(argv: list[str], dm_file: str, *, stdin_file: bool,
-                      profile_home: Path | None = None, author: Optional[dict] = None) -> str:
+                      profile_home: Path | None = None, author: dict | None = None) -> str:
     """Build an argv-safe command for the cleanup-owning background runner:
     ``--run-delivery [--author <json>] <mode> <dm_file> [--profile-home <path>] <argv...>``."""
     runner_argv = [sys.executable, str(Path(__file__).resolve()), "--run-delivery",
@@ -661,8 +688,8 @@ def _delivery_command(argv: list[str], dm_file: str, *, stdin_file: bool,
 
 
 def _start_delivery(argv: list[str], content: str, label: str, *, stdin_file: bool,
-                    task_id: Optional[str], agent: Any, profile_home: Path | None = None,
-                    author: Optional[dict] = None) -> str:
+                    task_id: str | None, agent: Any, profile_home: Path | None = None,
+                    author: dict | None = None) -> str:
     """Create a DM file and transfer its cleanup ownership to the runner."""
     dm_file = _write_dm_file(content)
     if profile_home is not None:
@@ -695,8 +722,8 @@ def _start_delivery(argv: list[str], content: str, label: str, *, stdin_file: bo
     return _spawn_delivery(command, label, dm_file=dm_file, task_id=task_id, agent=agent)
 
 
-def _spawn_delivery(command: str, label: str, *, dm_file: Optional[str] = None, delivery_id: Optional[str] = None,
-                    task_id: Optional[str], agent: Any) -> str:
+def _spawn_delivery(command: str, label: str, *, dm_file: str | None = None, delivery_id: str | None = None,
+                    task_id: str | None, agent: Any) -> str:
     """Launch the cleanup-owning runner and transfer file ownership on ack. ``dm_file``
     is None for relay deliveries (the waiter watches a reply file; envelope artifacts
     are owned/swept by ``tools/bot_relay.py``), which pass the envelope id as ``delivery_id``
@@ -779,7 +806,8 @@ def _persist_reply_when_done(proc_id: str, agent: Any) -> bool:
 
     def _run() -> None:
         from tools.process_registry_notifications import (
-            format_process_notification, process_completion_display_text,
+            format_process_notification,
+            process_completion_display_text,
         )
 
         proc._completion_event.wait()

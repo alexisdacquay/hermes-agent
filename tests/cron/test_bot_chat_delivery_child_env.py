@@ -11,9 +11,8 @@ from __future__ import annotations
 
 import subprocess
 
-import pytest
-
 import cron.scheduler_delivery as delivery
+import pytest
 
 # What a gateway process that loaded the ROOT profile's .env holds in os.environ.
 LAUNCH_ENV = {

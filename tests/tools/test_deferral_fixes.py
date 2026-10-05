@@ -25,7 +25,6 @@ import uuid
 from types import SimpleNamespace
 
 import pytest
-
 from agent.tool_dispatch_helpers import _plan_tool_batch_segments
 from tools.tool_search import build_catalog, search_catalog
 from tools.tool_search_catalog import _short_desc

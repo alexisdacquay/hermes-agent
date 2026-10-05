@@ -4,7 +4,6 @@ import asyncio
 import threading
 
 import pytest
-
 from gateway.platforms.api_server import APIServerAdapter
 
 

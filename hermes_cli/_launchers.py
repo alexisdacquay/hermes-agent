@@ -270,8 +270,8 @@ def mint_launcher(
         with ZipFile(existing) as archive:
             if archive.namelist() == ["__main__.py"]:
                 prefix = existing.read_bytes()[:archive.infolist()[0].header_offset]
-                shebangs = (f"#!{python_exe} -I\n".encode("utf-8"),
-                            f'#!"{python_exe}" -I\n'.encode("utf-8"))
+                shebangs = (f"#!{python_exe} -I\n".encode(),
+                            f'#!"{python_exe}" -I\n'.encode())
                 # Vendored distlib trails the shebang with an extra CRLF
                 # before the zip; compare the shebang line itself.
                 tail = prefix.rstrip(b"\r\n")

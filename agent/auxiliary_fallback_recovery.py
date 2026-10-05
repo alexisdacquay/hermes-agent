@@ -6,12 +6,13 @@ model that rejects ``temperature``, ``max_tokens`` or a reasoning field failed t
 though the same parameter rungs would have recovered it on the primary path (#78273, #72351).
 This module runs those rungs — and only those — around a candidate's request.
 """
-from typing import Any, Awaitable, Callable, Dict, Optional
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 
-def _parameter_ladder(first_err: Exception, client: Any, kwargs: Dict[str, Any], *,
-                      task: Optional[str], tag: str):
-    from agent.auxiliary_client import _LadderRoute, _ladder_parameter_rungs
+def _parameter_ladder(first_err: Exception, client: Any, kwargs: dict[str, Any], *,
+                      task: str | None, tag: str):
+    from agent.auxiliary_client import _ladder_parameter_rungs, _LadderRoute
     # Keyword construction: the route tuple grows with every new ladder rung (a positional 13-tuple
     # broke the moment a sibling PR added ``timeout``); fields this ladder never reads stay None.
     route = _LadderRoute(**{**dict.fromkeys(_LadderRoute._fields), "client": client, "task": task,
@@ -25,7 +26,7 @@ def _parameter_ladder(first_err: Exception, client: Any, kwargs: Dict[str, Any],
 
 
 def send_with_parameter_rungs(
-    send: Callable[[Any, Dict[str, Any]], Any], client: Any, kwargs: Dict[str, Any], *, task: Optional[str],
+    send: Callable[[Any, dict[str, Any]], Any], client: Any, kwargs: dict[str, Any], *, task: str | None,
 ) -> Any:
     """``send(client, kwargs)``; on a parameter 400, retry through the parameter rungs. Any other
     error (auth, payment, connection) propagates unchanged for the caller's own handling."""
@@ -38,8 +39,8 @@ def send_with_parameter_rungs(
 
 
 async def send_with_parameter_rungs_async(
-    send: Callable[[Any, Dict[str, Any]], Awaitable[Any]], client: Any, kwargs: Dict[str, Any], *,
-    task: Optional[str],
+    send: Callable[[Any, dict[str, Any]], Awaitable[Any]], client: Any, kwargs: dict[str, Any], *,
+    task: str | None,
 ) -> Any:
     """Async twin of :func:`send_with_parameter_rungs`."""
     from agent.auxiliary_client import _drive_ladder_async

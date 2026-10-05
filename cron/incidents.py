@@ -16,16 +16,18 @@ import hashlib
 import re
 import sqlite3
 import threading
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Any
 
-from cron import executions as _executions
 from hermes_constants import get_hermes_home
 from hermes_time import now as _hermes_now
 
+from cron import executions as _executions
+
 # Optional test override (mirrors ``cron.executions.EXECUTIONS_FILE``).
-EXECUTIONS_FILE: Optional[Path] = None
+EXECUTIONS_FILE: Path | None = None
 
 # ``resolved``: the job ran OK after the failure (auto); ``closed``: the operator acked the signature
 # and wants it silent. Only ``closed`` is terminal; a repeat of a resolved error re-opens it.
@@ -64,8 +66,9 @@ def _connect() -> sqlite3.Connection:
     # Late imports: a scheduler daemon that outlives an on-disk upgrade already has the OLD
     # ``hermes_cli.sqlite_util`` / ``cron.jobs`` cached, so new names must be resolved at call time,
     # not at import time (the guarantee cron/ledger.py used to carry, see e24c8499).
-    from cron.jobs import _ensure_cron_dir
     from hermes_cli.sqlite_util import open_db
+
+    from cron.jobs import _ensure_cron_dir
 
     path = _db_path()
     _ensure_cron_dir(path.parent)
@@ -154,8 +157,8 @@ def _classify_failure_type(error: str) -> str:
 
 
 def upsert_incident(
-    job_id: str, error: str, *, job_name: Optional[str] = None, failure_type: Optional[str] = None,
-    output_file: Optional[str] = None,
+    job_id: str, error: str, *, job_name: str | None = None, failure_type: str | None = None,
+    output_file: str | None = None,
 ) -> tuple[str, bool]:
     """Record (or refresh) the incident for ``job_id`` + ``error``; returns ``(incident_id,
     is_new)``. An existing row for the signature refreshes
@@ -257,11 +260,11 @@ def close_incidents_for_recovered_job(job_id: str) -> int:
         return int(cursor.rowcount or 0)
 
 
-def _state_filter(state: Optional[str]) -> tuple[str, tuple]:
+def _state_filter(state: str | None) -> tuple[str, tuple]:
     return ("", ()) if state is None else (" WHERE state=?", (state,))
 
 
-def list_incidents(state: Optional[str] = None) -> List[Dict[str, Any]]:
+def list_incidents(state: str | None = None) -> list[dict[str, Any]]:
     """Return incidents, newest-activity first, optionally filtered by state."""
     if state is not None and state not in INCIDENT_STATES:
         return []
@@ -276,7 +279,7 @@ def list_incidents(state: Optional[str] = None) -> List[Dict[str, Any]]:
     return [dict(row) for row in rows]
 
 
-def get_incident(incident_id: str) -> Optional[Dict[str, Any]]:
+def get_incident(incident_id: str) -> dict[str, Any] | None:
     with _transaction() as conn:
         row = conn.execute(
             "SELECT * FROM cron_incidents WHERE id=?", (incident_id,)
@@ -284,7 +287,7 @@ def get_incident(incident_id: str) -> Optional[Dict[str, Any]]:
     return dict(row) if row is not None else None
 
 
-def count_incidents(state: Optional[str] = None) -> int:
+def count_incidents(state: str | None = None) -> int:
     if state is not None and state not in INCIDENT_STATES:
         return 0
     where, params = _state_filter(state)

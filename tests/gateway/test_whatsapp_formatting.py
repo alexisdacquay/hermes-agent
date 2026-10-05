@@ -10,8 +10,8 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from gateway.config import Platform
+
 
 @pytest.fixture(autouse=True)
 def _whatsapp_open_optin(monkeypatch):

@@ -13,13 +13,15 @@ import contextlib
 import importlib.util
 import json
 import sys
-import threading
 import time
 from pathlib import Path
 
 import pytest
-
-from agent.secret_scope import build_profile_secret_scope, reset_secret_scope, set_secret_scope
+from agent.secret_scope import (
+    build_profile_secret_scope,
+    reset_secret_scope,
+    set_secret_scope,
+)
 from hermes_constants import reset_hermes_home_override, set_hermes_home_override
 
 REPO = Path(__file__).resolve().parents[2]
@@ -85,7 +87,7 @@ def test_router_efforts_cache_and_base_url_follow_the_active_profile(homes, monk
     """Efforts map + once-only flags are per home under an override (and the warm thread inherits the
     scope), while the unscoped path keeps using the module slots; the base URL comes from the
     profile's .env."""
-    import hermes_cli.urllib_security as urllib_security
+    from hermes_cli import urllib_security
 
     a, b = homes
     profile, mod = _router()
@@ -132,9 +134,8 @@ def test_router_efforts_cache_and_base_url_follow_the_active_profile(homes, monk
 def test_credentialed_catalog_probe_failure_is_not_cached_across_keys(monkeypatch):
     """A 401 under one key must not pin a sibling profile (same base URL, valid key) to the empty
     catalog for the TTL."""
-    import requests
-
     import plugins.image_gen.openrouter as orp
+    import requests
 
     def fake_get(url, headers=None, timeout=None, **_kw):
         if (headers or {}).get("Authorization") == "Bearer good-key":

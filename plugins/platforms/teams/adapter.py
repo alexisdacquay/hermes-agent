@@ -10,6 +10,7 @@ Requires the ``teams`` extra (auto-installed by the gateway on first start, or
 from __future__ import annotations
 
 import asyncio
+
 # microsoft-teams-apps calls ``load_dotenv(find_dotenv(usecwd=True))`` at ``microsoft_teams.apps.app``
 # import time. Importing it during plugin discovery / ``TeamsSummaryWriter`` imports would pollute process
 # ``os.environ`` from a cwd-discovered ``.env`` (#62935). Detect presence via find_spec only; bind symbols
@@ -20,8 +21,9 @@ import logging
 import re
 import sys
 from collections import deque
+from collections.abc import Iterator
 from contextlib import contextmanager, suppress
-from typing import Any, Dict, Iterator, Optional
+from typing import Any
 from urllib.parse import urlparse
 
 try:
@@ -52,18 +54,26 @@ AdaptiveCardActionMessageResponse = AdaptiveCardInvokeResponse = InvokeResponse 
 HttpRequest = HttpResponse = HttpRouteHandler = AdaptiveCard = ExecuteAction = TextBlock = None  # type: ignore[assignment,misc]
 HttpMethod = str  # type: ignore[assignment,misc]
 
-from gateway.config import Platform, PlatformConfig
-from gateway.platforms.helpers import MessageDeduplicator
-from gateway.platforms.base import (
-    gateway_trust_env, BasePlatformAdapter, ExecApprovalPrompt, SendResult, cache_image_from_url, cache_media_bytes_async,
-)
-from gateway.platforms.base_exec_approval import approval_timeout_seconds, format_approval_deadline_line
 from agent.i18n import t
-from gateway.platforms.event import MessageEvent, MessageType
-from gateway.platforms._shared import (
-    coerce_port, extra_or_secret as _extra_or_secret, get_scoped_secret as _get_scoped_secret,
-    seed_extra_from_env as _seed_extra_from_env, send_error
+from gateway.config import Platform, PlatformConfig
+from gateway.platforms._shared import coerce_port, send_error
+from gateway.platforms._shared import extra_or_secret as _extra_or_secret
+from gateway.platforms._shared import get_scoped_secret as _get_scoped_secret
+from gateway.platforms._shared import seed_extra_from_env as _seed_extra_from_env
+from gateway.platforms.base import (
+    BasePlatformAdapter,
+    ExecApprovalPrompt,
+    SendResult,
+    cache_image_from_url,
+    cache_media_bytes_async,
+    gateway_trust_env,
 )
+from gateway.platforms.base_exec_approval import (
+    approval_timeout_seconds,
+    format_approval_deadline_line,
+)
+from gateway.platforms.event import MessageEvent, MessageType
+from gateway.platforms.helpers import MessageDeduplicator
 
 logger = logging.getLogger(__name__)
 
@@ -108,7 +118,7 @@ def _is_botframework_attachment_url(url: str) -> bool:
     return _is_allowed_https_host(url, check_port=True)
 
 
-def _validate_teams_service_url(raw: str) -> Optional[str]:
+def _validate_teams_service_url(raw: str) -> str | None:
     """Normalized (trailing-slash) service URL, or ``None`` if not on the allowlist."""
     if not raw or not _is_allowed_https_host(raw):
         return None
@@ -119,12 +129,12 @@ class _AiohttpBridgeAdapter:
     """HttpServerAdapter bridging SDK route registrations into our aiohttp app; without it
     ``App()`` unconditionally imports fastapi/uvicorn and allocates a ``FastAPI()``."""
 
-    def __init__(self, aiohttp_app: "web.Application"):
+    def __init__(self, aiohttp_app: web.Application):
         self._aiohttp_app = aiohttp_app
 
-    def register_route(self, method: "HttpMethod", path: str, handler: "HttpRouteHandler") -> None:
-        async def _aiohttp_handler(request: "web.Request") -> "web.Response":
-            result: "HttpResponse" = await handler(HttpRequest(body=await request.json(), headers=dict(request.headers)))
+    def register_route(self, method: HttpMethod, path: str, handler: HttpRouteHandler) -> None:
+        async def _aiohttp_handler(request: web.Request) -> web.Response:
+            result: HttpResponse = await handler(HttpRequest(body=await request.json(), headers=dict(request.headers)))
             status = result.get("status", 200)
             resp_body = result.get("body")
             if resp_body is not None:
@@ -188,8 +198,8 @@ def _env_enablement() -> dict | None:
 
 async def _standalone_send(
     pconfig, chat_id: str, message: str, *,
-    thread_id: Optional[str] = None, media_files: Optional[list] = None, force_document: bool = False,
-) -> Dict[str, Any]:
+    thread_id: str | None = None, media_files: list | None = None, force_document: bool = False,
+) -> dict[str, Any]:
     """Acquire a Bot Framework bearer token and POST a single message activity; used by
     ``send_message_tool._send_via_adapter`` when the gateway runner is not in this process
     (``hermes cron``). ``TEAMS_SERVICE_URL`` is allowlisted and ``chat_id`` charset-checked
@@ -357,20 +367,20 @@ class TeamsAdapter(BasePlatformAdapter):
     def __init__(self, config: PlatformConfig):
         super().__init__(config, Platform("teams"))
         # Kept on the instance: ``platforms.teams.extra.*`` keys are read after construction too.
-        self._extra: Dict[str, Any] = config.extra or {}
+        self._extra: dict[str, Any] = config.extra or {}
         self._client_id, self._client_secret, self._tenant_id = _credentials(config)
         # (token, expiry monotonic ts) for connector attachment auth; refreshed under
         # _bf_token_lock so concurrent attachments can't stampede the STS.
-        self._bf_token_cache: Optional[tuple] = None
-        self._bf_token_lock: Optional[asyncio.Lock] = None
+        self._bf_token_cache: tuple | None = None
+        self._bf_token_lock: asyncio.Lock | None = None
         self._port = coerce_port(self._extra.get("port") or _get_scoped_secret("TEAMS_PORT", str(_DEFAULT_PORT)), _DEFAULT_PORT)
         _raw_host = self._extra.get("host") or _get_scoped_secret("TEAMS_HOST", "") or _DEFAULT_HOST  # falsy → dual-stack None
-        self._host: Optional[str] = str(_raw_host) if _raw_host else None
-        self._app: Optional["App"] = None
-        self._runner: Optional["web.AppRunner"] = None
+        self._host: str | None = str(_raw_host) if _raw_host else None
+        self._app: App | None = None
+        self._runner: web.AppRunner | None = None
         self._dedup = MessageDeduplicator(max_size=1000)
         # chat_id → ConversationReference so proactive cards use the right conversation type.
-        self._conv_refs: Dict[str, Any] = {}
+        self._conv_refs: dict[str, Any] = {}
         self._require_mention: bool = self._parse_require_mention(config)
         # Outbound activity ids (bounded) so require_mention can exempt replies to our own messages.
         self._sent_ids: deque = deque(maxlen=500)
@@ -453,6 +463,7 @@ class TeamsAdapter(BasePlatformAdapter):
         attachments are NOT pre-authenticated, unlike SharePoint downloadUrls. The lock is created lazily
         because ``asyncio.Lock()`` in __init__ may bind the wrong loop."""
         import time
+
         import httpx
         if self._bf_token_lock is None:
             self._bf_token_lock = asyncio.Lock()
@@ -474,8 +485,11 @@ class TeamsAdapter(BasePlatformAdapter):
     async def _fetch_attachment_bytes(self, url: str, timeout: float = 30.0) -> bytes:
         """Download attachment bytes with SSRF protection. Connector URLs get the bot's bearer token;
         redirects and body size go through the shared guards (as the cache_*_from_url helpers)."""
+        from gateway.platforms.base import (
+            _read_httpx_body_with_limit,
+            _ssrf_redirect_guard,
+        )
         from tools.url_safety import create_ssrf_safe_async_client, is_safe_url
-        from gateway.platforms.base import _ssrf_redirect_guard, _read_httpx_body_with_limit
         if not is_safe_url(url):
             raise ValueError("Blocked unsafe attachment URL (SSRF protection)")
         headers = {"User-Agent": "Mozilla/5.0 (compatible; HermesAgent/1.0)"}
@@ -544,7 +558,7 @@ class TeamsAdapter(BasePlatformAdapter):
             return "<at>" in text
         return any(str(getattr(getattr(e, "mentioned", None), "id", "")) in bot_ids for e in mentions)
 
-    async def _cache_attachment(self, att: Any) -> Optional[tuple]:
+    async def _cache_attachment(self, att: Any) -> tuple | None:
         """Download + cache one inbound attachment → ``(path, media_type, kind)`` or ``None``."""
         content_url = getattr(att, "content_url", None)
         content_type = (getattr(att, "content_type", None) or "").lower()
@@ -600,7 +614,7 @@ class TeamsAdapter(BasePlatformAdapter):
                 logger.warning("[teams] Failed to cache attachment '%s' (%s): %s", att_name or content_url, content_type, e)
         return None
 
-    async def _send_card(self, chat_id: str, card: "AdaptiveCard") -> "Any":
+    async def _send_card(self, chat_id: str, card: AdaptiveCard) -> Any:
         """Send an AdaptiveCard, using a stored ConversationReference when available."""
         from microsoft_teams.api import MessageActivityInput
         if not self._app:
@@ -624,18 +638,18 @@ class TeamsAdapter(BasePlatformAdapter):
             self._sent_ids.append(sent_id)
 
     @staticmethod
-    def _invoke_message(text: str) -> "InvokeResponse[AdaptiveCardActionMessageResponse]":
+    def _invoke_message(text: str) -> InvokeResponse[AdaptiveCardActionMessageResponse]:
         return InvokeResponse(status=200, body=AdaptiveCardActionMessageResponse(value=text))
 
     @staticmethod
-    def _invoke_card(body: list) -> "InvokeResponse[AdaptiveCardActionMessageResponse]":
+    def _invoke_card(body: list) -> InvokeResponse[AdaptiveCardActionMessageResponse]:
         card = AdaptiveCard().with_version("1.4").with_body(body)
         return InvokeResponse(status=200, body=AdaptiveCardActionCardResponse(value=card))
 
     async def _on_card_action(
-        self, ctx: "ActivityContext[AdaptiveCardInvokeActivity]"
-    ) -> "InvokeResponse[AdaptiveCardActionMessageResponse]":
-        from tools.approval import resolve_gateway_approval, has_blocking_approval
+        self, ctx: ActivityContext[AdaptiveCardInvokeActivity]
+    ) -> InvokeResponse[AdaptiveCardActionMessageResponse]:
+        from tools.approval import has_blocking_approval, resolve_gateway_approval
 
         data = ctx.activity.value.action.data or {}
         hermes_action = data.get("hermes_action", "")
@@ -656,7 +670,7 @@ class TeamsAdapter(BasePlatformAdapter):
         return self._invoke_card(body)
 
     @staticmethod
-    def _card_action_denied(from_account: Any) -> Optional[str]:
+    def _card_action_denied(from_account: Any) -> str | None:
         """Default-deny gate for approval clicks: require TEAMS_ALLOWED_USERS or an explicit
         TEAMS_ALLOW_ALL_USERS=true opt-in, else anyone who can message the bot could approve.
         Returns the user-facing denial text, or ``None`` when allowed."""
@@ -705,7 +719,7 @@ class TeamsAdapter(BasePlatformAdapter):
             return SendResult(success=False, error=str(e), retryable=True)
 
     async def send(
-        self, chat_id: str, content: str, reply_to: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None
+        self, chat_id: str, content: str, reply_to: str | None = None, metadata: dict[str, Any] | None = None
     ) -> SendResult:
         if not self._app:
             return SendResult(success=False, error="Teams app not initialized")
@@ -727,13 +741,13 @@ class TeamsAdapter(BasePlatformAdapter):
                 return SendResult(success=False, error=str(e), retryable=True)
         return SendResult(success=True, message_id=last_message_id)
 
-    async def send_typing(self, chat_id: str, metadata: Optional[Dict[str, Any]] = None) -> None:
+    async def send_typing(self, chat_id: str, metadata: dict[str, Any] | None = None) -> None:
         if self._app:
             with suppress(Exception):
                 await self._app.send(chat_id, TypingActivityInput())
 
     async def _send_media_attachment(
-        self, chat_id: str, source: str, default_mime: str, caption: Optional[str] = None, media_label: str = "media"
+        self, chat_id: str, source: str, default_mime: str, caption: str | None = None, media_label: str = "media"
     ) -> SendResult:
         """Send any media file/URL as a Teams attachment (shared by send_image/video/voice/document).
         Remote ``http(s)://`` URLs are attached by reference; local paths (optional ``file://`` prefix)
@@ -743,6 +757,7 @@ class TeamsAdapter(BasePlatformAdapter):
         try:
             import base64
             import mimetypes
+
             from microsoft_teams.api import Attachment, MessageActivityInput
 
             if source.startswith(("http://", "https://")):
@@ -762,24 +777,24 @@ class TeamsAdapter(BasePlatformAdapter):
             logger.error("[teams] send_%s failed: %s", media_label, e, exc_info=True)
             return SendResult(success=False, error=str(e), retryable=True)
 
-    async def send_image(self, chat_id: str, image_url: str, caption: Optional[str] = None, reply_to: Optional[str] = None,
-                         metadata: Optional[Dict[str, Any]] = None) -> SendResult:
+    async def send_image(self, chat_id: str, image_url: str, caption: str | None = None, reply_to: str | None = None,
+                         metadata: dict[str, Any] | None = None) -> SendResult:
         return await self._send_media_attachment(chat_id, image_url, "image/png", caption=caption, media_label="image")
 
-    async def send_image_file(self, chat_id: str, image_path: str, caption: Optional[str] = None,
-                              reply_to: Optional[str] = None, **kwargs) -> SendResult:
+    async def send_image_file(self, chat_id: str, image_path: str, caption: str | None = None,
+                              reply_to: str | None = None, **kwargs) -> SendResult:
         return await self.send_image(chat_id=chat_id, image_url=image_path, caption=caption, reply_to=reply_to)
 
-    async def send_video(self, chat_id: str, video_path: str, caption: Optional[str] = None, reply_to: Optional[str] = None,
-                         metadata: Optional[Dict[str, Any]] = None, **kwargs) -> SendResult:
+    async def send_video(self, chat_id: str, video_path: str, caption: str | None = None, reply_to: str | None = None,
+                         metadata: dict[str, Any] | None = None, **kwargs) -> SendResult:
         return await self._send_media_attachment(chat_id, video_path, "video/mp4", caption=caption, media_label="video")
 
-    async def send_voice(self, chat_id: str, audio_path: str, caption: Optional[str] = None, reply_to: Optional[str] = None,
-                         metadata: Optional[Dict[str, Any]] = None, **kwargs) -> SendResult:
+    async def send_voice(self, chat_id: str, audio_path: str, caption: str | None = None, reply_to: str | None = None,
+                         metadata: dict[str, Any] | None = None, **kwargs) -> SendResult:
         return await self._send_media_attachment(chat_id, audio_path, "audio/mpeg", caption=caption, media_label="voice")
 
-    async def send_document(self, chat_id: str, file_path: str, caption: Optional[str] = None, file_name: Optional[str] = None,
-                            reply_to: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None, **kwargs) -> SendResult:
+    async def send_document(self, chat_id: str, file_path: str, caption: str | None = None, file_name: str | None = None,
+                            reply_to: str | None = None, metadata: dict[str, Any] | None = None, **kwargs) -> SendResult:
         return await self._send_media_attachment(
             chat_id, file_path, "application/octet-stream", caption=caption, media_label="document")
 
@@ -799,8 +814,14 @@ _SETUP_INTRO = (  # "" → blank line
 
 
 def interactive_setup() -> None:
+    from hermes_cli.cli_output import (
+        print_info,
+        print_success,
+        print_warning,
+        prompt,
+        prompt_yes_no,
+    )
     from hermes_cli.config import get_env_value, save_env_value
-    from hermes_cli.cli_output import prompt, prompt_yes_no, print_info, print_success, print_warning
     from hermes_cli.setup_platforms import declines_reconfigure
     if declines_reconfigure("Teams", "Reconfigure Teams?", "TEAMS_CLIENT_ID"):
         return

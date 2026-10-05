@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import json
 import time
-from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -231,6 +230,7 @@ def test_root_write_through_is_visible_to_the_next_fallback_read(profile_env):
     """``_save_auth_store(target_path=root)`` must invalidate the mtime memo: a same-tick
     read-after-write (coarse-mtime filesystems) would otherwise keep serving the stale root."""
     import os
+
     from hermes_cli.auth import _save_auth_store, read_credential_pool
 
     root_file = profile_env["global"] / "auth.json"
@@ -297,7 +297,7 @@ def test_write_credential_pool_targets_profile_not_global(profile_env):
 
 def test_auth_lock_reentrancy_is_scoped_after_profile_context_switch(profile_env):
     """Changing profile context cannot inherit another store's lock depth."""
-    import hermes_cli.auth as auth
+    from hermes_cli import auth
     from hermes_constants import reset_hermes_home_override, set_hermes_home_override
 
     profile_b = profile_env["global"] / "profiles" / "reviewer"

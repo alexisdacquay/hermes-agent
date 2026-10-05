@@ -21,7 +21,8 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Any, Dict, FrozenSet, List, Mapping, Optional
+from collections.abc import Mapping
+from typing import Any
 
 logger = logging.getLogger("hermes_cli.plugins")
 
@@ -32,7 +33,7 @@ _ISOLATION_MODES = frozenset({ISOLATION_IN_PROCESS, ISOLATION_HOST})
 # ctx methods that hand a plugin (or receive from it) live objects no process boundary can carry:
 # raw platform SDK clients, argparse parsers, adapter classes bound to the gateway's event loop, the
 # launch-scope dashboard auth registry. A plugin calling one of these runs only in-process.
-HOST_UNSUPPORTED_CTX_METHODS: Dict[str, str] = {
+HOST_UNSUPPORTED_CTX_METHODS: dict[str, str] = {
     "register_platform": "platform adapters run on the gateway's event loop with native SDK clients",
     "register_platform_handler": "the handler factory receives the platform's native SDK client",
     "register_telegram_handler": "the handler factory receives the native Telegram Application",
@@ -43,16 +44,16 @@ HOST_UNSUPPORTED_CTX_METHODS: Dict[str, str] = {
 
 # Registered in-process only; skipped (with a warning, the plugin still loads) inside the host
 # because the surface they extend does not exist in a server process.
-HOST_SKIPPED_CTX_METHODS: Dict[str, str] = {
+HOST_SKIPPED_CTX_METHODS: dict[str, str] = {
     "register_cli_command": "`hermes <command>` subcommands are wired into the local CLI parser",
 }
 
 # Live ctx facades the host reaches by method call; each call returns plain data.
-HOST_REMOTE_FACADES: FrozenSet[str] = frozenset({"state", "llm", "platform_actions", "subagent_lifecycle"})
+HOST_REMOTE_FACADES: frozenset[str] = frozenset({"state", "llm", "platform_actions", "subagent_lifecycle"})
 
 # Object-taking ctx methods and the ABC the parent checks. The host sends the object's method table
 # and the parent builds a subclass of that ABC whose methods run in the host.
-HOST_OBJECT_BASES: Dict[str, str] = {
+HOST_OBJECT_BASES: dict[str, str] = {
     "register_image_gen_provider": "agent.image_gen_provider:ImageGenProvider",
     "register_video_gen_provider": "agent.video_gen_provider:VideoGenProvider",
     "register_web_search_provider": "agent.web_search_provider:WebSearchProvider",
@@ -68,12 +69,12 @@ HOST_OBJECT_BASES: Dict[str, str] = {
 
 # Hooks whose payload carries live handles (the gateway runner, the session store). In the host the
 # callback receives placeholders for those fields, so a plugin that uses them needs in-process.
-HOST_DEGRADED_HOOKS: Dict[str, str] = {
+HOST_DEGRADED_HOOKS: dict[str, str] = {
     "pre_gateway_dispatch": "receives the live gateway runner and session store",
 }
 
 
-def _plugins_config(config: Optional[Mapping[str, Any]] = None) -> Mapping[str, Any]:
+def _plugins_config(config: Mapping[str, Any] | None = None) -> Mapping[str, Any]:
     if config is None:
         from hermes_cli.config import load_config_readonly
         config = load_config_readonly() or {}
@@ -86,7 +87,7 @@ def _plugins_config(config: Optional[Mapping[str, Any]] = None) -> Mapping[str, 
 HOST_PROCESS_ENV = "HERMES_PLUGIN_HOST_PROCESS"
 
 
-def isolation_mode(config: Optional[Mapping[str, Any]] = None) -> str:
+def isolation_mode(config: Mapping[str, Any] | None = None) -> str:
     """``plugins.isolation`` for the active profile; an unknown value warns and means in-process."""
     if os.environ.get(HOST_PROCESS_ENV) == "1":
         return ISOLATION_IN_PROCESS
@@ -99,7 +100,7 @@ def isolation_mode(config: Optional[Mapping[str, Any]] = None) -> str:
     return mode
 
 
-def host_launcher(config: Optional[Mapping[str, Any]] = None) -> List[str]:
+def host_launcher(config: Mapping[str, Any] | None = None) -> list[str]:
     """``plugins.host.launcher``: argv prefix the host process runs under (a sandbox runner)."""
     host = _plugins_config(config).get("host")
     launcher = host.get("launcher") if isinstance(host, Mapping) else None
@@ -112,7 +113,7 @@ def host_launcher(config: Optional[Mapping[str, Any]] = None) -> List[str]:
 
 
 def in_process_import_refusal(what: str, *, source: str = "user",
-                              config: Optional[Mapping[str, Any]] = None) -> Optional[str]:
+                              config: Mapping[str, Any] | None = None) -> str | None:
     """Reason an in-process import of third-party code must not happen, or ``None`` when allowed.
 
     Every loader that imports a user-supplied module into the Hermes process asks this first;

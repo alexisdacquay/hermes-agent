@@ -9,10 +9,8 @@ that ``GIT_TERMINAL_PROMPT=0`` blocks with "could not read Username ... terminal
 
 import base64
 import subprocess
-import sys
 
 import pytest
-
 from hermes_cli import git_credentials, plugins_cmd
 from hermes_cli._subprocess_compat import noninteractive_git_env
 

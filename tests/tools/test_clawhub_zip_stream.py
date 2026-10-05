@@ -1,12 +1,11 @@
 """Bound the archive before extraction, without buffering response.content."""
 
-from contextlib import contextmanager
 import io
 import zipfile
+from contextlib import contextmanager
 
 import httpx
 import pytest
-
 from tools import skills_hub_clawhub as clawhub
 
 

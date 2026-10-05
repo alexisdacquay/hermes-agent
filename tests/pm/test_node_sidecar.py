@@ -2,13 +2,12 @@
 
 import json
 import os
-from pathlib import Path
-import shutil
 import shlex
-
-import pytest
+import shutil
+from pathlib import Path
 
 import pm
+import pytest
 from pm.package import InstallError, Runner, compose_env
 from pm.workspace import install_node_sidecar
 

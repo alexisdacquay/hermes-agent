@@ -20,7 +20,6 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
-
 from gateway.config import Platform
 from gateway.run import GatewayRunner
 

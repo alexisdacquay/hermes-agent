@@ -6,13 +6,13 @@
 keys. Clarity upscaling is strictly per-call opt-in: default-on degraded text/CJK/faces.
 """
 
+import datetime
 import json
 import logging
 import os
-import datetime
 import threading
 import uuid
-from typing import Any, Dict, Optional
+from typing import Any
 
 # Imported lazily by _load_fal_client() (~64 ms on every CLI cold start); a test-monkeypatched
 # value short-circuits the loader.
@@ -30,18 +30,35 @@ def _load_fal_client() -> Any:
 
 from tools.debug_helpers import DebugSession
 from tools.fal_common import (
-    _ManagedFalSyncClient, _extract_http_status, _managed_fal_billing_error,
-    _normalize_fal_queue_url_format, submit_managed_fal_with_rate_limit_retry,
+    _extract_http_status,
+    _managed_fal_billing_error,
+    _ManagedFalSyncClient,
+    submit_managed_fal_with_rate_limit_retry,
 )
 from tools.image_generation_catalog import (
-    DEFAULT_ASPECT_RATIO, DEFAULT_MODEL, FAL_MODELS, UPSCALER_CREATIVITY, UPSCALER_DEFAULT_PROMPT,
-    UPSCALER_FACTOR, UPSCALER_GUIDANCE_SCALE, UPSCALER_MODEL, UPSCALER_NEGATIVE_PROMPT,
-    UPSCALER_NUM_INFERENCE_STEPS, UPSCALER_RESEMBLANCE, UPSCALER_SAFETY_CHECKER, VALID_ASPECT_RATIOS,
+    DEFAULT_ASPECT_RATIO,
+    DEFAULT_MODEL,
+    FAL_MODELS,
+    UPSCALER_CREATIVITY,
+    UPSCALER_DEFAULT_PROMPT,
+    UPSCALER_FACTOR,
+    UPSCALER_GUIDANCE_SCALE,
+    UPSCALER_MODEL,
+    UPSCALER_NEGATIVE_PROMPT,
+    UPSCALER_NUM_INFERENCE_STEPS,
+    UPSCALER_RESEMBLANCE,
+    UPSCALER_SAFETY_CHECKER,
+    VALID_ASPECT_RATIOS,
 )
 from tools.managed_tool_gateway import resolve_managed_tool_gateway
 from tools.tool_backend_helpers import (
-    NOUS_MANAGED_PROVIDER, fal_key_is_configured, managed_nous_tools_enabled,
-    nous_tool_gateway_unavailable_message, read_selection, selection_error)
+    NOUS_MANAGED_PROVIDER,
+    fal_key_is_configured,
+    managed_nous_tools_enabled,
+    nous_tool_gateway_unavailable_message,
+    read_selection,
+    selection_error,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -119,7 +136,7 @@ def _wait_fal_result(handler, *, poll_seconds: float = 0.5):
     return result_box[0] if result_box else None
 
 
-def _submit_fal_request(model: str, arguments: Dict[str, Any]):
+def _submit_fal_request(model: str, arguments: dict[str, Any]):
     """Submit a FAL request using direct credentials or the managed queue gateway."""
     _load_fal_client()
     request_headers = {"x-idempotency-key": str(uuid.uuid4())}
@@ -154,7 +171,7 @@ def _submit_fal_request(model: str, arguments: Dict[str, Any]):
 
 
 # --- Config readers, model resolution + payload construction ---
-def _read_image_gen_key(key: str) -> Optional[str]:
+def _read_image_gen_key(key: str) -> str | None:
     """Return the stripped ``image_gen.<key>`` string from config.yaml, or None."""
     try:
         from hermes_cli.config import load_config
@@ -186,7 +203,7 @@ def _read_configured_image_provider():
     return _read_image_gen_key("provider")
 
 
-def _plugin_provider_name() -> Optional[str]:
+def _plugin_provider_name() -> str | None:
     """Configured provider that must go through the plugin registry; None for unset/fal/nous."""
     configured = _read_configured_image_provider()
     if not configured or configured in ("fal", NOUS_MANAGED_PROVIDER):
@@ -209,7 +226,7 @@ _SIZE_KEY_BY_STYLE = {"image_size_preset": "image_size", "gpt_literal": "image_s
                       "aspect_ratio": "aspect_ratio"}
 
 
-def _build_payload(model_id, prompt, aspect_ratio, seed, overrides, image_urls=None) -> Dict[str, Any]:
+def _build_payload(model_id, prompt, aspect_ratio, seed, overrides, image_urls=None) -> dict[str, Any]:
     """Text-to-image / edit payload (``image_urls`` selects edit mode): defaults + native size
     spec + overrides, filtered to the model whitelist.
 
@@ -224,7 +241,7 @@ def _build_payload(model_id, prompt, aspect_ratio, seed, overrides, image_urls=N
     aspect = (aspect_ratio or DEFAULT_ASPECT_RATIO).lower().strip()
     if aspect not in sizes:
         aspect = DEFAULT_ASPECT_RATIO
-    payload: Dict[str, Any] = dict(meta.get("defaults", {}))
+    payload: dict[str, Any] = dict(meta.get("defaults", {}))
     payload["prompt"] = (prompt or "").strip()
     required = {"prompt"}
     if edit:  # a few edit endpoints (Kling Image v3) take a singular `image_url` string instead of the list
@@ -254,7 +271,7 @@ def _build_fal_edit_payload(model_id, prompt, image_urls, aspect_ratio=DEFAULT_A
 
 
 # --- Upscaler ---
-def _upscale_image(image_url: str, original_prompt: str) -> Optional[Dict[str, Any]]:
+def _upscale_image(image_url: str, original_prompt: str) -> dict[str, Any] | None:
     """Upscale via FAL's Clarity Upscaler; None on failure (caller keeps the original)."""
     try:
         logger.info("Upscaling image with Clarity Upscaler...")
@@ -416,10 +433,10 @@ def _prepare_fal_request(model_id, meta, prompt, aspect_ratio, seed, overrides, 
 
 def image_generate_tool(
     prompt: str, aspect_ratio: str = DEFAULT_ASPECT_RATIO,
-    num_inference_steps: Optional[int] = None, guidance_scale: Optional[float] = None,
-    num_images: Optional[int] = None, output_format: Optional[str] = None,
-    seed: Optional[int] = None, image_url: Optional[str] = None,
-    reference_image_urls: Optional[list] = None, upscale: Optional[bool] = None) -> str:
+    num_inference_steps: int | None = None, guidance_scale: float | None = None,
+    num_images: int | None = None, output_format: str | None = None,
+    seed: int | None = None, image_url: str | None = None,
+    reference_image_urls: list | None = None, upscale: bool | None = None) -> str:
     """Generate (or, with source images + an ``edit_endpoint`` model, edit) an image via FAL.
 
     Extra kwargs are overrides filtered per-model via ``supports`` / ``edit_supports`` (dropped
@@ -431,7 +448,7 @@ def image_generate_tool(
     source_images = [c.strip() for c in (image_url, *refs) if isinstance(c, str) and c.strip()]
     use_edit = bool(source_images) and bool(meta.get("edit_endpoint"))
     modality = "image" if use_edit else "text"
-    overrides: Dict[str, Any] = {
+    overrides: dict[str, Any] = {
         "num_inference_steps": num_inference_steps, "guidance_scale": guidance_scale,
         "num_images": num_images, "output_format": output_format}
     debug_call_data = {
@@ -441,7 +458,7 @@ def image_generate_tool(
         "error": None, "success": False, "images_generated": 0, "generation_time": 0}
     start_time = datetime.datetime.now()
 
-    def finish(generation_time: float, response: Dict[str, Any]) -> str:
+    def finish(generation_time: float, response: dict[str, Any]) -> str:
         debug_call_data["generation_time"] = generation_time
         _debug.log_call("image_generate_tool", debug_call_data)
         _debug.save()
@@ -477,7 +494,7 @@ def image_generate_tool(
             "modality": modality,
             "upscaled": bool(formatted_images[0].get("upscaled"))})
     except Exception as e:
-        error_msg = f"Error generating image: {str(e)}"
+        error_msg = f"Error generating image: {e!s}"
         logger.error("%s", error_msg, exc_info=True)
         debug_call_data["error"] = error_msg
         generation_time = (datetime.datetime.now() - start_time).total_seconds()
@@ -598,7 +615,7 @@ def _provider_result(result, contract_error: str) -> str:
     return json.dumps(result)
 
 
-def _add_provider_kwargs(kwargs, image_url, reference_image_urls, upscale, model=None, controls=None) -> Dict[str, Any]:
+def _add_provider_kwargs(kwargs, image_url, reference_image_urls, upscale, model=None, controls=None) -> dict[str, Any]:
     """Add the optional ``provider.generate(**kwargs)`` args in place (edit args only when supplied)."""
     if model:
         kwargs["model"] = model
@@ -616,7 +633,7 @@ def _add_provider_kwargs(kwargs, image_url, reference_image_urls, upscale, model
     return kwargs
 
 
-def _declared_controls(provider, controls: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+def _declared_controls(provider, controls: dict[str, Any] | None) -> dict[str, Any] | None:
     """The subset of ``controls`` that ``provider`` declares in ``creative_controls``.
 
     A model can still send a control the current schema no longer offers (it copies earlier turns
@@ -631,9 +648,9 @@ def _declared_controls(provider, controls: Optional[Dict[str, Any]]) -> Optional
 
 
 def _dispatch_to_plugin_provider(
-    prompt: str, aspect_ratio: str, image_url: Optional[str] = None,
-    reference_image_urls: Optional[list] = None, upscale: Optional[bool] = None,
-    controls: Optional[Dict[str, Any]] = None):
+    prompt: str, aspect_ratio: str, image_url: str | None = None,
+    reference_image_urls: list | None = None, upscale: bool | None = None,
+    controls: dict[str, Any] | None = None):
     """JSON result from the selected plugin provider, or ``None`` to fall through to in-tree FAL
     (provider unset / ``"fal"`` / ``"nous"``). Providers without ``upscale`` ignore it via ``**kwargs``."""
     configured = _plugin_provider_name()
@@ -656,7 +673,7 @@ def _dispatch_to_plugin_provider(
             f"image_gen.provider='{configured}' is set but no plugin registered that name. "
             f"Run `hermes plugins list` to see available image gen backends.", "provider_not_registered")
     pname = getattr(provider, "name", "?")
-    kwargs: Dict[str, Any] = {"prompt": prompt, "aspect_ratio": aspect_ratio}
+    kwargs: dict[str, Any] = {"prompt": prompt, "aspect_ratio": aspect_ratio}
     try:
         _add_provider_kwargs(kwargs, image_url, reference_image_urls, upscale,
                              model=_read_configured_image_model(), controls=_declared_controls(provider, controls))
@@ -679,7 +696,7 @@ def _dispatch_to_plugin_provider(
     return _provider_result(result, "Provider returned a non-dict result")
 
 
-def _normalize_krea_model(model_id: Optional[str]) -> Optional[str]:
+def _normalize_krea_model(model_id: str | None) -> str | None:
     """Return ``model_id`` when it is one of the Krea plugin's model ids, else ``None``."""
     from plugins.image_gen.krea import KREA_MODEL_IDS
 
@@ -687,7 +704,7 @@ def _normalize_krea_model(model_id: Optional[str]) -> Optional[str]:
     return candidate if candidate in KREA_MODEL_IDS else None
 
 
-def _managed_model_plugin() -> Optional[tuple]:
+def _managed_model_plugin() -> tuple | None:
     """``(plugin_name, model_id)`` when the stored selection routes to the Krea or Portal gateway
     (rule: :func:`tools.image_generation_managed.managed_route`), else ``None`` for the FAL path."""
     from tools.image_generation_managed import KREA, PORTAL, managed_route
@@ -698,9 +715,9 @@ def _managed_model_plugin() -> Optional[tuple]:
 
 
 def _maybe_route_managed_model(
-    prompt: str, aspect_ratio: str, image_url: Optional[str] = None,
-    reference_image_urls: Optional[list] = None, upscale: Optional[bool] = None,
-    controls: Optional[Dict[str, Any]] = None) -> Optional[str]:
+    prompt: str, aspect_ratio: str, image_url: str | None = None,
+    reference_image_urls: list | None = None, upscale: bool | None = None,
+    controls: dict[str, Any] | None = None) -> str | None:
     """JSON result from the Krea or Portal gateway the stored model belongs to, or ``None`` to fall
     through to FAL.
 
@@ -726,7 +743,7 @@ def _maybe_route_managed_model(
         return _provider_error(
             f"image_gen.model='{model_id}' is a Nous Portal model but the Portal image backend is not "
             f"available. Pick another model via `hermes tools` → Image Generation.", "provider_not_registered")
-    kwargs: Dict[str, Any] = {"prompt": prompt, "aspect_ratio": aspect_ratio, "model": model_id}
+    kwargs: dict[str, Any] = {"prompt": prompt, "aspect_ratio": aspect_ratio, "model": model_id}
     try:
         _add_provider_kwargs(kwargs, image_url, reference_image_urls, upscale,
                              controls=_declared_controls(provider, controls))
@@ -748,7 +765,11 @@ def _confine_source_images(image_url, reference_image_urls, task_id, *, permitte
     if (terminal_env("TERMINAL_ENV") or "local").strip().lower() in ("", "local"):
         return image_url, reference_image_urls, None
     from model_tools import _run_async
-    from tools.image_source import ImageResolutionError, resolve_local_source_to_data_url
+
+    from tools.image_source import (
+        ImageResolutionError,
+        resolve_local_source_to_data_url,
+    )
 
     def resolve(ref):
         return _run_async(resolve_local_source_to_data_url(ref, task_id, permitted=permitted))
@@ -796,14 +817,14 @@ def _handle_image_generate(args, **kw):
 _NO_CAPABILITIES = {"modalities": ["text"], "max_reference_images": 0, "supports_upscale": False}
 
 
-def _active_image_capabilities() -> Dict[str, Any]:
+def _active_image_capabilities() -> dict[str, Any]:
     """Best-effort capabilities of the active backend/model; never raises.
 
     Mirrors runtime dispatch: a Krea or Portal model id under the managed selection asks that
     plugin, a set ``image_gen.provider`` asks that plugin, else the FAL catalog.
     Fail-closed: an undeclared capability is advertised as absent.
     """
-    info: Dict[str, Any] = dict(_NO_CAPABILITIES)
+    info: dict[str, Any] = dict(_NO_CAPABILITIES)
     configured_provider = _read_configured_image_provider()
     managed = _managed_model_plugin()
     if managed is not None:
@@ -887,7 +908,7 @@ _UPSCALE_PARAM = {
 }
 
 
-def _build_dynamic_image_schema() -> Dict[str, Any]:
+def _build_dynamic_image_schema() -> dict[str, Any]:
     """Render description AND params from the active model's capabilities; args it cannot
     honor are NOT advertised (the handler still accepts them for replay compat)."""
     base_desc = (
@@ -900,7 +921,7 @@ def _build_dynamic_image_schema() -> Dict[str, Any]:
     max_refs = int(info.get("max_reference_images") or 0)
     can_edit = "image" in set(info.get("modalities") or ["text"])
     static_props = IMAGE_GENERATE_SCHEMA["parameters"]["properties"]
-    properties: Dict[str, Any] = {
+    properties: dict[str, Any] = {
         "prompt": static_props["prompt"], "aspect_ratio": static_props["aspect_ratio"]}
     if can_edit:
         edit_clause = ", or edit / transform an existing image by passing image_url"

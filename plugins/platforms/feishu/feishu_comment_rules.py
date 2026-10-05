@@ -8,9 +8,10 @@ import json
 import logging
 import sys
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional
+from typing import Any
 
 from hermes_constants import get_hermes_home
 
@@ -37,9 +38,9 @@ _VALID_POLICIES = ("allowlist", "pairing")
 @dataclass(frozen=True)
 class CommentDocumentRule:
     """Per-document rule.  ``None`` means 'inherit from lower tier'."""
-    enabled: Optional[bool] = None
-    policy: Optional[str] = None
-    allow_from: Optional[frozenset] = None
+    enabled: bool | None = None
+    policy: str | None = None
+    allow_from: frozenset | None = None
 
 
 @dataclass(frozen=True)
@@ -48,7 +49,7 @@ class CommentsConfig:
     enabled: bool = True
     policy: str = "pairing"
     allow_from: frozenset = field(default_factory=frozenset)
-    documents: Dict[str, CommentDocumentRule] = field(default_factory=dict)
+    documents: dict[str, CommentDocumentRule] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -67,7 +68,7 @@ class _MtimeCache:
 
     def __init__(self, path: Path | Callable[[], Path]):
         self._resolve = path if callable(path) else (lambda: path)
-        self._entries: Dict[Path, tuple[float, dict]] = {}
+        self._entries: dict[Path, tuple[float, dict]] = {}
 
     def invalidate(self) -> None:
         self._entries.pop(self._resolve(), None)
@@ -97,12 +98,12 @@ _rules_cache = _MtimeCache(_rules_file)
 _pairing_cache = _MtimeCache(_pairing_file)
 
 
-def _parse_frozenset(raw: Any) -> Optional[frozenset]:
+def _parse_frozenset(raw: Any) -> frozenset | None:
     """Parse a list of strings into a frozenset; None if absent or not a list."""
     return frozenset(str(u).strip() for u in raw if str(u).strip()) if isinstance(raw, (list, tuple)) else None
 
 
-def _parse_policy(raw: Any, default: Optional[str]) -> Optional[str]:
+def _parse_policy(raw: Any, default: str | None) -> str | None:
     """Normalize a policy value; unknown/invalid values fall back to *default*."""
     policy = str(raw).strip().lower() if raw is not None else None
     return policy if policy in _VALID_POLICIES else default
@@ -189,7 +190,7 @@ def pairing_remove(user_open_id: str) -> bool:
     return _mutate_pairing(user_open_id, add=False)
 
 
-def pairing_list() -> Dict[str, Any]:
+def pairing_list() -> dict[str, Any]:
     """Return the approved dict  {user_open_id: {approved_at: ...}}."""
     approved = _pairing_cache.load().get("approved", {})
     return dict(approved) if isinstance(approved, dict) else {}

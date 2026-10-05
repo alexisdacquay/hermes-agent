@@ -4,14 +4,7 @@ import json
 from unittest.mock import MagicMock
 
 import pytest
-
 from gateway.platforms import api_server
-
-
-
-
-
-
 
 
 @pytest.mark.asyncio

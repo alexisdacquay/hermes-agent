@@ -5,14 +5,14 @@ resolving/monkeypatching. Origin helpers are imported lazily per function (no cy
 """
 
 import logging
-from contextlib import suppress
 import os
 import re
 import shutil
 import subprocess
 import sys
+from collections.abc import Collection
+from contextlib import suppress
 from pathlib import Path
-from typing import Collection, Optional
 
 # Log-record parity with the origin module.
 logger = logging.getLogger("hermes_cli.update_cmd")
@@ -127,8 +127,8 @@ def _commit_staged_replacements(staged) -> None:
 
 
 def _zip_overlay_block_reason(
-    root: Path, *, ignore_staging_artifacts: bool = False, shipped: Optional[Collection[str]] = None,
-) -> Optional[str]:
+    root: Path, *, ignore_staging_artifacts: bool = False, shipped: Collection[str] | None = None,
+) -> str | None:
     """Why overlaying a ZIP onto ``root`` would destroy work, or None if safe.
 
     The swap replaces every top-level entry (minus a tiny preserve set) and deletes backups, so uncommitted
@@ -179,7 +179,7 @@ def _status_top_level(path: str) -> str:
     return path.strip().strip('"').replace("\\", "/").rstrip("/").split("/", 1)[0]
 
 
-def _is_zip_preserved_entry_status_line(line: str, shipped: Optional[Collection[str]] = None) -> bool:
+def _is_zip_preserved_entry_status_line(line: str, shipped: Collection[str] | None = None) -> bool:
     """True when the swap would not destroy what a porcelain status line names: every path sits under a
     preserved top-level entry; or the line is gitignored (``!!``) and under a root entry the ZIP does not
     ship (``.bytecode-fingerprint``, ``.hermes-bootstrap-complete``, ``hermes_agent.egg-info/`` — the swap
@@ -326,10 +326,10 @@ def _download_and_swap_zip(branch: str, zip_url: str) -> None:
     Two-phase: stage every entry (dirs AND top-level files) beside its target, then swap all in with
     same-filesystem renames, rolling back on failure — one-at-a-time replacement left a mixed, unbootable
     tree on interruption."""
-    from hermes_cli.update_cmd import _m
-
     import tempfile
     from urllib.request import urlretrieve
+
+    from hermes_cli.update_cmd import _m
     print("→ Downloading latest version...")
     tmp_dir = tempfile.mkdtemp(prefix="hermes-update-")
     try:
@@ -379,7 +379,7 @@ def _update_via_zip(args, *, had_desktop_app_before_update: bool = False,
 
     A supplied commit keeps the archive on the target selected before Git failed.
     """
-    from hermes_cli.update_cmd import _m, _complete_source_update
+    from hermes_cli.update_cmd import _complete_source_update, _m
     # The static archive would silently ignore --branch — the exact silent-divergence bug it exists to
     # prevent. Refuse rather than lie.
     branch = _m()._resolve_update_branch(args)

@@ -6,7 +6,6 @@ import time
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 import tools.tirith_security as _tirith_mod
 from tools.tirith_security import check_command_security, ensure_installed
 

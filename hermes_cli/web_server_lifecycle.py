@@ -1,9 +1,8 @@
 """Serve-process lifecycle: parent death watchdog, port-conflict preflight, READY announcement, browser open, trusted proxies.
 """
 
-import asyncio
-import logging
 import ipaddress
+import logging
 import os
 import signal
 import subprocess
@@ -11,7 +10,8 @@ import sys
 import threading
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
+
 from utils import atomic_json_write
 
 if TYPE_CHECKING:  # pragma: no cover - annotation only
@@ -183,8 +183,9 @@ def _eager_reconcile_own_session_db() -> None:
     raises: an unfixable store still gets the per-poll read-probe heal.
     """
     try:
-        from hermes_cli.web_server_sessions import _open_session_db_for_profile
         from hermes_state_registry import release_or_close
+
+        from hermes_cli.web_server_sessions import _open_session_db_for_profile
 
         release_or_close(_open_session_db_for_profile(None, read_only=True))
     except Exception as exc:
@@ -194,7 +195,7 @@ def _eager_reconcile_own_session_db() -> None:
         )
 
 
-def _read_bound_port(server: "uvicorn.Server", fallback: int) -> int:
+def _read_bound_port(server: uvicorn.Server, fallback: int) -> int:
     """Read the OS-assigned port from the live uvicorn socket (ephemeral port-0 discovery)."""
     if server.servers and server.servers[0].sockets:
         return server.servers[0].sockets[0].getsockname()[1]
@@ -254,7 +255,7 @@ def _maybe_open_browser(host: str, actual_port: int, open_browser: bool, initial
 
 def _is_serve_orphaned(
     desktop_pid: int,
-    expected_start_marker: Optional[str] = None,
+    expected_start_marker: str | None = None,
     *,
     pid_exists=None,
     process_start_marker=None,

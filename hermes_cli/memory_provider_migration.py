@@ -19,8 +19,8 @@ from __future__ import annotations
 
 import logging
 import sys
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -43,8 +43,8 @@ def provider_present(name: str, home: Path) -> bool:
     """True when the provider resolves anywhere Hermes looks for *home* (bundled, that home's user
     plugins, entry point). The lookup reads the active home, so it is bound explicitly: the update
     hook walks several profile homes from one process."""
-    from plugins.memory import find_provider_dir
     from hermes_constants import reset_hermes_home_override, set_hermes_home_override
+    from plugins.memory import find_provider_dir
     token = set_hermes_home_override(home)
     try:
         return find_provider_dir(name) is not None
@@ -52,14 +52,14 @@ def provider_present(name: str, home: Path) -> bool:
         reset_hermes_home_override(token)
 
 
-def catalog_source(name: str) -> Optional[str]:
+def catalog_source(name: str) -> str | None:
     """The catalog entry that ships provider *name*, or None when the catalog has no such plugin."""
     from hermes_cli.plugin_catalog import get_live_catalog_entry
     entry = get_live_catalog_entry(name)
     return entry.name if entry is not None else None
 
 
-def catalog_install_hint(name: str, *, category: Optional[str] = None) -> Optional[str]:
+def catalog_install_hint(name: str, *, category: str | None = None) -> str | None:
     """``hermes [-p <profile>] plugins install <name>`` when this checkout's catalog ships plugin
     *name* (of *category*, when given), else None.
 
@@ -78,7 +78,7 @@ def catalog_install_hint(name: str, *, category: Optional[str] = None) -> Option
     return _install_command(name, get_hermes_home())
 
 
-def _pending_provider(home: Path, *, say: Callable[[str], None]) -> Optional[str]:
+def _pending_provider(home: Path, *, say: Callable[[str], None]) -> str | None:
     """The provider *home* needs from the catalog, or None (nothing to do, or a catalog miss already
     reported through *say*). Read-only."""
     name = configured_provider(home)
@@ -96,8 +96,9 @@ def _install_command(name: str, home: Path) -> str:
     """The exact command that installs *name* into *home*. ``-p`` is dropped only for the default
     home while no sticky profile is set: a bare command run from a shell targets the sticky
     profile, never the home of the agent (Desktop, gateway, ``hermes -p``) that printed it."""
-    from hermes_cli.profiles import get_active_profile
     from hermes_constants import profile_name_for_home
+
+    from hermes_cli.profiles import get_active_profile
     profile = profile_name_for_home(home)
     if profile is None or (profile == "default" and get_active_profile() == "default"):
         return f"hermes plugins install {name}"
@@ -121,7 +122,7 @@ def _install_pending(home: Path, name: str, *, install: Callable[[str], dict],
     return False
 
 
-def migrate_home(home: Path, *, install: Callable[[str], dict], say: Callable[[str], None] = print) -> Optional[str]:
+def migrate_home(home: Path, *, install: Callable[[str], dict], say: Callable[[str], None] = print) -> str | None:
     """Install the configured provider's catalog plugin into *home* when the provider is gone.
 
     Returns the installed plugin name, or None when nothing needed doing or the install could not
@@ -160,8 +161,12 @@ def _home_consent(home: Path) -> bool:
 
 def _install_into(home: Path) -> Callable[[str], dict]:
     def _install(name: str) -> dict:
+        from hermes_constants import (
+            reset_hermes_home_override,
+            set_hermes_home_override,
+        )
+
         from hermes_cli.plugins_cmd import dashboard_install_plugin
-        from hermes_constants import reset_hermes_home_override, set_hermes_home_override
         token = set_hermes_home_override(home)
         try:
             return dashboard_install_plugin("", force=False, enable=True, catalog_name=name,
@@ -188,8 +193,9 @@ def migrate_all_homes(*, say: Callable[[str], None] = print) -> list[str]:
     instead of failing (or re-prompting) one by one, and the other groups still migrate. Ctrl-C
     ends the migration with a message, not a traceback into the updater.
     """
-    from hermes_cli.plugins_cmd_install import shared_dependency_answers
     from pm.plugins_state import dependency_homes
+
+    from hermes_cli.plugins_cmd_install import shared_dependency_answers
 
     def labelled(home: Path) -> Callable[[str], None]:
         return lambda message: say(f"  [{_home_label(home)}] {message.lstrip()}")
@@ -229,7 +235,7 @@ def migrate_all_homes(*, say: Callable[[str], None] = print) -> list[str]:
     return installed
 
 
-def recover_at_startup(name: str, *, say: Optional[Callable[[str], None]] = None) -> bool:
+def recover_at_startup(name: str, *, say: Callable[[str], None] | None = None) -> bool:
     """Agent-init hook for a configured provider that resolved nowhere. One attempt per process per
     home and name; honours ``security.allow_lazy_installs`` because it installs code. True when installed."""
     from hermes_constants import get_hermes_home, hermes_home_key

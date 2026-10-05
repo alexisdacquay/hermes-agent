@@ -11,18 +11,17 @@ shaper directly, so the CASE expression and the Python side are covered together
 """
 
 import pytest
-
+from agent import skill_commands
 from agent.context_compressor import (
-    HISTORICAL_TASK_HEADING,
-    SUMMARY_PREFIX,
     _HISTORICAL_SUMMARY_PREFIXES,
     _MERGED_PRIOR_CONTEXT_HEADER,
     _MERGED_SUMMARY_DELIMITER,
     _SUMMARY_END_MARKER,
+    HISTORICAL_TASK_HEADING,
+    SUMMARY_PREFIX,
 )
-import agent.skill_commands as skill_commands
-import tools.skills_tool as skills_tool
 from hermes_state import SessionDB
+from tools import skills_tool
 
 SKILL_BODY = (
     "Kick off a task in a fresh isolated git worktree instead of the current checkout. "

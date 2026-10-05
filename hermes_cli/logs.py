@@ -24,11 +24,11 @@ Usage examples::
 import re
 import sys
 import time
+from collections.abc import Sequence
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional, Sequence
 
-from hermes_constants import get_hermes_home, display_hermes_home
+from hermes_constants import display_hermes_home, get_hermes_home
 
 # Known log files (name → filename)
 LOG_FILES = {
@@ -64,7 +64,7 @@ _LOGGER_NAME_RE = re.compile(r"\s(?:DEBUG|INFO|WARNING|ERROR|CRITICAL)(?:\s+\[.*
 _LEVEL_ORDER = {"DEBUG": 0, "INFO": 1, "WARNING": 2, "ERROR": 3, "CRITICAL": 4}
 
 
-def _parse_since(since_str: str) -> Optional[datetime]:
+def _parse_since(since_str: str) -> datetime | None:
     """Parse a relative time like '1h', '30m', '2d' into a cutoff; None if unparseable."""
     match = re.match(r"^(\d+)\s*([smhd])$", since_str.strip().lower())
     if not match:
@@ -73,7 +73,7 @@ def _parse_since(since_str: str) -> Optional[datetime]:
     return datetime.now() - timedelta(**{unit: int(match.group(1))})
 
 
-def _parse_line_timestamp(line: str) -> Optional[datetime]:
+def _parse_line_timestamp(line: str) -> datetime | None:
     m = _TS_RE.search(line)
     if not m:
         return None
@@ -83,12 +83,12 @@ def _parse_line_timestamp(line: str) -> Optional[datetime]:
         return None
 
 
-def _extract_level(line: str) -> Optional[str]:
+def _extract_level(line: str) -> str | None:
     m = _LEVEL_RE.search(line)
     return m.group(1) if m else None
 
 
-def _extract_logger_name(line: str) -> Optional[str]:
+def _extract_logger_name(line: str) -> str | None:
     m = _LOGGER_NAME_RE.search(line)
     return m.group(1) if m else None
 
@@ -101,10 +101,10 @@ def _line_matches_component(line: str, prefixes: Sequence[str]) -> bool:
 def _matches_filters(
     line: str,
     *,
-    min_level: Optional[str] = None,
-    session_filter: Optional[str] = None,
-    since: Optional[datetime] = None,
-    component_prefixes: Optional[Sequence[str]] = None,
+    min_level: str | None = None,
+    session_filter: str | None = None,
+    since: datetime | None = None,
+    component_prefixes: Sequence[str] | None = None,
 ) -> bool:
     """Whether one line passes all active filters (a line without a timestamp/level passes those);
     ``_LineFilter`` decides for unstamped continuation lines."""
@@ -127,7 +127,7 @@ class _LineFilter:
 
     def __init__(self, **filters):
         self._filters = filters
-        self._carry: Optional[bool] = None
+        self._carry: bool | None = None
 
     def __call__(self, line: str) -> bool:
         if _parse_line_timestamp(line) is not None:
@@ -144,10 +144,10 @@ def tail_log(
     *,
     num_lines: int = 50,
     follow: bool = False,
-    level: Optional[str] = None,
-    session: Optional[str] = None,
-    since: Optional[str] = None,
-    component: Optional[str] = None,
+    level: str | None = None,
+    session: str | None = None,
+    since: str | None = None,
+    component: str | None = None,
 ) -> None:
     """Read and display log lines, optionally following in real time.
 

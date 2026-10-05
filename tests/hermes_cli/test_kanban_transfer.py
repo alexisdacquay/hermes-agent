@@ -81,25 +81,23 @@ def _seed_board(slug: str = "alpha") -> dict[str, str]:
 
 def _claim(task_id: str, slug: str = "alpha") -> None:
     """Put a task into the state a live worker would leave behind."""
-    with kbc.connect_closing(board=slug) as conn:
-        with kb.write_txn(conn):
-            conn.execute(
-                "UPDATE tasks SET status='running', claim_lock='lock-1', "
-                "claim_expires=?, worker_pid=4242, last_heartbeat_at=?, "
-                "session_id='sess-xyz', consecutive_failures=2 WHERE id=?",
-                (int(time.time()) + 600, int(time.time()), task_id),
-            )
+    with kbc.connect_closing(board=slug) as conn, kb.write_txn(conn):
+        conn.execute(
+            "UPDATE tasks SET status='running', claim_lock='lock-1', "
+            "claim_expires=?, worker_pid=4242, last_heartbeat_at=?, "
+            "session_id='sess-xyz', consecutive_failures=2 WHERE id=?",
+            (int(time.time()) + 600, int(time.time()), task_id),
+        )
 
 
 def _subscribe(task_id: str, slug: str = "alpha") -> None:
-    with kbc.connect_closing(board=slug) as conn:
-        with kb.write_txn(conn):
-            conn.execute(
-                "INSERT INTO kanban_notify_subs "
-                "(task_id, platform, chat_id, thread_id, created_at) "
-                "VALUES (?, 'telegram', '12345', '', ?)",
-                (task_id, int(time.time())),
-            )
+    with kbc.connect_closing(board=slug) as conn, kb.write_txn(conn):
+        conn.execute(
+            "INSERT INTO kanban_notify_subs "
+            "(task_id, platform, chat_id, thread_id, created_at) "
+            "VALUES (?, 'telegram', '12345', '', ?)",
+            (task_id, int(time.time())),
+        )
 
 
 def _tasks_by_title(slug: str) -> dict[str, dict]:

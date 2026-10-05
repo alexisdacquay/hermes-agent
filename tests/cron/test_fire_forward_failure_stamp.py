@@ -10,7 +10,6 @@ successful run so it always describes CURRENT auto-fire health.
 """
 
 import pytest
-
 from cron.jobs import (
     create_job,
     get_job,

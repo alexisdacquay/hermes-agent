@@ -11,32 +11,48 @@ Leaves read facade-owned state (``_lock``, queues, denial breaker) back through 
 call time; sibling-defined names are imported from their defining module.
 """
 
-from dataclasses import dataclass
 import hashlib
 import importlib
 import logging
 import os
 import threading
-from typing import Optional
+from dataclasses import dataclass
 
-from utils import env_var_enabled, is_truthy_value
 from agent.i18n import t
+from utils import env_var_enabled, is_truthy_value
+
 from tools import approval_context
 from tools.approval_context import (
-    _get_session_platform, _is_cron_approval_context,
-    _is_gateway_approval_context, _is_interactive_cli, _is_single_query_approval_context,
-    _is_unattended_platform_approval_context, _resolve_cli_approval_callback, _should_fall_through_to_cli_approval,
-    _tirith_fail_open, get_current_session_key,
+    _get_session_platform,
+    _is_cron_approval_context,
+    _is_gateway_approval_context,
+    _is_interactive_cli,
+    _is_single_query_approval_context,
+    _is_unattended_platform_approval_context,
+    _resolve_cli_approval_callback,
+    _should_fall_through_to_cli_approval,
+    _tirith_fail_open,
+    get_current_session_key,
 )
 from tools.approval_detection import (
-    _approval_key_aliases, _check_sudo_stdin_guard, detect_dangerous_command, detect_hardline_command,
+    _approval_key_aliases,
+    _check_sudo_stdin_guard,
+    detect_dangerous_command,
+    detect_hardline_command,
 )
 from tools.approval_floors import (
-    _command_matches_permanent_allowlist, _hardline_block_result, _match_user_deny_rule, _sudo_stdin_block_result,
+    _command_matches_permanent_allowlist,
+    _hardline_block_result,
+    _match_user_deny_rule,
+    _sudo_stdin_block_result,
     _user_deny_block_result,
 )
 from tools.approval_gateway_wait import _await_gateway_decision
-from tools.approval_prompt import _present_with_selected_transport, _transport_choice, prompt_dangerous_approval
+from tools.approval_prompt import (
+    _present_with_selected_transport,
+    _transport_choice,
+    prompt_dangerous_approval,
+)
 from tools.approval_smart import _smart_verdict
 
 logger = logging.getLogger(__name__)
@@ -138,8 +154,8 @@ def unregister_gateway_notify(session_key: str) -> None:
 
 def resolve_gateway_approval(session_key: str, choice: str,
                              resolve_all: bool = False,
-                             reason: Optional[str] = None,
-                             request_id: Optional[str] = None) -> int:
+                             reason: str | None = None,
+                             request_id: str | None = None) -> int:
     """Unblock waiting agent thread(s) from the gateway's /approve or /deny handler.
 
     *resolve_all* resolves every pending approval (``/approve all``); otherwise the oldest

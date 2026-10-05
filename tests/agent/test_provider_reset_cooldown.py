@@ -4,9 +4,9 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
-
 from agent.error_classifier import FailoverReason
 from run_agent import AIAgent
+
 
 def _agent_with_one_fallback():
     with (

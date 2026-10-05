@@ -18,13 +18,15 @@ import os
 import sys
 import threading
 import time
-from datetime import datetime, timezone
+from collections.abc import Callable
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional
+from typing import Any
 
-from gateway.restart import GATEWAY_SERVICE_RESTART_EXIT_CODE
 from hermes_constants import get_hermes_home, get_process_hermes_home
 from utils import atomic_json_write
+
+from gateway.restart import GATEWAY_SERVICE_RESTART_EXIT_CODE
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +59,7 @@ class _LoopFloorTimerHandle:
     """Cancelable owner for the currently scheduled selector floor timer."""
     def __init__(self, loop: asyncio.AbstractEventLoop, interval: float):
         self._loop, self._interval, self._cancelled = loop, interval, False
-        self._timer: Optional[asyncio.TimerHandle] = None
+        self._timer: asyncio.TimerHandle | None = None
         self._tick()
 
     def _tick(self) -> None:
@@ -89,7 +91,7 @@ def start_loop_liveness_watchdog(
     probe_timeout: float = DEFAULT_LOOP_WATCHDOG_TIMEOUT_S,
     max_strikes: int = DEFAULT_LOOP_WATCHDOG_MAX_STRIKES,
     exit_code: int = GATEWAY_SERVICE_RESTART_EXIT_CODE,
-) -> Optional[_LoopLivenessWatchdogHandle]:
+) -> _LoopLivenessWatchdogHandle | None:
     """Start an out-of-loop watchdog that hard-exits after missed probes. The caller
     (``GatewayRunner._start_loop_liveness_guards``) enforces the ``gateway.loop_watchdog: false``
     opt-out."""
@@ -180,15 +182,15 @@ def _process_hermes_home() -> Path:
     return get_process_hermes_home() if os.environ.get("HERMES_HOME", "").strip() else get_hermes_home()
 
 
-def _home(home: Optional[Path]) -> Path:
+def _home(home: Path | None) -> Path:
     return home if home is not None else _process_hermes_home()
 
 
-def get_loop_heartbeat_path(home: Optional[Path] = None) -> Path:
+def get_loop_heartbeat_path(home: Path | None = None) -> Path:
     return _home(home).joinpath(*_HEARTBEAT_RELATIVE)
 
 
-def get_loop_tick_socket_path(home: Optional[Path] = None, pid: Optional[int] = None) -> Path:
+def get_loop_tick_socket_path(home: Path | None = None, pid: int | None = None) -> Path:
     """``<HERMES_HOME>/state/gateway.loop-tick.<pid>.sock`` — PID-suffixed so a stale node from a
     dead process is never mistaken for this gateway's witness. Served by the loop itself
     (``_tick_socket_handler``), so an answer proves the loop dispatches; the heartbeat cannot.
@@ -201,18 +203,18 @@ def get_loop_tick_socket_path(home: Optional[Path] = None, pid: Optional[int] = 
     return _home(home) / "state" / f"gateway.loop-tick.{pid}.sock"
 
 
-def get_shutdown_watchdog_dump_path(home: Optional[Path] = None) -> Path:
+def get_shutdown_watchdog_dump_path(home: Path | None = None) -> Path:
     return _home(home).joinpath(*_WATCHDOG_DUMP_RELATIVE)
 
 
 def write_loop_heartbeat(
-    *, pid: Optional[int] = None, start_time: Optional[float] = None,
-    home: Optional[Path] = None, extra: Optional[Dict[str, Any]] = None) -> Path:
+    *, pid: int | None = None, start_time: float | None = None,
+    home: Path | None = None, extra: dict[str, Any] | None = None) -> Path:
     """Atomically rewrite the loop-liveness heartbeat file; never raises.
     ``start_time`` (process start, epoch seconds) lets supervisors detect PID reuse."""
     path = get_loop_heartbeat_path(home)
-    payload: Dict[str, Any] = {"pid": int(pid if pid is not None else os.getpid()),
-                               "updated_at": datetime.now(timezone.utc).isoformat(),
+    payload: dict[str, Any] = {"pid": int(pid if pid is not None else os.getpid()),
+                               "updated_at": datetime.now(UTC).isoformat(),
                                "monotonic": time.monotonic()}
     if start_time is not None:
         payload["start_time"] = float(start_time)
@@ -237,14 +239,14 @@ def resolve_shutdown_watchdog_delay(
 
 
 def _write_watchdog_dump(dump_path: Path, *, delay_s: float,
-                         snapshot: Optional[Dict[str, Any]]) -> None:
+                         snapshot: dict[str, Any] | None) -> None:
     """Best-effort faulthandler + metadata dump before hard-exit."""
     try:
         dump_path.parent.mkdir(parents=True, exist_ok=True)
     except OSError:
         return
     header = {"event": "shutdown_watchdog_fired", "pid": os.getpid(), "delay_s": delay_s,
-              "fired_at": datetime.now(timezone.utc).isoformat(), "snapshot": snapshot or {}}
+              "fired_at": datetime.now(UTC).isoformat(), "snapshot": snapshot or {}}
     with contextlib.suppress(Exception), open(dump_path, "a", encoding="utf-8") as fh:
         fh.write(json.dumps(header, default=str) + "\n--- faulthandler dump (all threads) ---\n")
         fh.flush()
@@ -262,9 +264,9 @@ def _write_watchdog_dump(dump_path: Path, *, delay_s: float,
 
 
 def arm_shutdown_watchdog(
-    delay_s: float, *, done_event: Optional[threading.Event] = None,
-    snapshot_fn: Optional[Callable[[], Dict[str, Any]]] = None, exit_code: int = 1,
-    dump_path: Optional[Path] = None, name: str = "gateway-shutdown-watchdog") -> threading.Event:
+    delay_s: float, *, done_event: threading.Event | None = None,
+    snapshot_fn: Callable[[], dict[str, Any]] | None = None, exit_code: int = 1,
+    dump_path: Path | None = None, name: str = "gateway-shutdown-watchdog") -> threading.Event:
     """Arm a daemon-thread hard-exit backstop for a wedged shutdown path: exits quietly if
     ``done_event`` is set within ``delay_s``, else dumps diagnostics and ``os._exit(exit_code)``.
     Never raises; returns ``done_event`` for disarming."""
@@ -298,7 +300,7 @@ def arm_shutdown_watchdog(
             # Mirror _exit_after_graceful_shutdown: release PID file + runtime lock BEFORE the log drain
             # (locks must never be stranded), then drain the async log queue so the logger.critical above
             # actually reaches the file before os._exit bypasses atexit. (#66892)
-            from gateway.status import remove_pid_file, release_gateway_runtime_lock
+            from gateway.status import release_gateway_runtime_lock, remove_pid_file
             remove_pid_file()
             release_gateway_runtime_lock()
         with contextlib.suppress(Exception):
@@ -343,8 +345,8 @@ def _sweep_stale_tick_sockets(own_path: Path) -> None:
 
 
 async def loop_heartbeat_forever(
-    *, interval_s: float = DEFAULT_HEARTBEAT_INTERVAL_S, start_time: Optional[float] = None,
-    home: Optional[Path] = None, should_continue: Optional[Callable[[], bool]] = None) -> None:
+    *, interval_s: float = DEFAULT_HEARTBEAT_INTERVAL_S, start_time: float | None = None,
+    home: Path | None = None, should_continue: Callable[[], bool] | None = None) -> None:
     """Rewrite the loop heartbeat file on a cadence until cancelled / gated off. Runs on the
     gateway loop so a frozen loop lets the file age for monitors. The fsync write goes to a thread
     (inline, a stalled filesystem blocked the loop inside its own heartbeat and the liveness

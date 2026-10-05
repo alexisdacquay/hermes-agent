@@ -6,7 +6,7 @@ import contextlib
 import logging
 import sqlite3
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from hermes_state_common import _sql_preview_raw, _sql_session_last_active
 from hermes_state_errors import StateDbReplacedError
@@ -15,7 +15,7 @@ from hermes_state_errors import StateDbReplacedError
 logger = logging.getLogger("hermes_state")
 
 
-def _normalize_telegram_topic_profile_name(profile_name: Optional[str] = None) -> str:
+def _normalize_telegram_topic_profile_name(profile_name: str | None = None) -> str:
     """Empty/missing → ``"default"`` (single namespace for non-multiplexed gateways).
     Multiplexed callers must pass the *routed* profile (``source.profile``), never the
     process-global active profile."""
@@ -162,8 +162,8 @@ class SessionTelegramTopicsMixin:
         self._execute_write(_do)
 
     def enable_telegram_topic_mode(
-        self, *, chat_id: str, user_id: str, profile_name: str="default", has_topics_enabled: Optional[bool]=None,
-        allows_users_to_create_topics: Optional[bool]=None,
+        self, *, chat_id: str, user_id: str, profile_name: str="default", has_topics_enabled: bool | None=None,
+        allows_users_to_create_topics: bool | None=None,
     ) -> None:
         """Enable Telegram DM topic mode for one private chat/user. Owns the explicit topic
         migration; SessionDB startup must not create these tables.
@@ -176,7 +176,7 @@ class SessionTelegramTopicsMixin:
         now = time.time()
         profile_name = _normalize_telegram_topic_profile_name(profile_name)
 
-        def _to_int(value: Optional[bool]) -> Optional[int]:
+        def _to_int(value: bool | None) -> int | None:
             return None if value is None else (1 if value else 0)
 
         self._write_sql("""
@@ -228,7 +228,7 @@ class SessionTelegramTopicsMixin:
 
     def get_telegram_topic_binding(
         self, *, chat_id: str, thread_id: str, profile_name: str = "default"
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Return the session binding for a Telegram DM topic, if present."""
         profile_name = _normalize_telegram_topic_profile_name(profile_name)
         row = self._topic_read_one("""
@@ -239,7 +239,7 @@ class SessionTelegramTopicsMixin:
 
     def list_telegram_topic_bindings_for_chat(
         self, *, chat_id: str, profile_name: str = "default"
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """All bindings for one chat, newest first ([] when the table is absent)."""
         profile_name = _normalize_telegram_topic_profile_name(profile_name)
         rows = self._topic_read_all(
@@ -248,7 +248,7 @@ class SessionTelegramTopicsMixin:
         )
         return [dict(row) for row in rows]
 
-    def get_telegram_topic_binding_by_session(self, *, session_id: str) -> Optional[Dict[str, Any]]:
+    def get_telegram_topic_binding_by_session(self, *, session_id: str) -> dict[str, Any] | None:
         """Reverse lookup via the UNIQUE INDEX on session_id; None when unbound."""
         row = self._topic_read_one("""
                     SELECT * FROM telegram_dm_topic_bindings
@@ -349,7 +349,7 @@ class SessionTelegramTopicsMixin:
 
     def list_unlinked_telegram_sessions_for_user(
         self, *, chat_id: str, user_id: str, profile_name: str = "default", limit: int = 10
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """This user's Telegram sessions not bound to a topic. Read-only: if the bindings table
         is absent, every session is unlinked and the profile-unscoped query is used.
         Scoped by ``profile_name`` so multiplexed profiles do not surface each other.

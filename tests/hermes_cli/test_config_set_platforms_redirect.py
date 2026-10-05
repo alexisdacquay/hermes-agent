@@ -9,8 +9,8 @@ edit appeared to succeed while having no effect.
 
 from pathlib import Path
 
-import pytest
 import hermes_yaml as yaml
+import pytest
 
 
 def _write_config(hermes_home: Path, data: dict) -> Path:

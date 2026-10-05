@@ -13,7 +13,6 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
-
 from tools.tool_backend_helpers import resolve_provider_secret
 
 
@@ -42,7 +41,7 @@ def _no_dotenv(monkeypatch):
     """Keep the developer's real ~/.hermes/.env out of these tests."""
     import hermes_cli.config as config_mod
 
-    monkeypatch.setattr(config_mod, "load_env", lambda: {})
+    monkeypatch.setattr(config_mod, "load_env", dict)
     yield
 
 

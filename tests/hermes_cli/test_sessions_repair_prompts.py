@@ -6,7 +6,6 @@ import json
 from types import SimpleNamespace
 
 import pytest
-
 from agent.prompt_builder import SKILL_SAFETY_HEADING
 from hermes_cli import sessions_cmd
 from hermes_cli.sessions_cmd import _cmd_repair_prompts

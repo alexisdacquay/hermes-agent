@@ -21,28 +21,29 @@ from __future__ import annotations
 
 import os
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import pytest
 
 from tests.e2e.core.history._helpers import (
     NO_BACKGROUND_REVIEW,
-    Script,
-    big,
     OFFLINE_CONFIG,
     InProcessSession,
     Ledger,
-    assert_inputs_shown_once,
-    is_summary,
-    lineage,
+    Script,
     Spawned,
+    assert_inputs_shown_once,
     assert_replay_equals_persisted,
     assert_usage_matches,
+    big,
     canon,
     child_env,
     first_divergence,
     integrity_ok,
+    is_summary,
+    lineage,
     prefix_breaks,
     run_oneshot,
     views,

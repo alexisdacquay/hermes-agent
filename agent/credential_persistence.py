@@ -7,8 +7,8 @@ from __future__ import annotations
 
 import hashlib
 import re
-from typing import Any, Dict, Mapping
-
+from collections.abc import Mapping
+from typing import Any
 
 # Sources Hermes owns and may persist with secrets.  Any other non-empty,
 # non-manual source is borrowed/reference-only so new external providers fail
@@ -99,7 +99,7 @@ def _credential_secret_fingerprint(payload: Mapping[str, Any]) -> str | None:
 def sanitize_borrowed_credential_payload(
     payload: Mapping[str, Any],
     provider_id: Any = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Return a disk-safe credential-pool payload.
 
     Owned sources pass through unchanged.  Borrowed sources keep labels,

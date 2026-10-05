@@ -30,9 +30,8 @@ Contract asserted here (mutation-survivable)
 """
 
 import httpx
-import pytest
-
 import plugins.platforms.telegram.telegram_network as tnet
+import pytest
 
 
 def _telegram_request(path="/botTOKEN/getMe"):

@@ -4,7 +4,6 @@ active language, and a partial translation falls back to English per tip."""
 from __future__ import annotations
 
 import pytest
-
 from agent import i18n
 from agent.i18n import t
 from hermes_cli import tips

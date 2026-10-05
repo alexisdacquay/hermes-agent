@@ -9,10 +9,8 @@ in the cache".
 import shutil
 
 import pytest
-
 from hermes_constants import get_default_hermes_root
-from pm import packages
-from pm import paths
+from pm import packages, paths
 
 
 @pytest.fixture

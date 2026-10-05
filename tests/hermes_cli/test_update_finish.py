@@ -9,14 +9,13 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import sys
 import textwrap
+from pathlib import Path
 
 import pytest
-
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -355,9 +354,9 @@ def _npm_graph(source):
 
 @pytest.mark.platforms("posix")
 def test_selected_child_builds_and_finalizes_under_parent_lock(completion):
+    import hermes_yaml
     from hermes_cli.config_defaults import DEFAULT_CONFIG
     from hermes_cli.update_lock import UpdateLock
-    import hermes_yaml
 
     source, home, request, context, result, run = completion
     node = _npm_graph(source)

@@ -15,13 +15,11 @@ from __future__ import annotations
 import json
 import os
 import subprocess
-import sys
 import time
 from unittest.mock import patch
 
 import psutil
 import pytest
-
 from hermes_cli import process_identity as pi
 
 pytestmark = pytest.mark.platforms("posix")  # uses POSIX sleep children

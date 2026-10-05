@@ -5,11 +5,11 @@ from __future__ import annotations
 import contextlib
 import math
 import time
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
-from typing import Any, Callable, ClassVar, ContextManager, Dict, Iterator, Optional
+from typing import Any, ClassVar, ContextManager
 
 from hermes_cli.auth_constants import httpx
-
 
 UPGRADE_START = "Sign in with a Nous account to unlock more models and tools."
 UPGRADE_ALREADY_SIGNED_IN = "Already signed in."
@@ -264,7 +264,7 @@ def _failed_from_exception(exc: BaseException) -> Failed:
     return Failed(reason=reason, detail=str(exc), retry_after=float(err.retry_after or 0.0))
 
 
-def _outcome_state(outcome: Dict[str, Any], anon_token: str) -> SignInState:
+def _outcome_state(outcome: dict[str, Any], anon_token: str) -> SignInState:
     """The one reason -> state mapping in the tree, for a promotion that did not complete.
 
     A retiring outcome clears the dead identity here, pinned to the token this attempt started
@@ -297,11 +297,11 @@ def _default_persist_guard(is_cancelled: Callable[[], bool]) -> Callable[[], Con
 def run_sign_in(
     *,
     timeout_seconds: float = 15.0,
-    cancelled: Optional[Callable[[], bool]] = None,
+    cancelled: Callable[[], bool] | None = None,
     cancel_wins_after_promotion: bool = True,
-    persist_guard: Optional[Callable[[], ContextManager[bool]]] = None,
-    scope: Optional[Callable[[], ContextManager[Any]]] = None,
-    client_factory: Optional[Callable[[float, Any], ContextManager[httpx.Client]]] = None,
+    persist_guard: Callable[[], ContextManager[bool]] | None = None,
+    scope: Callable[[], ContextManager[Any]] | None = None,
+    client_factory: Callable[[float, Any], ContextManager[httpx.Client]] | None = None,
 ) -> Iterator[SignInState]:
     """Sign the free tier into a Nous account, keeping its connectors. Yields :class:`SignInState`s.
 
@@ -339,8 +339,8 @@ def run_sign_in(
     # scope must never be held across a ``yield``. A sign-in never creates the identity it signs in
     # from: with none on disk there is nothing to promote and the answer is ``Unavailable`` (the boot
     # bootstrap is the only creator, NS-845 Q1.2).
-    precondition_state: Optional[SignInState] = None
-    state: Optional[Dict[str, Any]] = None
+    precondition_state: SignInState | None = None
+    state: dict[str, Any] | None = None
     try:
         with open_scope():
             state = _core.current_nous_state()
@@ -360,8 +360,8 @@ def run_sign_in(
     anon_token = str(state.get("anon_token") or "")
     portal = (state.get("portal_base_url") or _core._portal_base_url()).rstrip("/")
 
-    outcome: Dict[str, Any] = {}
-    account_state: Optional[Dict[str, Any]] = None
+    outcome: dict[str, Any] = {}
+    account_state: dict[str, Any] | None = None
     try:
         pconfig = PROVIDER_REGISTRY["nous"]
         client_id, scope_str = pconfig.client_id, pconfig.scope
@@ -420,9 +420,8 @@ def run_sign_in(
         # Best effort: the credential is provably dead at the account service, so the outcome is
         # Retired whatever the local write does. A clear that fails (locked or read-only store)
         # self-heals on the next rejection, and must not cost this run its terminal state.
-        with contextlib.suppress(Exception):
-            with open_scope():
-                _core.clear_dead_guest("retired", dead_token=anon_token or None)
+        with contextlib.suppress(Exception), open_scope():
+            _core.clear_dead_guest("retired", dead_token=anon_token or None)
         yield Retired()
         return
     except TimeoutError as exc:

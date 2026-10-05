@@ -9,9 +9,8 @@ from __future__ import annotations
 import json
 from unittest.mock import MagicMock
 
-import pytest
-
 import hermes_cli.models as models_mod
+import pytest
 from hermes_cli import models_pricing
 from hermes_cli.models_pricing import fetch_models_with_pricing, peek_cached_pricing
 

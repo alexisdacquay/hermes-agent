@@ -9,7 +9,6 @@ so the sandbox degrades gracefully instead of failing.
 import subprocess
 
 import pytest
-
 import tools.environments.docker as docker_env
 
 

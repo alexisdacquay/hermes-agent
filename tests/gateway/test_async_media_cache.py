@@ -3,8 +3,7 @@ import threading
 from pathlib import Path
 
 import pytest
-
-import gateway.platforms.base as base
+from gateway.platforms import base
 
 
 @pytest.mark.asyncio

@@ -16,7 +16,6 @@ the chain at both points. Drives the real ``run_job`` with AIAgent and
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from cron import scheduler
 from cron.scheduler import _CronJobConfig, _resolve_job_runtime, run_job
 from hermes_cli.auth import AuthError

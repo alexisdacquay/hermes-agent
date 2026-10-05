@@ -11,14 +11,16 @@ Reference: https://learn.microsoft.com/azure/ai-foundry/foundry-models/how-to/co
 
 from __future__ import annotations
 
-from pm import install_hint
 import contextvars
 import functools
 import logging
 import os
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, Optional
+from typing import Any
+
+from pm import install_hint
 
 logger = logging.getLogger(__name__)
 
@@ -85,11 +87,11 @@ class EntraIdentityConfig:
     def __post_init__(self) -> None:
         object.__setattr__(self, "scope", str(self.scope or "").strip() or SCOPE_AI_AZURE_DEFAULT)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {"scope": self.scope, "exclude_interactive_browser": self.exclude_interactive_browser}
 
     @classmethod
-    def from_dict(cls, data: Optional[Dict[str, Any]], *, default_scope: Optional[str] = None) -> "EntraIdentityConfig":
+    def from_dict(cls, data: dict[str, Any] | None, *, default_scope: str | None = None) -> EntraIdentityConfig:
         data = data or {}
         return cls(
             scope=str(data.get("scope") or "").strip() or default_scope or SCOPE_AI_AZURE_DEFAULT,
@@ -114,7 +116,7 @@ def _default_chain_credential(config: EntraIdentityConfig) -> Any:
 # the ambient default chain is refused outright when the profile sets no credential of its own: every source it
 # could mint from (env SP, CLI/azd/PowerShell caches, host managed identity) is the launch context's identity,
 # and _inject_bearer would ship it to whatever base_url the served profile configured.
-_credentials_by_home: Dict[tuple, Any] = {}
+_credentials_by_home: dict[tuple, Any] = {}
 
 _AMBIENT_CHAIN_REFUSAL = (
     "Entra ID auth is refused for this profile: it sets no AZURE_* credential of its own, and under "
@@ -129,7 +131,7 @@ _AMBIENT_CHAIN_REFUSAL = (
 def _scoped_credential(ai: Any, config: EntraIdentityConfig) -> Any:
     from agent.secret_scope import current_secret_scope, is_multiplex_active
     scope = current_secret_scope() or {}
-    read = lambda name: (scope.get(name) or "").strip()  # noqa: E731
+    read = lambda name: (scope.get(name) or "").strip()
     tenant, client = read("AZURE_TENANT_ID"), read("AZURE_CLIENT_ID")
     if tenant and client and read("AZURE_CLIENT_SECRET"):
         return ai.ClientSecretCredential(tenant, client, read("AZURE_CLIENT_SECRET"))
@@ -158,13 +160,13 @@ def build_credential(config: EntraIdentityConfig) -> Any:
     return credential
 
 
-def _resolve_config(config: Optional[EntraIdentityConfig], scope: Optional[str], **overrides: Any) -> EntraIdentityConfig:
+def _resolve_config(config: EntraIdentityConfig | None, scope: str | None, **overrides: Any) -> EntraIdentityConfig:
     if config is not None:
         return config
     return EntraIdentityConfig(scope=(scope or "").strip() or SCOPE_AI_AZURE_DEFAULT, **overrides)
 
 
-def _install_failure(allow_install: bool) -> Optional[Dict[str, Any]]:
+def _install_failure(allow_install: bool) -> dict[str, Any] | None:
     """None when ``azure.identity`` is importable (lazy-installing if allowed), else ``{"error", "hint"}``."""
     if has_azure_identity_installed():
         return None
@@ -177,7 +179,7 @@ def _install_failure(allow_install: bool) -> Optional[Dict[str, Any]]:
     return None
 
 
-def build_token_provider(scope: Optional[str] = None, *, config: Optional[EntraIdentityConfig] = None,
+def build_token_provider(scope: str | None = None, *, config: EntraIdentityConfig | None = None,
                          exclude_interactive_browser: bool = True) -> Callable[[], str]:
     """Zero-arg callable minting a fresh Entra bearer JWT — pass as ``OpenAI(api_key=...)``. Scope precedence:
     ``config.scope`` > ``scope`` kwarg > default. Not picklable: ship the ``EntraIdentityConfig`` and rebuild
@@ -187,9 +189,9 @@ def build_token_provider(scope: Optional[str] = None, *, config: Optional[EntraI
     return ai.get_bearer_token_provider(build_credential(config), config.scope)
 
 
-def _probe_token(config: EntraIdentityConfig, timeout_seconds: float) -> Optional[Dict[str, Any]]:
+def _probe_token(config: EntraIdentityConfig, timeout_seconds: float) -> dict[str, Any] | None:
     """``get_token`` on a daemon thread under a hard deadline → ``{"token"}`` / ``{"error"}`` / None on timeout."""
-    result: Dict[str, Any] = {}
+    result: dict[str, Any] = {}
     ctx = contextvars.copy_context()
 
     def _probe() -> None:
@@ -206,7 +208,7 @@ def _probe_token(config: EntraIdentityConfig, timeout_seconds: float) -> Optiona
     return None if thread.is_alive() else result
 
 
-def has_azure_identity_credentials(scope: Optional[str] = None, *, config: Optional[EntraIdentityConfig] = None,
+def has_azure_identity_credentials(scope: str | None = None, *, config: EntraIdentityConfig | None = None,
                                    timeout_seconds: float = 10.0, allow_install: bool = True,
                                    **overrides: Any) -> bool:
     """Timeout-bounded probe: can the chain mint a token now? Never raises. ``allow_install=False`` makes it a
@@ -249,13 +251,13 @@ _ENV_SOURCE_CHECKS = (
 )
 
 
-def describe_active_credential(config: Optional[EntraIdentityConfig] = None, *, scope: Optional[str] = None,
+def describe_active_credential(config: EntraIdentityConfig | None = None, *, scope: str | None = None,
                                timeout_seconds: float = 10.0, allow_install: bool = True,
-                               **overrides: Any) -> Dict[str, Any]:
+                               **overrides: Any) -> dict[str, Any]:
     """Doctor / preflight diagnostics. Never raises; ``{"ok": False, "error": ...}`` on failure. azure-identity
     hides the winning inner credential, so this reports a coarse picture (env sources, token expiry) rather
     than a class name; ``AZURE_LOG_LEVEL=DEBUG`` shows the chain."""
-    info: Dict[str, Any] = {"ok": False}
+    info: dict[str, Any] = {"ok": False}
     failure = _install_failure(allow_install)
     if failure is not None:
         info["error"], info["hint"] = failure["error"], failure["hint"]
@@ -318,7 +320,7 @@ def build_bearer_http_client(token_provider: Callable[[], str], **httpx_kwargs: 
         raise ValueError("build_bearer_http_client requires a zero-arg callable token provider")
     import httpx
 
-    def _inject_bearer(request: "httpx.Request") -> None:
+    def _inject_bearer(request: httpx.Request) -> None:
         try:
             token = materialize_bearer_for_http(token_provider)
         except ValueError as exc:
@@ -337,7 +339,15 @@ def build_bearer_http_client(token_provider: Callable[[], str], **httpx_kwargs: 
 
 
 __all__ = [
-    "EntraIdentityConfig", "SCOPE_AI_AZURE_DEFAULT", "build_bearer_http_client", "build_credential",
-    "build_token_provider", "describe_active_credential", "has_azure_identity_credentials",
-    "has_azure_identity_installed", "is_token_provider", "materialize_bearer_for_http", "reset_credential_cache",
+    "SCOPE_AI_AZURE_DEFAULT",
+    "EntraIdentityConfig",
+    "build_bearer_http_client",
+    "build_credential",
+    "build_token_provider",
+    "describe_active_credential",
+    "has_azure_identity_credentials",
+    "has_azure_identity_installed",
+    "is_token_provider",
+    "materialize_bearer_for_http",
+    "reset_credential_cache",
 ]

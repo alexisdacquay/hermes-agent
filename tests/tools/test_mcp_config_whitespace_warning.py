@@ -8,7 +8,6 @@ leading spaces), which otherwise surfaces as opaque auth/connect failures.
 import logging
 
 import pytest
-
 from tools import mcp_tool_config as _mcp_config
 from tools.mcp_tool_config import _warn_hidden_whitespace
 

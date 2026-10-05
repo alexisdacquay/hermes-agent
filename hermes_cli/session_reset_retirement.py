@@ -8,13 +8,13 @@ this module reports and never rewrites or drops the key.
 """
 from __future__ import annotations
 
-from typing import Any, Optional, Tuple
+from typing import Any
 
 PLUGIN_NAME = "hermes-session-reset-policy"
 _TIMED_MODES = frozenset({"idle", "daily", "both"})
 
 
-def retired_reset_policy(config: Any) -> Optional[Tuple[str, str]]:
+def retired_reset_policy(config: Any) -> tuple[str, str] | None:
     """``(config_path, mode)`` for a timed ``session_reset`` the config still declares, else None.
 
     Looks at the top-level block and the ``gateway:`` form the pre-removal loader also accepted.

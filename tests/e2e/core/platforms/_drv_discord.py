@@ -12,9 +12,10 @@ Same surface as ``_drv_telegram.TelegramDriver``. Discord specifics:
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 from tests.fakes.platforms._standin import Call, Fault, Visible
 from tests.fakes.platforms.discord_standin import BOT_ID, MAX_TEXT, DiscordStandin
@@ -52,7 +53,7 @@ class DiscordDriver:
     def stop(self) -> None:
         self.standin.stop()
 
-    def gateway_config(self) -> Dict[str, Any]:
+    def gateway_config(self) -> dict[str, Any]:
         return {"platforms": {"discord": {"enabled": True, "extra": {
             "require_mention": True,
             # replies land inline in the group channel (contract parity); threads are implemented too
@@ -62,7 +63,7 @@ class DiscordDriver:
             "history_backfill": False,
         }}}}
 
-    def gateway_env(self) -> Dict[str, str]:
+    def gateway_env(self) -> dict[str, str]:
         return {
             "DISCORD_BOT_TOKEN": self.standin.token, "DISCORD_ALLOWED_USERS": ",".join((self.user_id, *self.stream_users)),
             "DISCORD_HOME_CHANNEL": self.home_channel,
@@ -83,10 +84,10 @@ class DiscordDriver:
         return self.standin.dm_of_user.get(str(chat_id), str(chat_id))
 
     @staticmethod
-    def _wrap(payload: Dict[str, Any]) -> Inbound:
+    def _wrap(payload: dict[str, Any]) -> Inbound:
         return Inbound(str(payload["channel_id"]), str(payload["id"]), payload)
 
-    def dm(self, text: str, user_id: Optional[str] = None) -> Inbound:
+    def dm(self, text: str, user_id: str | None = None) -> Inbound:
         uid = str(user_id or self.user_id)
         channel = self.standin.dm_channel(uid)
         return self._wrap(self.standin.inbound_message(channel["id"], uid, text))
@@ -103,10 +104,10 @@ class DiscordDriver:
         att = self.standin.attachment(filename, data, mime)
         return self._wrap(self.standin.inbound_message(channel["id"], self.user_id, caption, attachments=[att]))
 
-    def buttons(self, chat_id: str) -> List[Dict[str, Any]]:
+    def buttons(self, chat_id: str) -> list[dict[str, Any]]:
         return self.standin.buttons(self._chat(chat_id))
 
-    def click(self, chat_id: str, button: Dict[str, Any], user_id: Optional[str] = None) -> str:
+    def click(self, chat_id: str, button: dict[str, Any], user_id: str | None = None) -> str:
         inter = self.standin.click(str(user_id or self.user_id), self._chat(chat_id), str(button["message_id"]),
                                    button["custom_id"], component_type=int(button.get("type") or 2))
         return str(inter["id"])
@@ -114,42 +115,42 @@ class DiscordDriver:
     def click_answered(self, handle: str) -> bool:
         return any(str(c.params.get("interaction_id")) == handle and not c.faulted for c in self.callback_answers())
 
-    def callback_answers(self) -> List[Call]:
+    def callback_answers(self) -> list[Call]:
         return self.standin.calls_of("interaction_callback")
 
     # ground truth ------------------------------------------------------------------------------
-    def visible(self, chat_id: str) -> List[Visible]:
+    def visible(self, chat_id: str) -> list[Visible]:
         return self.standin.visible(self._chat(chat_id))
 
-    def _ok(self, methods: tuple, chat_id: str) -> List[Call]:
+    def _ok(self, methods: tuple, chat_id: str) -> list[Call]:
         chat = self._chat(chat_id)
         return [c for c in self.standin.calls_of(*methods)
                 if not c.faulted and str(c.params.get("channel_id")) == chat]
 
-    def sends(self, chat_id: str) -> List[Call]:
+    def sends(self, chat_id: str) -> list[Call]:
         return self._ok(("create_message",), chat_id)
 
-    def edits(self, chat_id: str) -> List[Call]:
+    def edits(self, chat_id: str) -> list[Call]:
         return self._ok(("edit_message",), chat_id)
 
-    def format_rejections(self, chat_id: str) -> List[Call]:
+    def format_rejections(self, chat_id: str) -> list[Call]:
         return []  # Discord renders markdown client-side: nothing to reject for formatting
 
     def describe(self) -> str:
         return self.standin.describe()
 
     # faults ------------------------------------------------------------------------------------
-    def fail_send(self, *, times: int = 1, match: Optional[Callable[[str], bool]] = None) -> List[Fault]:
+    def fail_send(self, *, times: int = 1, match: Callable[[str], bool] | None = None) -> list[Fault]:
         pred = (lambda p: match(str(p.get("content", "")))) if match else None
         return [self.standin.fail("create_message", {"message": "Missing Access", "code": 50001},
                                   status=403, times=times, match=pred)]
 
-    def fail_edit(self, *, times: int = 1, match: Optional[Callable[[str], bool]] = None) -> List[Fault]:
+    def fail_edit(self, *, times: int = 1, match: Callable[[str], bool] | None = None) -> list[Fault]:
         pred = (lambda p: match(str(p.get("content", "")))) if match else None
         return [self.standin.fail("edit_message", {"message": "Unknown Message", "code": 10008}, status=404,
                                   times=times, match=pred)]
 
-    def fail_finalize(self, has_footer: Callable[[str], bool], *, group: bool) -> List[Fault]:
+    def fail_finalize(self, has_footer: Callable[[str], bool], *, group: bool) -> list[Fault]:
         """Streaming edits one message in place (DMs and channels alike): every edit carrying the footer
         is refused, so the finalize edit never lands."""
         return self.fail_edit(times=50, match=has_footer)

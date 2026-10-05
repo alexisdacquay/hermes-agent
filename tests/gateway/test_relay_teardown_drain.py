@@ -16,7 +16,6 @@ the connector never answers.
 import asyncio
 
 import pytest
-
 from gateway.relay.ws_transport import WebSocketRelayTransport
 
 

@@ -4,7 +4,6 @@ import time
 from unittest.mock import patch
 
 import pytest
-
 from hermes_cli import goals
 from hermes_cli.cli_loops_mixin import CLILoopsMixin
 

@@ -6,10 +6,8 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from types import SimpleNamespace
 
 import pytest
-
 from agent.turn_author import TURN_AUTHOR_ENV
 from hermes_cli.subcommands import peer as peer_cmd
-
 
 # ── target parsing ───────────────────────────────────────────────────────────
 
@@ -72,7 +70,7 @@ def test_add_list_remove_roundtrip(monkeypatch, capsys):
 
 
 def test_add_rejects_bad_name_and_url(monkeypatch):
-    monkeypatch.setattr(peer_cmd, "_load_peers", lambda: {})
+    monkeypatch.setattr(peer_cmd, "_load_peers", dict)
     monkeypatch.setattr(peer_cmd, "_save_peers", lambda peers: None)
 
     assert peer_cmd.cmd_peer(SimpleNamespace(peer_action="add", name="Bad Name!", url="http://x", key="", note="")) == 2
@@ -172,7 +170,7 @@ class _FakePeer(BaseHTTPRequestHandler):
 
         return self._json({"error": {"message": "not found"}}, 404)
 
-    def log_message(self, *args):  # noqa: D102 — silence test server logging
+    def log_message(self, *args):
         pass
 
 
@@ -537,7 +535,7 @@ class _AttackerOrigin(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def log_message(self, *args):  # noqa: D102 — silence test server logging
+    def log_message(self, *args):
         pass
 
 
@@ -553,7 +551,7 @@ class _RedirectingPeer(BaseHTTPRequestHandler):
         self.send_header("Location", type(self).redirect_target + self.path)
         self.end_headers()
 
-    def log_message(self, *args):  # noqa: D102 — silence test server logging
+    def log_message(self, *args):
         pass
 
 

@@ -9,8 +9,9 @@ import subprocess
 import sys
 import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from tests.e2e.core.providers._openai_helpers import HarnessError, Home
 

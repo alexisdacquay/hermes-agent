@@ -12,11 +12,16 @@ import json
 import logging
 import os
 import threading
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from hermes_cli._subprocess_compat import windows_hide_flags
+
 from tools.computer_use import cua_backend_driver as _driver
-from tools.computer_use.cua_backend_parse import _extract_tool_result, _mcp_field, _tool_envelope
+from tools.computer_use.cua_backend_parse import (
+    _extract_tool_result,
+    _mcp_field,
+    _tool_envelope,
+)
 
 logger = logging.getLogger("tools.computer_use.cua_backend")
 
@@ -25,8 +30,8 @@ class _AsyncBridge:
     """Runs one asyncio loop on a daemon thread; marshals coroutines from the caller."""
 
     def __init__(self) -> None:
-        self._loop: Optional[asyncio.AbstractEventLoop] = None
-        self._thread: Optional[threading.Thread] = None
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._thread: threading.Thread | None = None
         self._ready = threading.Event()
 
     def start(self) -> None:
@@ -49,7 +54,7 @@ class _AsyncBridge:
         if not self._ready.wait(timeout=5.0):
             raise RuntimeError("cua-driver asyncio bridge failed to start")
 
-    def run(self, coro, timeout: Optional[float] = 30.0) -> Any:
+    def run(self, coro, timeout: float | None = 30.0) -> Any:
         from agent.async_utils import safe_schedule_threadsafe
         alive = self._loop is not None and self._thread is not None and self._thread.is_alive()
         fut = safe_schedule_threadsafe(coro, self._loop) if alive else None  # closes the coroutine on failure
@@ -79,7 +84,7 @@ _UNKNOWN_OUTCOME_MESSAGES = {
         "whether to act again."),
 }
 
-def _outcome_unknown(name: str, exc: Exception, code: str) -> Dict[str, Any]:
+def _outcome_unknown(name: str, exc: Exception, code: str) -> dict[str, Any]:
     """Fail-closed ``isError`` result for *code* (see ``_UNKNOWN_OUTCOME_MESSAGES``)."""
     message = _UNKNOWN_OUTCOME_MESSAGES[code].format(name=name)
     return _tool_envelope(message, [], {"ok": False, "code": code, "message": message, "operation": name,
@@ -92,7 +97,7 @@ def _tool_field(obj: Any, *names: str) -> Any:
 
 _CLI_ATTEMPTS = 4  # CLI fallback transport retries (backoff 0.5s doubling)
 
-def _cli_run_json(cmd: List[str], env: Dict[str, str], name: str, timeout: float) -> Any:
+def _cli_run_json(cmd: list[str], env: dict[str, str], name: str, timeout: float) -> Any:
     """Run ``cua-driver call`` with backoff until it prints JSON; return the parsed value. "daemon is not running"
     is PERMANENT for this invocation (the CLI needs the machine-wide daemon socket, which Linux installs typically
     never start) -> fail fast, no ~3.5s backoff."""
@@ -125,7 +130,7 @@ def _cli_run_json(cmd: List[str], env: Dict[str, str], name: str, timeout: float
     raise RuntimeError(f"cua-driver CLI fallback for {name} returned no JSON after "
                        f"{_CLI_ATTEMPTS} attempts: {last_err}")
 
-def _cli_result(parsed: Any, shot_file: Optional[str]) -> Dict[str, Any]:
+def _cli_result(parsed: Any, shot_file: str | None) -> dict[str, Any]:
     """Remap a ``cua-driver call`` JSON body into the ``_extract_tool_result`` shape (no ``image_mime_types`` key)."""
     if not isinstance(parsed, dict):
         return _tool_envelope(None, [], None, False)
@@ -146,9 +151,9 @@ def _cli_result(parsed: Any, shot_file: Optional[str]) -> Dict[str, Any]:
     return _tool_envelope(data, [shot] if shot else [], parsed, is_error)
 
 
-def _logical_error_text(result: Dict[str, Any]) -> str:
+def _logical_error_text(result: dict[str, Any]) -> str:
     """Flatten a logical MCP error into text for narrow classification."""
-    chunks: List[str] = []
+    chunks: list[str] = []
     for value in (result.get("data"), result.get("structuredContent")):
         if value is None:
             continue
@@ -185,7 +190,7 @@ class _CuaDriverSession:
     # See #74799.
     _timeout_suspect = False
 
-    def __init__(self, bridge: _AsyncBridge, embedded_daemon: Optional[Any] = None) -> None:
+    def __init__(self, bridge: _AsyncBridge, embedded_daemon: Any | None = None) -> None:
         self._bridge, self._embedded_daemon, self._session = bridge, embedded_daemon, None
         self._lock, self._started = threading.Lock(), False
         # Per-tool capability-token sets from `tools/list` (read via supports_capability). Raw input schemas are
@@ -195,23 +200,25 @@ class _CuaDriverSession:
         # (e.g. "accessibility.element_tokens", "input.keyboard.type.terminal_safe"). Empty until the
         # session starts; consumers should call `supports_capability` rather than reading directly. See
         # #47072.
-        self._capabilities: Dict[str, set] = {}
-        self._tool_schemas: Dict[str, Dict[str, Any]] = {}
+        self._capabilities: dict[str, set] = {}
+        self._tool_schemas: dict[str, dict[str, Any]] = {}
         self._capability_version, self._ready_event = "", threading.Event()
-        self._shutdown_event: Optional[asyncio.Event] = None  # created on bridge loop
+        self._shutdown_event: asyncio.Event | None = None  # created on bridge loop
         self._lifecycle_future = None  # concurrent.futures.Future
-        self._setup_error: Optional[BaseException] = None
+        self._setup_error: BaseException | None = None
         # Declared via start_session; revives an ended-session rejection non-re-entrantly.
         # Stable driver-side identity declared through start_session. Used to revive a logical ended-session
         # rejection without recursive call_tool re-entry or backend-owned state (#71166).
-        self._declared_session_id: Optional[str] = None
+        self._declared_session_id: str | None = None
         self._transport_generation, self._transport_reset_callback = 0, None
 
     async def _lifecycle_coro(self) -> None:
         """Owns the stdio MCP contexts: open, signal ready, block on shutdown, clean up — all in one task."""
         import time as _time
+
         from mcp import ClientSession, StdioServerParameters
         from mcp.client.stdio import stdio_client
+
         from tools.computer_use import cua_backend as _cb
         from tools.environments.local import _sanitize_subprocess_env
 
@@ -349,12 +356,12 @@ class _CuaDriverSession:
             with contextlib.suppress(RuntimeError):  # loop closed — nothing to signal
                 loop.call_soon_threadsafe(event.set)
 
-    async def _call_tool_async(self, name: str, args: Dict[str, Any]) -> Dict[str, Any]:
+    async def _call_tool_async(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
         return _extract_tool_result(await self._session.call_tool(name, args))
 
     # ── Capability detection ─────────────────────────────────────────
     # See #47072.
-    def supports_capability(self, capability: str, tool: Optional[str] = None) -> bool:
+    def supports_capability(self, capability: str, tool: str | None = None) -> bool:
         """Driver advertises *capability* for *tool* (or ANY tool). False before start.
 
         capability token (trycua/cua#1961 capability vocabulary).
@@ -434,13 +441,14 @@ class _CuaDriverSession:
         if getattr(self, "_declared_session_id", None):
             self._redeclare_session(timeout, "cua-driver public session label %s could not be restored: %s")
 
-    def _call_tool_via_cli(self, name: str, args: Dict[str, Any], timeout: float) -> Dict[str, Any]:
+    def _call_tool_via_cli(self, name: str, args: dict[str, Any], timeout: float) -> dict[str, Any]:
         """Fallback transport: ``cua-driver call <tool> <json>`` subprocess. The MCP stdio bridge can persistently
         fail heavy calls (``get_window_state``) with EAGAIN while the plain CLI, on its own daemon socket, keeps
         working. Output is remapped to the ``_extract_tool_result`` shape. ``get_window_state`` routes its
         screenshot to a temp file (``screenshot_out_file``) so the daemon returns a tiny JSON body, not the
         multi-megabyte base64 blob that congests the socket; ``_cli_result`` reads it back."""
         import tempfile as _tempfile
+
         from tools.computer_use import cua_backend as _cb
         from tools.environments.local import _sanitize_subprocess_env
 
@@ -465,7 +473,7 @@ class _CuaDriverSession:
                 with contextlib.suppress(OSError):
                     os.remove(shot_file)
 
-    def call_tool(self, name: str, args: Dict[str, Any], timeout: float = 30.0) -> Dict[str, Any]:
+    def call_tool(self, name: str, args: dict[str, Any], timeout: float = 30.0) -> dict[str, Any]:
         if name not in self._LIFECYCLE_CALLS:
             # A prior MCP timeout marks the session suspect (possibly wedged): recreate it so one timeout never
             # poisons the run. Healthy sessions are never restarted here.

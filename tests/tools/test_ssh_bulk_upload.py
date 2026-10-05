@@ -5,7 +5,6 @@ import subprocess
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from tools.environments import ssh as ssh_env
 from tools.environments.ssh import SSHEnvironment
 

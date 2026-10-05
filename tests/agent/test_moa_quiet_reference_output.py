@@ -8,7 +8,6 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from agent.moa_loop import build_moa_facade
 
 

@@ -6,13 +6,20 @@ import json
 import logging
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any
 
 from hermes_constants import hermes_home_key
+
 from tools.connectors.contract import Actor, SettleReason, TargetState
 from tools.connectors.gateway.config import operation_session_key
-from tools.connectors.operation import ConnectionOperation, DetachedOperation, IllegalTransition, Target
+from tools.connectors.operation import (
+    ConnectionOperation,
+    DetachedOperation,
+    IllegalTransition,
+    Target,
+)
 from tools.connectors.run import Kind, run_operation
 from tools.connectors.targets import hosted_names, misrouted_to_mcp_error
 from tools.registry import tool_error
@@ -43,19 +50,19 @@ NO_CARD_NOTE = (
 )
 
 
-def _catalog_names() -> List[str]:
+def _catalog_names() -> list[str]:
     from hermes_cli.mcp_catalog import list_catalog
 
     return sorted(e.name for e in list_catalog())
 
 
-def _configured_names() -> List[str]:
+def _configured_names() -> list[str]:
     from hermes_cli.mcp_catalog import installed_servers
 
     return sorted(installed_servers())
 
 
-def validate_mcp_names(action: str, names: List[str]) -> Optional[str]:
+def validate_mcp_names(action: str, names: list[str]) -> str | None:
     try:
         catalog = _catalog_names()
         configured = _configured_names()
@@ -101,7 +108,7 @@ def _catalog_entry(name: str):
 class _CatalogBackend:
     """The real work behind an MCP target. One object so a caller can pass another one in."""
 
-    def required_env(self, name: str) -> List[Dict[str, Any]]:
+    def required_env(self, name: str) -> list[dict[str, Any]]:
         """The credentials the catalog entry declares that have no value yet."""
         from hermes_cli.config import get_env_value
 
@@ -121,10 +128,15 @@ class _CatalogBackend:
         auth = _catalog_entry(name).auth
         return auth.type == "oauth" and not auth.provider
 
-    def start_install_oauth(self, name: str, env: Dict[str, str]) -> Any:
+    def start_install_oauth(self, name: str, env: dict[str, str]) -> Any:
         """Install an OAuth entry through the card's flow. The configuration is built in memory and
         lands, together with the setup values, only when ``initialize`` accepts the token."""
-        from hermes_cli.mcp_catalog import card_install_config, is_installed, record_mcp_install
+        from hermes_cli.mcp_catalog import (
+            card_install_config,
+            is_installed,
+            record_mcp_install,
+        )
+
         from tools.connectors import mcp_oauth
 
         fresh = not is_installed(name)
@@ -145,7 +157,7 @@ class _CatalogBackend:
                 record_mcp_install("catalog", name, "failed")
             raise
 
-    def install(self, name: str, env: Dict[str, str]) -> List[str]:
+    def install(self, name: str, env: dict[str, str]) -> list[str]:
         """Probe the entry's in-memory configuration with ephemeral credentials; save both only
         after the server answered. A failure writes nothing, so a failed reinstall keeps the
         previous configuration. A first install is recorded once as an extension install."""
@@ -154,9 +166,13 @@ class _CatalogBackend:
         with recorded_catalog_install(name):
             return self._install(name, env)
 
-    def _install(self, name: str, env: Dict[str, str]) -> List[str]:
+    def _install(self, name: str, env: dict[str, str]) -> list[str]:
         from agent.secret_scope import (
-            current_secret_scope, current_secret_scope_home, reset_secret_scope, set_secret_scope)
+            current_secret_scope,
+            current_secret_scope_home,
+            reset_secret_scope,
+            set_secret_scope,
+        )
         from hermes_cli.mcp_catalog import _inline_non_secret_value, card_install_config
         from hermes_cli.mcp_config import _probe_single_server, _save_mcp_server
 
@@ -199,7 +215,7 @@ class _CatalogBackend:
             save_config(config)
 
 
-def _check_declared(name: str, entry: Any, env: Dict[str, str]) -> None:
+def _check_declared(name: str, entry: Any, env: dict[str, str]) -> None:
     """Configuring one MCP is not a general env-writing primitive: refuse the whole map before the
     first write if any key is undeclared or unwritable."""
     from hermes_cli.config import validate_env_var_name_for_write
@@ -211,7 +227,7 @@ def _check_declared(name: str, entry: Any, env: Dict[str, str]) -> None:
         validate_env_var_name_for_write(key)
 
 
-def _save_env(env: Dict[str, str]) -> None:
+def _save_env(env: dict[str, str]) -> None:
     from hermes_cli.config import save_env_value
 
     for key, value in env.items():
@@ -234,7 +250,7 @@ class _Work:
 
     attempt: Any = None
     done: threading.Event = field(default_factory=threading.Event)
-    tools: List[str] = field(default_factory=list)
+    tools: list[str] = field(default_factory=list)
     error: str = ""
 
 
@@ -244,16 +260,16 @@ class _Runner:
     def __init__(self, action: str, backend: Any):
         self.action = action
         self.backend = backend
-        self.op_id: Optional[str] = None
-        self.work: Dict[str, _Work] = {}
+        self.op_id: str | None = None
+        self.work: dict[str, _Work] = {}
         # The credentials the card approved, per target. Try again carries none (a failed row has
         # no fields), so the install that runs again is the one the user approved. Kept here and
         # not on the target: the values are secrets, and the runner is the one object whose life
         # is exactly the operation's.
-        self.approved_env: Dict[str, Dict[str, str]] = {}
+        self.approved_env: dict[str, dict[str, str]] = {}
 
-    def run(self, table: Dict[str, Callable], operation: ConnectionOperation, target: Target,
-            env: Optional[Dict[str, str]] = None) -> None:
+    def run(self, table: dict[str, Callable], operation: ConnectionOperation, target: Target,
+            env: dict[str, str] | None = None) -> None:
         table[self.action](self, operation, target, env or {})
 
     def spawn(self, operation: ConnectionOperation, target: Target, call: Callable[[], Any]) -> None:
@@ -265,7 +281,7 @@ class _Runner:
         self.work[target.name] = work
 
         def body() -> None:
-            tools: List[str] = []
+            tools: list[str] = []
             error = ""
             try:
                 tools = [str(name) for name in (call() or [])]
@@ -343,7 +359,7 @@ class _Runner:
         self.work.clear()
 
 
-def _late_key(operation: ConnectionOperation) -> Tuple[str, str]:
+def _late_key(operation: ConnectionOperation) -> tuple[str, str]:
     """The ``(profile, session)`` pairing ``live.open`` keys an operation by. ``profile_key``
     is stamped there; the detached no-card path never opens, so fall back to the calling
     thread's home — ``close`` runs on the tool thread under the turn's profile scope."""
@@ -354,10 +370,10 @@ def _late_key(operation: ConnectionOperation) -> Tuple[str, str]:
 # The profile is part of the key for the same reason live.py keys _open by it: two multiplexed
 # profiles can carry the same session key, and an attempt must only ever be adopted by the
 # profile whose card authorized it.
-_LATE_ATTEMPTS: Dict[Tuple[str, str], Dict[str, Any]] = {}
+_LATE_ATTEMPTS: dict[tuple[str, str], dict[str, Any]] = {}
 
 
-def adopt_late_connections(agent: Any) -> List[str]:
+def adopt_late_connections(agent: Any) -> list[str]:
     """Register the servers whose authorization committed after their card had closed, and add
     them to the agent's toolset selection. Runs between turns, so the result that said "not
     connected" is followed by a turn in which the tools are there."""
@@ -366,7 +382,7 @@ def adopt_late_connections(agent: Any) -> List[str]:
     attempts = _LATE_ATTEMPTS.get(key)
     if not attempts:
         return []
-    adopted: List[str] = []
+    adopted: list[str] = []
     for name, attempt in list(attempts.items()):
         snapshot = attempt.poll()
         if snapshot["status"] == "pending":
@@ -393,7 +409,7 @@ def adopt_late_connections(agent: Any) -> List[str]:
 
 
 # op_id -> the runner driving it, so the card's answer and Try again (RPC thread) find the work.
-_RUNNERS: Dict[str, _Runner] = {}
+_RUNNERS: dict[str, _Runner] = {}
 
 
 def open_runner(action: str, backend: Any = None) -> _Runner:
@@ -461,7 +477,7 @@ def _fail(operation: ConnectionOperation, target: Target, detail: str) -> None:
     _move(operation, target, TargetState.failed, Actor.backend_watcher, detail=detail)
 
 
-def _register_connected(runner: _Runner, target: Target, name: str) -> tuple[List[str], str]:
+def _register_connected(runner: _Runner, target: Target, name: str) -> tuple[list[str], str]:
     """Register one committed server in the current profile scope and report its callable names."""
     try:
         from tools.mcp_tool_config import _load_mcp_config
@@ -476,7 +492,7 @@ def _register_connected(runner: _Runner, target: Target, name: str) -> tuple[Lis
         return [], _detail(exc, runner, target)
 
 
-def _registered_tool_names(name: str, wait_seconds: float = 30.0) -> List[str]:
+def _registered_tool_names(name: str, wait_seconds: float = 30.0) -> list[str]:
     """The server's callable names, read from the registry once its registration has finished.
 
     Registration is a no-op for a server the process already holds, and that includes one another
@@ -508,8 +524,8 @@ def _registered_tool_names(name: str, wait_seconds: float = 30.0) -> List[str]:
         time.sleep(0.25)
 
 
-def _connect(operation: ConnectionOperation, target: Target, tools: List[str], discovery_error: str = "") -> None:
-    extra: Dict[str, Any] = {"tools": tools}
+def _connect(operation: ConnectionOperation, target: Target, tools: list[str], discovery_error: str = "") -> None:
+    extra: dict[str, Any] = {"tools": tools}
     if discovery_error:
         extra["discovery_error"] = discovery_error
     _move(operation, target, TargetState.connected, Actor.backend_watcher, **extra)
@@ -520,7 +536,7 @@ def _actor(target: Target) -> Actor:
     return Actor.user if target.state == TargetState.failed else Actor.backend_watcher
 
 
-def _start_oauth(runner: _Runner, operation: ConnectionOperation, target: Target, env: Dict[str, str]) -> None:
+def _start_oauth(runner: _Runner, operation: ConnectionOperation, target: Target, env: dict[str, str]) -> None:
     actor = _actor(target)
     target.instructions = _catalog_instructions(target.name)
     try:
@@ -533,7 +549,7 @@ def _start_oauth(runner: _Runner, operation: ConnectionOperation, target: Target
           detail=getattr(attempt, "detail", ""))
 
 
-def _declare_env(runner: _Runner, operation: ConnectionOperation, target: Target, env: Dict[str, str]) -> None:
+def _declare_env(runner: _Runner, operation: ConnectionOperation, target: Target, env: dict[str, str]) -> None:
     """The install row waits pending; the card draws a field per credential it still needs."""
     target.instructions = _catalog_instructions(target.name)
     try:
@@ -544,7 +560,7 @@ def _declare_env(runner: _Runner, operation: ConnectionOperation, target: Target
     target.required_env = required
 
 
-def _missing_required(runner: _Runner, target: Target, env: Dict[str, str]) -> List[Dict[str, Any]]:
+def _missing_required(runner: _Runner, target: Target, env: dict[str, str]) -> list[dict[str, Any]]:
     """The declared credentials that still have no value. The install runs on a worker thread,
     where ``install_entry``'s prompt for a missing credential would block on stdin forever."""
     declared = runner.backend.required_env(target.name)
@@ -552,7 +568,7 @@ def _missing_required(runner: _Runner, target: Target, env: Dict[str, str]) -> L
             if spec.get("required", True) and not env.get(str(spec.get("name") or ""))]
 
 
-def _start_install(runner: _Runner, operation: ConnectionOperation, target: Target, env: Dict[str, str]) -> None:
+def _start_install(runner: _Runner, operation: ConnectionOperation, target: Target, env: dict[str, str]) -> None:
     approved = {**runner.approved_env.get(target.name, {}), **env}
     try:
         missing = _missing_required(runner, target, approved)
@@ -585,7 +601,7 @@ def _installs_with_oauth(runner: _Runner, target: Target) -> bool:
 
 
 def _start_install_oauth(runner: _Runner, operation: ConnectionOperation, target: Target,
-                         env: Dict[str, str]) -> None:
+                         env: dict[str, str]) -> None:
     """The row is already ``initiated``; publish the authorization link onto it. The same
     ``initiated`` + ``connect_url`` pair is what every card reads as its URL step."""
     try:
@@ -608,7 +624,7 @@ def _fail_install(runner: _Runner, operation: ConnectionOperation, target: Targe
     _fail(operation, target, _detail(error, runner, target))
 
 
-def _do_enable(runner: _Runner, operation: ConnectionOperation, target: Target, env: Dict[str, str]) -> None:
+def _do_enable(runner: _Runner, operation: ConnectionOperation, target: Target, env: dict[str, str]) -> None:
     actor = _actor(target)
     if not _move(operation, target, TargetState.initiated, actor, detail=""):
         return
@@ -621,7 +637,7 @@ def _do_enable(runner: _Runner, operation: ConnectionOperation, target: Target, 
     _connect(operation, target, tools, discovery_error)
 
 
-def _install_now(runner: _Runner, operation: ConnectionOperation, target: Target, env: Dict[str, str]) -> None:
+def _install_now(runner: _Runner, operation: ConnectionOperation, target: Target, env: dict[str, str]) -> None:
     """Off the desktop nobody can fill a credential in, so a missing one is the answer."""
     try:
         missing = [spec["name"] for spec in runner.backend.required_env(target.name) if spec.get("required", True)]
@@ -702,7 +718,7 @@ def _observe_worker(runner: _Runner, operation: ConnectionOperation, target: Tar
     _connect(operation, target, tools, discovery_error)
 
 
-def _nothing(runner: _Runner, operation: ConnectionOperation, target: Target, env: Dict[str, str]) -> None:
+def _nothing(runner: _Runner, operation: ConnectionOperation, target: Target, env: dict[str, str]) -> None:
     """Authorize needs no approval: the row's verb opens the link the flow already minted."""
 
 
@@ -718,7 +734,7 @@ _NO_CARD = {"authorize": _start_oauth, "install": _install_now, "enable": _do_en
 # ---------------------------------------------------------------------------
 
 
-def _answer_env(entry: Dict[str, Any]) -> Dict[str, str]:
+def _answer_env(entry: dict[str, Any]) -> dict[str, str]:
     raw = entry.get("env")
     return {str(k): str(v) for k, v in raw.items()} if isinstance(raw, dict) else {}
 
@@ -766,7 +782,7 @@ AUTHORIZATION_KEPT = ("the authorization had already completed when this was can
                       "kept; run the same action again to list the tools")
 
 
-def _cancel_attempt(runner: Optional[_Runner], target: Target) -> str:
+def _cancel_attempt(runner: _Runner | None, target: Target) -> str:
     """Stop the target's OAuth attempt so a late reply cannot be adopted. Returns the note for a
     cancel that lost the race: the attempt had committed, and a completed authorization stays."""
     work = runner.work.pop(target.name, None) if runner is not None else None
@@ -778,7 +794,7 @@ def _cancel_attempt(runner: Optional[_Runner], target: Target) -> str:
     return AUTHORIZATION_KEPT if cancel_attempt(flow) else ""
 
 
-def retry(operation: ConnectionOperation, names: List[str]) -> Optional[str]:
+def retry(operation: ConnectionOperation, names: list[str]) -> str | None:
     """Re-run the named MCP targets on the open operation (the card's Try again): a fresh OAuth
     flow, a fresh install, a fresh enable. Returns an error message when the operation is not one
     this module is running."""
@@ -799,7 +815,7 @@ def retry(operation: ConnectionOperation, names: List[str]) -> Optional[str]:
 # ---------------------------------------------------------------------------
 
 
-def _no_card_result(runner: _Runner, names: List[str], action: str, session_key: str) -> str:
+def _no_card_result(runner: _Runner, names: list[str], action: str, session_key: str) -> str:
     operation = DetachedOperation([Target(n, "mcp", action) for n in names], session_key=session_key)
     for target in operation.targets:
         runner.run(_NO_CARD, operation, target)
@@ -810,12 +826,12 @@ def _no_card_result(runner: _Runner, names: List[str], action: str, session_key:
 
 
 def run_mcp_operation(
-    names: List[str],
+    names: list[str],
     action: str,
     *,
-    connection_callback: Optional[Callable[[Dict[str, Any]], Optional[str]]],
-    session_id: Optional[str],
-    tool_call_id: Optional[str] = None,
+    connection_callback: Callable[[dict[str, Any]], str | None] | None,
+    session_id: str | None,
+    tool_call_id: str | None = None,
     backend: Any = None,
 ) -> str:
     error = validate_mcp_names(action, names)

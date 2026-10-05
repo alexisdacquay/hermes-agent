@@ -6,17 +6,19 @@ Images resolve through :mod:`tools.image_source`, are normalized to a provider-s
 model (multimodal tool-result envelope) or are described by the auxiliary vision LLM router.
 """
 
-import base64
 import asyncio
+import base64
 import json
-from concurrent.futures import ThreadPoolExecutor
-from io import BytesIO
 import logging
 import os
 import uuid
+from collections.abc import Awaitable, Callable
+from concurrent.futures import ThreadPoolExecutor
+from io import BytesIO
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Dict, NamedTuple, Optional
+from typing import Any, NamedTuple
 from urllib.parse import urlparse
+
 import httpx
 
 # ``agent.auxiliary_client`` costs ~50 ms cold; only the handlers need it. Both names stay
@@ -34,15 +36,25 @@ def _load_auxiliary_client() -> None:
 
 
 from hermes_constants import get_hermes_dir
+
 from tools.debug_helpers import DebugSession
-from tools.website_policy import check_website_access
 from tools.vision_tools_history_budget import (
     native_turn_duplicate as _native_turn_duplicate,
+)
+from tools.vision_tools_history_budget import (
     record_embed as _record_embed,
+)
+from tools.vision_tools_history_budget import (
     release_embed as _release_embed,
+)
+from tools.vision_tools_history_budget import (
     repeat_refusal as _repeat_refusal,
-    resolve_repeat_cap as _resolve_repeat_cap,
+)
+from tools.vision_tools_history_budget import (
     resolve_embed_target_bytes as _resolve_embed_target_bytes,
+)
+from tools.vision_tools_history_budget import (
+    resolve_repeat_cap as _resolve_repeat_cap,
 )
 from tools.vision_tools_image_prep import (
     _VISION_MAX_VALIDATED_AGGREGATE_PIXELS,
@@ -51,7 +63,9 @@ from tools.vision_tools_image_prep import (
     _determine_mime_type,
     _image_exceeds_dimension,
     _normalize_to_supported_image,
-    _validate_raster_image_decodable)
+    _validate_raster_image_decodable,
+)
+from tools.website_policy import check_website_access
 
 logger = logging.getLogger(__name__)
 
@@ -261,6 +275,7 @@ async def _download_media(
     """SSRF-safe streaming download with exponential backoff (2s/4s/8s). ``retry_all=False`` (images)
     retries only :func:`_is_retryable_download_error` errors — a 404/403 never succeeds on retry."""
     from utils import atomic_replace
+
     from tools.url_safety import create_ssrf_safe_async_client
     destination.parent.mkdir(parents=True, exist_ok=True)
     last_error = None
@@ -343,7 +358,7 @@ async def _download_image(image_url: str, destination: Path, max_retries: int = 
         max_bytes=_VISION_MAX_DOWNLOAD_BYTES, timeout=_VISION_DOWNLOAD_TIMEOUT, retry_all=False)
 
 
-def _image_to_base64_data_url(image_path: Path, mime_type: Optional[str] = None) -> str:
+def _image_to_base64_data_url(image_path: Path, mime_type: str | None = None) -> str:
     """``data:<mime>;base64,...`` for a file (MIME from extension when not given)."""
     mime = mime_type or _determine_mime_type(image_path)
     return f"data:{mime};base64,{base64.b64encode(image_path.read_bytes()).decode('ascii')}"
@@ -378,7 +393,7 @@ def _is_image_size_error(error: Exception) -> bool:
     return any(hint in err_str for hint in _SIZE_ERROR_HINTS + ("image_url", "invalid_request"))
 
 
-def _build_scale_note(scale_info: Optional[dict], crop_offset: Optional[dict]) -> Optional[str]:
+def _build_scale_note(scale_info: dict | None, crop_offset: dict | None) -> str | None:
     """Coordinate-mapping disclosure for downscale and/or region crop; ``None`` when neither applied."""
     parts = []
     if scale_info:
@@ -419,10 +434,10 @@ def _import_pillow_for_resize():
     return Image
 
 
-def _resize_image_for_vision(image_path: Path, mime_type: Optional[str] = None,
+def _resize_image_for_vision(image_path: Path, mime_type: str | None = None,
                               max_base64_bytes: int = _RESIZE_TARGET_BYTES,
-                              max_dimension: Optional[int] = None,
-                              scale_out: Optional[dict] = None,
+                              max_dimension: int | None = None,
+                              scale_out: dict | None = None,
                               force_jpeg: bool = False) -> str:
     """Base64 data URL, progressively downscaled with Pillow while over budget.
 
@@ -556,7 +571,7 @@ def _supports_media_in_tool_results(provider: str, model: str) -> bool:
         return False
 
 
-def _accepts_tool_result_images(provider: str, model: str, cfg: Optional[Dict[str, Any]]) -> bool:
+def _accepts_tool_result_images(provider: str, model: str, cfg: dict[str, Any] | None) -> bool:
     """One gate for both native lanes — the ``vision_analyze`` fast path and the ``computer_use`` capture route
     (#115248): the profile's ``supports_vision_tool_messages=False`` veto first, then either the provider's tool
     results are known to carry media or the per-model capability lookup (config override → catalog incl. the
@@ -574,7 +589,7 @@ def _should_use_native_vision_fast_path() -> bool:
     results, or the user set the ``model.supports_vision`` override (escape hatch for
     custom/local providers). Any failure → False."""
     try:
-        from agent.auxiliary_client import _read_main_provider, _read_main_model
+        from agent.auxiliary_client import _read_main_model, _read_main_provider
         from agent.image_routing import decide_image_input_mode
         from hermes_cli.config import load_config
         provider = _read_main_provider()
@@ -590,8 +605,8 @@ def _should_use_native_vision_fast_path() -> bool:
 
 def _build_native_vision_tool_result(
     image_url: str, question: str, image_data_url: str, image_size_bytes: int,
-    scale_note: Optional[str] = None,
-) -> Dict[str, Any]:
+    scale_note: str | None = None,
+) -> dict[str, Any]:
     """Multimodal tool-result envelope. The text part is intentionally minimal (the model already
     has the question); ``text_summary`` is the fallback for providers without multimodal tool results."""
     text_part = (
@@ -612,7 +627,7 @@ def _build_native_vision_tool_result(
         "meta": {"image_url": image_url[:200], "size_bytes": image_size_bytes, "native_vision": True}}
 
 
-def _unlink_quietly(path: Optional[Path]) -> None:
+def _unlink_quietly(path: Path | None) -> None:
     if path is not None:
         try:
             path.unlink(missing_ok=True)
@@ -627,19 +642,23 @@ class _ImagePrepError(ValueError):
 class _PreparedImage(NamedTuple):
     """Temp image ready to encode; ``path`` is owned by the caller (delete it)."""
     path: Path
-    mime: Optional[str]
+    mime: str | None
     size_bytes: int
     crop_offset: dict
 
 
 async def _prepare_image(
-    image_url: str, task_id: Optional[str], region: Optional[list], *, validate_decode: bool,
+    image_url: str, task_id: str | None, region: list | None, *, validate_decode: bool,
 ) -> _PreparedImage:
     """Resolve → materialize → normalize → (validate) → (crop). Raises ``_ImagePrepError``.
     Unsupported formats (SVG, BMP) become PNG BEFORE encoding — an unsupported media_type baked
     into immutable history would 400 on every resume. The crop runs BEFORE any downscale so the
     region keeps the full resolution budget. On error no temp file is left."""
-    from tools.image_source import ImageResolutionError, ResolveContext, resolve_image_source
+    from tools.image_source import (
+        ImageResolutionError,
+        ResolveContext,
+        resolve_image_source,
+    )
     try:
         resolved = await resolve_image_source(image_url, ResolveContext(task_id=task_id))
     except ImageResolutionError as exc:
@@ -690,7 +709,7 @@ async def _resize_prepared(prepared: _PreparedImage, scale_info: dict, **kwargs)
 
 
 async def _vision_analyze_native(
-    image_url: str, question: str, task_id: Optional[str] = None, region: Optional[list] = None,
+    image_url: str, question: str, task_id: str | None = None, region: list | None = None,
 ) -> Any:
     """Fast path for vision-capable main models: a ``_multimodal`` envelope dict on success,
     or a JSON error string (the normal tool-result contract) on failure."""
@@ -704,7 +723,7 @@ async def _vision_analyze_native(
     if refusal is not None:
         return refusal
     reserved = _resolve_repeat_cap() > 0
-    prepared: Optional[_PreparedImage] = None
+    prepared: _PreparedImage | None = None
     embedded = False
     try:
         from tools.interrupt import is_interrupted
@@ -750,8 +769,8 @@ async def _vision_analyze_native(
             _unlink_quietly(prepared.path)
 
 
-def _aux_call_kwargs(messages: list, model: Optional[str], default_timeout: float, *,
-                     min_timeout: Optional[float] = None) -> dict:
+def _aux_call_kwargs(messages: list, model: str | None, default_timeout: float, *,
+                     min_timeout: float | None = None) -> dict:
     """``async_call_llm`` kwargs with ``auxiliary.vision.timeout`` / ``.temperature`` from config.
     Local vision models (llama.cpp, ollama) can take well over 30s, hence generous defaults
     (temperature 0.1); ``min_timeout`` lets video enforce a floor."""
@@ -828,7 +847,7 @@ async def _call_vision_llm(call_kwargs: dict, empty_log: str, response=None):
 
 
 async def _run_analysis(
-    kind: str, source: str, user_prompt: str, model: Optional[str],
+    kind: str, source: str, user_prompt: str, model: str | None,
     stage: Callable[[str, dict, list], Awaitable[tuple]]) -> str:
     """Aux-LLM analysis skeleton for image/video: interrupt check → ``stage`` → JSON result.
 
@@ -863,7 +882,7 @@ async def _run_analysis(
         debug_call_data.update(success=True, analysis_length=analysis_length)
         return finish(result)
     except Exception as e:
-        error_msg = f"Error analyzing {kind}: {str(e)}"
+        error_msg = f"Error analyzing {kind}: {e!s}"
         logger.error("%s", error_msg, exc_info=True)
         err_str = str(e).lower()
         template = next(
@@ -884,7 +903,7 @@ async def _run_analysis(
 
 async def vision_analyze_tool(
     image_url: str, user_prompt: str, model: str = None,
-    task_id: Optional[str] = None, region: Optional[list] = None) -> str:
+    task_id: str | None = None, region: list | None = None) -> str:
     """Describe an image (URL, local path, data: URL) with the auxiliary vision LLM. ``user_prompt``
     is pre-formatted by the caller. Temp images live under $HERMES_HOME/cache/vision/."""
     async def stage(prompt: str, debug_call_data: dict, temp_paths: list) -> tuple:
@@ -995,7 +1014,7 @@ VISION_ANALYZE_SCHEMA = {
 }
 
 
-def _configured_aux_model(sections: tuple, env_vars: tuple) -> Optional[str]:
+def _configured_aux_model(sections: tuple, env_vars: tuple) -> str | None:
     """First non-empty ``auxiliary.<section>.model`` from config.yaml, else the first non-empty
     env var (legacy override), else None."""
     for section in sections:
@@ -1007,7 +1026,7 @@ def _configured_aux_model(sections: tuple, env_vars: tuple) -> Optional[str]:
     return next((v for v in (os.getenv(e, "").strip() for e in env_vars) if v), None)
 
 
-async def _handle_vision_analyze(args: Dict[str, Any], **kw: Any) -> str:
+async def _handle_vision_analyze(args: dict[str, Any], **kw: Any) -> str:
     image_url, question, region = args.get("image_url", ""), args.get("question", ""), args.get("region")
     task_id = kw.get("task_id")
     # No concurrency gate around the whole analysis — the CPU burst is bounded inside the
@@ -1050,7 +1069,7 @@ _MAX_VIDEO_BASE64_BYTES = 50 * 1024 * 1024  # 50 MB hard cap
 _VIDEO_SIZE_WARN_BYTES = 20 * 1024 * 1024
 
 
-def _detect_video_mime_type(video_path: Path) -> Optional[str]:
+def _detect_video_mime_type(video_path: Path) -> str | None:
     """Video MIME type from extension, or None if unsupported."""
     return _VIDEO_MIME_TYPES.get(video_path.suffix.lower())
 
@@ -1059,18 +1078,21 @@ def _unsupported_video_format(suffix: str) -> str:
     return f"Unsupported video format: '{suffix}'. Supported: {', '.join(sorted(_VIDEO_MIME_TYPES.keys()))}"
 
 
-def _video_to_base64_data_url(video_path: Path, mime_type: Optional[str] = None) -> str:
+def _video_to_base64_data_url(video_path: Path, mime_type: str | None = None) -> str:
     mime = mime_type or _detect_video_mime_type(video_path) or "video/mp4"
     return f"data:{mime};base64,{base64.b64encode(video_path.read_bytes()).decode('ascii')}"
 
 
-async def _materialize_video(video_url: str, task_id: Optional[str], temp_paths: list) -> Path:
+async def _materialize_video(video_url: str, task_id: str | None, temp_paths: list) -> Path:
     """Local video path for a terminal-backend path, local file, or HTTP(S) URL. Only files created
     here are appended to ``temp_paths`` — never user-provided paths. Terminal-backend reads use the
     shared media resolver with ``permitted=("video",)`` — the exact pipeline vision_analyze uses
     (media-cache host reads, bounded in-sandbox exec-read, credential-read guard, 50MB cap)."""
     from tools.image_source import (
-        ImageResolutionError, ResolveContext, _is_local_terminal_backend, resolve_image_source,
+        ImageResolutionError,
+        ResolveContext,
+        _is_local_terminal_backend,
+        resolve_image_source,
     )
     source = video_url.removeprefix("file://")
     local_path = Path(os.path.expanduser(source))
@@ -1117,7 +1139,7 @@ async def _materialize_video(video_url: str, task_id: Optional[str], temp_paths:
 
 
 async def video_analyze_tool(
-    video_url: str, user_prompt: str, model: str = None, task_id: Optional[str] = None) -> str:
+    video_url: str, user_prompt: str, model: str = None, task_id: str | None = None) -> str:
     """Analyze a video via multimodal LLM. Returns JSON {success, analysis}."""
     async def stage(prompt: str, debug_call_data: dict, temp_paths: list) -> tuple:
         temp_video_path = await _materialize_video(video_url, task_id, temp_paths)
@@ -1169,7 +1191,7 @@ VIDEO_ANALYZE_SCHEMA = {
 }
 
 
-def _handle_video_analyze(args: Dict[str, Any], **kw: Any) -> Awaitable[str]:
+def _handle_video_analyze(args: dict[str, Any], **kw: Any) -> Awaitable[str]:
     video_url, question = args.get("video_url", ""), args.get("question", "")
     full_prompt = (
         "Fully describe and explain everything happening in this video, "

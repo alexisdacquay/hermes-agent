@@ -14,7 +14,6 @@ import os
 import sqlite3
 import threading
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +41,7 @@ def _key(path: Path | str) -> str:
         return str(path)
 
 
-def _canonical_db_path(conn: sqlite3.Connection) -> Optional[str]:
+def _canonical_db_path(conn: sqlite3.Connection) -> str | None:
     """The on-disk path of ``main`` as SQLite reports it (immune to ``file:`` URIs, relative paths,
     symlinks). ``None`` for in-memory/unnamed databases, which cannot be byte-probed."""
     try:
@@ -76,7 +75,7 @@ def untrack_connection(path: Path | str) -> None:
         _track_key(_key(path), -1)
 
 
-def _live_main_key(key: str) -> Optional[str]:
+def _live_main_key(key: str) -> str | None:
     """The tracked main-database key that makes *key* live, or ``None`` (caller holds ``_live_lock``).
 
     SQLite locks the main file and its WAL sidecars; a raw ``close()`` of any of those
@@ -193,7 +192,7 @@ def _retrofit_tracking(conn: sqlite3.Connection, resolved: str) -> sqlite3.Conne
         ) from exc
 
 
-def page_count_bytes(conn: sqlite3.Connection) -> Optional[int]:
+def page_count_bytes(conn: sqlite3.Connection) -> int | None:
     """Logical database size in bytes (``page_count * page_size``, the header field at offset 28)
     read via PRAGMA over *conn* so no new fd is opened. ``None`` when the pragmas cannot be read."""
     try:
@@ -205,7 +204,7 @@ def page_count_bytes(conn: sqlite3.Connection) -> Optional[int]:
         return None
 
 
-def file_length_matches_header(conn: sqlite3.Connection) -> Optional[bool]:
+def file_length_matches_header(conn: sqlite3.Connection) -> bool | None:
     """Whether the file on disk is at least as long as the header claims ("torn extend" check),
     without opening the file (PRAGMA over *conn* + ``stat()``). Advisory in WAL mode: a freshly
     committed page may still live in ``-wal`` so the main file legitimately lags."""
@@ -221,7 +220,7 @@ def file_length_matches_header(conn: sqlite3.Connection) -> Optional[bool]:
         return None
 
 
-def read_header_bytes_preopen(path: Path | str, *, length: int = 100, force: bool = False) -> Optional[bytes]:
+def read_header_bytes_preopen(path: Path | str, *, length: int = 100, force: bool = False) -> bytes | None:
     """Read the first *length* bytes of *path* -- only when no connection is live. The ONLY
     sanctioned byte-level read of a database file, for first-open validation (real SQLite? zeroed?
     overwritten?). Check and open/read/close run together under ``_live_lock`` so a connection

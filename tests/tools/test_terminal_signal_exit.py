@@ -7,7 +7,6 @@ mis-diagnosing.
 """
 
 import pytest
-
 from tools.terminal_tool_result import _interpret_exit_code, _interpret_signal_exit
 
 

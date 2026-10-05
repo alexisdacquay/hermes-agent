@@ -5,13 +5,12 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-
-from gateway.session import SessionSource, build_session_key
-from gateway.run import GatewayRunner
-from gateway.profile_routing import ProfileRoute, ProfileRouteRejected
 from gateway.config import GatewayConfig, Platform
 from gateway.platforms.base import BasePlatformAdapter
 from gateway.platforms.event import MessageEvent
+from gateway.profile_routing import ProfileRoute, ProfileRouteRejected
+from gateway.run import GatewayRunner
+from gateway.session import SessionSource, build_session_key
 
 
 @pytest.fixture
@@ -301,7 +300,7 @@ class _StubAdapter(BasePlatformAdapter):
 _StubAdapter.__abstractmethods__ = frozenset()  # type: ignore[attr-defined]
 
 
-def _stub_adapter(platform: Platform, runner) -> "_StubAdapter":
+def _stub_adapter(platform: Platform, runner) -> _StubAdapter:
     a = _StubAdapter.__new__(_StubAdapter)
     a.platform = platform
     a.gateway_runner = runner

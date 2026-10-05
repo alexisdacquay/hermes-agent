@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import Callable, Dict, Optional, Tuple
+from collections.abc import Callable
 
 WS_CLOSE_PROCESS_EXITED = 4410
 WS_CLOSE_SUPERSEDED = 4409
@@ -49,11 +49,11 @@ class PtySession:
         self.buffer = RingBuffer(buffer_cap)
         self.alive = True
         self.attached = False
-        self.last_detached_at: Optional[float] = None
+        self.last_detached_at: float | None = None
         self._read_timeout = read_timeout
         self._ws = None
         self._attach_generation = 0
-        self._drain_task: Optional[asyncio.Task] = None
+        self._drain_task: asyncio.Task | None = None
         self._write_lock = asyncio.Lock()
 
     async def start(self) -> None:
@@ -156,7 +156,7 @@ class RegistryFull(Exception):
         super().__init__(message)
 
 
-async def run_reaper(registry: "PtySessionRegistry", *, interval: float = 60.0) -> None:
+async def run_reaper(registry: PtySessionRegistry, *, interval: float = 60.0) -> None:
     """Periodically reap idle/dead keep-alive sessions. Cancelled on shutdown."""
     while True:
         await asyncio.sleep(interval)
@@ -172,7 +172,7 @@ class PtySessionRegistry:
         self._max = max_sessions
         self._buffer_cap = buffer_cap
         self._read_timeout = read_timeout
-        self._sessions: Dict[str, PtySession] = {}
+        self._sessions: dict[str, PtySession] = {}
         # The get-or-spawn decision spans awaits (reap_idle, the spawn thread,
         # session.start), so two connections racing one attach token both saw
         # "no session" and forked a PTY each: the token then mapped to whichever
@@ -187,7 +187,7 @@ class PtySessionRegistry:
         # awaits them too, and holding the tasks keeps them from being garbage-collected.
         self._background_closes: set[asyncio.Task] = set()
 
-    async def attach_or_spawn(self, key: str, *, spawn: Callable[[], object]) -> Tuple[PtySession, bool]:
+    async def attach_or_spawn(self, key: str, *, spawn: Callable[[], object]) -> tuple[PtySession, bool]:
         await self.reap_idle()
         async with self._attach_lock:
             existing = self._sessions.get(key)
@@ -235,7 +235,7 @@ class PtySessionRegistry:
         if s is not None:
             s.detach(ws)
 
-    async def reap_idle(self, now: Optional[float] = None) -> None:
+    async def reap_idle(self, now: float | None = None) -> None:
         now = time.monotonic() if now is None else now
         doomed = [
             key for key, s in self._sessions.items()
@@ -261,7 +261,7 @@ class PtySessionRegistry:
         self._sessions.pop(oldest.key, None)
         self._close_in_background(oldest)
 
-    def _close_in_background(self, session: "PtySession") -> None:
+    def _close_in_background(self, session: PtySession) -> None:
         task = asyncio.create_task(session.close())
         self._background_closes.add(task)
         task.add_done_callback(self._background_closes.discard)

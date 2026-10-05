@@ -9,13 +9,17 @@ import hashlib
 import importlib.util
 import logging
 import re
+from collections.abc import Callable, Mapping
 from contextlib import suppress
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Mapping, Optional, Set, Tuple, Union
+from typing import Any
 
 from utils import fast_safe_load
-from hermes_cli.plugin_capabilities import parse_declared_capabilities as _parse_declared_capabilities
+
+from hermes_cli.plugin_capabilities import (
+    parse_declared_capabilities as _parse_declared_capabilities,
+)
 
 try:
     import hermes_yaml as yaml
@@ -24,12 +28,12 @@ except ImportError:  # pragma: no cover – yaml is optional at import time
 
 logger = logging.getLogger("hermes_cli.plugins")
 
-_VALID_PLUGIN_KINDS: Set[str] = {"standalone", "backend", "exclusive", "platform", "model-provider"}
+_VALID_PLUGIN_KINDS: set[str] = {"standalone", "backend", "exclusive", "platform", "model-provider"}
 
 # Unknown plugin.yaml fields are forward-compat surface: warn (debug for v1 files, warning for v2+)
 # and continue loading. ``capabilities``/``emits``/``listens``/``hermes``/``depends`` are reserved.
 # ── Manifest v2 (#64165) parsing helpers ──────────────────────────────────
-_KNOWN_MANIFEST_FIELDS: Set[str] = {
+_KNOWN_MANIFEST_FIELDS: set[str] = {
     "name", "version", "description", "author", "requires_env", "provides_tools", "provides_hooks",
     "kind", "hooks", "label", "optional_env", "platforms", "external_dependencies",
     "pip_dependencies", "provides_browser_providers", "provides_web_providers",
@@ -41,7 +45,7 @@ _KNOWN_MANIFEST_FIELDS: Set[str] = {
 # Highest manifest schema version this Hermes understands.
 SUPPORTED_MANIFEST_VERSION = 2
 
-_CONFIG_SCHEMA_TYPES: Dict[str, tuple] = {
+_CONFIG_SCHEMA_TYPES: dict[str, tuple] = {
     "str": (str,), "string": (str,), "int": (int,), "integer": (int,), "float": (int, float),
     "number": (int, float), "bool": (bool,), "boolean": (bool,), "list": (list,), "array": (list,),
     "dict": (dict,), "object": (dict,),
@@ -107,7 +111,7 @@ def _manifest_list(data: Mapping, key: str, field_name: str, what: str, coerce: 
     return out
 
 
-def _dependency_entry(item: object) -> Optional[Dict[str, Any]]:
+def _dependency_entry(item: object) -> dict[str, Any] | None:
     """``{id, version_range}`` from a requires_plugins item (str shorthand ok); None when malformed."""
     if isinstance(item, str):
         return {"id": item, "version_range": None}
@@ -117,7 +121,7 @@ def _dependency_entry(item: object) -> Optional[Dict[str, Any]]:
     return None
 
 
-def _manifest_int(raw: object, key: str, warn: str, fallback: Optional[int]) -> Optional[int]:
+def _manifest_int(raw: object, key: str, warn: str, fallback: int | None) -> int | None:
     """``int(raw)``; a non-integer warns ``warn`` (formatted with key, raw) and yields ``fallback``."""
     try:
         return int(raw)  # type: ignore[call-overload]
@@ -126,7 +130,7 @@ def _manifest_int(raw: object, key: str, warn: str, fallback: Optional[int]) -> 
         return fallback
 
 
-def _parse_manifest_v2_fields(data: Mapping, key: str) -> Dict[str, Any]:
+def _parse_manifest_v2_fields(data: Mapping, key: str) -> dict[str, Any]:
     """Validate/normalize manifest v2 fields into PluginManifest kwargs (warnings, never failures).
 
     See #64165.
@@ -154,7 +158,7 @@ def _parse_manifest_v2_fields(data: Mapping, key: str) -> Dict[str, Any]:
         "Plugin %s: python_dependencies entry %r must be a non-empty requirement string; skipping",
     )
     # config_schema — mapping of key -> {type?, default?, description?, required?}.
-    schema: Dict[str, Any] = {}
+    schema: dict[str, Any] = {}
     raw_schema = _manifest_field_of_type(data, key, "config_schema", Mapping, "a mapping")
     for skey, spec in (raw_schema or {}).items():
         if not isinstance(spec, Mapping):
@@ -184,12 +188,12 @@ def _parse_manifest_v2_fields(data: Mapping, key: str) -> Dict[str, Any]:
     }
 
 
-def validate_config_schema(plugin_id: str, schema: Mapping, settings: Mapping) -> List[str]:
+def validate_config_schema(plugin_id: str, schema: Mapping, settings: Mapping) -> list[str]:
     """Return actionable warning strings for settings vs config_schema mismatches (never raises).
 
     Never raises; schema mismatches must not block plugin load (#64165).
     """
-    warnings: List[str] = []
+    warnings: list[str] = []
     if not isinstance(schema, Mapping) or not isinstance(settings, Mapping):
         return warnings
     for skey, spec in schema.items():
@@ -216,7 +220,7 @@ def validate_config_schema(plugin_id: str, schema: Mapping, settings: Mapping) -
     return warnings
 
 
-def resolve_plugin_load_order(manifests: Mapping[str, "PluginManifest"]) -> List[str]:
+def resolve_plugin_load_order(manifests: Mapping[str, PluginManifest]) -> list[str]:
     """Return plugin keys in dependency order: B before A when A requires B; alphabetical ties. A cycle warns
     and falls back to alphabetical order for all; a missing dependency warns once but never removes the
     dependent plugin (loads never hard-fail on advisory deps).
@@ -225,11 +229,11 @@ def resolve_plugin_load_order(manifests: Mapping[str, "PluginManifest"]) -> List
     """
     import graphlib
     keys = sorted(manifests.keys())
-    by_name: Dict[str, str] = {}
+    by_name: dict[str, str] = {}
     for k in keys:
         if manifests[k].name:
             by_name.setdefault(manifests[k].name, k)
-    edges: Dict[str, Set[str]] = {k: set() for k in keys}
+    edges: dict[str, set[str]] = {k: set() for k in keys}
     for k in keys:
         for dep in manifests[k].requires_plugins:
             dep_id = dep.get("id") if isinstance(dep, Mapping) else None
@@ -257,7 +261,7 @@ def resolve_plugin_load_order(manifests: Mapping[str, "PluginManifest"]) -> List
             "alphabetical load order for all plugins", " -> ".join(str(c) for c in cycle),
         )
         return keys
-    ordered: List[str] = []
+    ordered: list[str] = []
     while sorter.is_active():
         ready = sorted(sorter.get_ready())
         ordered.extend(ready)
@@ -265,7 +269,7 @@ def resolve_plugin_load_order(manifests: Mapping[str, "PluginManifest"]) -> List
     return ordered
 
 
-def _detect_kind_from_source(source_text: str) -> Optional[str]:
+def _detect_kind_from_source(source_text: str) -> str | None:
     """Kind implied by source markers (mirrors plugins/memory ``_is_memory_provider_dir`` and
     plugins/cron_providers ``_is_cron_provider_dir``): memory- or cron-provider markers -> ``exclusive``;
     ``register_provider`` + ``ProviderProfile`` -> ``model-provider``; else ``None``. Keeps these kinds out
@@ -278,7 +282,7 @@ def _detect_kind_from_source(source_text: str) -> Optional[str]:
     return None
 
 
-def _read_source_from_origin(origin: Optional[str], limit: int = 8192) -> str:
+def _read_source_from_origin(origin: str | None, limit: int = 8192) -> str:
     """First ``limit`` chars of a module's source (``.pyc`` mapped back to ``.py``); "" on failure."""
     try:
         if origin and origin.endswith((".pyc", ".pyo")):
@@ -290,7 +294,7 @@ def _read_source_from_origin(origin: Optional[str], limit: int = 8192) -> str:
         return ""
 
 
-def resolve_module_origin(module_name: str) -> Optional[str]:
+def resolve_module_origin(module_name: str) -> str | None:
     """Return a module's source path WITHOUT importing it, or ``None``. ``find_spec`` on a dotted name imports
     the parent package, so only the top-level name uses it; remaining segments are walked through
     ``submodule_search_locations`` by hand. Namespace/zipped/extension modules return ``None``. Shared with
@@ -332,7 +336,7 @@ def _resolve_module_source(module_name: str, limit: int = 8192) -> str:
     return _read_source_from_origin(resolve_module_origin(module_name), limit)
 
 
-def manifest_key(manifest: "PluginManifest") -> str:
+def manifest_key(manifest: PluginManifest) -> str:
     """Registry id of a manifest: the path-derived ``key`` when set, else the bare ``name``."""
     return manifest.key or manifest.name
 
@@ -345,11 +349,11 @@ class PluginManifest:
     version: str = ""
     description: str = ""
     author: str = ""
-    requires_env: List[Union[str, Dict[str, Any]]] = field(default_factory=list)
-    provides_tools: List[str] = field(default_factory=list)
-    provides_hooks: List[str] = field(default_factory=list)
+    requires_env: list[str | dict[str, Any]] = field(default_factory=list)
+    provides_tools: list[str] = field(default_factory=list)
+    provides_hooks: list[str] = field(default_factory=list)
     source: str = ""        # "bundled", "user", "project", or "entrypoint"
-    path: Optional[str] = None
+    path: str | None = None
     # ``standalone`` (default; opt-in via plugins.enabled) | ``backend`` (pluggable backend for a core tool;
     # bundled auto-load, user-installed gated) | ``exclusive`` (one active provider, selected via
     # <category>.provider; own discovery, general scanner skips) | ``platform`` (gateway adapter; bundled
@@ -366,40 +370,40 @@ class PluginManifest:
     # Declared capability ids, normalized to KNOWN ids. Declaration is consent metadata, NOT a grant: live
     # only via plugins.entries.<id>.granted_capabilities or the legacy allow_* key.
     # See #64228.
-    capabilities: List[str] = field(default_factory=list)
+    capabilities: list[str] = field(default_factory=list)
     # Manifest v2 fields — all optional and additive. manifest_version versions the FILE FORMAT (v1 supported
     # forever); api_version is the runtime plugin API generation (None = current).
     # Absent (v1) manifests are fully supported forever. See #64165.
     manifest_version: int = 1
-    api_version: Optional[int] = None
+    api_version: int | None = None
     # Advisory deps [{"id", "version_range"}]: missing ones warn but load; they order the load.
-    requires_plugins: List[Dict[str, Any]] = field(default_factory=list)
+    requires_plugins: list[dict[str, Any]] = field(default_factory=list)
     # Declared pip deps — VALIDATED AND SURFACED ONLY, never auto-installed.
     # VALIDATED AND SURFACED ONLY — Hermes never auto-installs these (isolation design for the install seam
     # is a deferred follow-up; see #64165 round-2 review and #15220).
-    python_dependencies: List[str] = field(default_factory=list)
+    python_dependencies: list[str] = field(default_factory=list)
     # Schema for plugins.entries.<id>.settings; mismatches warn, never fail.
-    config_schema: Dict[str, Any] = field(default_factory=dict)
+    config_schema: dict[str, Any] = field(default_factory=dict)
     license: str = ""
     homepage: str = ""
-    tags: List[str] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
     # Event-bus declarations, advisory (discoverability only): ``emits`` bare names published under
     # ``<key>:``; ``listens`` fully-qualified ``<plugin>:<event>`` names.
-    emits: List[str] = field(default_factory=list)
-    listens: List[str] = field(default_factory=list)
+    emits: list[str] = field(default_factory=list)
+    listens: list[str] = field(default_factory=list)
     # Language pack declaration: ids whose ``locales/<id>[.tui|.desktop].yaml`` the loader registers
     # automatically (no Python needed). ``locale_metadata`` carries the optional per-id
     # ``{endonym, rtl}`` from the mapping form of a ``provides_locales`` entry.
-    provides_locales: List[str] = field(default_factory=list)
-    locale_metadata: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    provides_locales: list[str] = field(default_factory=list)
+    locale_metadata: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
-def parse_provides_locales(raw: Any, key: str = "") -> Tuple[List[str], Dict[str, Dict[str, Any]]]:
+def parse_provides_locales(raw: Any, key: str = "") -> tuple[list[str], dict[str, dict[str, Any]]]:
     """``provides_locales`` -> (ids, metadata). Entries are ``"pl"`` or ``{id: pl, endonym: Polski, rtl: false}``;
     ids are canonicalised (lowercase, ``_`` -> ``-``), invalid or duplicate ones are dropped with a warning."""
     from agent.i18n_layers import is_language_id, normalize_language_id
-    ids: List[str] = []
-    metadata: Dict[str, Dict[str, Any]] = {}
+    ids: list[str] = []
+    metadata: dict[str, dict[str, Any]] = {}
     if raw is None:
         return ids, metadata
     if isinstance(raw, (str, Mapping)):
@@ -408,7 +412,7 @@ def parse_provides_locales(raw: Any, key: str = "") -> Tuple[List[str], Dict[str
         logger.warning("Plugin %s: provides_locales must be a list of language ids, got %s", key, type(raw).__name__)
         return ids, metadata
     for item in raw:
-        entry_meta: Dict[str, Any] = {}
+        entry_meta: dict[str, Any] = {}
         if isinstance(item, Mapping):
             lang_id = normalize_language_id(item.get("id", ""))
             if isinstance(item.get("endonym"), str) and item["endonym"].strip():
@@ -443,7 +447,7 @@ def running_hermes_version() -> str:
 _VERSION_SEGMENT_RE = re.compile(r"^\d+")
 
 
-def _version_tuple(v: str) -> Optional[tuple]:
+def _version_tuple(v: str) -> tuple | None:
     """``v1.2.3-rc1`` / ``1.2.3rc1`` / ``1.2.3.post1`` → ``(1, 2, 3)``; ``None`` when a segment has no
     leading digits. PEP 440 pre/post/dev suffixes glued to a segment (``0rc1``) are dropped so an rc
     *target* still gates and an rc *running* version does not disable every gate."""
@@ -474,7 +478,7 @@ def version_satisfies(spec: str, current: str) -> bool:
     return True
 
 
-def requires_hermes_error(manifest: "PluginManifest") -> Optional[str]:
+def requires_hermes_error(manifest: PluginManifest) -> str | None:
     """Load-blocking reason when the manifest's ``requires_hermes`` rejects the running version."""
     spec = manifest.get("requires_hermes", "") if isinstance(manifest, Mapping) else manifest.requires_hermes
     if not spec:
@@ -523,7 +527,7 @@ def _manifest_kind(data: Mapping, key: str, plugin_dir: Path) -> str:
 
 def parse_manifest_file(
     manifest_file: Path, plugin_dir: Path, source: str, prefix: str
-) -> Optional[PluginManifest]:
+) -> PluginManifest | None:
     """Parse one ``plugin.yaml`` into a :class:`PluginManifest`; ``None`` (warned) on failure."""
     try:
         if yaml is None:

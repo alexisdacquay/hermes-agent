@@ -7,8 +7,6 @@ injected or rotated, for the process lifetime.
 """
 import os
 
-import pytest
-
 from agent import secret_scope
 from hermes_cli import web_server
 from tui_gateway import launch_profile_policy

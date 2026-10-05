@@ -9,24 +9,18 @@ behaviour.
 from __future__ import annotations
 
 import asyncio
-from typing import Optional
 
 import pytest
-
 from hermes_cli.dashboard_auth import (
     DashboardAuthProvider,
     LoginStart,
     Session,
     TokenPrincipal,
     clear_providers,
-    list_providers,
-    list_session_providers,
-    list_token_providers,
     register_provider,
+    token_auth,
 )
 from hermes_cli.dashboard_auth.base import ProviderError
-from hermes_cli.dashboard_auth import token_auth
-
 
 # --------------------------------------------------------------------------
 # Test doubles
@@ -66,7 +60,7 @@ class _TokenProvider(_OAuthOnly):
         self._secret = secret
         self._scopes = tuple(scopes)
 
-    def verify_token(self, *, token: str) -> Optional[TokenPrincipal]:
+    def verify_token(self, *, token: str) -> TokenPrincipal | None:
         if token == self._secret:
             return TokenPrincipal(
                 principal=self.name, provider=self.name, scopes=self._scopes
@@ -79,7 +73,7 @@ class _UnreachableTokenProvider(_OAuthOnly):
     display_name = "Unreachable Token Provider"
     supports_token = True
 
-    def verify_token(self, *, token: str) -> Optional[TokenPrincipal]:
+    def verify_token(self, *, token: str) -> TokenPrincipal | None:
         raise ProviderError("backing store down")
 
 
@@ -88,7 +82,7 @@ class _BuggyTokenProvider(_OAuthOnly):
     display_name = "Buggy Token Provider"
     supports_token = True
 
-    def verify_token(self, *, token: str) -> Optional[TokenPrincipal]:
+    def verify_token(self, *, token: str) -> TokenPrincipal | None:
         raise RuntimeError("kaboom")
 
 

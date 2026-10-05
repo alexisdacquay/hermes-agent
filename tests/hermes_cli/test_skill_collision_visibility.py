@@ -6,9 +6,8 @@ from __future__ import annotations
 import contextlib
 import io
 
-from rich.console import Console
-
 from hermes_constants import get_hermes_home
+from rich.console import Console
 
 NOTE = "slash command /handoff unavailable — name taken by built-in; use /skill handoff"
 
@@ -21,9 +20,9 @@ def _write_skill(name: str) -> None:
 
 def test_built_in_name_collision_is_visible_on_every_listing_surface(monkeypatch):
     import cli
-    import tools.skills_tool as skills_tool
     from hermes_cli.cli_info_mixin import CLIInfoMixin
     from hermes_cli.skills_hub import do_list
+    from tools import skills_tool
     from tui_gateway import server
 
     _write_skill("handoff")  # core CommandDef → dropped by scan_skill_commands
@@ -61,7 +60,7 @@ def test_built_in_name_collision_is_visible_on_every_listing_surface(monkeypatch
 
 def test_catalog_discovery_failure_warning_outranks_the_collision_note(monkeypatch):
     """A colliding skill must not hide a real discovery failure: the failure stays in ``warning``."""
-    import tools.skills_tool as skills_tool
+    from tools import skills_tool
     from tui_gateway import server
 
     _write_skill("handoff")

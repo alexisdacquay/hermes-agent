@@ -10,7 +10,6 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-
 from agent.secret_scope import set_multiplex_active
 from gateway.config import Platform
 from gateway.run import GatewayRunner
@@ -112,7 +111,7 @@ def test_notifier_pings_run_under_the_subscribers_profile(served, monkeypatch):
 
     async def fake_sleep(delay):
         if delay == 5:
-            return None
+            return
         runner._running = False
         await real_sleep(0)
 

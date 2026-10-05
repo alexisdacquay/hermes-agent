@@ -9,9 +9,11 @@ the live-path integration is covered by the real-server E2E in the PR.
 import asyncio
 
 import pytest
-
 from tools.mcp_tool import MCPServerTask
-from tools.mcp_tool_errors import _handshake_rejected_as_modern, _JSONRPC_UNSUPPORTED_PROTOCOL_VERSION
+from tools.mcp_tool_errors import (
+    _JSONRPC_UNSUPPORTED_PROTOCOL_VERSION,
+    _handshake_rejected_as_modern,
+)
 
 
 class _Err(Exception):
@@ -153,7 +155,7 @@ class _EchoingStatelessSession(_Session):
 
     async def send_request(self, request, result_type):
         self.calls.append(("send_request", request.method))
-        import mcp.types as types
+        from mcp import types
         return types.InitializeResult(
             protocolVersion="2026-07-28", capabilities=types.ServerCapabilities(tools=types.ToolsCapability()),
             serverInfo=types.Implementation(name="StatelessServer", version="ESF"))

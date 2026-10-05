@@ -9,13 +9,14 @@ read or a corrupt row is "cannot prove emptiness", never "idle".
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any
 
 logger = logging.getLogger("gateway.run")
 
 
-def _profile_session_db_probe(profile_home: Path) -> Optional[Any]:
+def _profile_session_db_probe(profile_home: Path) -> Any | None:
     """The goals-cached SessionDB for *profile_home*; None when unavailable."""
     from hermes_cli.goals import _get_session_db
     from hermes_constants import reset_hermes_home_override, set_hermes_home_override

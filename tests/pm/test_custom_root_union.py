@@ -5,10 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 
 import hermes_yaml as yaml
-import pytest
-
 import pm.plugins_state as pstate
 import pm.workspace as ws
+import pytest
 
 
 def _write_enabled(home: Path, enabled: list) -> None:

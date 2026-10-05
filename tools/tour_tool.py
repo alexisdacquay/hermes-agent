@@ -6,7 +6,7 @@ step list the user pages (``start``). Round-trips through the gateway blocking-p
 must mean the model is never told the tool exists rather than offered a call that fails."""
 
 import json
-from typing import Callable, Optional
+from collections.abc import Callable
 
 from tools import desktop_ui
 from tools.registry import registry, tool_error
@@ -16,10 +16,10 @@ SURFACES = ("app", "preview")
 SIDES = ("top", "right", "bottom", "left")
 
 
-def tour_tool(action: str = "", surface: Optional[str] = None, selector: Optional[str] = None,
-              title: Optional[str] = None, text: Optional[str] = None, side: Optional[str] = None,
-              steps: Optional[list] = None, step_index: Optional[int] = None,
-              callback: Optional[Callable] = None) -> str:
+def tour_tool(action: str = "", surface: str | None = None, selector: str | None = None,
+              title: str | None = None, text: str | None = None, side: str | None = None,
+              steps: list | None = None, step_index: int | None = None,
+              callback: Callable | None = None) -> str:
     """Dispatch one tour action to the desktop renderer and return its outcome."""
     if callback is None:
         return tool_error("tour is only available in the Hermes desktop app.")

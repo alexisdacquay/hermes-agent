@@ -11,7 +11,7 @@ ride the ``codex_reasoning_items`` sidecar. No transport imports (shared gate, n
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 from urllib.parse import urlsplit
 
 from agent.codex_headers import is_official_codex_base_url
@@ -30,7 +30,7 @@ _ELIGIBLE_MODEL_MARKER = "gpt-5.6"
 
 
 def is_native_compaction_model(
-    model: Optional[str], *, provider: Optional[str] = None, base_url: Optional[str] = None,
+    model: str | None, *, provider: str | None = None, base_url: str | None = None,
 ) -> bool:
     """Preserve gpt-5.6 eligibility; Astra (``-900k`` is a picker alias of the same wire slug)
     additionally requires official Codex OAuth."""
@@ -42,8 +42,8 @@ def is_native_compaction_model(
 
 
 def resolve_native_compaction_capabilities(
-    *, model: Optional[str], base_url: Optional[str], provider: Optional[str] = None, is_codex_backend: bool = False,
-) -> Dict[str, bool]:
+    *, model: str | None, base_url: str | None, provider: str | None = None, is_codex_backend: bool = False,
+) -> dict[str, bool]:
     """Resolve the native-compaction capability for a runtime destination (a resolved ``False``
     is distinct from "unresolved" and must survive model switches unchanged)."""
     direct_default = (provider or "").strip().lower() == "openai" and not base_url
@@ -51,7 +51,7 @@ def resolve_native_compaction_capabilities(
         direct_default or is_direct_openai_route(base_url, is_codex_backend=is_codex_backend))}
 
 
-def is_direct_openai_route(base_url: Optional[str], *, is_codex_backend: bool = False) -> bool:
+def is_direct_openai_route(base_url: str | None, *, is_codex_backend: bool = False) -> bool:
     """True for api.openai.com or the ChatGPT Codex backend — nothing else."""
     if is_codex_backend:
         return True
@@ -62,7 +62,7 @@ def is_direct_openai_route(base_url: Optional[str], *, is_codex_backend: bool = 
     return hostname == "api.openai.com"
 
 
-def _positive_int(value: Any, *, reject: tuple = (bool,)) -> Optional[int]:
+def _positive_int(value: Any, *, reject: tuple = (bool,)) -> int | None:
     """``int(value)`` when it is a positive integer-like (never a bool), else None."""
     if value is None or isinstance(value, reject):
         return None
@@ -107,7 +107,7 @@ def _warn_native_compaction_suppressed_by_checkpoint_gate() -> None:
 
 
 def native_compaction_context_management(agent: Any, *, is_codex_backend: bool, is_xai_responses: bool = False,
-                                         is_github_responses: bool = False) -> Optional[List[Dict[str, Any]]]:
+                                         is_github_responses: bool = False) -> list[dict[str, Any]] | None:
     """Return the ``context_management`` payload for this request, or None ("do not send").
 
     Every gate is re-checked per request so a mid-session model switch or the in-session
@@ -169,7 +169,7 @@ def _head_within_budget(text: str, budget: int) -> str:
     return text[:lo]
 
 
-def _extract_item_text(item: Any) -> Optional[str]:
+def _extract_item_text(item: Any) -> str | None:
     """Measurable text from a Responses item (string/multipart/metadata), or None."""
     if not isinstance(item, dict):
         return None
@@ -192,7 +192,7 @@ def _extract_item_text(item: Any) -> Optional[str]:
     return text if text.strip() else None
 
 
-def _input_text_parts_cost(content: Any) -> Optional[int]:
+def _input_text_parts_cost(content: Any) -> int | None:
     """Measure only the adapter-owned text-only shape, including whitespace and empty parts."""
     if not isinstance(content, list) or not content or not all(
         isinstance(part, dict) and part.get("type") == "input_text"
@@ -202,7 +202,7 @@ def _input_text_parts_cost(content: Any) -> Optional[int]:
     return sum(_approx_tokens(part["text"]) for part in content)
 
 
-def _truncate_input_text_parts(content: List[Dict[str, Any]], budget: int) -> List[Dict[str, Any]]:
+def _truncate_input_text_parts(content: list[dict[str, Any]], budget: int) -> list[dict[str, Any]]:
     """Copy the head of validated input_text parts without flattening their metadata."""
     head = []
     for part in content:
@@ -238,11 +238,11 @@ def _is_compaction_item(item: Any) -> bool:
 
 
 def prune_pre_checkpoint_items(
-    items: List[Dict[str, Any]],
+    items: list[dict[str, Any]],
     retained_user_token_budget: int = RETAINED_USER_MESSAGE_TOKEN_BUDGET,
     retained_summary_token_budget: int = RETAINED_SUMMARY_TOKEN_BUDGET,
-    enable_summary_retention: bool = True, item_sources: Optional[List[Any]] = None,
-) -> List[Dict[str, Any]]:
+    enable_summary_retention: bool = True, item_sources: list[Any] | None = None,
+) -> list[dict[str, Any]]:
     """Restructure Responses input around the newest compaction checkpoint.
 
     The server drops every input item preceding a replayed ``compaction`` item, erasing the
@@ -288,14 +288,14 @@ def prune_pre_checkpoint_items(
 
     pre = items[:first_cp]
     has_sources = isinstance(item_sources, list) and len(item_sources) == len(items)
-    pre_sources: List[Any] = item_sources[:first_cp] if has_sources else [None] * len(pre)
+    pre_sources: list[Any] = item_sources[:first_cp] if has_sources else [None] * len(pre)
 
-    retained_reversed: List[Dict[str, Any]] = []
+    retained_reversed: list[dict[str, Any]] = []
     user_remaining = max(0, int(retained_user_token_budget))
     summary_remaining = max(0, int(retained_summary_token_budget))
     seen_summary_texts: set = set()
 
-    def _retain_summary(text: Optional[str], retained_item: Dict[str, Any]) -> None:
+    def _retain_summary(text: str | None, retained_item: dict[str, Any]) -> None:
         """Retain a summary whole when it fits the budget and is not a duplicate (never sliced)."""
         nonlocal summary_remaining
         if not text or summary_remaining <= 0 or text in seen_summary_texts:
@@ -406,7 +406,7 @@ def has_compaction_checkpoint(items: Any) -> bool:
     )
 
 
-def merge_interim_reasoning_items(prior_items: Any, new_items: Any) -> List[Dict[str, Any]]:
+def merge_interim_reasoning_items(prior_items: Any, new_items: Any) -> list[dict[str, Any]]:
     """Merge ``codex_reasoning_items`` across Codex incomplete-continuation dedup.
 
     A checkpoint on the EARLIER response is not re-emitted by the continuation, so a blind

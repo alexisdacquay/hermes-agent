@@ -13,9 +13,8 @@ import sys
 import threading
 import types
 
-import hermes_cli.mcp_startup as mcp_startup
-import hermes_cli.web_server as web_server
-import hermes_cli.web_server_lifecycle as web_server_lifecycle
+from hermes_cli import mcp_startup, web_server, web_server_lifecycle
+
 from tests.hermes_cli.test_dashboard_auth_gate import _stub_uvicorn_run
 
 
@@ -112,7 +111,7 @@ def test_standalone_dashboard_boot_arms_discovery_without_starting_it(monkeypatc
 def test_first_gateway_ws_client_starts_the_armed_discovery_once(monkeypatch):
     import asyncio
 
-    import hermes_cli.web_routers.chat_ws as chat_ws
+    from hermes_cli.web_routers import chat_ws
 
     _reset_discovery_state(monkeypatch)
     calls: list[str] = []

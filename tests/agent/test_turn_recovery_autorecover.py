@@ -4,7 +4,6 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
-
 from agent.error_classifier import classify_api_error
 from agent.turn_api_error import settle_unrecovered_error
 from agent.turn_recovery_autorecover import ladder_wait_seconds
@@ -127,7 +126,7 @@ def test_ladder_is_bounded_and_yields_to_fallback_and_shuns_nonretryable():
 
 
 def test_ladder_schedule_honours_retry_after_and_platform_stop_hint(monkeypatch):
-    import agent.retry_utils as retry_utils
+    from agent import retry_utils
     calls = []
 
     def _recording_backoff(attempt, *, base_delay, max_delay, jitter_ratio):

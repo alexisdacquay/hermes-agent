@@ -13,7 +13,6 @@ there. Two authority boundaries hold:
 from __future__ import annotations
 
 import pytest
-
 from hermes_cli import auth_nous
 
 PROD_INFERENCE = "https://inference-api.nousresearch.com/v1"

@@ -3,7 +3,6 @@
 import asyncio
 
 import pytest
-
 from gateway.config import Platform, PlatformConfig
 from gateway.relay.adapter import RelayAdapter
 from gateway.relay.descriptor import CONTRACT_VERSION, CapabilityDescriptor
@@ -60,7 +59,7 @@ class _CaptureTransport:
         # No concrete fronted identities ⇒ fronts_platform is a no-op here.
         self._identities = []
 
-    def set_inbound_handler(self, h):  # noqa: D401
+    def set_inbound_handler(self, h):
         self._h = h
 
     async def send_outbound(self, action, *, platform=None):
@@ -216,7 +215,7 @@ class _RevokedTransport:
     def __init__(self):
         self.auth_revoked = True
 
-    def set_inbound_handler(self, h):  # noqa: D401
+    def set_inbound_handler(self, h):
         self._h = h
 
 
@@ -229,7 +228,7 @@ class _ChatInfoTransport:
     def __init__(self):
         self.calls = []
 
-    def set_inbound_handler(self, h):  # noqa: D401
+    def set_inbound_handler(self, h):
         self._h = h
 
     async def get_chat_info(self, chat_id):
@@ -259,7 +258,7 @@ class _HangOnIdleTransport:
         self.go_idle_timeouts: list[float] = []
         self.disconnect_calls = 0
 
-    def set_inbound_handler(self, h):  # noqa: D401
+    def set_inbound_handler(self, h):
         self._h = h
 
     async def go_idle(self, timeout_s: float = 10.0):

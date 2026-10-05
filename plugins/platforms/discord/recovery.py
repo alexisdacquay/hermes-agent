@@ -7,9 +7,10 @@ import logging
 import os
 import sqlite3
 import threading
+from collections.abc import Callable
 from contextlib import suppress
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from hermes_constants import get_hermes_home
 
@@ -74,7 +75,7 @@ class DiscordRecoveryStore:
                 channel_id TEXT PRIMARY KEY, last_message_id TEXT NOT NULL, updated_at TEXT NOT NULL
             );
         """)
-        cutoff = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=_RETENTION_DAYS)).isoformat()
+        cutoff = (dt.datetime.now(dt.UTC) - dt.timedelta(days=_RETENTION_DAYS)).isoformat()
         conn.execute("DELETE FROM discord_messages WHERE updated_at < ?", (cutoff,))
         conn.execute("DELETE FROM discord_recovery_scans WHERE COALESCE(completed_at, started_at) < ?", (cutoff,))
         conn.execute("DELETE FROM discord_recovery_cursors WHERE updated_at < ?", (cutoff,))

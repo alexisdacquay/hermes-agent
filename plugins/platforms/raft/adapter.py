@@ -7,8 +7,6 @@ if unset). The bridge owns Raft message cursors/bodies; the agent uses the Raft 
 
 from __future__ import annotations
 
-from collections import deque
-from datetime import datetime, timezone
 import functools
 import hmac
 import json
@@ -24,8 +22,10 @@ import threading
 import time
 import uuid
 import weakref
+from collections import deque
+from datetime import UTC, datetime
 from pathlib import Path as _Path
-from typing import Any, Deque, Dict, List, Optional
+from typing import Any
 
 try:
     from aiohttp import web
@@ -37,9 +37,14 @@ except ImportError:
 sys.path.insert(0, str(_Path(__file__).resolve().parents[3]))
 
 from gateway.config import Platform, PlatformConfig
-from gateway.platforms.base import BasePlatformAdapter, SendResult, merge_pending_message_event
+from gateway.platforms._shared import coerce_port
+from gateway.platforms._shared import profile_scoped as _profile_scoped
+from gateway.platforms.base import (
+    BasePlatformAdapter,
+    SendResult,
+    merge_pending_message_event,
+)
 from gateway.platforms.event import MessageEvent, MessageType
-from gateway.platforms._shared import coerce_port, profile_scoped as _profile_scoped
 
 logger = logging.getLogger(__name__)
 
@@ -63,9 +68,8 @@ _CONTENT_FIELD_NAMES = {"body", "content", "message", "messages", "preview", "sn
 _SAFE_SCALAR_RE = re.compile(r"^[a-zA-Z0-9._:@/ -]+$")
 _MAX_SCALAR_LENGTH = 120
 _ACTIVITY_ALLOWED_FIELDS = set(
-    "schema eventId sessionId hookEventName status occurredAt toolName toolInput toolOutput "
-    "toolInputTruncated toolOutputTruncated truncated errorClass durationMs".split())
-_ACTIVE_ADAPTERS: "weakref.WeakSet[RaftAdapter]" = weakref.WeakSet()
+    ["schema", "eventId", "sessionId", "hookEventName", "status", "occurredAt", "toolName", "toolInput", "toolOutput", "toolInputTruncated", "toolOutputTruncated", "truncated", "errorClass", "durationMs"])
+_ACTIVE_ADAPTERS: weakref.WeakSet[RaftAdapter] = weakref.WeakSet()
 _ACTIVE_ADAPTERS_LOCK = threading.Lock()
 _RAFT_CONTEXT_LOCK = threading.Lock()
 _RAFT_SESSION_IDS: set[str] = set()
@@ -97,12 +101,12 @@ def _has_content_field(value: Any) -> bool:
     return isinstance(value, list) and any(_has_content_field(item) for item in value)
 
 
-def _safe_scalar(value: Any, default: Optional[str] = None) -> Optional[str]:
+def _safe_scalar(value: Any, default: str | None = None) -> str | None:
     ok = isinstance(value, str) and 0 < len(value) <= _MAX_SCALAR_LENGTH and _SAFE_SCALAR_RE.match(value)
     return value if ok else default
 
 
-def _content_string(value: Any) -> Optional[tuple[str, bool]]:
+def _content_string(value: Any) -> tuple[str, bool] | None:
     if value is None:
         return None
     try:
@@ -112,7 +116,7 @@ def _content_string(value: Any) -> Optional[tuple[str, bool]]:
     return (text[:ACTIVITY_CONTENT_CAP], len(text) > ACTIVITY_CONTENT_CAP) if text else None
 
 
-def _duration_ms(value: Any) -> Optional[int]:
+def _duration_ms(value: Any) -> int | None:
     if not isinstance(value, (int, float)) or isinstance(value, bool) or int(value) < 0:
         return None
     return int(value)
@@ -120,11 +124,11 @@ def _duration_ms(value: Any) -> Optional[int]:
 
 def _make_activity_event(*, hook_event_name: str, session_id: Any, status: str = "ok", tool_name: Any = None,
                          tool_input: Any = None, tool_output: Any = None, error_class: Any = None,
-                         duration_ms: Any = None) -> Dict[str, Any]:
-    event: Dict[str, Any] = {"schema": ACTIVITY_EVENT_SCHEMA, "eventId": f"hermes-{uuid.uuid4()}",
+                         duration_ms: Any = None) -> dict[str, Any]:
+    event: dict[str, Any] = {"schema": ACTIVITY_EVENT_SCHEMA, "eventId": f"hermes-{uuid.uuid4()}",
                              "sessionId": _safe_scalar(session_id, "unknown") or "unknown",
                              "hookEventName": hook_event_name, "status": "error" if status == "error" else "ok",
-                             "occurredAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")}
+                             "occurredAt": datetime.now(UTC).isoformat().replace("+00:00", "Z")}
     for key, raw in (("toolName", tool_name), ("errorClass", error_class)):
         if safe := _safe_scalar(raw):
             event[key] = safe
@@ -144,7 +148,7 @@ _OPTIONAL_FIELD_RULES = (  # checked in this order; first failure wins
     (("truncated", "toolInputTruncated", "toolOutputTruncated"), lambda v: isinstance(v, bool), "a boolean"))
 
 
-def _validate_activity_event(value: Any) -> Dict[str, Any]:
+def _validate_activity_event(value: Any) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ValueError("activity event must be an object")
     if value.get("schema") != ACTIVITY_EVENT_SCHEMA:
@@ -178,11 +182,11 @@ class ActivityQueue:
 
     def __init__(self, cap: int = DEFAULT_ACTIVITY_QUEUE_CAP):
         self._cap = max(1, int(cap or DEFAULT_ACTIVITY_QUEUE_CAP))
-        self._events: Deque[Dict[str, Any]] = deque()
+        self._events: deque[dict[str, Any]] = deque()
         self._dropped_since_drain = 0
         self._lock = threading.Lock()
 
-    def push(self, event: Dict[str, Any]) -> None:
+    def push(self, event: dict[str, Any]) -> None:
         validated = _validate_activity_event(event)
         with self._lock:
             self._events.append(validated)
@@ -190,7 +194,7 @@ class ActivityQueue:
                 self._events.popleft()
                 self._dropped_since_drain += 1
 
-    def drain(self, max_events: int = 200) -> Dict[str, Any]:
+    def drain(self, max_events: int = 200) -> dict[str, Any]:
         limit = max(1, int(max_events or 200))
         with self._lock:
             events = [self._events.popleft() for _ in range(min(limit, len(self._events)))]
@@ -228,7 +232,7 @@ def _is_raft_context(**kwargs: Any) -> bool:
                     or (safe_session_id and safe_session_id in _RAFT_SESSION_IDS))
 
 
-def _emit(hook_event_name: str, kwargs: Dict[str, Any], **fields: Any) -> None:
+def _emit(hook_event_name: str, kwargs: dict[str, Any], **fields: Any) -> None:
     """Build an activity event for the hook's session and fan it out to every live adapter."""
     event = _make_activity_event(hook_event_name=hook_event_name, session_id=kwargs.get("session_id"), **fields)
     with _ACTIVE_ADAPTERS_LOCK:
@@ -299,7 +303,7 @@ def _on_session_finalize(**kwargs: Any) -> None:
     _forget_raft_context(kwargs.get("session_id"), kwargs.get("turn_id"), forget_session=True)
 
 
-def _error_response(error: str, status: int) -> "web.Response":
+def _error_response(error: str, status: int) -> web.Response:
     return web.json_response({"ok": False, "error": error}, status=status)
 
 
@@ -317,7 +321,7 @@ class RaftAdapter(BasePlatformAdapter):
         self._runtime_session: str = str(extra.get("runtime_session", DEFAULT_RUNTIME_SESSION) or DEFAULT_RUNTIME_SESSION)
         self._max_body_bytes: int = int(extra.get("max_body_bytes", DEFAULT_MAX_BODY_BYTES))
         self._runner = None
-        self._bridge_process: Optional[subprocess.Popen] = None
+        self._bridge_process: subprocess.Popen | None = None
         self._activity_queue = ActivityQueue()
 
     async def connect(self, *, is_reconnect: bool = False) -> bool:
@@ -373,7 +377,7 @@ class RaftAdapter(BasePlatformAdapter):
             logger.warning("[raft] RAFT_PROFILE not set; bridge not spawned")
             return
         endpoint = f"http://{self._host}:{port}{self._path}"
-        cmd: List[str] = [raft_bin, "--profile", profile, "agent", "bridge", "--wake-adapter", "wake-channel",
+        cmd: list[str] = [raft_bin, "--profile", profile, "agent", "bridge", "--wake-adapter", "wake-channel",
                           "--wake-channel-endpoint", endpoint]
         from tools.environments.local import hermes_subprocess_env
         # The raft CLI needs its own profile and channel token, never Hermes' credentials.
@@ -399,25 +403,25 @@ class RaftAdapter(BasePlatformAdapter):
         except Exception:
             logger.exception("[raft] Error stopping bridge")
 
-    async def send(self, chat_id: str, content: str, reply_to: Optional[str] = None,
-                   metadata: Optional[Dict[str, Any]] = None) -> SendResult:
+    async def send(self, chat_id: str, content: str, reply_to: str | None = None,
+                   metadata: dict[str, Any] | None = None) -> SendResult:
         logger.debug("[raft] adapter send is a no-op; agent delivers via raft CLI")
         return SendResult(success=True)
 
-    async def get_chat_info(self, chat_id: str) -> Dict[str, Any]:
+    async def get_chat_info(self, chat_id: str) -> dict[str, Any]:
         return {"name": f"raft/{chat_id}", "type": "raft"}
 
-    async def _handle_health(self, request: "web.Request") -> "web.Response":
+    async def _handle_health(self, request: web.Request) -> web.Response:
         activity = {"queueSize": self._activity_queue.size, "endpoint": "/activity", "drainEndpoint": "/activity/drain"}
         return web.json_response(
             {"status": "ok", "platform": "raft", "runtimeSession": self._runtime_session, "activity": activity})
 
-    def _authorized(self, request: "web.Request") -> bool:
+    def _authorized(self, request: web.Request) -> bool:
         token = request.headers.get(BRIDGE_TOKEN_HEADER, "")
         # Compare as bytes: compare_digest raises TypeError on a non-ASCII str header.
         return bool(self._bridge_token and token) and hmac.compare_digest(token.encode(), self._bridge_token.encode())
 
-    async def _read_bridge_body(self, request: "web.Request", *, text: bool) -> tuple[Any, Optional["web.Response"]]:
+    async def _read_bridge_body(self, request: web.Request, *, text: bool) -> tuple[Any, web.Response | None]:
         """Auth + size-capped body read for wake/activity -> ``(body, None)`` or ``(None, error)``.
         ``text=True``: ``request.text()``, utf-8 length check, exception text in the 400 body; else raw bytes."""
         if not self._authorized(request):
@@ -436,7 +440,7 @@ class RaftAdapter(BasePlatformAdapter):
             return None, _error_response("payload_too_large", 413)
         return body, None
 
-    async def _handle_wake(self, request: "web.Request") -> "web.Response":
+    async def _handle_wake(self, request: web.Request) -> web.Response:
         raw_body, error = await self._read_bridge_body(request, text=False)
         if error is not None:
             return error
@@ -467,7 +471,7 @@ class RaftAdapter(BasePlatformAdapter):
             return web.json_response(not_ready, status=503)
         return web.json_response({"ok": True, "runtimeSession": self._runtime_session}, status=202)
 
-    async def _handle_activity(self, request: "web.Request") -> "web.Response":
+    async def _handle_activity(self, request: web.Request) -> web.Response:
         raw_text, error = await self._read_bridge_body(request, text=True)
         if error is not None:
             return error
@@ -479,7 +483,7 @@ class RaftAdapter(BasePlatformAdapter):
             return _error_response(str(exc), 400)
         return web.json_response({"ok": True}, status=202)
 
-    async def _handle_activity_drain(self, request: "web.Request") -> "web.Response":
+    async def _handle_activity_drain(self, request: web.Request) -> web.Response:
         if not self._authorized(request):
             return _error_response("unauthorized", 401)
         max_events = coerce_port(request.query.get("max", "200"), 200)  # int-or-default
@@ -500,7 +504,7 @@ class RaftAdapter(BasePlatformAdapter):
             return
         await super().handle_message(event)
 
-    def report_activity(self, event: Dict[str, Any]) -> None:
+    def report_activity(self, event: dict[str, Any]) -> None:
         try:
             self._activity_queue.push(event)
         except Exception:
@@ -512,7 +516,7 @@ def _is_connected(config: PlatformConfig) -> bool:
     return bool(extra.get("enabled") or extra.get("bridge_token"))
 
 
-def _env_enablement() -> Optional[dict]:
+def _env_enablement() -> dict | None:
     """Auto-enable during gateway config load when the scope-aware RAFT_PROFILE is set.
 
     Auto-enables when RAFT_PROFILE is set (the adapter needs it anyway). Scope-aware: consults the active
@@ -526,7 +530,13 @@ def _env_enablement() -> Optional[dict]:
 def interactive_setup() -> None:
     """``hermes gateway setup`` flow: persists ``RAFT_PROFILE`` to the Hermes env file.
     CLI helpers are lazy-imported so the plugin stays importable in gateway runtime and tests."""
-    from hermes_cli.cli_output import print_header, print_info, print_success, print_warning, prompt
+    from hermes_cli.cli_output import (
+        print_header,
+        print_info,
+        print_success,
+        print_warning,
+        prompt,
+    )
     from hermes_cli.config import get_env_value, save_env_value
     from hermes_cli.setup_platforms import declines_reconfigure
     print_header("Raft")

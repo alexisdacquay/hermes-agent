@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 from hermes_cli.subcommands._shared import add_json_flag, add_yes_flag
 

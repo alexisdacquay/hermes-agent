@@ -12,17 +12,22 @@ import secrets
 import sys
 import threading
 import time
-from datetime import datetime, timezone
-from typing import Any, Callable, Dict, Optional
+from collections.abc import Callable
+from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 
 from hermes_cli.web_deps import LateState, late
-from hermes_cli.web_server_oauth import (
-    _external_process_cli_command, _oauth_profile_name, _oauth_sessions, _oauth_sessions_lock, _truncate_token,
-)
 from hermes_cli.web_models import OAuthSubmitBody
 from hermes_cli.web_routers._common import scoped_to_thread
+from hermes_cli.web_server_oauth import (
+    _external_process_cli_command,
+    _oauth_profile_name,
+    _oauth_sessions,
+    _oauth_sessions_lock,
+    _truncate_token,
+)
 
 _log = logging.getLogger("hermes_cli.web_server")
 router = APIRouter()
@@ -86,7 +91,7 @@ def _codex_device_code_start_error(resp: Any) -> str:
     return f"{message} (HTTP {status}: {detail})" if detail else f"{message} (HTTP {status})"
 
 
-def _new_oauth_session(provider_id: str, flow: str, profile: Optional[str] = None) -> tuple[str, Dict[str, Any]]:
+def _new_oauth_session(provider_id: str, flow: str, profile: str | None = None) -> tuple[str, dict[str, Any]]:
     """Create + register a new OAuth session, return (session_id, session_dict)."""
     sid = secrets.token_urlsafe(16)
     sess = {
@@ -123,7 +128,9 @@ def _start_poller(target, sid: str, prefix: str = "oauth-poll") -> None:
 def _track_oauth_setup(flow, session_id: str) -> None:
     """Hand the setup flow to its session; settle it now if the poller already ended."""
     from hermes_cli.observability.shared_metrics_setup import (
-        attach_oauth_setup, finish_provider_setup, settle_oauth_setup,
+        attach_oauth_setup,
+        finish_provider_setup,
+        settle_oauth_setup,
     )
     with _oauth_sessions_lock:
         sess = _oauth_sessions.get(session_id)
@@ -135,9 +142,9 @@ def _track_oauth_setup(flow, session_id: str) -> None:
 
 
 def _device_session_started(
-    provider_id: str, profile: Optional[str], poller, fields: Dict[str, Any],
+    provider_id: str, profile: str | None, poller, fields: dict[str, Any],
     user_code, verification_url, expires_in: int, poll_interval: int,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Register a device-code session carrying ``fields``, start its poller, return the /start body."""
     sid, sess = _new_oauth_session(provider_id, "device_code", profile=profile)
     sess.update(fields)
@@ -168,7 +175,7 @@ async def _httpx_call(fn: Callable[[Any], Any], timeout: float = 15.0, **client_
 # one function — the dashboard needs the user_code before polling completes.
 
 
-def _codex_cancelled(sess: Dict[str, Any], session_id: str, stage: str = "") -> bool:
+def _codex_cancelled(sess: dict[str, Any], session_id: str, stage: str = "") -> bool:
     if not sess.get("cancelled"):
         return False
     _log.info("oauth/device: openai-codex login cancelled%s (session=%s)", stage, session_id)
@@ -207,7 +214,7 @@ def _codex_post(httpx, url: str, **kwargs: Any) -> Any:
             attempt += 1
 
 
-def _codex_request_user_code(httpx) -> Dict[str, Any]:
+def _codex_request_user_code(httpx) -> dict[str, Any]:
     """Step 1: request device code; returns device_data with ``interval`` clamped (>= 3s)."""
     from hermes_cli.auth import CODEX_OAUTH_CLIENT_ID
 
@@ -224,7 +231,7 @@ def _codex_request_user_code(httpx) -> Dict[str, Any]:
     return device_data
 
 
-def _codex_poll_authorization(httpx, sess: Dict[str, Any], session_id: str) -> Any:
+def _codex_poll_authorization(httpx, sess: dict[str, Any], session_id: str) -> Any:
     """Step 2: poll until authorized. ``None`` = expired; ``_CANCELLED`` = user cancelled."""
     from hermes_cli.auth_codex import _is_transient_transport_error
 
@@ -261,7 +268,7 @@ def _codex_poll_authorization(httpx, sess: Dict[str, Any], session_id: str) -> A
     return None
 
 
-def _codex_exchange_tokens(httpx, code_resp: Dict[str, Any]) -> Dict[str, str]:
+def _codex_exchange_tokens(httpx, code_resp: dict[str, Any]) -> dict[str, str]:
     """Step 3: exchange authorization_code for tokens."""
     from hermes_cli.auth import CODEX_OAUTH_CLIENT_ID, CODEX_OAUTH_TOKEN_URL
 
@@ -344,7 +351,7 @@ _OMIT: Any = object()
 
 def _status_card(
     raw: dict, source, source_label, token_preview, expires_at, has_refresh_token, last_refresh=_OMIT
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     card = {
         "logged_in": bool(raw.get("logged_in")), "source": source, "source_label": source_label,
         "token_preview": token_preview, "expires_at": expires_at, "has_refresh_token": has_refresh_token,
@@ -354,9 +361,9 @@ def _status_card(
     return card
 
 
-def _epoch_ms_to_iso(value: Any) -> Optional[str]:
+def _epoch_ms_to_iso(value: Any) -> str | None:
     """Epoch ms (Qwen CLI ``expiry_date``) -> the aware ISO string the other cards send."""
-    return datetime.fromtimestamp(value / 1000, tz=timezone.utc).isoformat() if value else None
+    return datetime.fromtimestamp(value / 1000, tz=UTC).isoformat() if value else None
 
 
 # Hand-written status cards per provider id: (hauth getter name, raw -> card).
@@ -364,7 +371,7 @@ def _epoch_ms_to_iso(value: Any) -> Optional[str]:
 # nous: refresh-free local snapshot so listing providers never performs an OAuth
 # refresh. xai: source_label is a human-readable origin (auth-store path /
 # credential source), not the internal auth_mode string ("oauth_pkce").
-_PROVIDER_STATUS: Dict[str, tuple[str, Callable[[dict], dict]]] = {
+_PROVIDER_STATUS: dict[str, tuple[str, Callable[[dict], dict]]] = {
     "nous": ("get_nous_auth_status_local", lambda r: {**_status_card(
         r, "nous_portal", r.get("portal_base_url") or "Nous Portal",
         _truncate_token(r.get("access_token")), r.get("access_expires_at"), bool(r.get("has_refresh_token")),
@@ -387,7 +394,7 @@ _PROVIDER_STATUS: Dict[str, tuple[str, Callable[[dict], dict]]] = {
 }
 
 
-def _resolve_provider_status(provider_id: str, status_fn) -> Dict[str, Any]:
+def _resolve_provider_status(provider_id: str, status_fn) -> dict[str, Any]:
     """Dispatch to the right status helper for an OAuth provider entry."""
     try:
         if status_fn is not None:
@@ -416,7 +423,7 @@ def _resolve_provider_status(provider_id: str, status_fn) -> Dict[str, Any]:
     return {"logged_in": False}
 
 
-async def _start_nous_device_code(profile: Optional[str]) -> Dict[str, Any]:
+async def _start_nous_device_code(profile: str | None) -> dict[str, Any]:
     """Start a Nous sign-in. Over a free-tier identity (``nous.guest`` on) the whole sign-in is the
     shared ``anon_auth.run_sign_in`` flow: this route creates the generator, pulls its first state
     (the transfer's consent link and code) and hands that to the UI, then the poller drains the rest.
@@ -499,7 +506,7 @@ async def _start_nous_device_code(profile: Optional[str]) -> Dict[str, Any]:
     }
 
 
-async def _start_codex_device_code(profile: Optional[str]) -> Dict[str, Any]:
+async def _start_codex_device_code(profile: str | None) -> dict[str, Any]:
     # The full Codex helper polls inline, so it runs in a worker thread and
     # proxies user_code + verification_url back via the session dict; block
     # briefly until the worker has populated the user_code, OR errored.
@@ -524,11 +531,14 @@ async def _start_codex_device_code(profile: Optional[str]) -> Dict[str, Any]:
     }
 
 
-async def _start_minimax_device_code(profile: Optional[str]) -> Dict[str, Any]:
+async def _start_minimax_device_code(profile: str | None) -> dict[str, Any]:
     # Device-code flow with a PKCE extension: verifier + challenge from
     # _minimax_pkce_pair bind the token exchange to the original session.
     from hermes_cli.auth import (
-        MINIMAX_OAUTH_CLIENT_ID, MINIMAX_OAUTH_GLOBAL_BASE, _minimax_pkce_pair, _minimax_request_user_code,
+        MINIMAX_OAUTH_CLIENT_ID,
+        MINIMAX_OAUTH_GLOBAL_BASE,
+        _minimax_pkce_pair,
+        _minimax_request_user_code,
     )
     verifier, challenge, state = _minimax_pkce_pair()
     portal_base_url = (os.getenv("MINIMAX_PORTAL_BASE_URL") or MINIMAX_OAUTH_GLOBAL_BASE).rstrip("/")
@@ -561,7 +571,7 @@ async def _start_minimax_device_code(profile: Optional[str]) -> Dict[str, Any]:
     )
 
 
-async def _start_xai_device_code(profile: Optional[str]) -> Dict[str, Any]:
+async def _start_xai_device_code(profile: str | None) -> dict[str, Any]:
     from hermes_cli.auth import _xai_oauth_request_device_code
     device_data = await _httpx_call(_xai_oauth_request_device_code, timeout=20.0)
     return _device_session_started(
@@ -582,7 +592,7 @@ _DEVICE_CODE_STARTERS = {
 }
 
 
-async def _start_device_code_flow(provider_id: str, profile: Optional[str] = None) -> Dict[str, Any]:
+async def _start_device_code_flow(provider_id: str, profile: str | None = None) -> dict[str, Any]:
     """Hit the provider's device-auth endpoint, spawn its poller, return the display fields."""
     starter = _DEVICE_CODE_STARTERS.get(provider_id)
     if starter is None:
@@ -609,8 +619,8 @@ def _claude_code_disconnect_command(platform: str) -> str:
 
 
 def _oauth_provider_disconnect_command(
-    provider: Dict[str, Any], platform: Optional[str] = None
-) -> Optional[str]:
+    provider: dict[str, Any], platform: str | None = None
+) -> str | None:
     """Shell command that clears an external provider's credentials, or None.
 
     The disconnect API never silently deletes files another CLI owns; the GUI runs
@@ -625,7 +635,7 @@ def _oauth_provider_disconnect_command(
     return _claude_code_disconnect_command(platform or sys.platform)
 
 
-def _oauth_provider_disconnect_hint(provider: Dict[str, Any], status: Dict[str, Any]) -> Optional[str]:
+def _oauth_provider_disconnect_hint(provider: dict[str, Any], status: dict[str, Any]) -> str | None:
     """Return the manual disconnect path when the API cannot clear this provider."""
     # "anthropic" is flow == "external" (no in-dashboard login) but Hermes still
     # OWNS its credential (the PKCE file ~/.hermes/.anthropic_oauth.json and its
@@ -641,11 +651,11 @@ def _oauth_provider_disconnect_hint(provider: Dict[str, Any], status: Dict[str, 
     return None
 
 
-def _build_oauth_catalog() -> list[Dict[str, Any]]:
+def _build_oauth_catalog() -> list[dict[str, Any]]:
     """Accounts-tab provider list: ``_OAUTH_PROVIDER_CATALOG`` cards first (curated
     order, win on metadata), then every other accounts-tab ``provider_catalog()`` entry
     in ``hermes model`` order, so plugin-added OAuth/external providers appear automatically."""
-    rows: list[Dict[str, Any]] = []
+    rows: list[dict[str, Any]] = []
     seen: set[str] = set()
     for entry in _OAUTH_PROVIDER_CATALOG:
         if entry["id"] not in seen:
@@ -667,7 +677,7 @@ def _build_oauth_catalog() -> list[Dict[str, Any]]:
 
 
 @router.get("/api/providers/oauth")
-async def list_oauth_providers(profile: Optional[str] = None):
+async def list_oauth_providers(profile: str | None = None):
     """Every OAuth-capable provider with current status (token_preview is the last
     N chars, never the full token; disconnect_command only for external providers)."""
     def _run():
@@ -687,7 +697,7 @@ async def list_oauth_providers(profile: Optional[str] = None):
     return await scoped_to_thread(profile, _run)
 
 
-def _reject_if_not_disconnectable(provider: Dict[str, Any], status: Dict[str, Any]) -> None:
+def _reject_if_not_disconnectable(provider: dict[str, Any], status: dict[str, Any]) -> None:
     disconnect_hint = _oauth_provider_disconnect_hint(provider, status)
     if disconnect_hint:
         raise HTTPException(400, f"{provider['name']} cannot be disconnected automatically. {disconnect_hint}")
@@ -723,7 +733,7 @@ def _disconnect_http_error(status_code: int, provider_name: str) -> HTTPExceptio
 
 
 @router.delete("/api/providers/oauth/{provider_id}")
-async def disconnect_oauth_provider(provider_id: str, request: Request, profile: Optional[str] = None):
+async def disconnect_oauth_provider(provider_id: str, request: Request, profile: str | None = None):
     """Disconnect an OAuth provider. Token-protected (matches /env/reveal)."""
     _require_token(request)
 
@@ -749,7 +759,10 @@ async def disconnect_oauth_provider(provider_id: str, request: Request, profile:
             _log.info("oauth/disconnect: %s", provider_id)
             return {"ok": True, "provider": provider_id}
         try:
-            from hermes_cli.auth import clear_provider_auth, invalidate_nous_auth_status_cache
+            from hermes_cli.auth import (
+                clear_provider_auth,
+                invalidate_nous_auth_status_cache,
+            )
             cleared = clear_provider_auth(provider_id)
             if provider_id == "nous":
                 invalidate_nous_auth_status_cache()
@@ -781,7 +794,7 @@ def _gc_oauth_sessions() -> None:
             _oauth_sessions.pop(sid, None)
 
 
-def _validate_oauth_profile(profile: Optional[str]) -> str:
+def _validate_oauth_profile(profile: str | None) -> str:
     """Validate the requested profile (404 via ``_resolve_profile_dir``) and return its name."""
     profile_name = _oauth_profile_name(profile)
     if profile_name:
@@ -790,7 +803,7 @@ def _validate_oauth_profile(profile: Optional[str]) -> str:
 
 
 @router.post("/api/providers/oauth/{provider_id}/start")
-async def start_oauth_login(provider_id: str, request: Request, profile: Optional[str] = None):
+async def start_oauth_login(provider_id: str, request: Request, profile: str | None = None):
     """Initiate an OAuth login flow. Token-protected."""
     _require_token(request)
     _gc_oauth_sessions()
@@ -816,10 +829,13 @@ async def start_oauth_login(provider_id: str, request: Request, profile: Optiona
     return body
 
 
-async def _begin_oauth_setup_metric(provider_id: str, profile: Optional[str]):
+async def _begin_oauth_setup_metric(provider_id: str, profile: str | None):
     """Start the provider-setup metric off the event loop (a cold metrics runtime blocks); None when the
     owning profile does not collect. Never raises: the start route's own validation owns errors."""
-    from hermes_cli.observability.shared_metrics_setup import begin_oauth_setup, collection_enabled
+    from hermes_cli.observability.shared_metrics_setup import (
+        begin_oauth_setup,
+        collection_enabled,
+    )
     try:
         profile_name = _oauth_profile_name(profile)
         home = _resolve_profile_dir(profile_name) if profile_name else None
@@ -833,7 +849,10 @@ async def _begin_oauth_setup_metric(provider_id: str, profile: Optional[str]):
 async def _end_oauth_setup_metric(flow, exc: Exception) -> None:
     if flow is None:
         return
-    from hermes_cli.observability.shared_metrics_setup import finish_provider_setup, setup_failure_class
+    from hermes_cli.observability.shared_metrics_setup import (
+        finish_provider_setup,
+        setup_failure_class,
+    )
     with contextlib.suppress(Exception):
         # A 401/403 from the start route is the provider refusing this account/client.
         refused = isinstance(exc, HTTPException) and exc.status_code in {401, 403}
@@ -843,7 +862,7 @@ async def _end_oauth_setup_metric(flow, exc: Exception) -> None:
 
 @router.post("/api/providers/oauth/{provider_id}/submit")
 async def submit_oauth_code(
-    provider_id: str, body: OAuthSubmitBody, request: Request, profile: Optional[str] = None,
+    provider_id: str, body: OAuthSubmitBody, request: Request, profile: str | None = None,
 ):
     """Submit the auth code for PKCE flows. Token-protected."""
     _require_token(request)
@@ -851,7 +870,7 @@ async def submit_oauth_code(
 
 
 @router.get("/api/providers/oauth/{provider_id}/poll/{session_id}")
-async def poll_oauth_session(provider_id: str, session_id: str, profile: Optional[str] = None):
+async def poll_oauth_session(provider_id: str, session_id: str, profile: str | None = None):
     """Poll a session's status (no auth — read-only state). One endpoint serves
     every device-code flow: all report progress via the worker-updated ``status``."""
     requested_profile = _validate_oauth_profile(profile)
@@ -875,7 +894,7 @@ async def poll_oauth_session(provider_id: str, session_id: str, profile: Optiona
 
 
 @router.delete("/api/providers/oauth/sessions/{session_id}")
-async def cancel_oauth_session(session_id: str, request: Request, profile: Optional[str] = None):
+async def cancel_oauth_session(session_id: str, request: Request, profile: str | None = None):
     """Cancel a pending OAuth session. Token-protected.
 
     Marks the session dict ``cancelled`` before popping it so a background

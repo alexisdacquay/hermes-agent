@@ -8,7 +8,6 @@ import asyncio
 import time
 
 import pytest
-
 from tools import slash_confirm
 
 

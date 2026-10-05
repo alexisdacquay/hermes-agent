@@ -10,11 +10,10 @@ user needs the loading bubble.
 import warnings
 
 import pytest
-
 from gateway.platforms.yuanbao import (
+    WS_HEARTBEAT_RUNNING,
     ForwardedRecordsParseMiddleware,
     InboundContext,
-    WS_HEARTBEAT_RUNNING,
 )
 
 

@@ -10,10 +10,9 @@ from dataclasses import dataclass, field
 from types import SimpleNamespace
 
 import pytest
-
 from plugins.memory.mem0._backend import (
-    PlatformBackend,
     OSSBackend,
+    PlatformBackend,
     SelfHostedBackend,
 )
 
@@ -337,14 +336,14 @@ def _install_fake_mem0(monkeypatch):
         "mem0.utils.factory": types.ModuleType("mem0.utils.factory"),
         "openai": types.ModuleType("openai"),
     }
-    setattr(package_names["mem0"], "Memory", Memory)
-    setattr(package_names["mem0.configs.base"], "MemoryConfig", MemoryConfig)
-    setattr(package_names["mem0.configs.llms.base"], "BaseLlmConfig", BaseLlmConfig)
-    setattr(package_names["mem0.configs.llms.openai"], "OpenAIConfig", OpenAIConfig)
-    setattr(package_names["mem0.llms.base"], "LLMBase", LLMBase)
-    setattr(package_names["mem0.llms.openai"], "OpenAILLM", OpenAILLM)
-    setattr(package_names["mem0.utils.factory"], "LlmFactory", Factory)
-    setattr(package_names["openai"], "OpenAI", FakeOpenAI)
+    package_names["mem0"].Memory = Memory
+    package_names["mem0.configs.base"].MemoryConfig = MemoryConfig
+    package_names["mem0.configs.llms.base"].BaseLlmConfig = BaseLlmConfig
+    package_names["mem0.configs.llms.openai"].OpenAIConfig = OpenAIConfig
+    package_names["mem0.llms.base"].LLMBase = LLMBase
+    package_names["mem0.llms.openai"].OpenAILLM = OpenAILLM
+    package_names["mem0.utils.factory"].LlmFactory = Factory
+    package_names["openai"].OpenAI = FakeOpenAI
     for name, module in package_names.items():
         if name in {"mem0", "mem0.configs", "mem0.configs.llms", "mem0.llms", "mem0.utils"}:
             module.__path__ = []

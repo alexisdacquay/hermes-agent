@@ -3,9 +3,9 @@ import threading
 from types import SimpleNamespace
 
 import pytest
-
 from tui_gateway import server
-from tests.tui_gateway.test_auto_continue import turn_env, marker_home, _session
+
+from tests.tui_gateway.test_auto_continue import _session
 
 
 @pytest.mark.parametrize("suppress", [False, True])

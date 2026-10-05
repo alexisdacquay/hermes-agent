@@ -30,7 +30,6 @@ from urllib.parse import parse_qs, urlsplit
 from xml.etree import ElementTree as ET
 
 import pytest
-
 from scripts.releases import r2
 from scripts.releases.r2 import (
     auth_header,
@@ -47,7 +46,6 @@ from scripts.releases.r2 import (
     rfc3986_encode,
     stale_feed_bundle_keys,
 )
-
 from scripts.releases.r2_scope import R2Scope, channel_public_base
 
 AKID = "AKIDEXAMPLE"
@@ -730,7 +728,6 @@ def test_verify_remote_artifact_streams_without_buffering(r2_server, bounded_rea
     """REAL streaming proof: the hash is computed over socket-sized chunks
     against the live loopback server — the artifact is never materialized
     whole (a 2GiB artifact would OOM the buffered path)."""
-    import base64
     import hashlib
 
     payload = os.urandom(3 * 1024 * 1024 + 7)
@@ -758,7 +755,6 @@ def test_verify_remote_artifact_streams_without_buffering(r2_server, bounded_rea
 
 def test_download_streams_verified_bytes_and_preserves_destination_on_failure(r2_server, tmp_path, monkeypatch, bounded_reads):
     import hashlib
-    import http.client
 
     payload = os.urandom(3 * 1024 * 1024 + 7)
     key = "releases/tag/v1.2.3/package.msix"

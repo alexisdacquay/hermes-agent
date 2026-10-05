@@ -13,8 +13,7 @@ custom socket-options transport is used (default httpx transport).
 from unittest.mock import patch
 
 import httpx
-
-from agent.process_bootstrap import _get_proxy_for_base_url, _get_proxy_from_env
+from agent.process_bootstrap import _get_proxy_from_env
 from run_agent import AIAgent
 
 

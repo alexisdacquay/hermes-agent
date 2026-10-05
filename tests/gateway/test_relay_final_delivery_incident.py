@@ -18,14 +18,11 @@ completions must classify "deliver", not be terminally dropped. Explicit user
 boundaries (/new -> session_reset / user_exit) stay terminal.
 """
 
-import asyncio
 from types import SimpleNamespace
 
 import pytest
-
 from gateway.run import GatewayRunner
 from gateway.stream_consumer import GatewayStreamConsumer, StreamConsumerConfig
-
 
 # ---------------------------------------------------------------------------
 # Defect A: stale preview recorded as delivered final

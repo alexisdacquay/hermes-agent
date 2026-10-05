@@ -4,7 +4,6 @@ store, not a plugin: doctor and the provider migration must not report it as mis
 from pathlib import Path
 
 import pytest
-
 from hermes_cli import doctor, doctor_state
 from hermes_cli import memory_provider_migration as mig
 

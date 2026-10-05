@@ -31,8 +31,8 @@ REPO_ROOT = EVAL_DIR.parent.parent
 sys.path.insert(0, str(EVAL_DIR))
 sys.path.insert(0, str(REPO_ROOT))
 
-from fixtures import build_workspace  # noqa: E402
-from tasks import TASKS, TASKS_BY_ID  # noqa: E402
+from fixtures import build_workspace
+from tasks import TASKS, TASKS_BY_ID
 
 SYSTEM_SUFFIX = (
     "You are working inside the project directory {ws}. All paths in the "
@@ -90,7 +90,7 @@ def run_task(task, model: str, provider: str, timeout_mult: float,
     t0 = time.monotonic()
     try:
         # Import inside the env so profile-aware paths bind to the temp home.
-        from run_agent import AIAgent  # noqa: PLC0415
+        from run_agent import AIAgent
 
         agent = AIAgent(
             model=model,

@@ -1,8 +1,7 @@
 """All YAML write paths use indented block sequences (#31999)."""
 
-import pytest
-
 import hermes_yaml as yaml
+import pytest
 from utils import atomic_roundtrip_yaml_update, atomic_yaml_write
 
 

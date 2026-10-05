@@ -2,7 +2,6 @@
 
 
 import pytest
-
 from hermes_cli.config import (
     validate_config_structure,
 )

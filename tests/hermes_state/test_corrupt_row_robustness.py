@@ -9,7 +9,6 @@ import logging
 import sqlite3
 
 import pytest
-
 from agent.insights import InsightsEngine
 from hermes_cli.session_export import iter_user_prompt_records
 from hermes_cli.session_export_html import generate_multi_session_html_export

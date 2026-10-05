@@ -5,9 +5,8 @@ from collections.abc import Iterator
 
 import pytest
 from fastapi import FastAPI
-from starlette.types import Message, Scope
-
 from hermes_cli import web_server
+from starlette.types import Message, Scope
 
 
 @pytest.fixture

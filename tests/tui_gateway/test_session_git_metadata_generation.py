@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import tui_gateway.server as server
 from hermes_state import SessionDB
+from tui_gateway import server
 
 
 class _ImmediateThread:

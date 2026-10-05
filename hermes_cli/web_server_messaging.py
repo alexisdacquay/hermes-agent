@@ -7,9 +7,11 @@ import os
 import subprocess
 import threading
 from dataclasses import dataclass
-from fastapi import HTTPException
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
+
+from fastapi import HTTPException
+
 from hermes_cli.config import OPTIONAL_ENV_VARS, write_platform_config_field
 from hermes_cli.setup_hidden_env import is_setup_hidden_env as _is_setup_hidden_env
 from hermes_cli.version_info import get_version_info
@@ -362,7 +364,7 @@ def _whatsapp_onboarding_payload(pairing_id: str, record: _WhatsAppOnboardingSes
     return {"pairing_id": pairing_id, **{f: getattr(record, f) for f in _WHATSAPP_PAYLOAD_FIELDS}}
 
 
-def _restart_gateway_after_whatsapp_onboarding(profile: Optional[str] = None) -> dict[str, Any]:
+def _restart_gateway_after_whatsapp_onboarding(profile: str | None = None) -> dict[str, Any]:
     from hermes_cli.web_server_gateway import _restart_gateway_after
     return _restart_gateway_after(profile, what="WhatsApp onboarding", label="WhatsApp onboarding")
 

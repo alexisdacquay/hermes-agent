@@ -9,7 +9,7 @@ the real output directory — "cron output" alone sent operators hunting.
 from __future__ import annotations
 
 import re
-from typing import Any, Optional
+from typing import Any
 
 from hermes_constants import display_hermes_home
 
@@ -19,7 +19,7 @@ def cron_output_dir_display(job_id: str) -> str:
     return f"{display_hermes_home()}/cron/output/{job_id}/"
 
 
-_HTTP_STATUS_IN_TEXT = re.compile(r"(?:\bHTTP\b|\bError code\b|\bstatus(?: code)?\b)\W{0,3}(\b[45]\d\d\b)", re.I)
+_HTTP_STATUS_IN_TEXT = re.compile(r"(?:\bHTTP\b|\bError code\b|\bstatus(?: code)?\b)\W{0,3}(\b[45]\d\d\b)", re.IGNORECASE)
 _LEADING_EXC_TYPE = re.compile(r"^(?:[\w.]+\.)?([A-Z]\w*(?:Error|Timeout|Exception))\s*:")
 
 
@@ -43,7 +43,7 @@ def classify_cron_failure_reason(text: str) -> str:
 
 # What happened, per reason: the one gloss table shared with subagent notices lives in
 # agent/turn_failure_copy.py so the two never drift; the job is the subject here.
-def _provider_failure_cause(reason: str) -> Optional[str]:
+def _provider_failure_cause(reason: str) -> str | None:
     from agent.turn_failure_copy import failure_cause_gloss
 
     return failure_cause_gloss(reason, subject="this job", possessive="the job's")
@@ -87,7 +87,7 @@ _DEFAULT_FAILURE_ACTION = "Run it again with `hermes cron run {job_id}`, or edit
 
 def provider_failure_notice(
     job_name: str, job_id: str, reason: str, *, backup_provider_phrase: str, provider: Any = None,
-) -> Optional[str]:
+) -> str | None:
     """The notice for a provider-shaped ``reason``, or None when the reason is not one.
     ``provider`` is the job's pinned slug (if any) so the auth action names its exact sign-in."""
     cause = _provider_failure_cause(reason)

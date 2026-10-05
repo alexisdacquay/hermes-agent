@@ -5,8 +5,12 @@ import logging
 import time
 
 import pytest
-
-from agent.redact import mask_secret, redact_cdp_url, redact_sensitive_text, RedactingFormatter
+from agent.redact import (
+    RedactingFormatter,
+    mask_secret,
+    redact_cdp_url,
+    redact_sensitive_text,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -1409,7 +1413,7 @@ class TestHermesHomePathClassification:
     ``$HERMES_HOME``, so the literal test alone classified its ``config.yaml`` as ordinary YAML."""
 
     def test_resolved_home_config_is_secret_bearing_but_project_config_is_not(self, tmp_path, monkeypatch):
-        import agent.file_safety as file_safety
+        from agent import file_safety
         from agent.redact import _is_secret_file_arg
 
         home = tmp_path / "hermes"  # no ".hermes" segment

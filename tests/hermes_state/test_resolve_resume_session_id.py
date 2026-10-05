@@ -13,7 +13,6 @@ tests pin that behaviour.
 import time
 
 import pytest
-
 from hermes_state import SessionDB
 
 

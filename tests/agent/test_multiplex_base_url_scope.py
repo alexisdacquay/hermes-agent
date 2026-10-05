@@ -7,7 +7,6 @@ provider endpoints must follow the same rule, or a secondary's key is sent to an
 from __future__ import annotations
 
 import pytest
-
 from agent import secret_scope
 
 
@@ -41,7 +40,7 @@ def test_base_urls_follow_the_scoped_key_not_default_environ(monkeypatch, second
     assert "default.example" not in (base or "")
     assert aux._scoped_key_env("OPENAI_BASE_URL") == ""
     assert auth_nous._nous_inference_env_override() is None
-    monkeypatch.setattr("gateway.run._load_gateway_config", lambda: {})
+    monkeypatch.setattr("gateway.run._load_gateway_config", dict)
     assert GatewayTurnMixin._get_proxy_url(GatewayTurnMixin.__new__(GatewayTurnMixin)) is None
     assert "default.example" not in browserbase.BrowserbaseBrowserProvider()._get_config_or_none()["base_url"]
     assert "default.example" not in firecrawl.FirecrawlBrowserProvider()._api_url()

@@ -11,7 +11,6 @@ from dataclasses import replace
 from types import SimpleNamespace
 
 import pytest
-
 from hermes_cli.local_runtime import hardware
 from hermes_cli.local_runtime.estimator import HardwareBudget
 
@@ -65,7 +64,7 @@ def test_launch_budget_subtracts_other_programs_plus_headroom(monkeypatch):
 def test_launch_budget_reads_free_memory_on_a_vulkan_card(monkeypatch, tmp_path):
     """Behind Vulkan/HIP (no nvidia-smi) the engine's own device probe reports free memory, and each
     launch asks again: the cached capacity probe predates programs that started since."""
-    import hermes_cli.local_runtime.devices as devices
+    from hermes_cli.local_runtime import devices
 
     held_gib = [0.0]
     monkeypatch.setattr(hardware, "_nvidia_vram", lambda: None)
@@ -296,7 +295,8 @@ def test_growth_counts_the_growing_model_as_free(hermes_home, monkeypatch, capac
     mdir, gguf = _stage_27b(hermes_home, monkeypatch)
     monkeypatch.setattr(bootstrap, "get_supervisor", lambda: SimpleNamespace(is_idle=lambda m: True))
     monkeypatch.setattr(growth, "is_managed_endpoint", lambda url: True)
-    from hermes_cli.local_runtime import estimator, gguf as gguf_mod
+    from hermes_cli.local_runtime import estimator
+    from hermes_cli.local_runtime import gguf as gguf_mod
 
     monkeypatch.setattr(gguf_mod, "read_gguf_header", presets.read_gguf_header)
     monkeypatch.setattr(estimator, "profile_from_gguf", presets.profile_from_gguf)
@@ -322,7 +322,8 @@ def test_growth_refuses_a_rung_other_programs_leave_no_room_for(hermes_home, mon
     _mdir, gguf = _stage_27b(hermes_home, monkeypatch)
     monkeypatch.setattr(bootstrap, "get_supervisor", lambda: SimpleNamespace(is_idle=lambda m: True))
     monkeypatch.setattr(growth, "is_managed_endpoint", lambda url: True)
-    from hermes_cli.local_runtime import estimator, gguf as gguf_mod
+    from hermes_cli.local_runtime import estimator
+    from hermes_cli.local_runtime import gguf as gguf_mod
 
     monkeypatch.setattr(gguf_mod, "read_gguf_header", presets.read_gguf_header)
     monkeypatch.setattr(estimator, "profile_from_gguf", presets.profile_from_gguf)

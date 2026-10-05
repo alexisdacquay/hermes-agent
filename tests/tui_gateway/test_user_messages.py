@@ -9,7 +9,6 @@ contention with another hermes process (a dashboard or a slow credential refresh
 from __future__ import annotations
 
 import pytest
-
 from tui_gateway.user_messages import agent_init_failed_message
 
 

@@ -6,8 +6,8 @@ later phases can prove they didn't break loopback mode.
 import asyncio
 import logging
 
-import pytest
 import hermes_cli.web_server_lifecycle as _web_server_lifecycle
+import pytest
 
 # Phase 5 / Phase 6: these tests mutate ``web_server.app.state.auth_required``
 # at module level. Run them in the same xdist worker so they don't race
@@ -15,10 +15,8 @@ import hermes_cli.web_server_lifecycle as _web_server_lifecycle
 # ``app.state``) — the marker name is shared across all dashboard-auth test
 # files that gate the app.
 from fastapi.testclient import TestClient
-from starlette.websockets import WebSocketDisconnect
-
 from hermes_cli import web_server
-
+from starlette.websockets import WebSocketDisconnect
 
 # ---------------------------------------------------------------------------
 # should_require_auth predicate (Task 0.2)
@@ -57,6 +55,7 @@ def _stub_uvicorn_run(monkeypatch):
     that will capture the keyword args.
     """
     import contextlib
+
     import uvicorn
     captured: dict = {"kwargs": {}}
 
@@ -184,6 +183,7 @@ def test_start_server_gate_with_provider_proceeds_and_sets_proxy_headers(monkeyp
     from Fly's TLS terminator is honoured for cookie Secure-flag decisions.
     """
     from hermes_cli.dashboard_auth import clear_providers, register_provider
+
     from tests.hermes_cli.conftest_dashboard_auth import StubAuthProvider
 
     clear_providers()
@@ -209,6 +209,7 @@ def test_start_server_gate_with_provider_proceeds_and_sets_proxy_headers(monkeyp
 def test_start_server_passes_bounded_trusted_proxy_networks(monkeypatch, caplog):
     """A configured proxy network reaches uvicorn without broadening to all peers."""
     from hermes_cli.dashboard_auth import clear_providers, register_provider
+
     from tests.hermes_cli.conftest_dashboard_auth import StubAuthProvider
 
     clear_providers()
@@ -319,6 +320,7 @@ def test_public_url_aware_gate_preserves_local_only_mode(monkeypatch):
 def test_start_server_loopback_public_url_enables_gate(monkeypatch):
     """A declared external URL turns a loopback reverse proxy into gated mode."""
     from hermes_cli.dashboard_auth import clear_providers, register_provider
+
     from tests.hermes_cli.conftest_dashboard_auth import StubAuthProvider
 
     monkeypatch.setenv(
@@ -387,6 +389,7 @@ def test_desktop_ssh_backend_serves_session_token_requests_despite_public_url(mo
     ``auth_required`` plumbing regression that re-engages the cookie gate.
     """
     from hermes_cli.dashboard_auth import clear_providers, register_provider
+
     from tests.hermes_cli.conftest_dashboard_auth import StubAuthProvider
 
     monkeypatch.setenv("HERMES_DASHBOARD_PUBLIC_URL", "https://dashboard.example.test:9443")

@@ -4,11 +4,13 @@ import asyncio
 from types import SimpleNamespace
 
 import pytest
-
 from gateway.config import Platform, PlatformConfig
 from gateway.platforms.base import BasePlatformAdapter, SendResult
 from gateway.platforms.event import MessageEvent
-from gateway.response_filters import INTERNAL_NOTIFICATION_DISPLAY_KIND, display_kind_for_event
+from gateway.response_filters import (
+    INTERNAL_NOTIFICATION_DISPLAY_KIND,
+    display_kind_for_event,
+)
 from gateway.run import GatewayRunner
 from gateway.session import SessionSource, build_session_key
 from hermes_cli.heartbeat import HeartbeatManager
@@ -62,7 +64,6 @@ async def test_idle_wake_coalesces_intervals_while_adapter_owns_turn(poller):
         received.append(event)
         started.set()
         await release.wait()
-        return None
 
     adapter.set_message_handler(handler)
     # A remembered topic must not redirect the watched session or introduce an
@@ -103,7 +104,6 @@ async def test_unavailable_or_busy_session_leaves_persisted_tick_due(poller):
 
     async def handler(event):
         event._heartbeat_execution_started = True  # fake agent execution boundary
-        return None
 
     adapter.set_message_handler(handler)
     for state in (runner._running_agents, adapter._active_sessions, adapter._pending_messages):
@@ -151,7 +151,6 @@ async def test_emergency_stop_holds_due_tick_without_messaging_until_resume(poll
     async def agent_turn(event):
         event._heartbeat_execution_started = True  # fake agent execution boundary
         received.append(event)
-        return None
 
     estop.disengage()
     adapter.set_message_handler(agent_turn)

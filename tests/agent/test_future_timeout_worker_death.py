@@ -18,7 +18,6 @@ import time
 from types import SimpleNamespace
 
 import pytest
-
 from agent.conversation_compression import (
     CompressionCommitFence,
     _await_in_flight_commit,

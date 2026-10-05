@@ -15,7 +15,7 @@ import re
 import time
 import urllib.parse
 from dataclasses import dataclass
-from typing import Optional
+
 from agent.proxy_bypass import is_loopback_host
 from gateway.platforms._shared import profile_scoped as _profile_scoped
 
@@ -64,7 +64,7 @@ class A2ASecurityContext:
     push_secret: str
 
     @classmethod
-    def capture(cls) -> "A2ASecurityContext":
+    def capture(cls) -> A2ASecurityContext:
         bearer_token = _startup_env("A2A_BEARER_TOKEN")
         return cls(bearer_token=bearer_token, peer_tokens=tuple(_parse_peer_tokens(_startup_env("A2A_PEER_TOKENS")).items()),
                    trusted_peers=_configured_trusted_peers(),
@@ -84,7 +84,7 @@ class A2ASecurityContext:
             return "127.0.0.1"
         return self.requested_host
 
-    def authenticate(self, auth_header: Optional[str], client_ip: str = "") -> Optional[str]:
+    def authenticate(self, auth_header: str | None, client_ip: str = "") -> str | None:
         """Peer identity or None (401). Localhost-only: ``ip:<addr>``; per-peer token: that
         peer's name; shared token: ``ip:<addr>``. Constant-time comparisons."""
         if self.localhost_only():
@@ -181,7 +181,7 @@ _BLOCKED_PREFIXES = ("169.254.", "127.", "10.", *(f"172.{i}." for i in range(16,
                      "0.0.0.0", "::1", "fe80:", "fc00:", "fd00:")
 
 
-def is_safe_callback_url(url: str, *, localhost_mode: Optional[bool] = None) -> bool:
+def is_safe_callback_url(url: str, *, localhost_mode: bool | None = None) -> bool:
     """True when a push callback URL is http(s) and not internal/private/loopback."""
     if localhost_mode is None:
         localhost_mode = localhost_only()

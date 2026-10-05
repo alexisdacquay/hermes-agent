@@ -9,7 +9,6 @@ from __future__ import annotations
 import threading
 
 import pytest
-
 from agent import learning_mutations as lm
 from hermes_constants import get_hermes_home
 

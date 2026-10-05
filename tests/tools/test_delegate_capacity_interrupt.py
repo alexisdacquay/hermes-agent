@@ -10,7 +10,6 @@ from concurrent.futures import Future
 from types import SimpleNamespace
 
 import pytest
-
 from agent.interrupt_control import InterruptControlMixin
 from agent.turn_context import _bind_interrupt_scope
 from tools import async_delegation

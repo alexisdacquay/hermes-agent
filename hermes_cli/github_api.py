@@ -20,17 +20,16 @@ import os
 import subprocess
 import time
 import urllib.error
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
 GITHUB_TOKEN_ENV_VARS = ("GITHUB_TOKEN", "GH_TOKEN")
 _GH_CLI_TIMEOUT_SECONDS = 3
-_gh_cli_cache: Optional[str] = None
+_gh_cli_cache: str | None = None
 _gh_cli_probed = False
 
 
-def github_token_from_env(env=os.environ) -> Optional[str]:
+def github_token_from_env(env=os.environ) -> str | None:
     """First non-blank env token, trimmed. A blank value falls through to the next."""
     for name in GITHUB_TOKEN_ENV_VARS:
         value = (env.get(name) or "").strip()
@@ -39,7 +38,7 @@ def github_token_from_env(env=os.environ) -> Optional[str]:
     return None
 
 
-def _gh_cli_token() -> Optional[str]:
+def _gh_cli_token() -> str | None:
     global _gh_cli_cache, _gh_cli_probed
     if _gh_cli_probed:
         return _gh_cli_cache
@@ -58,12 +57,12 @@ def _gh_cli_token() -> Optional[str]:
     return _gh_cli_cache
 
 
-def github_token() -> Optional[str]:
+def github_token() -> str | None:
     """The credential for this request, or None for anonymous."""
     return github_token_from_env() or _gh_cli_token()
 
 
-def describe_github_failure(exc: BaseException, authenticated: bool, now: Optional[float] = None) -> str:
+def describe_github_failure(exc: BaseException, authenticated: bool, now: float | None = None) -> str:
     """One line a user can act on instead of a generic "could not resolve" (#105855).
 
     A 403/429 with ``x-ratelimit-remaining: 0`` is the anonymous per-IP budget spent
@@ -100,7 +99,7 @@ def describe_github_failure(exc: BaseException, authenticated: bool, now: Option
     return f"api.github.com: {exc}"
 
 
-def _header_int(headers, name: str) -> Optional[int]:
+def _header_int(headers, name: str) -> int | None:
     try:
         return int(str(headers.get(name, "")).strip())
     except (TypeError, ValueError):

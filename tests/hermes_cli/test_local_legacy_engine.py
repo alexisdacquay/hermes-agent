@@ -6,9 +6,8 @@ import json
 import os
 import threading
 
-import pytest
-
 import pm
+import pytest
 from pm import paths
 from pm.lock import Facts, Lockfile
 

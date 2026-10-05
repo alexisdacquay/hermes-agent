@@ -10,7 +10,6 @@ silently read/write the wrong profile's directory.
 import sys
 
 import pytest
-
 from hermes_constants import (
     get_hermes_home_override,
     reset_hermes_home_override,

@@ -13,9 +13,12 @@ import os
 import shutil
 import subprocess
 from contextlib import suppress
-from typing import Dict, List
 
-from hermes_cli._subprocess_compat import harden_git_argv, noninteractive_git_env, selected_git_env
+from hermes_cli._subprocess_compat import (
+    harden_git_argv,
+    noninteractive_git_env,
+    selected_git_env,
+)
 
 _GIT_TIMEOUT = 15
 _MAX_UNTRACKED_FILES = 50  # sanity cap so a node_modules explosion can't hang us
@@ -28,7 +31,7 @@ _MODE_ARGS = {
 VALID_MODES = tuple(_MODE_ARGS)
 
 
-def _run(args: List[str], cwd: str, timeout: int = _GIT_TIMEOUT):
+def _run(args: list[str], cwd: str, timeout: int = _GIT_TIMEOUT):
     """Run git, returning (returncode, stdout). Never raises on git failure.
 
     Hardened against a malicious repo's ``.git/config`` (GHSA-7x36-8jrh-v4pw):
@@ -50,14 +53,14 @@ def _run(args: List[str], cwd: str, timeout: int = _GIT_TIMEOUT):
     return proc.returncode, proc.stdout
 
 
-def _untracked_files(cwd: str) -> List[str]:
+def _untracked_files(cwd: str) -> list[str]:
     code, out = _run(["ls-files", "--others", "--exclude-standard"], cwd)
     return [line for line in out.splitlines() if line.strip()] if code == 0 else []
 
 
-def _untracked_diff(cwd: str, files: List[str]) -> str:
+def _untracked_diff(cwd: str, files: list[str]) -> str:
     """Render untracked files as new-file diffs via ``git diff --no-index``."""
-    chunks: List[str] = []
+    chunks: list[str] = []
     for rel in files[:_MAX_UNTRACKED_FILES]:
         with suppress(subprocess.TimeoutExpired, OSError):
             # --no-index exits 1 when the files differ — that's the success
@@ -73,7 +76,7 @@ def _untracked_diff(cwd: str, files: List[str]) -> str:
 
 
 def collect_working_diff(cwd: str, mode: str = "working",
-                         paths: List[str] | None = None) -> Dict:
+                         paths: list[str] | None = None) -> dict:
     """Collect a git diff of the working directory.
 
     Returns ``{"success", "stat", "diff", "untracked", "empty"}`` on success or

@@ -8,12 +8,10 @@ otherwise ``hermes config set display.language pl`` would refuse the very pack t
 
 from __future__ import annotations
 
-from typing import Optional
-
 DISPLAY_LANGUAGE_KEY = "display.language"
 
 
-def resolve_display_language(value: str) -> Optional[str]:
+def resolve_display_language(value: str) -> str | None:
     """Canonical id for *value* (alias/region-tolerant) or ``None`` when no layer supplies it."""
     from agent.i18n import reset_language_cache, resolve_language_id
     try:
@@ -25,7 +23,7 @@ def resolve_display_language(value: str) -> Optional[str]:
     return resolve_language_id(value)
 
 
-def display_language_error(value: str) -> Optional[str]:
+def display_language_error(value: str) -> str | None:
     """User-facing refusal for an unsupported ``display.language`` value, ``None`` when acceptable.
     Auto-detect (empty) is always accepted."""
     if not str(value).strip():

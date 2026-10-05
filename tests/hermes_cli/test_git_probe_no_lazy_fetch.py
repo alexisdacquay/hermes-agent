@@ -11,7 +11,6 @@ import subprocess
 from pathlib import Path
 
 import pytest
-
 from hermes_cli import source_check
 from hermes_cli._subprocess_compat import bounded_git_probe
 

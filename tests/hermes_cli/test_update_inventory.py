@@ -3,9 +3,9 @@
 import json
 from pathlib import Path
 
+import hermes_cli.update_inventory as ui
 import pytest
 
-import hermes_cli.update_inventory as ui
 
 def _write_state(home: Path, pid: int, sha: str | None = None, version: str | None = None,
                  gateway_state: str = "running"):

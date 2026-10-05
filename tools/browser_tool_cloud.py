@@ -5,17 +5,18 @@ Split out of ``tools/browser_tool.py``. Facade-owned state is read through ``_bt
 from __future__ import annotations
 
 import os
-from typing import Callable, Optional
+from collections.abc import Callable
 
 from agent.browser_provider import BrowserProvider as CloudBrowserProvider
 from agent.browser_registry import get_provider as _registry_get_browser_provider
 from hermes_constants import get_hermes_home_override, hermes_home_key
 from plugins.browser.browser_use.provider import BrowserUseBrowserProvider
 from plugins.browser.browserbase.provider import BrowserbaseBrowserProvider
-from tools.tool_backend_helpers import normalize_browser_cloud_provider
 from utils import is_truthy_value
-from tools.browser_tool_origin import origin_module as _origin
+
 from tools import browser_tool_cdp as _cdp
+from tools.browser_tool_origin import origin_module as _origin
+from tools.tool_backend_helpers import normalize_browser_cloud_provider
 
 
 def _memo(_bt, resolved_attr: str, cache_attr: str, compute: Callable[[], object]):
@@ -42,7 +43,7 @@ def _ensure_browser_plugins_loaded() -> None:
         _origin().logger.debug("Browser plugin discovery failed (non-fatal): %s", exc)
 
 
-def _get_cloud_provider() -> Optional[CloudBrowserProvider]:
+def _get_cloud_provider() -> CloudBrowserProvider | None:
     """Return the provider cached for the active Hermes profile."""
     _bt = _origin()
     scope = hermes_home_key()
@@ -73,7 +74,7 @@ def _get_cloud_provider() -> Optional[CloudBrowserProvider]:
             return resolved
 
 
-def _instantiate_explicit_cloud_provider(provider_key: str) -> Optional[CloudBrowserProvider]:
+def _instantiate_explicit_cloud_provider(provider_key: str) -> CloudBrowserProvider | None:
     """Build the provider named by ``browser.cloud_provider``.
 
     Strict: an unregistered name raises ``ValueError`` (never a silent reroute to auto-detect); any
@@ -97,7 +98,7 @@ def _instantiate_explicit_cloud_provider(provider_key: str) -> Optional[CloudBro
         return None
 
 
-def _autodetect_cloud_provider() -> Optional[CloudBrowserProvider]:
+def _autodetect_cloud_provider() -> CloudBrowserProvider | None:
     """Auto-detect: Browser Use, then Browserbase; never raises.
 
     Third-party plugins are only reachable via explicit ``browser.cloud_provider: <name>``.
@@ -113,7 +114,7 @@ def _autodetect_cloud_provider() -> Optional[CloudBrowserProvider]:
     return None
 
 
-def _resolve_cloud_provider_uncached() -> Optional[CloudBrowserProvider]:
+def _resolve_cloud_provider_uncached() -> CloudBrowserProvider | None:
     """Return the configured cloud browser provider, or None for local mode.
 
     Pins the cache only when definitive (explicit ``local``/``camofox`` or a resolved provider); a transient None
@@ -121,7 +122,7 @@ def _resolve_cloud_provider_uncached() -> Optional[CloudBrowserProvider]:
     selection was ever written.
     """
     _bt = _origin()
-    resolved: Optional[CloudBrowserProvider] = None
+    resolved: CloudBrowserProvider | None = None
     provider_key = None
     try:
         from hermes_cli.config import read_raw_config

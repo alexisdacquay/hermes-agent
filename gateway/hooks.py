@@ -13,14 +13,13 @@ import asyncio
 import importlib.util
 import sys
 import threading
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 import hermes_yaml as yaml
-
 from hermes_cli.config import get_hermes_home
 from hermes_constants import hermes_home_key
-
 
 HOOKS_DIR = get_hermes_home() / "hooks"
 _HOOKS_DIR_AT_IMPORT = HOOKS_DIR
@@ -40,7 +39,7 @@ def _skip(name: str, reason: str) -> None:
     print(f"[hooks] Skipping {name}: {reason}", flush=True)
 
 
-def _load_hook_dir(hook_dir: Path) -> Optional[tuple]:
+def _load_hook_dir(hook_dir: Path) -> tuple | None:
     """``(name, events, handle_fn, description)`` for a valid hook dir, else None (reason printed)."""
     manifest_path, handler_path = hook_dir / "HOOK.yaml", hook_dir / "handler.py"
     if not manifest_path.exists() or not handler_path.exists():
@@ -76,11 +75,11 @@ class HookRegistry:
     """Discovers, loads, and fires event hooks."""
 
     def __init__(self):
-        self._handlers: Dict[str, List[Callable]] = {}  # event_type -> handlers
-        self._loaded_hooks: List[dict] = []  # metadata for listing
+        self._handlers: dict[str, list[Callable]] = {}  # event_type -> handlers
+        self._loaded_hooks: list[dict] = []  # metadata for listing
 
     @property
-    def loaded_hooks(self) -> List[dict]:
+    def loaded_hooks(self) -> list[dict]:
         return list(self._loaded_hooks)
 
     def _register_builtin_hooks(self) -> None:
@@ -110,7 +109,7 @@ class HookRegistry:
             )
             print(f"[hooks] Loaded hook '{hook_name}' for events: {events}", flush=True)
 
-    def _resolve_handlers(self, event_type: str) -> List[Callable]:
+    def _resolve_handlers(self, event_type: str) -> list[Callable]:
         """Exact-match handlers first, then ``<base>:*`` wildcards.  A bare base type
         ("agent") does NOT fire for "agent:start" — only exact matches and explicit wildcards."""
         handlers = list(self._handlers.get(event_type, []))
@@ -118,16 +117,16 @@ class HookRegistry:
             handlers.extend(self._handlers.get(f"{event_type.split(':')[0]}:*", []))
         return handlers
 
-    async def emit(self, event_type: str, context: Optional[Dict[str, Any]] = None) -> None:
+    async def emit(self, event_type: str, context: dict[str, Any] | None = None) -> None:
         """Fire all handlers for an event, discarding return values."""
         await self.emit_collect(event_type, context)
 
-    async def emit_collect(self, event_type: str, context: Optional[Dict[str, Any]] = None) -> List[Any]:
+    async def emit_collect(self, event_type: str, context: dict[str, Any] | None = None) -> list[Any]:
         """Fire handlers and return their non-None return values in order (decision-style
         hooks, e.g. ``command:<name>`` policies).  A failing handler is logged, not fatal."""
         if context is None:
             context = {}
-        results: List[Any] = []
+        results: list[Any] = []
         for fn in self._resolve_handlers(event_type):
             try:
                 result = fn(event_type, context)
@@ -151,7 +150,7 @@ class ProfileHookRegistries:
     """
 
     def __init__(self):
-        self._by_home: Dict[str, HookRegistry] = {}
+        self._by_home: dict[str, HookRegistry] = {}
         self._lock = threading.Lock()
 
     def _active(self) -> HookRegistry:
@@ -167,15 +166,15 @@ class ProfileHookRegistries:
         return registry
 
     @property
-    def loaded_hooks(self) -> List[dict]:
+    def loaded_hooks(self) -> list[dict]:
         return self._active().loaded_hooks
 
     def discover_and_load(self) -> None:
         """Load the active home's hooks now (startup, or a secondary profile's scoped startup)."""
         self._active()
 
-    async def emit(self, event_type: str, context: Optional[Dict[str, Any]] = None) -> None:
+    async def emit(self, event_type: str, context: dict[str, Any] | None = None) -> None:
         await self._active().emit(event_type, context)
 
-    async def emit_collect(self, event_type: str, context: Optional[Dict[str, Any]] = None) -> List[Any]:
+    async def emit_collect(self, event_type: str, context: dict[str, Any] | None = None) -> list[Any]:
         return await self._active().emit_collect(event_type, context)

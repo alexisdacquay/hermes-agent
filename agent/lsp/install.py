@@ -15,8 +15,9 @@ import os
 import shutil
 import subprocess
 import threading
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional
+from typing import Any
 
 from hermes_cli._subprocess_compat import windows_hide_flags
 from hermes_constants import find_node_executable, with_hermes_node_path
@@ -24,15 +25,15 @@ from hermes_constants import find_node_executable, with_hermes_node_path
 logger = logging.getLogger("agent.lsp.install")
 
 
-def _recipe(strategy: str, pkg: str, bin_name: str, **extra: Any) -> Dict[str, Any]:
+def _recipe(strategy: str, pkg: str, bin_name: str, **extra: Any) -> dict[str, Any]:
     return {"strategy": strategy, "pkg": pkg, "bin": bin_name, **extra}
 
 
-def _npm(pkg: str, bin_name: str, **extra: Any) -> Dict[str, Any]:
+def _npm(pkg: str, bin_name: str, **extra: Any) -> dict[str, Any]:
     return _recipe("npm", pkg, bin_name, **extra)
 
 
-def _manual(bin_name: str) -> Dict[str, Any]:
+def _manual(bin_name: str) -> dict[str, Any]:
     return _recipe("manual", "", bin_name)
 
 
@@ -43,7 +44,7 @@ TYPESCRIPT_SDK_PKG = "typescript@6"
 # Recipe key → {strategy, pkg, bin[, extra_pkgs]}.  After install we look for
 # ``bin`` in ``<HERMES_HOME>/lsp/bin/`` first, then on PATH.  ``extra_pkgs``
 # are sibling npm packages a server needs in the same node_modules tree.
-INSTALL_RECIPES: Dict[str, Dict[str, Any]] = {
+INSTALL_RECIPES: dict[str, dict[str, Any]] = {
     "pyright": _npm("pyright", "pyright-langserver"),
     # tsserver must be importable from the same node_modules tree or
     # initialize() fails with "Could not find a valid TypeScript installation".
@@ -72,8 +73,8 @@ INSTALL_RECIPES: Dict[str, Dict[str, Any]] = {
     "powershell": _manual("pwsh"),
 }
 
-_install_locks: Dict[str, threading.Lock] = {}
-_install_results: Dict[str, Optional[str]] = {}
+_install_locks: dict[str, threading.Lock] = {}
+_install_results: dict[str, str | None] = {}
 _install_lock_meta = threading.Lock()
 _WINDOWS_WRAPPER_SUFFIXES = (".cmd", ".exe", ".bat")
 
@@ -91,7 +92,7 @@ def hermes_lsp_bin_dir() -> Path:
     return p
 
 
-def _native_binary_candidates(base: Path, *, is_windows: Optional[bool] = None) -> list[Path]:
+def _native_binary_candidates(base: Path, *, is_windows: bool | None = None) -> list[Path]:
     """Return platform-native executable candidates for a staged binary, most runnable first.
 
     On Windows the ``.cmd``/``.exe``/``.bat`` wrappers come BEFORE the bare name: npm writes a
@@ -101,13 +102,13 @@ def _native_binary_candidates(base: Path, *, is_windows: Optional[bool] = None) 
     """
     if not (_is_windows() if is_windows is None else is_windows):
         return [base]
-    cands: Dict[str, Path] = {}
+    cands: dict[str, Path] = {}
     for c in (*(Path(str(base) + s) for s in _WINDOWS_WRAPPER_SUFFIXES), base):
         cands.setdefault(str(c).lower(), c)
     return list(cands.values())
 
 
-def _first_existing(*bases: Path, is_windows: Optional[bool] = None) -> Optional[Path]:
+def _first_existing(*bases: Path, is_windows: bool | None = None) -> Path | None:
     """First platform-native candidate of any ``base`` that exists on disk."""
     return next((c for base in bases for c in _native_binary_candidates(base, is_windows=is_windows) if c.exists()), None)
 
@@ -117,7 +118,7 @@ def _npm_bin_dir() -> Path:
     return hermes_lsp_bin_dir().parent / "node_modules" / ".bin"
 
 
-def _existing_binary(name: str, *, is_windows: Optional[bool] = None) -> Optional[str]:
+def _existing_binary(name: str, *, is_windows: bool | None = None) -> str | None:
     """Probe the staging dir (+ npm's bin dir on Windows) then PATH for a binary named ``name``.
 
     ``is_windows`` overrides the host check so the Windows resolution is testable as data on every lane.
@@ -141,7 +142,7 @@ def _existing_binary(name: str, *, is_windows: Optional[bool] = None) -> Optiona
     return next((p for s in suffixes if (p := shutil.which(f"{name}{s}"))), None)
 
 
-def try_install(pkg: str, strategy: str = "auto") -> Optional[str]:
+def try_install(pkg: str, strategy: str = "auto") -> str | None:
     """Try to install ``pkg``; return the binary path or ``None``.
 
     Only ``"auto"`` installs; ``"manual"``/``"off"`` just probe for an existing
@@ -159,7 +160,7 @@ def try_install(pkg: str, strategy: str = "auto") -> Optional[str]:
         return _install_results[pkg]
 
 
-def _do_install(pkg: str) -> Optional[str]:
+def _do_install(pkg: str) -> str | None:
     recipe = INSTALL_RECIPES.get(pkg)
     if recipe is None:
         return shutil.which(pkg)  # not in our registry — best-effort: just probe PATH
@@ -177,7 +178,7 @@ def _do_install(pkg: str) -> Optional[str]:
     return installer(recipe, bin_name)
 
 
-def _run_installer(tool: str, pkg: str, cmd: list, *, timeout: int, env: Optional[dict] = None) -> bool:
+def _run_installer(tool: str, pkg: str, cmd: list, *, timeout: int, env: dict | None = None) -> bool:
     """Run one install subprocess; log and return False on non-zero exit or error."""
     try:
         proc = subprocess.run(
@@ -212,7 +213,7 @@ def _link_into_bin(target: Path) -> str:
 
 # Node package manager → argv that installs into ``<staging>/node_modules`` (``lsp.package_manager``).
 # Every manager keeps the staging-dir semantics: nothing touches the user's project or global tree.
-_NODE_PM_ARGV: Dict[str, Callable[[str], list]] = {
+_NODE_PM_ARGV: dict[str, Callable[[str], list]] = {
     "npm": lambda staging: ["install", "--prefix", staging, "--silent", "--no-fund", "--no-audit"],
     "pnpm": lambda staging: ["add", "--dir", staging],
     # Global ``--cwd`` (before the command) is accepted by both Yarn Classic and Yarn Berry; Berry's
@@ -221,7 +222,7 @@ _NODE_PM_ARGV: Dict[str, Callable[[str], list]] = {
 }
 
 
-def _node_package_manager() -> Optional[str]:
+def _node_package_manager() -> str | None:
     """``lsp.package_manager`` from config (npm default); an unknown value fails closed (``None``)."""
     try:
         from hermes_cli.config import load_config_readonly
@@ -236,7 +237,7 @@ def _node_package_manager() -> Optional[str]:
     return pm
 
 
-def _install_npm(pkg: str, bin_name: str, extra_pkgs: Optional[list] = None) -> Optional[str]:
+def _install_npm(pkg: str, bin_name: str, extra_pkgs: list | None = None) -> str | None:
     """Install with the configured Node package manager into ``<staging>`` and link
     ``node_modules/.bin/<bin_name>`` into ``lsp/bin/``."""
     pm = _node_package_manager()
@@ -275,7 +276,7 @@ def _install_npm(pkg: str, bin_name: str, extra_pkgs: Optional[list] = None) -> 
     return None
 
 
-def _install_go(pkg: str, bin_name: str) -> Optional[str]:
+def _install_go(pkg: str, bin_name: str) -> str | None:
     """Install a Go module to GOBIN=<staging>."""
     go = shutil.which("go")
     if go is None:
@@ -294,7 +295,7 @@ def _install_go(pkg: str, bin_name: str) -> Optional[str]:
     return None
 
 
-def _install_pip(pkg: str, bin_name: str) -> Optional[str]:
+def _install_pip(pkg: str, bin_name: str) -> str | None:
     """Provision a Python server in its own PM-managed environment."""
     try:
         import pm
@@ -306,7 +307,7 @@ def _install_pip(pkg: str, bin_name: str) -> Optional[str]:
 
 
 # strategy → installer(recipe, bin_name).  ``manual`` is handled before dispatch.
-_INSTALLERS: Dict[str, Callable[[Dict[str, Any], str], Optional[str]]] = {
+_INSTALLERS: dict[str, Callable[[dict[str, Any], str], str | None]] = {
     "npm": lambda r, b: _install_npm(r["pkg"], b, extra_pkgs=r.get("extra_pkgs") or []),
     "go": lambda r, b: _install_go(r["pkg"], b),
     "pip": lambda r, b: _install_pip(r["pkg"], b),
@@ -321,4 +322,4 @@ def detect_status(pkg: str) -> str:
     return "manual-only" if recipe and recipe.get("strategy") == "manual" else "missing"
 
 
-__all__ = ["INSTALL_RECIPES", "try_install", "detect_status", "hermes_lsp_bin_dir"]
+__all__ = ["INSTALL_RECIPES", "detect_status", "hermes_lsp_bin_dir", "try_install"]

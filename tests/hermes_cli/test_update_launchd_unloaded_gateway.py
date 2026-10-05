@@ -21,7 +21,6 @@ from __future__ import annotations
 import subprocess
 
 import pytest
-
 from hermes_cli import update_cmd
 
 

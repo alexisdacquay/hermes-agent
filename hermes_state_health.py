@@ -25,7 +25,6 @@ import logging
 import sqlite3
 import threading
 from pathlib import Path
-from typing import Dict, Optional
 
 from hermes_state_errors import (
     classify_persistence_error,
@@ -39,7 +38,7 @@ STORAGE_OK = "ok"
 STORAGE_CORRUPT = "corrupt"
 
 _lock = threading.Lock()
-_corrupt: Dict[str, str] = {}  # resolved db path -> first error text (log only, never served)
+_corrupt: dict[str, str] = {}  # resolved db path -> first error text (log only, never served)
 
 
 def _key(db_path) -> str:
@@ -86,7 +85,7 @@ def storage_state(db_path) -> str:
         return STORAGE_CORRUPT if _key(db_path) in _corrupt else STORAGE_OK
 
 
-def storage_corrupt_reason(db_path) -> Optional[str]:
+def storage_corrupt_reason(db_path) -> str | None:
     """The first error text latched for *db_path* (logs/diagnostics only), or None."""
     with _lock:
         return _corrupt.get(_key(db_path))

@@ -7,7 +7,6 @@ inlines the real URL right after its anchor for both ``text`` and ``caption``.
 """
 
 import pytest
-
 from plugins.platforms.telegram.telegram_entities import expand_link_entities
 
 

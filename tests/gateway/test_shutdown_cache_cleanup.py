@@ -14,11 +14,9 @@ import threading
 from collections import OrderedDict
 from unittest.mock import MagicMock
 
-import pytest
-
 # Import the module (not the class) to reach stop() and helpers
 import gateway.run as gw_mod
-
+import pytest
 
 # ---------------------------------------------------------------------------
 # Helpers

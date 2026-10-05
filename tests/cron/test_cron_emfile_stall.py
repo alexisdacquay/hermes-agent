@@ -25,9 +25,8 @@ import threading
 import time
 from unittest.mock import patch
 
-import pytest
-
 import cron.scheduler as scheduler_mod
+import pytest
 
 try:
     import fcntl

@@ -43,13 +43,13 @@ import argparse
 import json
 import os
 import re
+import shutil
 import socket
 import subprocess
 import sys
 import tempfile
 import threading
 import time
-import shutil
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -163,7 +163,7 @@ class ScratchDashboard:
                 self.actual_port = int(m.group(1))
                 self._ready.set()
 
-    def __enter__(self) -> "ScratchDashboard":
+    def __enter__(self) -> ScratchDashboard:
         venv_py = REPO_ROOT / "venv" / "bin" / "python"
         python = str(venv_py) if venv_py.exists() else sys.executable
         env = dict(os.environ)

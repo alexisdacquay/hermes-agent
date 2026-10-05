@@ -31,15 +31,17 @@ installers and boot paths read it before the full config machinery loads.
 
 from __future__ import annotations
 
-from pm.environments import install_key, installs_root
-from hermes_cli.release_channels import validate_name
-from contextlib import contextmanager
 import logging
 import os
 import re
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
+
+from pm.environments import install_key, installs_root
 from pm.paths import install_root
+
+from hermes_cli.release_channels import validate_name
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +99,7 @@ def canary_tag_for_date(version: str, date_utc: str) -> str:
 
 
 
-def install_id(project_root: Optional[Path] = None) -> str:
+def install_id(project_root: Path | None = None) -> str:
     """The sha16 id of the install at ``project_root`` (default: this one).
 
     Same identity as the ``installs/<sha16>/`` state folder key.
@@ -114,7 +116,7 @@ def _read_stamp(root: Path) -> dict:
     return read_install_stamp(root)
 
 
-def _install_records(config: Optional[dict]) -> dict:
+def _install_records(config: dict | None) -> dict:
     if not isinstance(config, dict):
         return {}
     update_cfg = config.get("update")
@@ -124,7 +126,7 @@ def _install_records(config: Optional[dict]) -> dict:
     return installs if isinstance(installs, dict) else {}
 
 
-def channel_record(config: Optional[dict], project_root: Optional[Path] = None) -> dict:
+def channel_record(config: dict | None, project_root: Path | None = None) -> dict:
     """This install's ``{path, channel}`` record from config, or ``{}``."""
     record = _install_records(config).get(install_id(project_root))
     return record if isinstance(record, dict) else {}
@@ -136,7 +138,7 @@ def _package_channel(stamp: dict) -> bool:
     )
 
 
-def default_channel(project_root: Optional[Path] = None) -> str:
+def default_channel(project_root: Path | None = None) -> str:
     """The channel an unconfigured install tracks.
 
     ``self`` source installs follow main (historical behavior).
@@ -163,8 +165,8 @@ def default_channel(project_root: Optional[Path] = None) -> str:
 
 
 def resolve_update_channel(
-    config: Optional[dict] = None,
-    project_root: Optional[Path] = None,
+    config: dict | None = None,
+    project_root: Path | None = None,
 ) -> str:
     """Source records select releases or main; package tags fix bundle identity."""
     root = Path(project_root) if project_root is not None else install_root()
@@ -178,7 +180,7 @@ def resolve_update_channel(
 
 def set_install_channel(
     channel: str,
-    project_root: Optional[Path] = None,
+    project_root: Path | None = None,
 ) -> str:
     """Persist ``channel`` for THIS install in config.yaml. Returns the id.
 
@@ -304,7 +306,7 @@ def _write_channel_record_locked(sha16: str, path: str, channel: str,
     return True
 
 
-def stale_channel_records(config: Optional[dict]) -> list[tuple[str, dict, str]]:
+def stale_channel_records(config: dict | None) -> list[tuple[str, dict, str]]:
     """Doctor's staleness triad over ``update.installs``.
 
     Returns ``(sha16, record, reason)`` where reason is one of:

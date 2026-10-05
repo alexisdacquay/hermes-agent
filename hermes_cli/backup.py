@@ -12,24 +12,24 @@ import threading
 import time
 import zipfile
 import zlib
+from collections.abc import Callable
 from contextlib import contextmanager, suppress
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any
 
+from agent.provider_media import GENERATED_SUBDIR
 from hermes_constants import (
-    LOCAL_RUNTIME_ROOT_DIRS, _get_platform_default_hermes_home, get_default_hermes_root, get_hermes_home,
+    LOCAL_RUNTIME_ROOT_DIRS,
+    _get_platform_default_hermes_home,
     display_hermes_home,
+    get_default_hermes_root,
+    get_hermes_home,
 )
 from hermes_state_dbfile import RETIRED_GENERATION_DIR_SUFFIX
 from hermes_state_holders import read_only_db_uri
 
-from agent.provider_media import GENERATED_SUBDIR
 from hermes_cli.archive_safe import normalize_archive_parts
-from hermes_cli.backup_sqlite import _close_quietly, _safe_copy_db
-from hermes_cli.home_data_layout import PM_RUNTIME_ROOT_DIRS, profile_root_entry
-from hermes_cli.sizefmt import format_bytes as _format_size
-
 from hermes_cli.backup_restore import (
     _count_session_rows,
     _default_new_file_mode,
@@ -40,11 +40,14 @@ from hermes_cli.backup_restore import (
     _safe_restore_db,
     _validate_backup_zip,
 )
+from hermes_cli.backup_sqlite import _close_quietly, _safe_copy_db
+from hermes_cli.home_data_layout import PM_RUNTIME_ROOT_DIRS, profile_root_entry
+from hermes_cli.sizefmt import format_bytes as _format_size
 
 logger = logging.getLogger(__name__)
 
 
-def _foreign_db_holder_pids(db_path: Path) -> Optional[List[int]]:
+def _foreign_db_holder_pids(db_path: Path) -> list[int] | None:
     # Shim to stop the old updater doing work until relaunch. None means unknown,
     # not permission to restore over a database whose holders we did not scan.
     return None
@@ -217,7 +220,7 @@ def _backup_operation_lock(hermes_home: Path, timeout_seconds: float = 0.25):
 
 
 @contextmanager
-def _atomic_output_path(final_path: Path, publish_path: Optional[Callable[[], Optional[Path]]] = None):
+def _atomic_output_path(final_path: Path, publish_path: Callable[[], Path | None] | None = None):
     """Yield a hidden sibling path and publish it only after a clean close.
 
     ``publish_path`` picks the destination at publish time (default ``final_path``) so a caller
@@ -238,7 +241,7 @@ def _atomic_output_path(final_path: Path, publish_path: Optional[Callable[[], Op
         raise
 
 
-def _collect_memory_provider_external_paths() -> List[Path]:
+def _collect_memory_provider_external_paths() -> list[Path]:
     """Existing paths the active memory provider declares via ``backup_paths()``; ``[]`` on any
     provider failure (backup must never fail because of a flaky plugin)."""
     try:
@@ -254,7 +257,7 @@ def _collect_memory_provider_external_paths() -> List[Path]:
     except Exception as exc:
         logger.warning("backup_paths() failed for memory provider %r: %s", active, exc)
         return []
-    out: Dict[Path, Path] = {}  # resolved -> first declared spelling
+    out: dict[Path, Path] = {}  # resolved -> first declared spelling
     for raw in declared:
         try:
             p = Path(raw).expanduser()
@@ -270,13 +273,13 @@ def _collect_memory_provider_external_paths() -> List[Path]:
     return list(out.values())
 
 
-def _iter_external_files(base: Path) -> List[Path]:
+def _iter_external_files(base: Path) -> list[Path]:
     """Regular files under *base* (a file or a directory), skipping symlinks, caches, and pyc."""
     if base.is_file() and not base.is_symlink():
         return [base]
     if not base.is_dir():
         return []
-    files: List[Path] = []
+    files: list[Path] = []
     for dirpath, dirnames, filenames in os.walk(base, followlinks=False):
         dirnames[:] = [d for d in dirnames if d not in _EXCLUDED_DIRS]
         files.extend(fp for fp in (Path(dirpath) / f for f in filenames)
@@ -322,7 +325,7 @@ def _should_exclude(rel_path: Path) -> bool:
     return name in _EXCLUDED_NAMES or name.startswith(_EXCLUDED_PREFIXES) or name.endswith(_EXCLUDED_SUFFIXES)
 
 
-def _iter_backup_files(hermes_root: Path, out_path: Path, skipped_dirs: Optional[set] = None):
+def _iter_backup_files(hermes_root: Path, out_path: Path, skipped_dirs: set | None = None):
     """Yield ``(abs_path, rel_path)`` for every file a full backup should hold.
 
     The one owner of the walk policy (directory pruning so os.walk never descends a multi-GB
@@ -383,7 +386,10 @@ def is_zeroed_sqlite_file(path: Path, *, probe_bytes: int = 100, force: bool = F
             return False
     except OSError:
         return False
-    from hermes_cli.sqlite_safe_read import has_live_connection, read_header_bytes_preopen
+    from hermes_cli.sqlite_safe_read import (
+        has_live_connection,
+        read_header_bytes_preopen,
+    )
     if not force and has_live_connection(path):
         return False
 
@@ -409,7 +415,7 @@ def verify_sqlite_integrity(
     max_bytes: int = DEFAULT_INTEGRITY_CHECK_MAX_BYTES) -> dict:
     """Verify a SQLite database: existence + minimum size, header magic, then a read-only
     ``PRAGMA integrity_check`` (or a cheap structural probe above ``max_bytes``)."""
-    def _done(message: str, valid: bool = False, size: Optional[int] = None) -> dict:
+    def _done(message: str, valid: bool = False, size: int | None = None) -> dict:
         return {"valid": valid, "message": message, "size": size}
     try:
         st = path.stat()
@@ -486,7 +492,7 @@ def _write_zip_file(zf: zipfile.ZipFile, path: Path, arcname: str) -> None:
         raise
 
 
-def _zip_sqlite_snapshot(zf: zipfile.ZipFile, abs_path: Path, rel_path: Path, out_path: Path) -> Optional[int]:
+def _zip_sqlite_snapshot(zf: zipfile.ZipFile, abs_path: Path, rel_path: Path, out_path: Path) -> int | None:
     """Add a WAL-safe snapshot of *abs_path* to *zf*; return its byte size, or None on failure.
 
     Staged beside the output zip: /tmp may be a small tmpfs that cannot hold large databases.
@@ -503,7 +509,7 @@ def _zip_sqlite_snapshot(zf: zipfile.ZipFile, abs_path: Path, rel_path: Path, ou
 
 
 def _write_zip_entries(
-    zf: zipfile.ZipFile, files_to_add: List[Tuple[Path, Path]], out_path: Path,
+    zf: zipfile.ZipFile, files_to_add: list[tuple[Path, Path]], out_path: Path,
     *, on_db_failure, on_error, on_progress, track_bytes: bool) -> int:
     """Add every ``(abs_path, rel_path)`` to *zf*, WAL-safe for ``*.db``; return bytes archived.
 
@@ -532,7 +538,7 @@ def _write_zip_entries(
     return total_bytes
 
 
-def _print_capped(header: str, lines: List[str], indent: str) -> None:
+def _print_capped(header: str, lines: list[str], indent: str) -> None:
     """Print *header*, then at most 10 of *lines* (each prefixed by *indent*) and a "... and N more" tail."""
     print(header)
     for line in lines[:10]:
@@ -546,7 +552,7 @@ def _print_capped(header: str, lines: List[str], indent: str) -> None:
 _RUN_BACKUP_PREFIX = "hermes-backup-"
 
 
-def _resolve_backup_output_path(output: Optional[str]) -> Path:
+def _resolve_backup_output_path(output: str | None) -> Path:
     """Turn ``--output`` (file, directory, or None) into a ``.zip`` path whose parent exists;
     an unwritable path exits with a one-line error, not a traceback."""
     out_path = None
@@ -680,7 +686,7 @@ def _run_backup_locked(args, hermes_root: Path) -> bool:
 
 # --- Import ---
 
-def _find_corrupt_members(zf: zipfile.ZipFile, members: List[str]) -> List[str]:
+def _find_corrupt_members(zf: zipfile.ZipFile, members: list[str]) -> list[str]:
     """Return ``"<member>: <error>"`` for every member whose data does not decompress or
     fails its CRC, streaming each one in 1 MiB chunks so a multi-GB ``state.db`` is never
     held in memory.
@@ -728,7 +734,7 @@ def _import_member_rel(member: str, prefix: str) -> tuple[str, bool]:
     return rel, _import_skipped(rel)
 
 
-def run_import(args) -> Optional[int]:
+def run_import(args) -> int | None:
     """Restore a Hermes backup; return 1 on damaged archives or incomplete restores."""
     zip_path = Path(args.zipfile).expanduser().resolve()
 
@@ -963,8 +969,10 @@ def run_import(args) -> Optional[int]:
         if profiles_dir.is_dir():
             try:
                 from hermes_cli.profiles import (
-                    create_wrapper_script, check_alias_collision,
-                    _is_wrapper_dir_in_path, _get_wrapper_dir,
+                    _get_wrapper_dir,
+                    _is_wrapper_dir_in_path,
+                    check_alias_collision,
+                    create_wrapper_script,
                 )
                 for entry in sorted(profiles_dir.iterdir()):
                     if not entry.is_dir():
@@ -1035,7 +1043,10 @@ def run_import(args) -> Optional[int]:
             print("To start a gateway for this home, run:  hermes gateway install")
         else:
             try:
-                from hermes_cli.gateway import ensure_gateway_service, _is_service_running
+                from hermes_cli.gateway import (
+                    _is_service_running,
+                    ensure_gateway_service,
+                )
 
                 if not _is_service_running():
                     print()
@@ -1079,12 +1090,12 @@ _QUICK_STATE_FILES = (
 _QUICK_DEFAULT_KEEP = 20
 
 
-def _quick_snapshot_root(hermes_home: Optional[Path] = None) -> Path:
+def _quick_snapshot_root(hermes_home: Path | None = None) -> Path:
     home = hermes_home or get_hermes_home()
     return home / _QUICK_SNAPSHOTS_DIR
 
 
-def _newest_first(root: Path, keep_entry) -> List[Path]:
+def _newest_first(root: Path, keep_entry) -> list[Path]:
     """Entries of *root* passing ``keep_entry``, newest (by name) first; ``[]`` if *root* is missing."""
     if not root.exists():
         return []
@@ -1098,12 +1109,12 @@ _CRON_JOBS_REL = "cron/jobs.json"
 # Config paths the update flow must never change (#64160): model routing and the MoA section are
 # consumed machine-wide, so an update/repair cycle that rewrites them silently redirects paid
 # inference. Dotted paths into raw config.yaml; a single-element tuple protects a whole section.
-_PROTECTED_CONFIG_PATHS: Tuple[Tuple[str, ...], ...] = (
+_PROTECTED_CONFIG_PATHS: tuple[tuple[str, ...], ...] = (
     ("model", "provider"), ("model", "default"), ("model", "base_url"), ("model", "api_key"),
     ("moa",))
 
 
-def _prune_oldest(newest_first: List[Path], keep: int, remove, what: str) -> int:
+def _prune_oldest(newest_first: list[Path], keep: int, remove, what: str) -> int:
     """``remove(path)`` every entry past the first *keep*; return how many succeeded."""
     deleted = 0
     for p in newest_first[keep:]:
@@ -1148,7 +1159,7 @@ def _prune_incomplete_zips(backup_dir: Path, prefix: str, what: str) -> int:
 
 
 def _create_prefixed_full_backup(
-    hermes_home: Optional[Path], prefix: str, keep: int, what: str, prune_what: str) -> Optional[Path]:
+    hermes_home: Path | None, prefix: str, keep: int, what: str, prune_what: str) -> Path | None:
     """Write ``<HERMES_HOME>/backups/<prefix><timestamp>.zip`` and prune older same-prefix zips.
     Returns the path, or ``None`` if nothing to back up, the write failed, or the archive is
     incomplete (kept as ``<prefix><timestamp>.incomplete.zip``, excluded from retention).
@@ -1173,7 +1184,7 @@ def _create_prefixed_full_backup(
 
 
 def create_pre_update_backup(
-    hermes_home: Optional[Path] = None, keep: int = _PRE_UPDATE_DEFAULT_KEEP) -> Optional[Path]:
+    hermes_home: Path | None = None, keep: int = _PRE_UPDATE_DEFAULT_KEEP) -> Path | None:
     """Full zip backup to ``backups/pre-update-<timestamp>.zip``, auto-pruned; ``None`` if nothing
     was found, the backup failed, or it was incomplete (salvage kept as ``*.incomplete.zip``).
     Never raises — ``hermes update`` continues anyway."""
@@ -1181,7 +1192,7 @@ def create_pre_update_backup(
 
 
 def create_pre_migration_backup(
-    hermes_home: Optional[Path] = None, keep: int = _PRE_MIGRATION_DEFAULT_KEEP) -> Optional[Path]:
+    hermes_home: Path | None = None, keep: int = _PRE_MIGRATION_DEFAULT_KEEP) -> Path | None:
     """Full zip backup to ``backups/pre-migration-<timestamp>.zip`` before ``hermes claw migrate``
     (same dir as update backups so listings/``hermes import`` find it); ``None`` if nothing was
     found, the write failed, or it was incomplete (salvage kept as ``*.incomplete.zip``). Never
@@ -1195,11 +1206,11 @@ def create_pre_migration_backup(
 # ---------------------------------------------------------------------------
 
 def create_quick_snapshot(
-    label: Optional[str] = None,
-    hermes_home: Optional[Path] = None,
-    keep: Optional[int] = None,
-    max_file_size: Optional[int] = None,
-) -> Optional[str]:
+    label: str | None = None,
+    hermes_home: Path | None = None,
+    keep: int | None = None,
+    max_file_size: int | None = None,
+) -> str | None:
     """Create one atomic quick snapshot while holding the shared backup slot."""
     home = hermes_home or get_hermes_home()
     with _backup_operation_lock(home):
@@ -1212,11 +1223,11 @@ def create_quick_snapshot(
 
 
 def _create_quick_snapshot_locked(
-    label: Optional[str] = None,
-    hermes_home: Optional[Path] = None,
-    keep: Optional[int] = None,
-    max_file_size: Optional[int] = None,
-) -> Optional[str]:
+    label: str | None = None,
+    hermes_home: Path | None = None,
+    keep: int | None = None,
+    max_file_size: int | None = None,
+) -> str | None:
     """Create a quick state snapshot of critical files.
 
     Copies STATE_FILES to a timestamped directory under state-snapshots/.
@@ -1260,7 +1271,7 @@ def _create_quick_snapshot_locked(
         )
         return True
 
-    ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    ts = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
     base_snap_id = f"{ts}-{label}" if label else ts
     snap_id = base_snap_id
     suffix = 2
@@ -1276,7 +1287,7 @@ def _create_quick_snapshot_locked(
     staging_dir.mkdir(mode=0o700, exist_ok=False)
     logger.info("quick snapshot phase=copy status=started id=%s", snap_id)
 
-    manifest: Dict[str, int] = {}  # rel_path -> file size
+    manifest: dict[str, int] = {}  # rel_path -> file size
     failed_dbs: list[str] = []  # present *.db that could not be snapshotted
     # #68805: track protected DB files skipped for size — they are snapshot
     # incompleteness just like a failed copy, so pruning must be suppressed
@@ -1456,8 +1467,8 @@ def _create_quick_snapshot_locked(
 
 def list_quick_snapshots(
     limit: int = 20,
-    hermes_home: Optional[Path] = None,
-) -> List[Dict[str, Any]]:
+    hermes_home: Path | None = None,
+) -> list[dict[str, Any]]:
     """List existing quick state snapshots, most recent first."""
     root = _quick_snapshot_root(hermes_home)
     if not root.exists():
@@ -1497,7 +1508,7 @@ def _is_trusted_root_auth_alias(path: Path, home: Path) -> bool:
 
 def restore_quick_snapshot(
     snapshot_id: str,
-    hermes_home: Optional[Path] = None,
+    hermes_home: Path | None = None,
 ) -> bool:
     """Restore state from a quick snapshot.
 
@@ -1599,7 +1610,7 @@ def restore_quick_snapshot(
     return restored > 0 and not auth_restore_failed
 
 
-def _count_cron_jobs(path: Path) -> Optional[int]:
+def _count_cron_jobs(path: Path) -> int | None:
     """Return the number of cron jobs stored in ``path``.
 
     The canonical on-disk shape is ``{"jobs": [...]}`` (see ``cron/jobs.py``).
@@ -1632,8 +1643,8 @@ def _count_cron_jobs(path: Path) -> Optional[int]:
 
 def restore_cron_jobs_if_emptied(
     snapshot_id: str,
-    hermes_home: Optional[Path] = None,
-) -> Optional[Dict[str, Any]]:
+    hermes_home: Path | None = None,
+) -> dict[str, Any] | None:
     """Safety net for silent cron-job loss across ``hermes update``.
 
     Config-version migrations have been observed to leave ``cron/jobs.json``
@@ -1706,7 +1717,7 @@ def restore_cron_jobs_if_emptied(
     return {"restored": True, "job_count": snap_count, "snapshot_id": snapshot_id}
 
 
-def _load_cron_jobs_doc(path: Path) -> Optional[Any]:
+def _load_cron_jobs_doc(path: Path) -> Any | None:
     """Parse ``path`` as the canonical ``{"jobs": [...]}`` doc (legacy bare list honoured).
 
     ``None`` = missing/unreadable/non-dict-with-list — same dialect rules as
@@ -1737,7 +1748,7 @@ def _cron_jobs_list(doc: Any) -> list[Any]:
     return []
 
 
-def _prompt_degraded(job: Dict[str, Any]) -> bool:
+def _prompt_degraded(job: dict[str, Any]) -> bool:
     """True when an agent job's prompt field is unusable: blank, missing, or
     collapsed to the job's own name (a name is not a prompt)."""
     if job.get("no_agent"):
@@ -1750,8 +1761,8 @@ def _prompt_degraded(job: Dict[str, Any]) -> bool:
 
 def restore_cron_prompt_fields_if_degraded(
     snapshot_id: str,
-    hermes_home: Optional[Path] = None,
-) -> Optional[Dict[str, Any]]:
+    hermes_home: Path | None = None,
+) -> dict[str, Any] | None:
     """Safety net for field-level cron-job degradation across ``hermes update``.
 
     A writer active during the update's mutation window replaced every
@@ -1799,7 +1810,7 @@ def restore_cron_prompt_fields_if_degraded(
     if snap_doc is None:
         return None
 
-    snap_by_id: Dict[str, Dict[str, Any]] = {}
+    snap_by_id: dict[str, dict[str, Any]] = {}
     for job in _cron_jobs_list(snap_doc):
         if isinstance(job, dict):
             snap_by_id[str(job.get("id", ""))] = job
@@ -1853,9 +1864,9 @@ def restore_cron_prompt_fields_if_degraded(
 
 
 def restore_cron_prompt_fields_all_profiles(
-    profile_snapshots: Dict[str, str],
-    invoking_home: Optional[Path] = None,
-) -> list[Dict[str, Any]]:
+    profile_snapshots: dict[str, str],
+    invoking_home: Path | None = None,
+) -> list[dict[str, Any]]:
     """Run the cron prompt-field safety net for every sibling profile.
 
     Same contract as :func:`restore_cron_jobs_all_profiles`: each profile's
@@ -1863,7 +1874,7 @@ def restore_cron_prompt_fields_all_profiles(
     pre-update snapshot. Returns one result dict per restored profile, each
     with a ``profile`` key added. Never raises.
     """
-    restored: list[Dict[str, Any]] = []
+    restored: list[dict[str, Any]] = []
     if not profile_snapshots:
         return restored
     home = invoking_home or get_hermes_home()
@@ -1899,9 +1910,9 @@ def _sibling_profile_homes(invoking_home: Path) -> list[tuple[str, Path]]:
     homes: list[tuple[str, Path]] = []
     try:
         from hermes_cli.profiles import (
+            _PROFILE_ID_RE,
             _get_default_hermes_home,
             _get_profiles_root,
-            _PROFILE_ID_RE,
         )
 
         invoking = invoking_home.resolve()
@@ -1924,10 +1935,10 @@ def _sibling_profile_homes(invoking_home: Path) -> list[tuple[str, Path]]:
 
 
 def create_pre_update_snapshots_all_profiles(
-    invoking_home: Optional[Path] = None,
-    keep: Optional[int] = None,
-    max_file_size: Optional[int] = None,
-) -> Dict[str, str]:
+    invoking_home: Path | None = None,
+    keep: int | None = None,
+    max_file_size: int | None = None,
+) -> dict[str, str]:
     """Pre-update quick snapshots for every SIBLING profile (#66140).
 
     Same snapshot set, same per-file size cap, same keep policy as the
@@ -1937,7 +1948,7 @@ def create_pre_update_snapshots_all_profiles(
     it where it expects. Returns ``{profile_name: snapshot_id}`` for the
     siblings that snapshotted successfully. Never raises.
     """
-    results: Dict[str, str] = {}
+    results: dict[str, str] = {}
     home = invoking_home or get_hermes_home()
     for name, profile_home in _sibling_profile_homes(home):
         try:
@@ -1959,7 +1970,7 @@ def create_pre_update_snapshots_all_profiles(
 # (gateway, cron, desktop), so an update/repair cycle that rewrites them
 # silently redirects paid inference. Each entry is a dotted path into the raw
 # config.yaml document; a single-element tuple protects the whole section.
-_PROTECTED_CONFIG_PATHS: Tuple[Tuple[str, ...], ...] = (
+_PROTECTED_CONFIG_PATHS: tuple[tuple[str, ...], ...] = (
     ("model", "provider"),
     ("model", "default"),
     ("model", "base_url"),
@@ -1968,7 +1979,7 @@ _PROTECTED_CONFIG_PATHS: Tuple[Tuple[str, ...], ...] = (
 )
 
 
-def _read_raw_yaml_dict(path: Path) -> Optional[Dict[str, Any]]:
+def _read_raw_yaml_dict(path: Path) -> dict[str, Any] | None:
     """Parse ``path`` as a YAML mapping. ``None`` = missing/unreadable/non-dict."""
     if not path.is_file():
         return None
@@ -1982,7 +1993,7 @@ def _read_raw_yaml_dict(path: Path) -> Optional[Dict[str, Any]]:
     return data if isinstance(data, dict) else None
 
 
-def _get_config_path_value(data: Dict[str, Any], dotted: Tuple[str, ...]) -> Any:
+def _get_config_path_value(data: dict[str, Any], dotted: tuple[str, ...]) -> Any:
     node: Any = data
     for key in dotted:
         if not isinstance(node, dict):
@@ -1991,7 +2002,7 @@ def _get_config_path_value(data: Dict[str, Any], dotted: Tuple[str, ...]) -> Any
     return node
 
 
-def _set_config_path_value(data: Dict[str, Any], dotted: Tuple[str, ...], value: Any) -> None:
+def _set_config_path_value(data: dict[str, Any], dotted: tuple[str, ...], value: Any) -> None:
     node = data
     for key in dotted[:-1]:
         child = node.get(key)
@@ -2004,8 +2015,8 @@ def _set_config_path_value(data: Dict[str, Any], dotted: Tuple[str, ...], value:
 
 def restore_config_model_settings_if_rewritten(
     snapshot_id: str,
-    hermes_home: Optional[Path] = None,
-) -> Optional[Dict[str, Any]]:
+    hermes_home: Path | None = None,
+) -> dict[str, Any] | None:
     """Safety net for silent config.yaml model/MoA loss across ``hermes update``.
 
     Desktop update/repair cycles have been observed to rewrite user-set
@@ -2084,9 +2095,9 @@ def restore_config_model_settings_if_rewritten(
 
 
 def restore_config_model_settings_all_profiles(
-    profile_snapshots: Dict[str, str],
-    invoking_home: Optional[Path] = None,
-) -> list[Dict[str, Any]]:
+    profile_snapshots: dict[str, str],
+    invoking_home: Path | None = None,
+) -> list[dict[str, Any]]:
     """Run the config model-settings safety net for every sibling profile.
 
     Same contract as :func:`restore_cron_jobs_all_profiles`: each profile's
@@ -2094,7 +2105,7 @@ def restore_config_model_settings_all_profiles(
     pre-update snapshot. Returns one result dict per restored profile, each
     with a ``profile`` key added. Never raises.
     """
-    restored: list[Dict[str, Any]] = []
+    restored: list[dict[str, Any]] = []
     if not profile_snapshots:
         return restored
     home = invoking_home or get_hermes_home()
@@ -2121,9 +2132,9 @@ def restore_config_model_settings_all_profiles(
 
 
 def restore_cron_jobs_all_profiles(
-    profile_snapshots: Dict[str, str],
-    invoking_home: Optional[Path] = None,
-) -> list[Dict[str, Any]]:
+    profile_snapshots: dict[str, str],
+    invoking_home: Path | None = None,
+) -> list[dict[str, Any]]:
     """Run the cron-jobs safety net for every sibling profile (#66140).
 
     ``profile_snapshots`` is the map returned by
@@ -2133,7 +2144,7 @@ def restore_cron_jobs_all_profiles(
     this update run). Returns one result dict per restored profile, each
     with a ``profile`` key added. Never raises.
     """
-    restored: list[Dict[str, Any]] = []
+    restored: list[dict[str, Any]] = []
     if not profile_snapshots:
         return restored
     home = invoking_home or get_hermes_home()
@@ -2181,7 +2192,7 @@ def _prune_quick_snapshots(root: Path, keep: int = _QUICK_DEFAULT_KEEP) -> int:
 
 def prune_quick_snapshots(
     keep: int = _QUICK_DEFAULT_KEEP,
-    hermes_home: Optional[Path] = None,
+    hermes_home: Path | None = None,
 ) -> int:
     """Manually prune quick snapshots. Returns count deleted."""
     return _prune_quick_snapshots(_quick_snapshot_root(hermes_home), keep=keep)
@@ -2204,7 +2215,7 @@ def run_quick_backup(args) -> None:
 # Shared full-zip backup helper
 # ---------------------------------------------------------------------------
 
-def _write_full_zip_backup(out_path: Path, hermes_root: Path) -> Optional[Path]:
+def _write_full_zip_backup(out_path: Path, hermes_root: Path) -> Path | None:
     """Single-flight wrapper for automatic full zip backups."""
     try:
         with _backup_operation_lock(hermes_root):
@@ -2214,7 +2225,7 @@ def _write_full_zip_backup(out_path: Path, hermes_root: Path) -> Optional[Path]:
         return None
 
 
-def _write_full_zip_backup_locked(out_path: Path, hermes_root: Path) -> Optional[Path]:
+def _write_full_zip_backup_locked(out_path: Path, hermes_root: Path) -> Path | None:
     scan_started = time.monotonic()
     logger.info("automatic backup phase=scan status=started")
     try:
@@ -2244,9 +2255,9 @@ def _write_full_zip_backup_locked(out_path: Path, hermes_root: Path) -> Optional
     # every entry failed salvages nothing, so its empty archive is discarded rather than kept.
     salvage_path = out_path.with_name(out_path.stem + _INCOMPLETE_ZIP_SUFFIX)
 
-    published: Optional[Path] = None
+    published: Path | None = None
 
-    def _publish_path() -> Optional[Path]:
+    def _publish_path() -> Path | None:
         # Decide clean/salvage/discard once; the post-publish stat and return reuse it.
         nonlocal published
         if not errors:

@@ -16,7 +16,6 @@ import time
 from argparse import Namespace
 
 import pytest
-
 import tools.approval as approval_module
 from hermes_cli.approvals_suggest import (
     Proposal,
@@ -27,7 +26,6 @@ from hermes_cli.approvals_suggest import (
     scan_approval_history,
     suggest_command,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixture helpers: synthetic session DB

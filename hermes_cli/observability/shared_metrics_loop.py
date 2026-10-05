@@ -15,8 +15,9 @@ import contextvars
 import json
 import logging
 import threading
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass, field
-from typing import Any, Callable, Iterable, Iterator
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +115,11 @@ def _memory_origin() -> str:
 
 
 def memory_op_fields(*, op: Any, provider: Any, outcome: Any, origin: Any) -> dict[str, str]:
-    from .shared_metrics_contract import MEMORY_OP_ORIGINS, MEMORY_OP_OUTCOMES, MEMORY_OPS
+    from .shared_metrics_contract import (
+        MEMORY_OP_ORIGINS,
+        MEMORY_OP_OUTCOMES,
+        MEMORY_OPS,
+    )
 
     outcome_value, origin_value = _norm(outcome), _norm(origin)
     return {

@@ -7,16 +7,16 @@ import importlib.util
 import io
 import json
 import os
-from pathlib import Path
 import subprocess
 import sys
 import tarfile
 import textwrap
-
-import pytest
+from pathlib import Path
 
 import pm
+import pytest
 from pm import registry
+
 from tests.pm._fixtures import isolated_python as worker_python  # noqa: F401
 from tests.pm._range_server import RangeHandler, dl_server, url  # noqa: F401
 

@@ -4,7 +4,6 @@ platform is enabled — an API-server-only gateway has no sender to gate (#11543
 import logging
 
 import pytest
-
 from gateway.config import GatewayConfig, Platform, PlatformConfig
 from gateway.run import GatewayRunner
 

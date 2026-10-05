@@ -14,7 +14,6 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
-
 from gateway.config import Platform
 from gateway.platforms.event import MessageEvent, MessageType
 from gateway.run import GatewayRunner

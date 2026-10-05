@@ -7,22 +7,32 @@ adapters for GatewayRunner (mixin bound via the MRO).
 
 from __future__ import annotations
 
-import logging
-from typing import TYPE_CHECKING
 import asyncio
 import contextlib
-from contextlib import suppress
 import functools
+import logging
 import os
 import time
 import weakref as _weakref
-from agent.async_utils import consume_detached_task_result
+from collections.abc import Awaitable, Callable
+from contextlib import suppress
 from contextvars import Context
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+from agent.async_utils import consume_detached_task_result
+from hermes_cli.observability.shared_metrics_gateway import (
+    record_platform_connect,
+    record_platform_disconnect,
+)
+
 from gateway.config import (
     ON_ALL_ADAPTERS_DOWN_POLICIES,
     SHARED_LISTENER_MIRROR_PLATFORMS,
     Platform,
+)
+from gateway.config import (
     platform_binds_port as _platform_binds_port,
 )
 from gateway.platforms.base import BasePlatformAdapter
@@ -30,9 +40,6 @@ from gateway.platforms.helpers import carry_inbound_dedup, hand_over_held_inboun
 from gateway.restart import is_global_startup_conflict
 from gateway.run_shutdown import _log_suppressed
 from gateway.session import SessionSource
-from hermes_cli.observability.shared_metrics_gateway import record_platform_connect, record_platform_disconnect
-from pathlib import Path
-from typing import Any, Awaitable, Callable, Dict, Optional
 
 if TYPE_CHECKING:  # string annotations only; never imported at runtime (cycle)
     from gateway.run import GatewayRunner  # noqa: F401
@@ -71,7 +78,7 @@ class GatewayAdapterLifecycleMixin:
     """Adapter lifecycle: connect/teardown, fatal recovery, reconnect watcher, multiplex profiles."""
 
     @staticmethod
-    async def _wait_or_detach(task: "asyncio.Future", timeout: float) -> bool:
+    async def _wait_or_detach(task: asyncio.Future, timeout: float) -> bool:
         """Wait up to ``timeout`` for ``task``; on deadline (or our own cancellation) detach it. Not
         ``asyncio.wait_for``: that WAITS for the cancelled child, so a connect()/close() swallowing
         ``CancelledError`` blocks recovery forever. True if it finished in time."""
@@ -107,7 +114,7 @@ class GatewayAdapterLifecycleMixin:
                     timeout, label,
                 )
 
-    async def _bounded_adapter_teardown(self, adapter, platform, *, profile: Optional[str] = None) -> None:
+    async def _bounded_adapter_teardown(self, adapter, platform, *, profile: str | None = None) -> None:
         """Tear down one adapter on the shutdown path with bounded awaits (never raises). Unbounded,
         a half-dead transport stalls past systemd's ``TimeoutStopSec``; the SIGKILL skips ``atexit``
         PID-file cleanup and the next start dies with "PID file race lost".
@@ -141,7 +148,7 @@ class GatewayAdapterLifecycleMixin:
                 )
 
     @staticmethod
-    def _env_timeout_override(name: str) -> Optional[float]:
+    def _env_timeout_override(name: str) -> float | None:
         """Non-negative float from env var ``name``; None when unset or unparseable (warned)."""
         raw = os.getenv(name, "").strip()
         if not raw:
@@ -167,7 +174,8 @@ class GatewayAdapterLifecycleMixin:
         the full budget (and ``is_reconnect=True``, preserving the offline update queue — #46621).
         """
         from gateway.run import (
-            _PLATFORM_CONNECT_TIMEOUT_SECS_DEFAULT, _TELEGRAM_CONNECT_TIMEOUT_SECS_DEFAULT,
+            _PLATFORM_CONNECT_TIMEOUT_SECS_DEFAULT,
+            _TELEGRAM_CONNECT_TIMEOUT_SECS_DEFAULT,
             _TELEGRAM_INITIAL_CONNECT_TIMEOUT_SECS_DEFAULT,
         )
         override = self._env_timeout_override("HERMES_GATEWAY_PLATFORM_CONNECT_TIMEOUT")
@@ -216,7 +224,7 @@ class GatewayAdapterLifecycleMixin:
         finally:
             adapter._platform_lock_takeover_allowed = False
 
-    async def _handle_reaction_event(self, ctx: Dict[str, Any]) -> None:
+    async def _handle_reaction_event(self, ctx: dict[str, Any]) -> None:
         """Fan a normalised reaction event out to the HookRegistry; errors never block the adapter."""
         event_name = str(ctx.get("event_name") or "reaction:added")
         with _log_suppressed(logging.DEBUG, "[Gateway] reaction hook emit failed", exc_info=True):
@@ -427,7 +435,7 @@ class GatewayAdapterLifecycleMixin:
                 "retry in background.", len(self._failed_platforms),
             )
 
-    def _retain_background_task(self, task: "asyncio.Task") -> "asyncio.Task":
+    def _retain_background_task(self, task: asyncio.Task) -> asyncio.Task:
         """Register ``task`` in ``_background_tasks`` (created lazily for bare test runners)."""
         tasks = getattr(self, "_background_tasks", None)
         if not isinstance(tasks, set):
@@ -437,7 +445,7 @@ class GatewayAdapterLifecycleMixin:
         return task
 
     @staticmethod
-    def _track_task_in(tasks: set, task: "asyncio.Task") -> "asyncio.Task":
+    def _track_task_in(tasks: set, task: asyncio.Task) -> asyncio.Task:
         """Register ``task`` in an arbitrary lifecycle set with self-removal on completion."""
         tasks.add(task)
         task.add_done_callback(tasks.discard)
@@ -531,7 +539,11 @@ class GatewayAdapterLifecycleMixin:
         """Process pending CLI→gateway session handoffs from ``state.db``: claim atomically (pending
         → running), re-bind the home channel to the CLI session_id, dispatch a synthetic event, mark
         ``completed``/``failed``."""
-        from gateway.run import _async_profile_runtime_scope, _reclaim_stale, _resolve_handoff_watch_scopes
+        from gateway.run import (
+            _async_profile_runtime_scope,
+            _reclaim_stale,
+            _resolve_handoff_watch_scopes,
+        )
         from gateway.run_idle_gates import off_loop_gate, profile_has_pending_handoff
         await asyncio.sleep(5)  # let platforms connect before dispatching through them
         # Does _process_handoff accept the profile argument? Test stand-ins bind a one-arg callable.
@@ -541,7 +553,7 @@ class GatewayAdapterLifecycleMixin:
         except Exception:
             _process_takes_profile = False
         # In-flight dispatches by session id: a handoff is a FULL agent turn, so never process inline.
-        inflight: Dict[str, "asyncio.Task"] = {}
+        inflight: dict[str, asyncio.Task] = {}
 
         async def _dispatch(row, session_id, session_db, profile_name) -> None:
             """Run one claimed handoff to a terminal state, off the poll path."""
@@ -558,7 +570,7 @@ class GatewayAdapterLifecycleMixin:
             finally:
                 inflight.pop(session_id, None)
 
-        async def _tick(profile_name: Optional[str] = None) -> None:
+        async def _tick(profile_name: str | None = None) -> None:
             """One poll of the CURRENTLY-SCOPED store; ``profile_name`` (None = root) routes delivery
             to that profile's OWN adapter. A closure, not a method: tests bind ``_handoff_watcher`` onto
             a ``SimpleNamespace`` with only ``_session_db``/``_running``/``_process_handoff``."""
@@ -735,7 +747,7 @@ class GatewayAdapterLifecycleMixin:
                 return
 
     def _flag_reconnect_needs_attention(
-        self, platform, info: dict, now: float, *, status_key: Optional[str] = None
+        self, platform, info: dict, now: float, *, status_key: str | None = None
     ) -> None:
         """Flag NEEDS_ATTENTION (once) past the threshold — a signal, NOT a circuit breaker. The threshold
         is the bound profile's ``agent.reconnect_attention_after``: secondaries call this inside their
@@ -753,7 +765,7 @@ class GatewayAdapterLifecycleMixin:
         )
         self._update_platform_runtime_status(
             status_key or platform.value, platform_state="retrying", needs_attention=True,
-            retrying_since=(datetime.now(timezone.utc) - timedelta(seconds=queued_for)).isoformat(),
+            retrying_since=(datetime.now(UTC) - timedelta(seconds=queued_for)).isoformat(),
         )
 
     def _mark_platform_fatal(self, status_key: str, adapter) -> None:
@@ -973,7 +985,11 @@ class GatewayAdapterLifecycleMixin:
                 publish_runtime_status(served_profiles=[])
             return 0
         try:
-            from hermes_cli.profiles import get_active_profile_name, profiles_to_serve, profile_is_parked
+            from hermes_cli.profiles import (
+                get_active_profile_name,
+                profile_is_parked,
+                profiles_to_serve,
+            )
         except Exception:
             return 0
         if self._multiplex_on():
@@ -1020,10 +1036,10 @@ class GatewayAdapterLifecycleMixin:
         self._restore_secondary_completion_ledgers(profile_homes)
         return connected
 
-    def _primary_resource_claims(self, active: str) -> Dict[tuple, str]:
+    def _primary_resource_claims(self, active: str) -> dict[tuple, str]:
         """Resource claim -> owning profile for every live or queued primary adapter (credential:
         one account polled once; listener: one bind+port). A queued retryable primary owns both."""
-        claimed: Dict[tuple, str] = {}
+        claimed: dict[tuple, str] = {}
         for _plat, _ad in self.adapters.items():
             fp = self._adapter_credential_fingerprint(_ad)
             for claim in ((_plat, fp) if fp is not None else None, self._adapter_listener_claim(_plat, _ad)):
@@ -1040,8 +1056,8 @@ class GatewayAdapterLifecycleMixin:
         """Record the served set (eligible for routing/HTTP prefixes/cron/runtime scope — broader
         than "has a connected adapter") for `hermes status`; seed per-profile PairingStores."""
         with _log_suppressed(logging.DEBUG, "could not record served_profiles", exc_info=True):
-            from gateway.status import publish_runtime_status
             from gateway.pairing import PairingStore
+            from gateway.status import publish_runtime_status
             served = [active] + sorted(name for name, _home in profile_homes if name != active)
             self._note_served_profiles(profile_homes)
             for name in served:
@@ -1052,22 +1068,29 @@ class GatewayAdapterLifecycleMixin:
             publish_runtime_status(served_profiles=served)
             # The host record is what a second `gateway run` reads to decide attach-vs-start; keep
             # its served set in step with the live one (it is republished, never re-claimed).
-            from gateway.host_rendezvous import ROLE_GATEWAY, owns_host_lock, publish_record
+            from gateway.host_rendezvous import (
+                ROLE_GATEWAY,
+                owns_host_lock,
+                publish_record,
+            )
             if owns_host_lock(ROLE_GATEWAY):
                 from hermes_constants import get_hermes_home
                 publish_record(ROLE_GATEWAY, profiles=tuple(served), home=str(get_hermes_home()))
 
-    async def _load_secondary_profile_config(self, profile_name: str, profile_home: "Path"):
+    async def _load_secondary_profile_config(self, profile_name: str, profile_home: Path):
         """Hydrate + enter ``profile_home``'s scope once; return its gateway config. Raises
         ``MultiplexConfigError`` (open dm/group policy). Port-binding platforms are NOT refused: the
         default profile owns the single shared listener and a secondary's port-binders are built in
         shared-listener mode (``/p/<profile>/...``) by ``_start_one_profile_adapters``."""
-        from gateway.run import (
-            MultiplexConfigError, _load_gateway_config,
-            _own_policy_open_startup_violation, _profile_runtime_scope,
-        )
-        from gateway.config import load_gateway_config
         from hermes_cli.env_loader import hydrate_profile_secret_sources
+
+        from gateway.config import load_gateway_config
+        from gateway.run import (
+            MultiplexConfigError,
+            _load_gateway_config,
+            _own_policy_open_startup_violation,
+            _profile_runtime_scope,
+        )
         # Hydrate external secret sources off-loop ONCE: sync hydration would stall every heartbeat.
         await asyncio.to_thread(hydrate_profile_secret_sources, profile_home)
         # A platform that left core for a catalog plugin is installed before discovery below.
@@ -1094,7 +1117,7 @@ class GatewayAdapterLifecycleMixin:
         return profile_cfg
 
     @staticmethod
-    def _credential_claim_origin(profile_name: str, profile_home, platform: Platform, token: str) -> Optional[str]:
+    def _credential_claim_origin(profile_name: str, profile_home, platform: Platform, token: str) -> str | None:
         """Where *token* was configured for *profile_name*: that profile's ``.env``, or ambient env.
 
         ``None`` when the value is not in either place (yaml-only, or unknown). An env label
@@ -1156,8 +1179,8 @@ class GatewayAdapterLifecycleMixin:
         return owner_origin, incoming
 
     def _refuse_duplicate_claim(
-        self, claim, claimed: Dict[tuple, str], profile_name: str, platform: Platform, kind: str,
-        *, owner_origin: Optional[str] = None, incoming_origin: Optional[str] = None,
+        self, claim, claimed: dict[tuple, str], profile_name: str, platform: Platform, kind: str,
+        *, owner_origin: str | None = None, incoming_origin: str | None = None,
     ) -> bool:
         """Log + park a secondary adapter whose credential/listener another profile owns (True when
         refused). NOT disconnected: it never connected, and for a same-credential Photon adapter
@@ -1170,7 +1193,7 @@ class GatewayAdapterLifecycleMixin:
             isinstance(origin, str) and origin.startswith("env ")
             for origin in (owner_origin, incoming_origin)
         )
-        def _who(name: str, origin: Optional[str]) -> str:
+        def _who(name: str, origin: str | None) -> str:
             return f"{name} ({origin})" if env_derived and origin else name
         head = f"Profile '{_who(owner, owner_origin)}' and '{_who(profile_name, incoming_origin)}' both configure {pv} "
         if kind == "credential":
@@ -1243,7 +1266,7 @@ class GatewayAdapterLifecycleMixin:
         return lines
 
     async def _start_one_profile_adapters(
-        self, profile_name: str, profile_home: "Path", claimed: Dict[tuple, str]
+        self, profile_name: str, profile_home: Path, claimed: dict[tuple, str]
     ) -> int:
         """Create+connect one profile's adapters under its runtime scope."""
         from gateway.run import _platform_has_bot_credential, _profile_runtime_scope
@@ -1343,8 +1366,8 @@ class GatewayAdapterLifecycleMixin:
     def _wire_adapter_handlers(
         self, adapter: BasePlatformAdapter, *, message_handler=None, fatal_error_handler=None,
         busy_session_handler=None, authorization_check=None, platform_event_handler=None,
-        busy_text_mode: Optional[str] = None, busy_text_timing: Optional[tuple[float, float]] = None,
-        human_delay: Optional[tuple[int, int]] | object = _UNSET,
+        busy_text_mode: str | None = None, busy_text_timing: tuple[float, float] | None = None,
+        human_delay: tuple[int, int] | None | object = _UNSET,
     ) -> None:
         """Install the runner callbacks every adapter needs (defaults = primary handlers;
         secondary wiring passes profile-scoped variants). ``set_reaction_handler`` is optional."""
@@ -1413,11 +1436,13 @@ class GatewayAdapterLifecycleMixin:
         """One scoped attempt to rebuild+connect a secondary adapter → ``(adapter, success)``;
         ``(None, None)`` = give up for good (disabled, credential removed, adapter unavailable). Caller
         tears down a RETURNED adapter; one whose configure/connect raised is torn down here."""
-        from gateway.run import _platform_has_bot_credential, _profile_runtime_scope
+        from hermes_cli.env_loader import hydrate_profile_secret_sources
+
         # Lazy + per-attempt: keeps test monkeypatches on these modules live.
         from hermes_cli.profiles import get_profile_dir
-        from hermes_cli.env_loader import hydrate_profile_secret_sources
+
         from gateway.config import load_gateway_config
+        from gateway.run import _platform_has_bot_credential, _profile_runtime_scope
         profile_home = get_profile_dir(profile_name)
         # Hydrate external secret sources off-loop so they cannot starve heartbeats.
         await asyncio.to_thread(hydrate_profile_secret_sources, profile_home)
@@ -1659,7 +1684,9 @@ class GatewayAdapterLifecycleMixin:
             return contextlib.nullcontext()
         if profile_home is not None:
             return scope_factory(profile_home)
-        from tui_gateway.launch_profile_policy import launch_profile_scope_if_multiplexed
+        from tui_gateway.launch_profile_policy import (
+            launch_profile_scope_if_multiplexed,
+        )
         return launch_profile_scope_if_multiplexed()
 
     @staticmethod
@@ -1669,11 +1696,13 @@ class GatewayAdapterLifecycleMixin:
             return contextlib.nullcontext()
         if profile_home is not None:
             return scope_factory(profile_home)
-        from tui_gateway.launch_profile_policy import async_launch_profile_scope_if_multiplexed
+        from tui_gateway.launch_profile_policy import (
+            async_launch_profile_scope_if_multiplexed,
+        )
         return async_launch_profile_scope_if_multiplexed()
 
-    def _canonicalize(self, source, *, transport_profile: Optional[str] = None,
-                      primary_home: Optional[Path] = None):
+    def _canonicalize(self, source, *, transport_profile: str | None = None,
+                      primary_home: Path | None = None):
         """Runner-side identity seam: the pinned :class:`RoutingIdentity` of *source*, resolving it
         once when absent. ``transport_profile`` names a secondary's own bot (its handlers know it by
         construction); ``None`` = the primary/shared bot. ``None`` result = rejected route under
@@ -1753,7 +1782,7 @@ class GatewayAdapterLifecycleMixin:
 
         return _handler
 
-    def _admit_primary_source(self, source, default_home: Path) -> Optional[Path]:
+    def _admit_primary_source(self, source, default_home: Path) -> Path | None:
         """Canonicalize a primary-adapter source (transport home for authorization, routed profile
         for the runtime) and return the runtime home to scope the turn under; ``None`` when the
         route targets an unserved profile. Route ≠ admitting bot."""
@@ -1828,14 +1857,14 @@ class GatewayAdapterLifecycleMixin:
         return self._standalone_scoped(self._handle_gateway_platform_event)
 
     @staticmethod
-    def _adapter_credential_claim(platform: Platform, adapter: Any) -> Optional[tuple]:
+    def _adapter_credential_claim(platform: Platform, adapter: Any) -> tuple | None:
         """Return the exclusive credential resource claimed by an adapter."""
         from gateway.run import GatewayRunner
         fingerprint = GatewayRunner._adapter_credential_fingerprint(adapter)
         return None if fingerprint is None else (platform, fingerprint)
 
     @staticmethod
-    def _adapter_listener_claim(platform: Platform, adapter: Any) -> Optional[tuple]:
+    def _adapter_listener_claim(platform: Platform, adapter: Any) -> tuple | None:
         """Exclusive listener claim (Photon sidecar bind+port): distinct credentials still cannot
         share a port, so the later adapter is rejected before connect() disturbs the first."""
         bind = getattr(adapter, "_sidecar_bind", None)
@@ -1848,7 +1877,7 @@ class GatewayAdapterLifecycleMixin:
         return ("listener", "photon", bind.strip().lower(), port)
 
     @staticmethod
-    def _adapter_credential_fingerprint(adapter: Any) -> Optional[str]:
+    def _adapter_credential_fingerprint(adapter: Any) -> str | None:
         """Salted, log-safe hash of an adapter's credential; None when none is discoverable
         (conflict detection is then skipped)."""
         # Many adapters (Discord) keep the token on `config`; without that fallback the check is skipped.
@@ -1867,7 +1896,7 @@ class GatewayAdapterLifecycleMixin:
                 return hashlib.sha256(("hermes-mux:" + val.strip()).encode("utf-8")).hexdigest()[:16]
         return None
 
-    def _create_adapter(self, platform: Platform, config: Any) -> Optional[BasePlatformAdapter]:
+    def _create_adapter(self, platform: Platform, config: Any) -> BasePlatformAdapter | None:
         """Create an adapter bound to this runner (every lifecycle path goes through here so
         adapters can resolve inbound profile routes before handlers or connect())."""
         adapter = self._instantiate_adapter(platform, config)
@@ -1875,7 +1904,7 @@ class GatewayAdapterLifecycleMixin:
             adapter.gateway_runner = self
         return adapter
 
-    def _instantiate_adapter(self, platform: Platform, config: Any) -> Optional[BasePlatformAdapter]:
+    def _instantiate_adapter(self, platform: Platform, config: Any) -> BasePlatformAdapter | None:
         """Instantiate the adapter for a platform: plugin registry first, then built-ins."""
         from gateway.run import _instantiate_builtin_adapter
         if hasattr(config, "extra") and isinstance(config.extra, dict):
@@ -1896,8 +1925,8 @@ class GatewayAdapterLifecycleMixin:
         return _instantiate_builtin_adapter(platform, config)
 
     def _make_adapter_auth_check(
-        self, platform: Platform, profile_name: Optional[str] = None
-    ) -> Callable[[str, Optional[str], Optional[str]], bool]:
+        self, platform: Platform, profile_name: str | None = None
+    ) -> Callable[[str, str | None, str | None], bool]:
         """Platform-bound auth callback for adapters (prompt-injection mitigation for fetched
         context); delegates to :meth:`_is_user_authorized`. ``profile_name`` binds a secondary to
         its scope; for the shared primary (None) the routed profile is stamped so its pairing store
@@ -1917,8 +1946,8 @@ class GatewayAdapterLifecycleMixin:
         profile_home = self._routed_profile_home(profile_name) if profile_name else None
 
         def check(
-            user_id: str, chat_type: Optional[str] = None, chat_id: Optional[str] = None, *,
-            is_bot: bool = False, thread_id: Optional[str] = None,
+            user_id: str, chat_type: str | None = None, chat_id: str | None = None, *,
+            is_bot: bool = False, thread_id: str | None = None,
         ) -> bool:
             if not user_id:
                 return False

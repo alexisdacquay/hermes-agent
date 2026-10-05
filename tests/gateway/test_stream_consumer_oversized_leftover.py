@@ -25,7 +25,6 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
-
 from gateway.stream_consumer import GatewayStreamConsumer, StreamConsumerConfig
 
 # The consumer floors its own length budget at 500 chars, so a toy adapter limit

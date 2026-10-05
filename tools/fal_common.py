@@ -28,7 +28,8 @@ from __future__ import annotations
 
 import time
 import uuid
-from typing import Any, Callable, Dict, Optional, Union
+from collections.abc import Callable
+from typing import Any
 from urllib.parse import urlencode
 
 # A 429 whose Retry-After is longer than this is reported, not waited out inside a tool call.
@@ -65,7 +66,7 @@ def _normalize_fal_queue_url_format(queue_run_origin: str) -> str:
     return f"{normalized_origin}/"
 
 
-def _extract_http_status(exc: BaseException) -> Optional[int]:
+def _extract_http_status(exc: BaseException) -> int | None:
     """HTTP status from httpx (``.response.status_code``) or fal_client (``.status_code``) exceptions, else None."""
     response = getattr(exc, "response", None)
     if response is not None:
@@ -76,7 +77,7 @@ def _extract_http_status(exc: BaseException) -> Optional[int]:
     return status if isinstance(status, int) else None
 
 
-def _managed_fal_billing_error(exc: BaseException, what: str) -> Optional[str]:
+def _managed_fal_billing_error(exc: BaseException, what: str) -> str | None:
     """Human-readable tail for a Nous managed-gateway ``BILLING_ERROR`` response, else None.
 
     ``what`` names the rejected thing ("model", "endpoint"); the wording is shared by the image
@@ -104,7 +105,7 @@ def _managed_fal_billing_error(exc: BaseException, what: str) -> Optional[str]:
     )
 
 
-def _managed_fal_retry_after_seconds(exc: BaseException) -> Optional[float]:
+def _managed_fal_retry_after_seconds(exc: BaseException) -> float | None:
     """Seconds the managed gateway asked us to wait after a 429: the ``Retry-After`` header,
     else the body's ``error.retryAfter``; None when the status is not 429 or neither is present."""
     response = getattr(exc, "response", None)
@@ -124,7 +125,7 @@ def _managed_fal_retry_after_seconds(exc: BaseException) -> Optional[float]:
         return None
 
 
-def _managed_fal_rate_limit_message(what: str, name: str, retry_after: Optional[float]) -> str:
+def _managed_fal_rate_limit_message(what: str, name: str, retry_after: float | None) -> str:
     hint = f"retry after {retry_after:g}s" if retry_after is not None else "no Retry-After given"
     return (
         f"Nous Subscription gateway rate-limited {what} '{name}' (HTTP 429; {hint}). "
@@ -133,7 +134,7 @@ def _managed_fal_rate_limit_message(what: str, name: str, retry_after: Optional[
 
 
 def submit_managed_fal_with_rate_limit_retry(
-    submit: Callable[[Dict[str, str]], Any], *, what: str, name: str,
+    submit: Callable[[dict[str, str]], Any], *, what: str, name: str,
 ):
     """Call ``submit(headers)`` with a fresh ``x-idempotency-key``; on a 429 whose Retry-After
     fits the cap, wait it out (interrupt-aware) and resubmit ONCE under a new key.
@@ -186,9 +187,9 @@ class _ManagedFalSyncClient:
         self._add_timeout_header = getattr(client_module, "add_timeout_header", None)
 
     def submit(
-        self, application: str, arguments: Dict[str, Any], *, path: str = "",
-        hint: Optional[str] = None, webhook_url: Optional[str] = None, priority: Any = None,
-        headers: Optional[Dict[str, str]] = None, start_timeout: Optional[Union[int, float]] = None,
+        self, application: str, arguments: dict[str, Any], *, path: str = "",
+        hint: str | None = None, webhook_url: str | None = None, priority: Any = None,
+        headers: dict[str, str] | None = None, start_timeout: float | None = None,
     ):
         url = self._queue_url_format + application
         if path:

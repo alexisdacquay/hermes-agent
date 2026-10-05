@@ -16,18 +16,18 @@ import types
 import unittest
 from unittest.mock import MagicMock, patch
 
+from hermes_state import SessionDB
 from tools.delegate_tool import (
     DELEGATE_BLOCKED_TOOLS,
     DELEGATE_TASK_SCHEMA,
+    _build_child_agent,
     _get_max_concurrent_children,
     _load_config,
-    delegate_task,
-    _build_child_agent,
-    _strip_blocked_tools,
     _resolve_child_credential_pool,
     _resolve_delegation_credentials,
+    _strip_blocked_tools,
+    delegate_task,
 )
-from hermes_state import SessionDB
 
 
 def _make_mock_parent(depth=0):
@@ -1581,12 +1581,11 @@ class TestConcurrencyDefaults(unittest.TestCase):
             }
         }
 
-        with patch.dict("sys.modules", {"cli": stale_cli}):
-            with patch(
-                "hermes_cli.config.load_config_readonly", return_value=active_config
-            ):
-                self.assertEqual(_load_config()["max_concurrent_children"], 50)
-                self.assertEqual(_get_max_concurrent_children(), 50)
+        with patch.dict("sys.modules", {"cli": stale_cli}), patch(
+            "hermes_cli.config.load_config_readonly", return_value=active_config
+        ):
+            self.assertEqual(_load_config()["max_concurrent_children"], 50)
+            self.assertEqual(_get_max_concurrent_children(), 50)
 
 
     @patch("tools.delegate_tool._load_config",
@@ -1902,11 +1901,14 @@ class TestSubagentApprovalCallback(unittest.TestCase):
         not the parent's — verifies the fix actually scopes to workers.
         """
         from concurrent.futures import ThreadPoolExecutor
+
+        from tools.delegate_tool import _subagent_auto_deny
         from tools.terminal_tool import (
-            set_approval_callback as _set_cb,
             _get_approval_callback,
         )
-        from tools.delegate_tool import _subagent_auto_deny
+        from tools.terminal_tool import (
+            set_approval_callback as _set_cb,
+        )
 
         # Parent thread has no callback.
         _set_cb(None)
@@ -2050,10 +2052,9 @@ class TestFallbackModelInheritance(unittest.TestCase):
         with patch(
             "hermes_cli.runtime_provider.resolve_runtime_provider",
             return_value=runtime,
-        ):
-            with patch("shutil.which", return_value=None):
-                with self.assertRaises(ValueError) as ctx:
-                    _resolve_delegation_credentials(cfg, parent)
+        ), patch("shutil.which", return_value=None):
+            with self.assertRaises(ValueError) as ctx:
+                _resolve_delegation_credentials(cfg, parent)
         self.assertIn("missing-acp-binary", str(ctx.exception))
 
 

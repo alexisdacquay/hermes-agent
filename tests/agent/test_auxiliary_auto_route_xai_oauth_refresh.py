@@ -8,7 +8,6 @@ would otherwise spend a stale ``xai-oauth`` grant's refresh rotation and silentl
 """
 
 import pytest
-
 from agent.auxiliary_client import _auth_refresh_provider_for_route
 
 

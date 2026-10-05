@@ -21,9 +21,10 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import pytest
 
@@ -185,12 +186,12 @@ def install_wire_recorder(monkeypatch: pytest.MonkeyPatch, secret: str) -> WireL
 
     log = WireLog(secret=secret)
 
-    def _carries(request: "httpx.Request") -> bool:
+    def _carries(request: httpx.Request) -> bool:
         if secret in str(request.url):
             return True
         return any(secret in v for v in request.headers.values())
 
-    def _body(request: "httpx.Request") -> Any:
+    def _body(request: httpx.Request) -> Any:
         if request.method != "POST":
             return None
         try:
@@ -198,11 +199,11 @@ def install_wire_recorder(monkeypatch: pytest.MonkeyPatch, secret: str) -> WireL
         except Exception:
             return None
 
-    def _record(request: "httpx.Request", status: int, body: Any, error: str = "") -> None:
+    def _record(request: httpx.Request, status: int, body: Any, error: str = "") -> None:
         log.records.append(WireRecord(request.method, request.url.host, request.url.path, status,
                                       _carries(request), body, error.replace(secret, "<redacted>")[:400]))
 
-    def _error_text(resp: "httpx.Response") -> str:
+    def _error_text(resp: httpx.Response) -> str:
         # Error bodies are small and read eagerly by every SDK anyway; cache them on
         # the response so the caller still sees the same content.
         if resp.status_code < 400:
@@ -215,7 +216,7 @@ def install_wire_recorder(monkeypatch: pytest.MonkeyPatch, secret: str) -> WireL
     orig_sync = httpx.HTTPTransport.handle_request
     orig_async = httpx.AsyncHTTPTransport.handle_async_request
 
-    def handle_request(self, request):  # noqa: ANN001
+    def handle_request(self, request):
         body = _body(request)
         try:
             resp = orig_sync(self, request)
@@ -225,7 +226,7 @@ def install_wire_recorder(monkeypatch: pytest.MonkeyPatch, secret: str) -> WireL
         _record(request, resp.status_code, body, _error_text(resp))
         return resp
 
-    async def handle_async_request(self, request):  # noqa: ANN001
+    async def handle_async_request(self, request):
         body = _body(request)
         try:
             resp = await orig_async(self, request)

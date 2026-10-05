@@ -1,10 +1,9 @@
 """Tests for Xiaomi MiMo provider support."""
 
 import pytest
-
 from hermes_cli.auth import (
-    resolve_provider,
     resolve_api_key_provider_credentials,
+    resolve_provider,
 )
 
 # =============================================================================

@@ -1,7 +1,7 @@
 """Tests for named custom provider and 'main' alias resolution in auxiliary_client."""
 
 import json
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -278,9 +278,9 @@ class TestProvidersDictApiModeAnthropicMessages:
             },
         })
         from agent.auxiliary_client import (
-            resolve_provider_client,
             AnthropicAuxiliaryClient,
             AsyncAnthropicAuxiliaryClient,
+            resolve_provider_client,
         )
         sync_client, sync_model = resolve_provider_client("myrelay", async_mode=False)
         assert isinstance(sync_client, AnthropicAuxiliaryClient), (

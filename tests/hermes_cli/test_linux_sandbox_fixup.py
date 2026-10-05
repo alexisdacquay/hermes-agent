@@ -20,7 +20,6 @@ import threading
 from unittest.mock import Mock, patch
 
 import pytest
-
 from hermes_cli import main_desktop
 
 # Linux-only subject: run on the real Linux host instead of faking sys.platform.

@@ -21,10 +21,9 @@ from __future__ import annotations
 
 import asyncio
 
-import pytest
-
 import gateway.relay.ws_transport as ws_transport_mod
-from gateway.relay.ws_transport import WebSocketRelayTransport, WEBSOCKETS_AVAILABLE
+import pytest
+from gateway.relay.ws_transport import WEBSOCKETS_AVAILABLE, WebSocketRelayTransport
 
 pytestmark = pytest.mark.skipif(not WEBSOCKETS_AVAILABLE, reason="websockets not installed")
 

@@ -2,7 +2,6 @@
 
 
 import pytest
-
 from agent.skill_utils import (
     get_disabled_skill_names,
     get_external_skills_dirs,
@@ -14,16 +13,6 @@ from agent.skill_utils import (
     resolve_skill_config_values,
     skill_matches_platform,
 )
-
-
-
-
-
-
-
-
-
-
 
 
 def test_skill_config_helpers_share_raw_config_parse_cache(tmp_path, monkeypatch):

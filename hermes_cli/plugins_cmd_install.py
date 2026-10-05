@@ -11,10 +11,11 @@ import logging
 import os
 import sys
 import tempfile
+from collections.abc import Callable
 from contextlib import contextmanager
 from contextvars import ContextVar
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any
 
 from hermes_cli.cli_output import line_input
 
@@ -22,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 # Answers to the dependency questions, reused while one plugin is installed into several profile
 # homes that share one environment (memory-provider migration on ``hermes update``, #125794).
-_shared_answers: ContextVar[Optional[dict]] = ContextVar("plugin_dependency_answers", default=None)
+_shared_answers: ContextVar[dict | None] = ContextVar("plugin_dependency_answers", default=None)
 
 
 @contextmanager
@@ -57,7 +58,7 @@ def _pc():
 
 def _install_plugin_python_deps(
     manifest: dict, target: Path, console, *, assume_yes: bool = False
-) -> tuple[bool, Optional[str]]:
+) -> tuple[bool, str | None]:
     """Consent gate for plugin python deps (settled 2026-09-02; C13 rework).
 
     Node sidecar: y/n prompt → ``npm ci`` into the plugin's OWN
@@ -108,7 +109,7 @@ def _install_plugin_python_deps(
 
 def _consent_python_deps(
     plugin_name: str, deps: tuple[str, ...], console, *, assume_yes: bool = False
-) -> tuple[bool, Optional[str]]:
+) -> tuple[bool, str | None]:
     """The y/N gate for Python deps entering the shared environment — install,
     reinstall AND an update that declares new ones all pass through here.
     Returns (consented, reason); never raises. *assume_yes* (``--yes-deps``)
@@ -166,8 +167,9 @@ def _prompt_plugin_env_vars(manifest: dict, console) -> None:
     missing = _pc()._missing_env_specs(manifest)
     if not missing:
         return
-    from hermes_cli.config import save_env_value
     from hermes_constants import display_hermes_home
+
+    from hermes_cli.config import save_env_value
     plugin_name = manifest.get("name", "this plugin")
     console.print(f"\n[bold]{plugin_name}[/bold] requires the following environment variables:\n")
     for spec in missing:
@@ -282,9 +284,10 @@ def _ensure_tree_readable(root: Path, plugins_dir: Path) -> None:
 def _refuse_unavailable_portable_plugin(plugin_name: str, tree: Path) -> None:
     if not (tree / "plugin.json").is_file():
         return
-    from hermes_cli.agent_plugins import load_agent_plugin
     from hermes_platform.declaration import gpu_label
     from hermes_platform.resolver.availability import availability
+
+    from hermes_cli.agent_plugins import load_agent_plugin
 
     try:
         package = load_agent_plugin(tree, tree.parent / ".hermes-install-data")
@@ -314,12 +317,12 @@ def _install_plugin_core(
     identifier: str,
     *,
     force: bool,
-    ref: Optional[str] = None,
+    ref: str | None = None,
     scan_decision_cb=None,
-    reviewed_pin: Optional[str] = None,
+    reviewed_pin: str | None = None,
     python_deps: bool = True,
     assume_deps_consent: bool = False,
-    catalog: Optional[dict] = None,
+    catalog: dict | None = None,
     allow_removed: bool = False,
     before_swap=None,
 ) -> tuple[Path, dict, str]:
@@ -459,7 +462,7 @@ def _install_plugin_core(
     return target, installed_manifest, installed_manifest.get("name") or target.name
 
 
-def recorded_install(install: Callable[[], tuple], *, catalog_name: Optional[str], identifier: str) -> tuple:
+def recorded_install(install: Callable[[], tuple], *, catalog_name: str | None, identifier: str) -> tuple:
     """Run one plugin install attempt (a core ``(target, manifest, installed_name)`` call) and record
     it as a shared-metrics extension install: failed when it raises, success unless it replaced an
     already-installed plugin (a reinstall is not an install)."""
@@ -480,8 +483,8 @@ def recorded_install(install: Callable[[], tuple], *, catalog_name: Optional[str
 def cmd_install(
     identifier: str,
     force: bool = False,
-    enable: Optional[bool] = None,
-    ref: Optional[str] = None,
+    enable: bool | None = None,
+    ref: str | None = None,
     allow_removed: bool = False,
     no_deps: bool = False,
     yes_deps: bool = False,
@@ -621,8 +624,8 @@ def cmd_install(
 
 
 def dashboard_install_plugin(
-    identifier: str, *, force: bool, enable: bool, catalog_name: Optional[str] = None,
-    ref: Optional[str] = None, assume_deps_consent: bool = False,
+    identifier: str, *, force: bool, enable: bool, catalog_name: str | None = None,
+    ref: str | None = None, assume_deps_consent: bool = False,
 ) -> dict[str, Any]:
     """Non-interactive install for the dashboard/TUI. *catalog_name* installs a curated entry at its
     pinned SHA (identifier may be empty); *ref* pins a custom source to one full commit SHA (same

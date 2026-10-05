@@ -4,18 +4,17 @@ from __future__ import annotations
 
 import contextlib
 import os
-from pathlib import Path
 import re
 import threading
-from typing import Optional
 import uuid
+from pathlib import Path
 
 from hermes_constants import get_default_hermes_root
 from utils import atomic_write_text
 
 _INSTALL_ID_FILENAME = "install_id"
 _INSTALL_ID_RE = re.compile(r"^[0-9a-f]{32}$")
-_INSTALL_ID_CACHE: dict[str, Optional[str]] = {"root": None, "value": None}
+_INSTALL_ID_CACHE: dict[str, str | None] = {"root": None, "value": None}
 _INSTALL_ID_LOCK, _INSTALL_ID_PUBLICATION_LOCK = threading.Lock(), threading.Lock()
 
 
@@ -47,7 +46,7 @@ def _install_id_file_lock(root: Path):
             os.close(fd)
 
 
-def _read_existing(path: Path) -> tuple[Optional[str], bool]:
+def _read_existing(path: Path) -> tuple[str | None, bool]:
     """``(valid id or None, mint?)`` — mint on a missing or malformed file, never on a read failure."""
     try:
         existing = path.read_text(encoding="utf-8-sig").strip().lower()
@@ -58,7 +57,7 @@ def _read_existing(path: Path) -> tuple[Optional[str], bool]:
     return (existing, False) if _INSTALL_ID_RE.fullmatch(existing) else (None, True)
 
 
-def read_or_create_install_id(root: Path | None = None) -> Optional[str]:
+def read_or_create_install_id(root: Path | None = None) -> str | None:
     """Read or atomically mint the opaque id for the physical install.
 
     ``None`` = neither readable nor persistable; an ephemeral id would violate the authority/registry contract.
@@ -85,13 +84,13 @@ def read_or_create_install_id(root: Path | None = None) -> Optional[str]:
             return None
 
 
-def get_install_id(*, cache: dict[str, Optional[str]] | None = None) -> Optional[str]:
+def get_install_id(*, cache: dict[str, str | None] | None = None) -> str | None:
     """Return the process-cached stable id for the active Hermes root."""
     root = get_default_hermes_root()
     root_key = str(root)
     target_cache = _INSTALL_ID_CACHE if cache is None else cache
 
-    def _cached() -> Optional[str]:
+    def _cached() -> str | None:
         cached = target_cache.get("value")
         return cached if cached and target_cache.get("root") in (None, root_key) else None
 

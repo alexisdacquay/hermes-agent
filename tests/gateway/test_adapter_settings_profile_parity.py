@@ -12,10 +12,8 @@ callable that resolves it from a constructed adapter, so a regression is reporte
 from __future__ import annotations
 
 import importlib
-from pathlib import Path
 
 import pytest
-
 from agent import secret_scope as ss
 from gateway.config import PlatformConfig
 

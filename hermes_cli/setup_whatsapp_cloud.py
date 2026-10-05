@@ -6,13 +6,12 @@ Intentionally does NOT smoke-test the webhook: the gateway and the tunnel both r
 processes the user starts AFTER this wizard exits, so any in-wizard probe would fail."""
 
 from __future__ import annotations
-from hermes_cli.cli_output import line_input
 
 import re
 import secrets
 import sys
-from typing import Optional
 
+from hermes_cli.cli_output import line_input
 
 # --- Field-shape validators: each returns (ok, reason_if_not_ok) so obviously-malformed input is
 # rejected before saving, sparing a round trip with Meta's 401 / 400 errors.
@@ -20,7 +19,7 @@ from typing import Optional
 def _rules_validator(label: str, rules):
     """Validator from ``(fails(stripped), reason)`` rules, checked in order after the required check.
     ``reason`` may be a str or a ``fn(stripped) -> str``."""
-    def validate(value: str) -> tuple[bool, Optional[str]]:
+    def validate(value: str) -> tuple[bool, str | None]:
         if not value:
             return False, f"{label} is required"
         s = value.strip()
@@ -88,7 +87,7 @@ _validate_access_token = _rules_validator("Access token", (
 
 # --- Prompt helpers
 
-def _prompt(message: str, default: Optional[str] = None, secret: bool = False) -> str:
+def _prompt(message: str, default: str | None = None, secret: bool = False) -> str:
     """Read one line; "" on EOF / Ctrl+C / empty. ``default`` is shown but NOT auto-applied so a
     real value stays distinguishable from a masked preview; ``secret`` reads via ``getpass``."""
     try:
@@ -103,8 +102,8 @@ def _prompt(message: str, default: Optional[str] = None, secret: bool = False) -
 
 
 def _prompt_validated(
-    message: str, validator, *, current: Optional[str] = None, help_text: Optional[str] = None,
-    secret: bool = False) -> Optional[str]:
+    message: str, validator, *, current: str | None = None, help_text: str | None = None,
+    secret: bool = False) -> str | None:
     """Repeat the prompt until a valid value or the user gives up (None: empty answer, Ctrl+C).
     ``current`` is shown as the default on wizard re-runs."""
     if help_text:
@@ -141,8 +140,8 @@ def _lines(*lines: str) -> None:
         print(line)
 
 
-def _persist(env_var: str, value: Optional[str], current: Optional[str],
-             saved: str = "  ✓ Saved: {v}", kept: str = "  ✓ Keeping existing: {v}") -> Optional[str]:
+def _persist(env_var: str, value: str | None, current: str | None,
+             saved: str = "  ✓ Saved: {v}", kept: str = "  ✓ Keeping existing: {v}") -> str | None:
     """Save ``value`` to .env, else keep ``current``; prints the matching line. Returns the effective
     value (None when neither exists). ``{v}`` in ``saved``/``kept`` is the value."""
     from hermes_cli.config import save_env_value

@@ -12,9 +12,8 @@ asserted on every OS (the lock-file symptom only reproduces on Windows).
 import logging
 from pathlib import Path
 
-import pytest
-
 import hermes_logging
+import pytest
 from hermes_cli import profiles
 from hermes_constants import reset_hermes_home_override, set_hermes_home_override
 

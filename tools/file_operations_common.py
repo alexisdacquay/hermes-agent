@@ -7,7 +7,7 @@ the model.
 
 import re
 from dataclasses import dataclass, field
-from typing import Any, ClassVar, Dict, List, Optional
+from typing import Any, ClassVar
 
 
 @dataclass
@@ -17,20 +17,20 @@ class ReadResult:
     total_lines: int = 0
     file_size: int = 0
     truncated: bool = False
-    truncated_lines: Optional[bool] = None
-    hint: Optional[str] = None
+    truncated_lines: bool | None = None
+    hint: str | None = None
     is_binary: bool = False
     is_image: bool = False
-    base64_content: Optional[str] = None
-    mime_type: Optional[str] = None
-    dimensions: Optional[str] = None  # For images: "WIDTHxHEIGHT"
-    error: Optional[str] = None
+    base64_content: str | None = None
+    mime_type: str | None = None
+    dimensions: str | None = None  # For images: "WIDTHxHEIGHT"
+    error: str | None = None
     #: True only when the path is genuinely absent. An error with this False is a read that
     #: FAILED (transport down, no byte transport installed); callers deciding whether a path
     #: is free must not read that as "absent". See patch_parser._apply_add.
     not_found: bool = False
-    similar_files: List[str] = field(default_factory=list)
-    _snapshot: Optional[tuple] = None
+    similar_files: list[str] = field(default_factory=list)
+    _snapshot: tuple | None = None
 
     def to_dict(self) -> dict:
         return {k: v for k, v in self.__dict__.items() if not k.startswith("_") and v is not None and v != []}
@@ -43,14 +43,14 @@ class WriteResult:
     dirs_created: bool = False
     # True when the on-disk sha256 matched the intended content; None when the
     # backend couldn't verify (no sha256sum). A mismatch is a hard error, never a flag.
-    verified: Optional[bool] = None
-    _content_sha256: Optional[str] = None
-    lint: Optional[Dict[str, Any]] = None
+    verified: bool | None = None
+    _content_sha256: str | None = None
+    lint: dict[str, Any] | None = None
     # LSP semantic diagnostics, kept separate from ``lint`` (syntax) so the model
     # reads the two as independent signals. None when LSP is off/inapplicable.
-    lsp_diagnostics: Optional[str] = None
-    error: Optional[str] = None
-    warning: Optional[str] = None
+    lsp_diagnostics: str | None = None
+    error: str | None = None
+    warning: str | None = None
 
     def to_dict(self) -> dict:
         return {k: v for k, v in self.__dict__.items() if not k.startswith("_") and v is not None}
@@ -61,15 +61,15 @@ class PatchResult:
     """Result from patching a file."""
     success: bool = False
     diff: str = ""
-    files_modified: List[str] = field(default_factory=list)
-    files_created: List[str] = field(default_factory=list)
-    files_deleted: List[str] = field(default_factory=list)
-    lint: Optional[Dict[str, Any]] = None
-    lsp_diagnostics: Optional[str] = None  # see WriteResult.lsp_diagnostics
-    error: Optional[str] = None
+    files_modified: list[str] = field(default_factory=list)
+    files_created: list[str] = field(default_factory=list)
+    files_deleted: list[str] = field(default_factory=list)
+    lint: dict[str, Any] | None = None
+    lsp_diagnostics: str | None = None  # see WriteResult.lsp_diagnostics
+    error: str | None = None
     # Success-shaped no-op: the edit was already present, nothing written; ``note`` says why.
     no_change: bool = False
-    note: Optional[str] = None
+    note: str | None = None
 
     # Emission order is part of the output contract.
     _DICT_FIELDS: ClassVar[tuple] = (
@@ -78,7 +78,7 @@ class PatchResult:
     )
 
     def to_dict(self) -> dict:
-        result: Dict[str, Any] = {"success": self.success}
+        result: dict[str, Any] = {"success": self.success}
         if self.no_change:
             result["no_change"] = True
         if self.note:
@@ -102,27 +102,27 @@ class SearchMatch:
 @dataclass
 class SearchResult:
     """Result from searching."""
-    matches: List[SearchMatch] = field(default_factory=list)
-    files: List[str] = field(default_factory=list)
-    counts: Dict[str, int] = field(default_factory=dict)
+    matches: list[SearchMatch] = field(default_factory=list)
+    files: list[str] = field(default_factory=list)
+    counts: dict[str, int] = field(default_factory=dict)
     total_count: int = 0
     truncated: bool = False
-    limit_reason: Optional[str] = None
-    warning: Optional[str] = None
-    error: Optional[str] = None
+    limit_reason: str | None = None
+    warning: str | None = None
+    error: str | None = None
 
     # Below this many matches the verbose array is already compact enough that
     # a path-grouping header would cost more tokens than it saves.
     _DENSIFY_MIN_MATCHES: ClassVar[int] = 5
 
-    def _densify_matches(self) -> Optional[str]:
+    def _densify_matches(self) -> str | None:
         """Lossless path-grouped text block: path once, then ``  <line>: <content>``
         rows. Relies on rg/grep emitting a file's hits consecutively. None when
         too few matches to be worth it."""
         if len(self.matches) < self._DENSIFY_MIN_MATCHES:
             return None
         lines: list[str] = []
-        current_path: Optional[str] = None
+        current_path: str | None = None
         for m in self.matches:
             if m.path != current_path:
                 lines.append(m.path)
@@ -196,8 +196,8 @@ _OSC_SEQUENCE_RE = re.compile(r"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)")
 _FENCE_MARKER_RE = re.compile(r"'?\x07?__HERMES_FENCE_[A-Za-z0-9]+__\x07?'?")
 
 
-_CONFLICT_OPEN = re.compile(r"^\s*\d+\|<<<<<<< ", re.M)
-_CONFLICT_CLOSE = re.compile(r"^\s*\d+\|>>>>>>> ", re.M)
+_CONFLICT_OPEN = re.compile(r"^\s*\d+\|<<<<<<< ", re.MULTILINE)
+_CONFLICT_CLOSE = re.compile(r"^\s*\d+\|>>>>>>> ", re.MULTILINE)
 
 
 def count_conflict_blocks(formatted_content: str) -> int:
@@ -213,7 +213,7 @@ def _strip_terminal_fence_leaks(text: str) -> str:
     command output; drops lines that were nothing but wrapper."""
     if not text:
         return text
-    cleaned_lines: List[str] = []
+    cleaned_lines: list[str] = []
     for line in text.splitlines(keepends=True):
         had_terminal_wrapper = "__HERMES_FENCE_" in line or "\x1b]" in line
         cleaned = _FENCE_MARKER_RE.sub("", _OSC_SEQUENCE_RE.sub("", line)).replace("\x07", "")
@@ -223,7 +223,7 @@ def _strip_terminal_fence_leaks(text: str) -> str:
     return "".join(cleaned_lines)
 
 
-def _detect_line_ending(sample: str) -> Optional[str]:
+def _detect_line_ending(sample: str) -> str | None:
     """Dominant line ending of ``sample`` (``\\r\\n`` if any CRLF in the first 4KB,
     else ``\\n``), or None for empty/single-line content. Preserves a file's
     endings across write_file/patch: bare-LF tool args would otherwise silently
@@ -262,7 +262,7 @@ def _strip_bom(text: str) -> tuple[str, bool]:
     return text, False
 
 
-def _has_bom(text: Optional[str]) -> bool:
+def _has_bom(text: str | None) -> bool:
     """True if ``text`` begins with a UTF-8 BOM."""
     return bool(text) and text.startswith(_UTF8_BOM)
 

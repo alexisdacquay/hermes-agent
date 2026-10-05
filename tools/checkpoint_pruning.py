@@ -1,11 +1,11 @@
 """Checked history rewrites shared by snapshot limits and store maintenance."""
 from __future__ import annotations
 
+import os
+from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import dataclass
-import os
 from pathlib import Path
-from typing import Callable
 
 
 class PruneError(RuntimeError):

@@ -6,10 +6,10 @@ Requires tiktoken; no model calls or model-quality claims.
 
 import json
 import os
-from pathlib import Path
 import socket
 import sys
 import tempfile
+from pathlib import Path
 
 root, destination = sys.argv[1:3]
 sys.path.insert(0, root)

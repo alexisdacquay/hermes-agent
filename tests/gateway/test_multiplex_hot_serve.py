@@ -12,7 +12,6 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from gateway.config import GatewayConfig, Platform
 from gateway.run import GatewayRunner
 from gateway.run_profile_reconcile import profile_serve_signature
@@ -130,7 +129,6 @@ async def test_stalled_own_gateway_probe_never_wedges_the_loop_or_serves(tmp_pat
 
         def _stalling_probe(profile_home):
             released.wait(timeout=10)  # the control pipe that never answers
-            return None
 
         monkeypatch.setattr("gateway.status.live_gateway_pid_for_home", _stalling_probe)
         monkeypatch.setattr(reconcile_mod, "_OWN_GATEWAY_PROBE_TIMEOUT_SECS", 0.2)
@@ -220,8 +218,8 @@ async def test_profile_control_verbs_round_trip_and_refusals(tmp_path, monkeypat
 @pytest.mark.platforms("linux")
 @pytest.mark.asyncio
 async def test_profile_lifecycle_over_real_control_socket(tmp_path, monkeypatch):
-    from gateway.run import _start_gateway_start_control_socket
     from gateway import control_socket
+    from gateway.run import _start_gateway_start_control_socket
     runner, home = _runner(tmp_path, monkeypatch)
     secondary = _mkprofile(home, "worker")
     with patch("hermes_cli.profiles.get_active_profile_name", return_value="default"):
@@ -473,7 +471,7 @@ async def test_transient_secret_hydrate_failure_retries_through_real_start_path(
     runner._connect_initial_adapter_with_timeout = _connect
     runner._after_profiles_added = _noop_added
 
-    import hermes_cli.env_loader as env_loader
+    from hermes_cli import env_loader
     hydrate_calls = []
     real_hydrate = env_loader.hydrate_profile_secret_sources
 

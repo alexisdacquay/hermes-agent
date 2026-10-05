@@ -5,11 +5,12 @@ load/save paths (state.db gateway_routing primary, sessions.json legacy mirror).
 from __future__ import annotations
 
 import contextlib
-import logging
 import json
+import logging
 import threading
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import TYPE_CHECKING, Any
+
 from utils import atomic_json_write
 
 if TYPE_CHECKING:
@@ -40,7 +41,7 @@ def _is_live_system_guard(exc: BaseException) -> bool:
 class SessionPersistenceMixin:
     """SessionStore storage plumbing: SessionDB handle resolution and routing-index load/save."""
 
-    def _open_session_db_for_active_scope(self, db_path: Optional[Path] = None):
+    def _open_session_db_for_active_scope(self, db_path: Path | None = None):
         """SessionDB for the active profile scope. ``db_path`` pins the store; otherwise
         ``_default_db_path()`` follows the context-local HERMES_HOME (resolved per call so
         multiplexed profiles reach their own store). Handles are cached per path; failed opens enter
@@ -105,7 +106,7 @@ class SessionPersistenceMixin:
         except Exception:
             return None
 
-    def _named_profile_for_key(self, session_key: Optional[str]) -> Optional[str]:
+    def _named_profile_for_key(self, session_key: str | None) -> str | None:
         """The non-default profile that owns *session_key*, or None (ambient store is authoritative:
         multiplexing off, or legacy ``agent:main``). Deliberately does NOT cover "that profile has
         no directory" — ownership and resolvability are separate questions for ``_db_for_key``."""
@@ -114,7 +115,7 @@ class SessionPersistenceMixin:
         profile = self._profile_from_session_key(session_key)
         return None if not profile or profile == "default" else profile
 
-    def _profile_home_for_key(self, session_key: Optional[str]) -> Optional[Path]:
+    def _profile_home_for_key(self, session_key: str | None) -> Path | None:
         """HERMES_HOME of the profile owning *session_key*, or None (no named owner or
         unresolvable)."""
         profile = self._named_profile_for_key(session_key)
@@ -123,7 +124,7 @@ class SessionPersistenceMixin:
         cache = self._profile_home_cache
         if profile in cache:
             return cache[profile]
-        home: Optional[Path] = None
+        home: Path | None = None
         try:
             from hermes_cli.profiles import get_profile_dir, profile_exists
             if profile_exists(profile):
@@ -137,7 +138,7 @@ class SessionPersistenceMixin:
             cache[profile] = home
         return home
 
-    def _db_for_key(self, session_key: Optional[str]):
+    def _db_for_key(self, session_key: str | None):
         """The SessionDB holding *session_key*'s rows, whatever scope is active (the owning profile
         is encoded in the key). ``_db`` follows the ambient HERMES_HOME that only the inbound message
         path installs; unscoped background work (expiry watcher) would otherwise write profile rows
@@ -177,7 +178,7 @@ class SessionPersistenceMixin:
         except Exception:
             return None  # same contract as ``_db``: a failed open degrades to JSONL fallback
 
-    def _owner_key_for_session_id(self, session_id: Optional[str]) -> Optional[str]:
+    def _owner_key_for_session_id(self, session_id: str | None) -> str | None:
         """The routing key that owns *session_id*, or None. The published index is authoritative;
         ``_session_owner_hints`` covers the window where ownership is proven but routing not yet
         published. Deliberately lock-free: several callers already hold ``_lock``."""
@@ -191,7 +192,7 @@ class SessionPersistenceMixin:
             pass  # bare stores / foreign entry objects in suites
         return (getattr(self, "_session_owner_hints", None) or {}).get(session_id)
 
-    def _db_for_session_id(self, session_id: Optional[str]):
+    def _db_for_session_id(self, session_id: str | None):
         """The SessionDB holding *session_id*'s row (owner from the index or a pre-published hint;
         unknown ids fall back to the ambient store)."""
         if not session_id:
@@ -203,7 +204,9 @@ class SessionPersistenceMixin:
         would strand secondary profiles' handles with their WAL lock held ('database is locked' on
         restart). Drained under the lock, closed outside it; a pinned handle is the pinner's."""
         def _close(db) -> None:
-            from hermes_state_registry import release_or_close  # shared instances no-op on close()
+            from hermes_state_registry import (
+                release_or_close,  # shared instances no-op on close()
+            )
             try:
                 release_or_close(db)
             except Exception as exc:
@@ -216,7 +219,7 @@ class SessionPersistenceMixin:
         with self._lock:
             self._ensure_loaded_locked()
 
-    def _entry_locked(self, session_key: str) -> Optional[SessionEntry]:
+    def _entry_locked(self, session_key: str) -> SessionEntry | None:
         """Load the index and return the entry for *session_key*. Lock held."""
         self._ensure_loaded_locked()
         return self._entries.get(session_key)
@@ -251,7 +254,7 @@ class SessionPersistenceMixin:
             return False
 
     @staticmethod
-    def _routing_entry_from_json(key: str, entry_json: str) -> Optional[SessionEntry]:
+    def _routing_entry_from_json(key: str, entry_json: str) -> SessionEntry | None:
         """Parse one gateway_routing row; None (with a warning) when invalid."""
         from gateway.session import SessionEntry
         try:
@@ -390,7 +393,7 @@ class SessionPersistenceMixin:
             "a crashed gateway", key, entry.session_id, row["end_reason"])
         return "prune"
 
-    def _entries_as_dicts(self) -> Dict[str, Any]:
+    def _entries_as_dicts(self) -> dict[str, Any]:
         """Serializable snapshot of ``_entries``. Lock held."""
         return {key: entry.to_dict() for key, entry in self._entries.items()}
 
@@ -434,12 +437,12 @@ class SessionPersistenceMixin:
         self._routing_db_loaded = True
         self._routing_fallback_baseline = None
 
-    def _snapshot_routing_locked(self) -> tuple[Dict[str, Any], int]:
+    def _snapshot_routing_locked(self) -> tuple[dict[str, Any], int]:
         """Capture immutable routing data and a monotonic generation."""
         self._reconcile_recovered_routing_locked()
         return self._entries_as_dicts(), self._next_routing_generation_locked()
 
-    def _persist_routing_data(self, data: Dict[str, Any], generation: int) -> None:
+    def _persist_routing_data(self, data: dict[str, Any], generation: int) -> None:
         """Serialize all whole-index writers through one durable write lock."""
         with self._lazy("_save_lock", threading.Lock):
             if generation <= getattr(self, "_persisted_routing_generation", 0):
@@ -477,7 +480,7 @@ class SessionPersistenceMixin:
                 for key in [k for k, (rev, _) in fast_persisted.items() if rev <= generation]:
                     del fast_persisted[key]
 
-    def _save_sessions_json(self, data: Dict[str, Any]) -> None:
+    def _save_sessions_json(self, data: dict[str, Any]) -> None:
         """Write the legacy sessions.json mirror of the routing index (atomic + fsync)."""
         atomic_json_write(self.sessions_dir / "sessions.json", {"_README": _SESSIONS_JSON_README, **data}, mode=0o600)
 
@@ -488,7 +491,7 @@ class SessionPersistenceMixin:
         self._persist_routing_data(data, generation)
 
     def _save_entry(
-        self, session_key: str, *, entry_data: Optional[Dict[str, Any]] = None,
+        self, session_key: str, *, entry_data: dict[str, Any] | None = None,
         lock_held: bool = False) -> None:
         """Persist ONE routing entry via UPSERT — the per-turn fast path (a full rewrite fsyncs a
         multi-MB sessions.json). The key -> session_id mapping never changes here: structural

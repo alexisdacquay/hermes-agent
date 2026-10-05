@@ -27,7 +27,6 @@ import threading
 import types
 
 import pytest
-
 from tui_gateway import server
 
 

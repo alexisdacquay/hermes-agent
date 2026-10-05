@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import contextvars
 import hashlib
-from contextlib import suppress
 import json
 import logging
 import os
@@ -20,9 +19,10 @@ import re
 import tarfile
 import time as _time
 import uuid
-from datetime import datetime, timezone
+from contextlib import suppress
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from hermes_constants import get_hermes_home
 
@@ -52,11 +52,11 @@ TRANSIENT_DIRS = frozenset({
 _SNAPSHOT_EXCLUDE_DIRS = TRANSIENT_DIRS
 
 # Explicit actor override: the CLI sets "user", the curator walk sets "curator".
-_actor_override: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
+_actor_override: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "skill_ledger_actor", default=None)
 
 
-def set_ledger_actor(actor: Optional[str]) -> contextvars.Token:
+def set_ledger_actor(actor: str | None) -> contextvars.Token:
     """Bind an explicit actor for this context; reset_ledger_actor(token) in a finally."""
     return _actor_override.set(actor)
 
@@ -103,7 +103,10 @@ def _skills_cfg(key: str, default):
     """``skills.<key>`` from the read-only merged config (no deepcopy), or *default* when the
     read fails. Lazy import keeps this module importable without the CLI."""
     try:
-        from hermes_cli.config import cfg_get, load_config_readonly  # read-only hot path: no deepcopy
+        from hermes_cli.config import (  # read-only hot path: no deepcopy
+            cfg_get,
+            load_config_readonly,
+        )
         return cfg_get(load_config_readonly(), "skills", key, default=default)
     except Exception as e:  # pragma: no cover — best-effort config read
         logger.debug("skill_ledger: config read failed (%s); skills.%s defaults to %r", e, key, default)
@@ -121,7 +124,7 @@ def _max_ledger_bytes() -> int:
     return int(_skills_cfg("ledger_max_bytes", _DEFAULT_LEDGER_MAX_BYTES))
 
 
-def _rel_posix(path: Path | str, root: Path) -> Optional[str]:
+def _rel_posix(path: Path | str, root: Path) -> str | None:
     """POSIX path of ``path`` relative to ``root`` (both normalized), or None when outside."""
     try:
         return Path(os.path.normpath(str(path))).relative_to(os.path.normpath(str(root))).as_posix()
@@ -146,7 +149,7 @@ def _store_blob(data: bytes) -> str:
     return digest
 
 
-def read_blob(sha256: str) -> Optional[bytes]:
+def read_blob(sha256: str) -> bytes | None:
     """Return blob content or None when missing/invalid."""
     if not sha256 or not all(c in "0123456789abcdef" for c in sha256):
         return None
@@ -155,7 +158,7 @@ def read_blob(sha256: str) -> Optional[bytes]:
     return None
 
 
-def snapshot_paths(root: Optional[Path], *, complete_package: bool = False) -> List[Dict[str, str]]:
+def snapshot_paths(root: Path | None, *, complete_package: bool = False) -> list[dict[str, str]]:
     """{path, sha256} for every file under *root*, each stored as a blob; [] when root is
     None/missing. Transient local artifacts (venvs, node_modules, caches, .git) are
     excluded wherever they appear under *root*. Raises on I/O failure — callers decide
@@ -173,7 +176,7 @@ def snapshot_paths(root: Optional[Path], *, complete_package: bool = False) -> L
     return fill_snapshot_from_curator_backup(root, out) if complete_package else out
 
 
-def _package_rel(root: Path) -> Optional[str]:
+def _package_rel(root: Path) -> str | None:
     """Relative POSIX path of a skill dir under ``skills/``; None when outside it
     or under backup/hub/archive metadata roots (never a package)."""
     posix = (_rel_posix(root, _skills_dir()) or "").strip("/")
@@ -187,13 +190,13 @@ def _strip_archive_timestamp(name: str) -> str:
     return match.group(1) if match else name
 
 
-def _skill_md_parents(items: Optional[List[Dict[str, str]]]) -> List[Path]:
+def _skill_md_parents(items: list[dict[str, str]] | None) -> list[Path]:
     return [p.parent for p in (Path(str(i.get("path", ""))) for i in items or []) if p.name == "SKILL.md"]
 
 
 def package_prefixes(
-    root: Optional[Path] = None, skill: Optional[str] = None,
-    before: Optional[List[Dict[str, str]]] = None) -> List[str]:
+    root: Path | None = None, skill: str | None = None,
+    before: list[dict[str, str]] | None = None) -> list[str]:
     """Tar member prefixes of this skill's package: live location under ``skills/``,
     the package parent from the before-state SKILL.md path (rollback fills where
     *root* is gone), the bare skill name, and the name minus an archive suffix."""
@@ -203,7 +206,7 @@ def package_prefixes(
     return list(dict.fromkeys(p for p in ((c or "").strip("/") for c in candidates) if p))
 
 
-def _read_package_files_from_latest_backup(prefixes: List[str]) -> Dict[str, bytes]:
+def _read_package_files_from_latest_backup(prefixes: list[str]) -> dict[str, bytes]:
     """``{posix-relpath: bytes}`` under *prefixes* in the newest ``skills/.curator_backups/*/
     skills.tar.gz``; malicious member names (absolute, ``..`` traversal) are rejected."""
     backups = _skills_dir() / ".curator_backups"
@@ -220,7 +223,7 @@ def _read_package_files_from_latest_backup(prefixes: List[str]) -> Dict[str, byt
     archive = max(candidates, key=lambda p: p.parent.name)
     prefixed = tuple(p if p.endswith("/") else p + "/" for p in prefixes)
     exact = set(prefixes)
-    out: Dict[str, bytes] = {}
+    out: dict[str, bytes] = {}
     try:
         with tarfile.open(archive, "r:gz") as tf:
             for member in tf.getmembers():
@@ -239,8 +242,8 @@ def _read_package_files_from_latest_backup(prefixes: List[str]) -> Dict[str, byt
 
 
 def fill_snapshot_from_curator_backup(
-    root: Optional[Path], existing: Optional[List[Dict[str, str]]] = None, *,
-    skill: Optional[str] = None) -> List[Dict[str, str]]:
+    root: Path | None, existing: list[dict[str, str]] | None = None, *,
+    skill: str | None = None) -> list[dict[str, str]]:
     """Union missing skill-package files from the newest curator snapshot. Completeness fill, not
     a gate: failures return *existing* unchanged, and only ABSENT paths are filled. Fill targets go
     where rollback must restore them: under *root* when known (for purge that is
@@ -283,7 +286,7 @@ def fill_snapshot_from_curator_backup(
     return out
 
 
-def _delta(before: List[Dict[str, str]], after: List[Dict[str, str]]) -> Tuple[List[Dict[str, str]], List[Dict[str, str]]]:
+def _delta(before: list[dict[str, str]], after: list[dict[str, str]]) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
     """Drop paths whose hash is identical on both sides. ``rollback_entry`` writes every *before*
     path and removes *after*-only paths, so unchanged files are dead weight there — and a full
     package manifest per edit made a 4,000-file skill cost 1.5 MB of ledger per patch (650 MB
@@ -296,9 +299,9 @@ def _delta(before: List[Dict[str, str]], after: List[Dict[str, str]]) -> Tuple[L
 
 
 def append_entry(
-    action: str, skill: str, before: Optional[List[Dict[str, str]]] = None,
-    after: Optional[List[Dict[str, str]]] = None, actor: Optional[str] = None,
-    evidence: Optional[Dict[str, Any]] = None) -> Optional[str]:
+    action: str, skill: str, before: list[dict[str, str]] | None = None,
+    after: list[dict[str, str]] | None = None, actor: str | None = None,
+    evidence: dict[str, Any] | None = None) -> str | None:
     """Append one entry -> id, or None when disabled / write failed (never raises)."""
     if not ledger_enabled():
         return None
@@ -307,7 +310,7 @@ def append_entry(
         if action != "pre-rollback":
             before, after = _delta(before or [], after or [])
         entry = {
-            "id": uuid.uuid4().hex[:12], "ts": datetime.now(timezone.utc).isoformat(),
+            "id": uuid.uuid4().hex[:12], "ts": datetime.now(UTC).isoformat(),
             "actor": actor if actor in _VALID_ACTORS else derive_actor(),
             "action": action, "skill": skill, "evidence": evidence or {},
             "before": before or [], "after": after or []}
@@ -323,7 +326,7 @@ def append_entry(
         return None
 
 
-def _read_ledger(what: str, *, quiet_missing: bool = False) -> Optional[bytes]:
+def _read_ledger(what: str, *, quiet_missing: bool = False) -> bytes | None:
     """Raw ledger bytes, or ``None`` (after a warning) when the file cannot be read or is not UTF-8.
     ``quiet_missing`` keeps a merely absent ledger silent — normal for a fresh install."""
     try:
@@ -369,7 +372,7 @@ def _maintain_size() -> None:
 
 
 
-def _rewrite_ledger(path: Path, lines: List[bytes], op: str) -> bytes:
+def _rewrite_ledger(path: Path, lines: list[bytes], op: str) -> bytes:
     """Atomically replace the ledger at *path* with *lines* (one physical row each, no
     terminators): write ``<name>.<op>.tmp`` fully, then ``os.replace`` it over the ledger.
     Returns the bytes written so callers can report the new size."""
@@ -398,7 +401,7 @@ def _trim_oldest_locked(max_bytes: int) -> int:
     lines = raw.split(b"\n")
     if lines and lines[-1] == b"":
         lines.pop()
-    kept: List[bytes] = []
+    kept: list[bytes] = []
     size = 0
     for line in reversed(lines):  # the first iteration always keeps lines[-1]: the newest entry
         addition = len(line) + 1
@@ -414,7 +417,7 @@ def _trim_oldest_locked(max_bytes: int) -> int:
     return dropped
 
 
-def compact_ledger() -> Tuple[int, int, int]:
+def compact_ledger() -> tuple[int, int, int]:
     """Rewrite the ledger with every entry's unchanged paths dropped (see ``_delta``); ids, order and
     rollback semantics are preserved. Returns ``(entries, bytes_before, bytes_after)``. Atomic: the
     new file replaces the old only once fully written. Malformed lines are kept verbatim. Follow with
@@ -423,7 +426,7 @@ def compact_ledger() -> Tuple[int, int, int]:
         return _compact_ledger_locked()
 
 
-def _compact_ledger_locked() -> Tuple[int, int, int]:
+def _compact_ledger_locked() -> tuple[int, int, int]:
     path = ledger_path()
     raw = _read_ledger("compaction skipped")
     if raw is None:
@@ -450,7 +453,7 @@ def _compact_ledger_locked() -> Tuple[int, int, int]:
     return kept, len(raw), len(data)
 
 
-def gc_blobs() -> Tuple[int, int]:
+def gc_blobs() -> tuple[int, int]:
     """Delete blobs no ledger entry references; returns ``(deleted, bytes_freed)``. The store was
     write-only: on one install 98.9% of 47k blobs (1.18 GB) were unreachable after a venv walk
     (#107539). Malformed ledger lines, or an unreadable/undecodable ledger, abort the sweep
@@ -461,7 +464,7 @@ def gc_blobs() -> Tuple[int, int]:
         return _gc_blobs_locked()
 
 
-def _gc_blobs_locked() -> Tuple[int, int]:
+def _gc_blobs_locked() -> tuple[int, int]:
     blobs = blobs_dir()
     if not blobs.is_dir():
         return 0, 0
@@ -499,9 +502,9 @@ def _gc_blobs_locked() -> Tuple[int, int]:
 
 
 def record_mutation(
-    action: str, skill: str, before_root: Optional[Path] = None,
-    before: Optional[List[Dict[str, str]]] = None, after_root: Optional[Path] = None,
-    actor: Optional[str] = None, evidence: Optional[Dict[str, Any]] = None) -> Optional[str]:
+    action: str, skill: str, before_root: Path | None = None,
+    before: list[dict[str, str]] | None = None, after_root: Path | None = None,
+    actor: str | None = None, evidence: dict[str, Any] | None = None) -> str | None:
     """Mutation hook: after-state from *after_root* (before = pre-captured list or captured from
     *before_root*), then append. NEVER raises. delete/archive/purge capture a COMPLETE package
     (filled from the newest curator backup) so rollback never restores a shell."""
@@ -521,8 +524,8 @@ def record_mutation(
 
 
 def capture_before(
-    root: Optional[Path], *, complete_package: bool = False, skill: Optional[str] = None,
-) -> Optional[List[Dict[str, str]]]:
+    root: Path | None, *, complete_package: bool = False, skill: str | None = None,
+) -> list[dict[str, str]] | None:
     """Best-effort pre-mutation capture; None on failure/disabled (pass straight to
     record_mutation). ``complete_package=True`` for delete/archive/purge."""
     if not ledger_enabled():
@@ -535,12 +538,12 @@ def capture_before(
         return None
 
 
-def list_entries(skill: Optional[str] = None, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+def list_entries(skill: str | None = None, limit: int | None = None) -> list[dict[str, Any]]:
     """Read the ledger, newest first. Malformed lines are skipped."""
     raw = _read_ledger("listing empty", quiet_missing=True)  # missing/unreadable/undecodable == empty
     if raw is None:
         return []
-    rows: List[Dict[str, Any]] = []
+    rows: list[dict[str, Any]] = []
     for line in raw.decode("utf-8").splitlines():
         with suppress(json.JSONDecodeError):
             row = json.loads(line) if line.strip() else None
@@ -550,11 +553,11 @@ def list_entries(skill: Optional[str] = None, limit: Optional[int] = None) -> Li
     return rows[:limit] if limit is not None and limit >= 0 else rows
 
 
-def get_entry(entry_id: str) -> Optional[Dict[str, Any]]:
+def get_entry(entry_id: str) -> dict[str, Any] | None:
     return next((r for r in list_entries() if r.get("id") == entry_id), None) if entry_id else None
 
 
-def _validate_entry_paths(entry: Dict[str, Any]) -> Optional[str]:
+def _validate_entry_paths(entry: dict[str, Any]) -> str | None:
     """Every entry path must be under HERMES_HOME — a hand-edited ledger must not
     become a write-anywhere primitive."""
     home = get_hermes_home()
@@ -566,7 +569,7 @@ def _validate_entry_paths(entry: Dict[str, Any]) -> Optional[str]:
     return None
 
 
-def rollback_entry(entry_id: str) -> Tuple[bool, str]:
+def rollback_entry(entry_id: str) -> tuple[bool, str]:
     """Restore the before-state of mutation *entry_id*. Fail-closed (mirrors
     agent/curator_backup.rollback): every before-blob must exist BEFORE any change, and a
     pre-rollback safety entry of every touched path's CURRENT state is appended first.

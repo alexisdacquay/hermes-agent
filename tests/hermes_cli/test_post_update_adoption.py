@@ -7,10 +7,8 @@ Anything else — untouched. A read-only tree fails soft (nix-like layouts).
 import json
 import os
 import stat
-import sys
 
 import pytest
-
 from hermes_cli.post_update import step_adopt_blessed_checkout
 
 

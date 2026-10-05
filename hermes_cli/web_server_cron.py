@@ -4,12 +4,14 @@ gateway forwarding.
 
 import asyncio
 import contextlib
-import logging
 import inspect
+import logging
 import re
-from fastapi import HTTPException
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
+
+from fastapi import HTTPException
+
 from hermes_cli.config import cfg_get
 from hermes_cli.web_models import CronJobCreate
 
@@ -17,7 +19,7 @@ from hermes_cli.web_models import CronJobCreate
 _log = logging.getLogger("hermes_cli.web_server")
 
 
-def _cron_optional_text(value: Any, *, strip_trailing_slash: bool = False) -> Optional[str]:
+def _cron_optional_text(value: Any, *, strip_trailing_slash: bool = False) -> str | None:
     if value is None:
         return None
     text = str(value).strip()
@@ -26,7 +28,7 @@ def _cron_optional_text(value: Any, *, strip_trailing_slash: bool = False) -> Op
     return text or None
 
 
-def _cron_string_list(value: Any) -> Optional[List[str]]:
+def _cron_string_list(value: Any) -> list[str] | None:
     if isinstance(value, str):
         raw_items = re.split(r"[\n,]", value)
     elif isinstance(value, (list, tuple)):
@@ -37,7 +39,7 @@ def _cron_string_list(value: Any) -> Optional[List[str]]:
     return items or None
 
 
-def _normalize_dashboard_cron_script(value: Any, profile_home: Path) -> Optional[str]:
+def _normalize_dashboard_cron_script(value: Any, profile_home: Path) -> str | None:
     """Validate a dashboard-selected cron script against the profile sandbox."""
     text = _cron_optional_text(value)
     if not text:
@@ -56,7 +58,7 @@ def _normalize_dashboard_cron_script(value: Any, profile_home: Path) -> Optional
     return str(relative)
 
 
-def _validate_dashboard_cron_effective_job(job: Dict[str, Any]) -> None:
+def _validate_dashboard_cron_effective_job(job: dict[str, Any]) -> None:
     prompt = _cron_optional_text(job.get("prompt"))
     script = _cron_optional_text(job.get("script"))
     skills = _cron_string_list(job.get("skills")) or _cron_string_list(job.get("skill"))
@@ -68,7 +70,7 @@ def _validate_dashboard_cron_effective_job(job: Dict[str, Any]) -> None:
         raise HTTPException(status_code=400, detail="agent cron jobs require a prompt, skill, or script")
 
 
-def _validate_dashboard_cron_context_from(refs: Optional[List[str]], profile_name: str) -> None:
+def _validate_dashboard_cron_context_from(refs: list[str] | None, profile_name: str) -> None:
     for ref in refs or ():
         # "self" (the continuity toggle) resolves to the job's own id at run time — it can't be
         # validated against the store (create precedes the job's existence).
@@ -80,11 +82,11 @@ def _validate_dashboard_cron_context_from(refs: Optional[List[str]], profile_nam
                 detail=f"context_from job '{ref}' not found in profile '{profile_name}'")
 
 
-def _cron_profile_dicts() -> List[Dict[str, Any]]:
+def _cron_profile_dicts() -> list[dict[str, Any]]:
     """Minimal profile records (callers only consume ``name``); avoids ``list_profiles()``,
     whose config parsing, gateway probes and skill counts are GIL pressure on large pools."""
-    from hermes_cli.web_server_profiles import _fallback_profile_dicts
     from hermes_cli import profiles as profiles_mod
+    from hermes_cli.web_server_profiles import _fallback_profile_dicts
     try:
         return [
             {"name": name, "path": str(home), "is_default": name == "default"}
@@ -110,7 +112,7 @@ def _cron_default_profile() -> str:
     return "default" if name in ("default", "custom") else name
 
 
-def _cron_profile_home(profile: Optional[str]) -> Tuple[str, Path]:
+def _cron_profile_home(profile: str | None) -> tuple[str, Path]:
     """Resolve a profile query value to (profile_name, HERMES_HOME)."""
     from hermes_cli import profiles as profiles_mod
     raw = (profile or _cron_default_profile()).strip() or "default"
@@ -125,8 +127,8 @@ def _cron_profile_home(profile: Optional[str]) -> Tuple[str, Path]:
 
 
 def _annotate_cron_job(
-    job: Dict[str, Any], profile: str, home: Path, heartbeat_age: Optional[float] = None,
-) -> Dict[str, Any]:
+    job: dict[str, Any], profile: str, home: Path, heartbeat_age: float | None = None,
+) -> dict[str, Any]:
     return {
         **job,
         "profile": profile,
@@ -156,7 +158,7 @@ def _cron_store_scope(home: Path):
         reset_hermes_home_override(token)
 
 
-def _call_cron_for_profile(target_profile: Optional[str], func_name: str, *args, **kwargs):
+def _call_cron_for_profile(target_profile: str | None, func_name: str, *args, **kwargs):
     """Run a cron.jobs helper against the selected profile's cron directory."""
     profile_name, home = _cron_profile_home(target_profile)
     with _cron_store_scope(home) as cron_jobs:
@@ -173,7 +175,7 @@ def _call_cron_for_profile(target_profile: Optional[str], func_name: str, *args,
     return result
 
 
-def _notify_cron_provider_for_profile(target_profile: Optional[str]) -> None:
+def _notify_cron_provider_for_profile(target_profile: str | None) -> None:
     """Best-effort provider reconcile against one profile's job store.
 
     Fail-closed for external providers on a multi-profile dashboard: an external ``reconcile``
@@ -185,7 +187,10 @@ def _notify_cron_provider_for_profile(target_profile: Optional[str]) -> None:
     """
     try:
         _profile_name, home = _cron_profile_home(target_profile)
-        from cron.scheduler_provider import InProcessCronScheduler, resolve_cron_scheduler
+        from cron.scheduler_provider import (
+            InProcessCronScheduler,
+            resolve_cron_scheduler,
+        )
         with _cron_store_scope(home):
             provider = resolve_cron_scheduler()
             external = not isinstance(provider, InProcessCronScheduler)
@@ -203,7 +208,7 @@ def _notify_cron_provider_for_profile(target_profile: Optional[str]) -> None:
         _log.debug("Cron provider reconciliation failed for profile %s", target_profile, exc_info=True)
 
 
-def _mutate_cron_for_profile(target_profile: Optional[str], func_name: str, *args, **kwargs):
+def _mutate_cron_for_profile(target_profile: str | None, func_name: str, *args, **kwargs):
     """Apply a cron store mutation and reconcile its scheduler provider."""
     result = _call_cron_for_profile(target_profile, func_name, *args, **kwargs)
     if result:
@@ -211,7 +216,7 @@ def _mutate_cron_for_profile(target_profile: Optional[str], func_name: str, *arg
     return result
 
 
-def _find_cron_job_profile(job_id: str) -> Optional[str]:
+def _find_cron_job_profile(job_id: str) -> str | None:
     for profile in _cron_profile_dicts():
         name = str(profile.get("name") or "")
         if not name:
@@ -241,7 +246,7 @@ def _raise_if_cron_registration_error(e: Exception) -> None:
         raise HTTPException(status_code=424, detail=e.to_dict()) from e
 
 
-def _create_cron_job_sync(body: CronJobCreate, profile: Optional[str] = None):
+def _create_cron_job_sync(body: CronJobCreate, profile: str | None = None):
     try:
         profile_name, profile_home = _cron_profile_home(profile)
         script = _normalize_dashboard_cron_script(body.script, profile_home)
@@ -286,7 +291,11 @@ def _fire_cron_job_for_profile(profile: str, job_id: str, *, force: bool = False
     and external callers on the web_deps late-binding seam; do not add new uses.
     """
     _profile_name, home = _cron_profile_home(profile)
-    from cron.scheduler_provider import provider_fire_due_accepts, provider_supports_force_fire, resolve_cron_scheduler
+    from cron.scheduler_provider import (
+        provider_fire_due_accepts,
+        provider_supports_force_fire,
+        resolve_cron_scheduler,
+    )
     with _cron_store_scope(home):
         provider = resolve_cron_scheduler()
         if force:
@@ -323,8 +332,9 @@ def _gateway_fire_endpoint(profile: str, home: Path) -> str:
     mirrors under ``/p/<profile>/…``, so a non-default profile's port must be read from the
     default home (a secondary's own API_SERVER_PORT is a port nothing listens on).
     """
-    from hermes_cli.config import load_config
     import os as _os
+
+    from hermes_cli.config import load_config
     multiplex = False
     try:
         # The live default gateway's own record, else the explicit flag — never the merged default:
@@ -347,7 +357,10 @@ def _gateway_fire_endpoint(profile: str, home: Path) -> str:
     try:
         # Profile-scoped read through the CANONICAL loader (managed-scope overlay, ${ENV_VAR}
         # expansion) — never a raw yaml.safe_load (tests/hermes_cli/test_config_read_guard.py).
-        from hermes_constants import reset_hermes_home_override, set_hermes_home_override
+        from hermes_constants import (
+            reset_hermes_home_override,
+            set_hermes_home_override,
+        )
         token = set_hermes_home_override(str(listener_home))
         try:
             profile_cfg = load_config()
@@ -374,7 +387,7 @@ def _gateway_fire_endpoint(profile: str, home: Path) -> str:
 
 
 async def _forward_cron_fire_to_gateway(
-    profile: str, job_id: str, authorization: str) -> Optional[Tuple[int, Dict[str, Any]]]:
+    profile: str, job_id: str, authorization: str) -> tuple[int, dict[str, Any]] | None:
     """Forward a Chronos fire callback byte-preserved to the gateway api_server on loopback.
 
     The dashboard is the hosted deployment's only public HTTP door, but cron execution belongs to
@@ -404,7 +417,7 @@ async def _forward_cron_fire_to_gateway(
     return resp.status_code, body
 
 
-def _gateway_intentionally_stopped(profile: Optional[str]) -> bool:
+def _gateway_intentionally_stopped(profile: str | None) -> bool:
     """True when the profile's gateway is stopped BY OPERATOR INTENT.
 
     Reads the durable ``desired_state`` of gateway_state.json, written only by the s6 lifecycle

@@ -28,7 +28,7 @@ security event laundered into an apparent success.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Optional, Set
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -167,7 +167,7 @@ def _is_missing_gateway_relay(exc: ImportError) -> bool:
     )
 
 
-def _live_relay_fronted() -> Optional[Set[str]]:
+def _live_relay_fronted() -> set[str] | None:
     """The connected relay adapter's OWN fronted set.
 
     Returns None ONLY for genuine absence — no runner, or no relay adapter in
@@ -224,7 +224,7 @@ def _live_relay_fronted() -> Optional[Set[str]]:
             for p in Platform
             if str(getattr(p, "value", "")).lower() != "relay" and fronts(p)
         }
-    except Exception as exc:  # noqa: BLE001 - anything unproven is UNKNOWN
+    except Exception as exc:
         logger.exception("could not determine the live relay adapter's fronted set")
         raise RelayRouteUnknown(
             "the connected relay adapter could not report which platforms it "
@@ -232,7 +232,7 @@ def _live_relay_fronted() -> Optional[Set[str]]:
         ) from exc
 
 
-def _relay_fronted() -> Set[str]:
+def _relay_fronted() -> set[str]:
     """Platforms the connector fronts for this gateway.
 
     ABSENCE vs FAULT is the whole point of the split below. No gateway relay
@@ -274,7 +274,7 @@ def _relay_fronted() -> Set[str]:
         # ("Discord") miss the membership test and look native — an
         # attestation bypass on a string comparison.
         return {str(p).strip().lower() for p in relay_fronted_platforms()}
-    except Exception as exc:  # noqa: BLE001 - routing unknown; never assume native
+    except Exception as exc:
         raise RelayRouteUnknown(
             f"relay route discovery failed: {exc}"
         ) from exc
@@ -314,7 +314,7 @@ def _has_live_native_adapter(platform_name: str) -> bool:
         # turns that into a refusal.
         try:
             native_config = load_gateway_config().platforms.get(platform)
-        except Exception as exc:  # noqa: BLE001 - routing unknown; never assume native
+        except Exception as exc:
             raise RelayRouteUnknown(
                 f"native-adapter config lookup failed for {platform_name}: {exc}"
             ) from exc
@@ -346,7 +346,7 @@ def relay_routed_platform(platform_name: str) -> bool:
     return not _has_live_native_adapter(name)
 
 
-def _home_channel_id(platform_name: str) -> Optional[str]:
+def _home_channel_id(platform_name: str) -> str | None:
     try:
         from gateway.config import Platform, load_gateway_config
 
@@ -356,21 +356,21 @@ def _home_channel_id(platform_name: str) -> Optional[str]:
         return None
 
 
-def _directory_ids(platform_name: str) -> Set[str]:
+def _directory_ids(platform_name: str) -> set[str]:
     try:
         from gateway.channel_directory import load_directory
 
         entries = load_directory().get("platforms", {}).get(platform_name) or []
     except Exception:  # noqa: BLE001
         return set()
-    ids: Set[str] = set()
+    ids: set[str] = set()
     for entry in entries:
         if isinstance(entry, dict) and entry.get("id"):
             ids.add(str(entry["id"]))
     return ids
 
 
-def _session_ids(platform_name: str) -> Set[str]:
+def _session_ids(platform_name: str) -> set[str]:
     """Chat ids this gateway has actually held a session in for the platform."""
     try:
         from gateway.channel_directory import _build_from_sessions
@@ -378,7 +378,7 @@ def _session_ids(platform_name: str) -> Set[str]:
         entries = _build_from_sessions(platform_name) or []
     except Exception:  # noqa: BLE001
         return set()
-    ids: Set[str] = set()
+    ids: set[str] = set()
     for entry in entries:
         if isinstance(entry, dict) and entry.get("id"):
             raw = str(entry["id"])
@@ -398,7 +398,7 @@ def _session_ids(platform_name: str) -> Set[str]:
     return ids
 
 
-def attested_relay_targets(platform_name: str) -> Set[str]:
+def attested_relay_targets(platform_name: str) -> set[str]:
     """Chat ids this gateway can show a provenance for on *platform_name*.
 
     Three provenances, all of them things the gateway already knows rather
@@ -417,7 +417,7 @@ def attested_relay_targets(platform_name: str) -> Set[str]:
     names = {name}
     if name == "relay":
         names |= _relay_fronted()
-    attested: Set[str] = set()
+    attested: set[str] = set()
     for candidate in names:
         home = _home_channel_id(candidate)
         if home:
@@ -445,7 +445,7 @@ def _has_native_credential(platform_name: str) -> bool:
         config = load_gateway_config()
         pconfig = config.platforms.get(Platform(platform_name))
         return bool(pconfig and pconfig.enabled and getattr(pconfig, "token", None))
-    except Exception:  # noqa: BLE001 - a fault must not GRANT the exemption
+    except Exception:
         logger.debug("native-credential probe failed; withdrawing the exemption", exc_info=True)
         return True
 
@@ -484,7 +484,7 @@ def _is_unresolved_handle(platform_name: str, target: str, native_token: Any = _
 
 def authorize_relay_target(
     platform_name: str, chat_id: Any, thread_id: Any = None, *, native_token: Any = _UNSET
-) -> Optional[str]:
+) -> str | None:
     """Return an error string when this relay destination may not be named.
 
     ``None`` means the send may proceed. Non-relay platforms are never

@@ -14,8 +14,9 @@ import asyncio
 import logging
 import re
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +54,7 @@ class PendingEvent:
     delivery_id: str
     first_at: float
     count: int
-    dispatch_kwargs: Dict[str, Any]
+    dispatch_kwargs: dict[str, Any]
 
     def prompt_with_note(self) -> str:
         if self.count <= 1:
@@ -69,14 +70,14 @@ class WebhookCoalescer:
     def __init__(self, dispatch: Callable[..., Any], render: Callable[[str, dict, str, str], str]):
         self._dispatch = dispatch
         self._render = render
-        self._pending: Dict[str, PendingEvent] = {}
-        self._timers: Dict[str, asyncio.Task] = {}
+        self._pending: dict[str, PendingEvent] = {}
+        self._timers: dict[str, asyncio.Task] = {}
 
     @property
-    def pending(self) -> Dict[str, PendingEvent]:
+    def pending(self) -> dict[str, PendingEvent]:
         return self._pending
 
-    def group_key(self, route_name: str, key_template: str, payload: dict, event_type: str) -> Optional[str]:
+    def group_key(self, route_name: str, key_template: str, payload: dict, event_type: str) -> str | None:
         """``"{route}|{rendered key}"`` for a bare dotted field or a brace template; ``None`` when a field did
         not resolve — unrelated entities must not collapse into one shared group (review finding on #92066)."""
         template = key_template.strip()

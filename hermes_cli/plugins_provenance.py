@@ -22,7 +22,6 @@ import subprocess
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Optional
 
 
 class ProvenanceClass(Enum):
@@ -37,9 +36,9 @@ class Provenance:
     name: str
     klass: ProvenanceClass
     path: Path
-    row: Optional[dict] = None          # the sidecar row, when present
-    origin_url: Optional[str] = None    # self-cloned: the .git remote
-    saved_update_url: Optional[str] = None  # the row's saved feed tag
+    row: dict | None = None          # the sidecar row, when present
+    origin_url: str | None = None    # self-cloned: the .git remote
+    saved_update_url: str | None = None  # the row's saved feed tag
 
 
 def read_sidecar_rows(plugins_dir: Path) -> dict:
@@ -55,7 +54,7 @@ def read_sidecar_rows(plugins_dir: Path) -> dict:
     return data if isinstance(data, dict) else {}
 
 
-def _git_origin_url(plugin_dir: Path) -> Optional[str]:
+def _git_origin_url(plugin_dir: Path) -> str | None:
     """origin's URL from the installed .git — remote get-url on a real
     repo, config-file parse as the fallback (works for partial/copy
     installs where git refuses)."""

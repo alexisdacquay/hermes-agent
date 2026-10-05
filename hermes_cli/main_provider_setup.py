@@ -6,8 +6,13 @@ Split out of ``hermes_cli/main.py``. Names that still live in main are imported 
 
 import contextlib
 
-from typing import Optional
-from hermes_cli.model_setup_flows_common import _ask, _ensure_dict_section, _print_numbered, _radiolist, _say
+from hermes_cli.model_setup_flows_common import (
+    _ask,
+    _ensure_dict_section,
+    _print_numbered,
+    _radiolist,
+    _say,
+)
 
 
 def _is_profile_api_key_provider(provider_id: str) -> bool:
@@ -36,7 +41,7 @@ def _short_url(url: str) -> str:
 def _clear_stale_openai_base_url():
     """Remove OPENAI_BASE_URL from ~/.hermes/.env unless the active provider is 'custom' — a
     leftover value routes provider:auto auxiliary clients to the old custom endpoint."""
-    from hermes_cli.config import get_env_value, save_env_value, load_config
+    from hermes_cli.config import get_env_value, load_config, save_env_value
     model_cfg = load_config().get("model", {})
     provider = (model_cfg.get("provider") or "").strip().lower() if isinstance(model_cfg, dict) else ""
     if provider == "custom" or not provider:
@@ -140,7 +145,7 @@ def _aux_task_display_name(task: str) -> str:
 
 
 def _save_aux_choice(task: str, *, provider: str, model: str = "", base_url: str = "",
-                     api_key: str = "", reasoning_effort: Optional[str] = None) -> None:
+                     api_key: str = "", reasoning_effort: str | None = None) -> None:
     """Persist an aux task's four routing fields (timeout etc. untouched; main model config never
     modified). ``delegation`` writes the top-level section, with "auto" stored as an empty provider.
     ``reasoning_effort``: a level word or "" (provider default) to write; None leaves the key alone."""
@@ -173,7 +178,7 @@ def _aux_task_takes_reasoning(task: str) -> bool:
     return True  # plugin-registered task: the runtime folds the key in via _get_task_extra_body
 
 
-def _prompt_aux_reasoning_effort(task: str, current: str) -> Optional[str]:
+def _prompt_aux_reasoning_effort(task: str, current: str) -> str | None:
     """Effort step for an aux task: a level, "none", "" (provider default / inherit parent), or None to
     keep current. The empty-value row is "Inherit parent" for delegation (a child inherits the parent's
     effort; wording from #105431 by @fangliquanflq) and "Provider default" for aux tasks."""
@@ -415,7 +420,7 @@ _CUSTOM_API_MODES = (
 _CUSTOM_API_MODE_ANSWERS = {answer: value for value, _, _, answers in _CUSTOM_API_MODES for answer in answers}
 
 
-def _prompt_custom_api_mode_selection(base_url: str, current_api_mode: str = "") -> Optional[str]:
+def _prompt_custom_api_mode_selection(base_url: str, current_api_mode: str = "") -> str | None:
     """Prompt for a custom provider API mode: an explicit mode string, or None for auto-detect."""
     from hermes_cli.runtime_provider import _detect_api_mode_for_url
     detected_mode = _detect_api_mode_for_url(base_url)
@@ -584,7 +589,7 @@ def _prompt_reasoning_effort_selection(efforts, current_effort="", *, default_la
     disable_label = "Disable reasoning"
     skip_label = "Skip (keep current)"
     # (return value, label) for the rows after the ladder; "" = provider default (aux tasks only).
-    tail: list[tuple[Optional[str], str]] = [("none", disable_label)]
+    tail: list[tuple[str | None, str]] = [("none", disable_label)]
     if default_label:
         tail.append(("", default_label + ("  ← currently in use" if current_effort == "" else "")))
     tail.append((None, skip_label))
@@ -653,7 +658,7 @@ def _prompt_main_reasoning_effort(model: str, provider: str) -> None:
     print("Reasoning disabled for this model." if selected == "none" else f"Reasoning effort set to: {selected}")
 
 
-def _main_model_reasoning_efforts(model: str, provider: str) -> Optional[list[str]]:
+def _main_model_reasoning_efforts(model: str, provider: str) -> list[str] | None:
     """Levels to offer for *model* on *provider*: None when the route has no reasoning control."""
     from hermes_constants import VALID_REASONING_EFFORTS
     slug = (provider or "").strip().lower()
@@ -738,14 +743,25 @@ def _infer_stepfun_region(base_url: str) -> str:
 
 
 def _stepfun_base_url_for_region(region: str) -> str:
-    from hermes_cli.auth import STEPFUN_STEP_PLAN_CN_BASE_URL, STEPFUN_STEP_PLAN_INTL_BASE_URL
+    from hermes_cli.auth import (
+        STEPFUN_STEP_PLAN_CN_BASE_URL,
+        STEPFUN_STEP_PLAN_INTL_BASE_URL,
+    )
     return STEPFUN_STEP_PLAN_CN_BASE_URL if region == "china" else STEPFUN_STEP_PLAN_INTL_BASE_URL
 
 
 def _run_anthropic_oauth_flow(save_env_value):
     """Run the Claude OAuth setup-token flow. Returns True if credentials were saved."""
-    from agent.anthropic_credentials import run_oauth_setup_token, read_claude_code_credentials, is_claude_code_token_valid
-    from hermes_cli.config import save_anthropic_oauth_token, use_anthropic_claude_code_credentials
+    from agent.anthropic_credentials import (
+        is_claude_code_token_valid,
+        read_claude_code_credentials,
+        run_oauth_setup_token,
+    )
+
+    from hermes_cli.config import (
+        save_anthropic_oauth_token,
+        use_anthropic_claude_code_credentials,
+    )
 
     def _activate_claude_code_credentials_if_available() -> bool:
         try:
@@ -881,8 +897,11 @@ def _build_provider_picker_rows(config: dict, active: str, provider_labels: dict
     fold into display groups (PROVIDER_GROUPS): a group row's ``members`` drive a sub-picker, leaf
     rows have ``members == []``; saved custom providers and trailing actions stay flat. Honors
     ``model_catalog.excluded_providers`` (slug or alias, case-insensitive) like the gateway/TUI."""
-    from hermes_cli.models import CANONICAL_PROVIDERS, _PROVIDER_ALIASES
-    from hermes_cli.models_catalog_static import group_providers, provider_group_for_slug
+    from hermes_cli.models import _PROVIDER_ALIASES, CANONICAL_PROVIDERS
+    from hermes_cli.models_catalog_static import (
+        group_providers,
+        provider_group_for_slug,
+    )
     canonical_descs = {p.slug: p.tui_desc for p in CANONICAL_PROVIDERS}
     _cli_excluded = {
         str(p).strip().lower()

@@ -12,9 +12,12 @@ and the tool points the user at ``hermes tools``.
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
-from agent.provider_registry import ProviderRegistry, configured_provider_name, is_available_safe
+from agent.provider_registry import (
+    ProviderRegistry,
+    configured_provider_name,
+    is_available_safe,
+)
 from agent.video_gen_provider import VideoGenProvider
 
 logger = logging.getLogger(__name__)
@@ -25,7 +28,7 @@ _registry: ProviderRegistry[VideoGenProvider] = ProviderRegistry(
 )
 _registry.export(globals())
 
-def get_active_provider() -> Optional[VideoGenProvider]:
+def get_active_provider() -> VideoGenProvider | None:
     """Resolve the currently-active provider (see module docstring)."""
     configured = configured_provider_name("video_gen", logger)
     snapshot = _registry.merged()

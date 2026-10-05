@@ -1,12 +1,11 @@
 """Tests for WSL detection and WSL-aware gateway behavior."""
 
 from types import SimpleNamespace
-from unittest.mock import patch, mock_open
+from unittest.mock import mock_open, patch
 
-import pytest
-
-import hermes_cli.gateway as gateway
 import hermes_constants
+import pytest
+from hermes_cli import gateway
 from hermes_platform.host import runtime as host_runtime
 
 # =============================================================================

@@ -13,9 +13,11 @@ import sqlite3
 import sys
 import threading
 import time
-from typing import Any, Dict, Optional
+from typing import Any
 
-from hermes_cli.sqlite_runtime import is_sqlite_wal_reset_vulnerable as _is_sqlite_wal_reset_vulnerable
+from hermes_cli.sqlite_runtime import (
+    is_sqlite_wal_reset_vulnerable as _is_sqlite_wal_reset_vulnerable,
+)
 from hermes_state_errors import is_sqlite_lock_error
 
 # Log-record parity with the origin module (caplog tests pin "hermes_state").
@@ -59,7 +61,7 @@ def _mode_from_row(row) -> str:
     return str(row[0]).strip().lower() if row and row[0] is not None else ""
 
 
-def _on_disk_journal_mode(conn: sqlite3.Connection) -> Optional[str]:
+def _on_disk_journal_mode(conn: sqlite3.Connection) -> str | None:
     """Read the journal mode from the DB header; ``None`` if undeterminable (new DB, or PRAGMA failed) ->
     callers take their fail-closed "refuse to downgrade" branch. ``disk i/o error`` can be transient on
     virtualized block devices (XFS on cloud hosts), so it is retried a few times first."""
@@ -128,7 +130,7 @@ def _apply_wal_companions(conn: sqlite3.Connection) -> None:
     _enforce_macos_synchronous_full(conn)
 
 
-def is_sqlite_wal_reset_vulnerable(version_info: Optional[tuple] = None) -> bool:
+def is_sqlite_wal_reset_vulnerable(version_info: tuple | None = None) -> bool:
     """True when the linked SQLite has the WAL-reset bug (3.7.0–3.51.2; fixed 3.51.3+, backports 3.50.7 /
     3.44.6). Pre-WAL libraries are safe. https://sqlite.org/wal.html#walresetbug"""
     return _is_sqlite_wal_reset_vulnerable(sqlite3.sqlite_version_info if version_info is None else version_info)
@@ -182,7 +184,7 @@ class WalUnsupportedError(sqlite3.OperationalError):
 # unreadable, the answer is False and behaviour is unchanged. Nothing else (ext4/btrfs/xfs/zfs/tmpfs/overlay/nfs)
 # is ever flagged here — those keep the existing reactive paths.
 _CROSS_VM_FSTYPES = frozenset({"virtiofs", "fuse.virtiofs", "9p", "9p2000", "9p2000.l", "9p2000.u"})
-_cross_vm_fs_cache: Dict[str, bool] = {}  # per DB directory; kanban_db.connect() opens per operation
+_cross_vm_fs_cache: dict[str, bool] = {}  # per DB directory; kanban_db.connect() opens per operation
 _cross_vm_fs_cache_lock = threading.Lock()
 _cross_vm_warned_paths: set[str] = set()
 _cross_vm_warned_lock = threading.Lock()
@@ -318,7 +320,7 @@ def apply_wal_with_fallback(conn: sqlite3.Connection, *, db_label: str = "state.
     return _enable_wal(conn, db_label, require_wal, current_mode)
 
 
-def _enable_wal(conn: sqlite3.Connection, db_label: str, require_wal: bool, current_mode: Optional[str]) -> str:
+def _enable_wal(conn: sqlite3.Connection, db_label: str, require_wal: bool, current_mode: str | None) -> str:
     """Flip a non-WAL, non-vulnerable connection to WAL, or fall back to DELETE."""
     # Decide BEFORE the flip whether it overwrites a mode somebody chose (probe and page_count are only readable
     # while the file is untouched). A 0-page DB has no prior choice, and every caller reaches this before schema.
@@ -469,7 +471,11 @@ def _wal_reset_repair_hint() -> str:
     See #75153.
     """
     try:
-        from hermes_cli.config import detect_install_method, get_project_root, recommended_update_command_for_method
+        from hermes_cli.config import (
+            detect_install_method,
+            get_project_root,
+            recommended_update_command_for_method,
+        )
         method = detect_install_method(get_project_root())
         cmd = recommended_update_command_for_method(method)
         if method in {"git", "unknown"}:
@@ -577,12 +583,12 @@ _log_configured_delete_overridden_once = functools.partial(_log_once, "delete_ov
 
 
 # Operators write synchronous as a name; mapped so a typo becomes a warning, not a silently different level.
-_SYNCHRONOUS_LEVELS: Dict[str, int] = {"OFF": 0, "NORMAL": 1, "FULL": 2, "EXTRA": 3}
-_SYNCHRONOUS_NAMES: Dict[int, str] = {v: k for k, v in _SYNCHRONOUS_LEVELS.items()}
+_SYNCHRONOUS_LEVELS: dict[str, int] = {"OFF": 0, "NORMAL": 1, "FULL": 2, "EXTRA": 3}
+_SYNCHRONOUS_NAMES: dict[int, str] = {v: k for k, v in _SYNCHRONOUS_LEVELS.items()}
 _SYNCHRONOUS_FULL = 2
 
 
-def resolve_synchronous_level(raw_value: Any) -> Optional[int]:
+def resolve_synchronous_level(raw_value: Any) -> int | None:
     """Map ``database.synchronous`` (``OFF``/``NORMAL``/``FULL``/``EXTRA`` any
     case, or ``0``-``3``) to its PRAGMA integer; None for anything else so the
     caller warns and leaves the level untouched (guessing at durability is worse)."""
@@ -628,7 +634,10 @@ def apply_database_pragmas(conn: sqlite3.Connection, *, db_label: str = "state.d
     between bundled/distro/Homebrew builds). Best-effort: failures are ignored so DB init never breaks on a
     malformed section. Applied to ALL connection types: writer, read_only, WAL readers."""
     try:
-        from hermes_cli.config import cfg_get, load_config_readonly  # local: avoids a circular import
+        from hermes_cli.config import (  # local: avoids a circular import
+            cfg_get,
+            load_config_readonly,
+        )
         cfg = load_config_readonly()
     except Exception:
         return

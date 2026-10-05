@@ -11,7 +11,6 @@ import logging
 from types import SimpleNamespace
 
 import pytest
-
 from tools.mcp_tool import (
     _MCP_LOG_LEVEL_MAP,
     MCPServerTask,
@@ -77,6 +76,7 @@ class TestSDKSupportGate:
         # work, so a by-value module-level import would freeze the pre-bind
         # False and never observe the real support state.
         import inspect
+
         from mcp import ClientSession
         from tools import mcp_tool
         mcp_tool._ensure_mcp_sdk()

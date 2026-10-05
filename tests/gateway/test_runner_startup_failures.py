@@ -1,6 +1,6 @@
-import pytest
 from unittest.mock import AsyncMock
 
+import pytest
 from gateway.config import GatewayConfig, Platform, PlatformConfig
 from gateway.platforms.base import BasePlatformAdapter
 from gateway.restart import GATEWAY_FATAL_CONFIG_EXIT_CODE, is_global_startup_conflict

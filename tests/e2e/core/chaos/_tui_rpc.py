@@ -15,10 +15,11 @@ import os
 import subprocess
 import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
-from tests.e2e.core.chaos._helpers import REPO_ROOT, python_exe
+from tests.e2e.core.chaos._helpers import python_exe
 
 
 class RpcError(AssertionError):
@@ -198,7 +199,7 @@ class Heartbeat:
                 self._inflight_since = None
             self._stop.wait(self.interval)
 
-    def __enter__(self) -> "Heartbeat":
+    def __enter__(self) -> Heartbeat:
         self._inflight_since: float | None = None
         self._thread.start()
         return self

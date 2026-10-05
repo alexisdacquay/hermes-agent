@@ -9,11 +9,23 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-from typing import Any, Dict, List
+from typing import Any
 
 from plugins.web._common import (
-    SEARCH_LIMIT_CAP, BaseWebSearchProvider, cached_sdk_client, document, keyless_extract, keyless_search,
-    keyless_variant_schema, page_error, provider_env, run_extract_async, run_search, search_ok, use_keyless, web_hit,
+    SEARCH_LIMIT_CAP,
+    BaseWebSearchProvider,
+    cached_sdk_client,
+    document,
+    keyless_extract,
+    keyless_search,
+    keyless_variant_schema,
+    page_error,
+    provider_env,
+    run_extract_async,
+    run_search,
+    search_ok,
+    use_keyless,
+    web_hit,
 )
 
 logger = logging.getLogger(__name__)
@@ -63,8 +75,8 @@ class ParallelWebSearchProvider(BaseWebSearchProvider):
     EXTRACT = True
     KEYLESS = True
 
-    def search(self, query: str, limit: int = 5) -> Dict[str, Any]:
-        def _body() -> Dict[str, Any]:
+    def search(self, query: str, limit: int = 5) -> dict[str, Any]:
+        def _body() -> dict[str, Any]:
             if use_keyless("parallel", provider_env("PARALLEL_API_KEY")):
                 return keyless_search("Parallel", "parallel", query, limit, logger)
             mode = _resolve_search_mode()
@@ -77,8 +89,8 @@ class ParallelWebSearchProvider(BaseWebSearchProvider):
 
         return run_search("Parallel", logger, _body, sdk=True)
 
-    async def extract(self, urls: List[str], **kwargs: Any) -> List[Dict[str, Any]]:
-        async def _body() -> List[Dict[str, Any]]:
+    async def extract(self, urls: list[str], **kwargs: Any) -> list[dict[str, Any]]:
+        async def _body() -> list[dict[str, Any]]:
             if use_keyless("parallel", provider_env("PARALLEL_API_KEY")):
                 # Keyless ring is blocking HTTP — hop off the event loop.
                 return await asyncio.to_thread(keyless_extract, "Parallel", "parallel", urls, logger)
@@ -92,7 +104,7 @@ class ParallelWebSearchProvider(BaseWebSearchProvider):
 
         return await run_extract_async("Parallel", logger, urls, _body, sdk=True)
 
-    def get_setup_schema(self) -> Dict[str, Any]:
+    def get_setup_schema(self) -> dict[str, Any]:
         return keyless_variant_schema(
             "Parallel", "PARALLEL_API_KEY", "https://parallel.ai",
             free_tag="Objective-tuned search + page extraction on Parallel's anonymous free tier. Rate-limited under burst load.",

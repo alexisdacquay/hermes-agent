@@ -1,11 +1,11 @@
 """Tests for tools.env_passthrough — skill and config env var passthrough."""
 
 import os
-import pytest
-import hermes_yaml as yaml
 
-from agent import secret_scope as ss
+import hermes_yaml as yaml
+import pytest
 import tools.env_passthrough as _ep_mod
+from agent import secret_scope as ss
 from tools.env_passthrough import (
     clear_env_passthrough,
     get_all_passthrough,

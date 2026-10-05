@@ -1,7 +1,7 @@
 """First-party gateway bearer trust, ported from connectors-only 43608084f4."""
 
 import logging
-from typing import Callable, Optional
+from collections.abc import Callable
 from urllib.parse import urlsplit
 
 from tools.managed_tool_gateway import build_vendor_gateway_url, read_nous_access_token
@@ -21,7 +21,7 @@ def connector_gateway_origin() -> str:
 
 def is_managed_nous_gateway_url(
     url: object,
-    gateway_builder: Optional[Callable[[str], str]] = None,
+    gateway_builder: Callable[[str], str] | None = None,
 ) -> bool:
     """True when ``url`` is on one of the first-party gateway origins we build.
 
@@ -53,8 +53,8 @@ def is_managed_nous_gateway_url(
 
 def managed_gateway_auth_headers(
     url: object,
-    gateway_builder: Optional[Callable[[str], str]] = None,
-    token_reader: Optional[Callable[[], Optional[str]]] = None,
+    gateway_builder: Callable[[str], str] | None = None,
+    token_reader: Callable[[], str | None] | None = None,
 ) -> dict:
     """Live auth headers for a managed gateway URL, or ``{}`` when not managed.
 

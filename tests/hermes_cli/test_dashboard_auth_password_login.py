@@ -17,10 +17,7 @@ from pathlib import Path
 from typing import Any, cast
 
 import pytest
-
 from fastapi.testclient import TestClient
-from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
-
 from hermes_cli import web_server
 from hermes_cli.dashboard_auth import (
     DashboardAuthProvider,
@@ -32,10 +29,14 @@ from hermes_cli.dashboard_auth import (
 )
 from hermes_cli.dashboard_auth.cookies import SESSION_AT_COOKIE, SESSION_RT_COOKIE
 from hermes_cli.dashboard_auth.login_page import render_login_html
-from hermes_cli.dashboard_auth.routes import _PW_RATE_MAX_ATTEMPTS, _reset_password_rate_limit
+from hermes_cli.dashboard_auth.routes import (
+    _PW_RATE_MAX_ATTEMPTS,
+    _reset_password_rate_limit,
+)
 from hermes_cli.web_server_lifecycle import _dashboard_forwarded_allow_ips
-from tests.hermes_cli.conftest_dashboard_auth import StubAuthProvider
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
+from tests.hermes_cli.conftest_dashboard_auth import StubAuthProvider
 
 # ---------------------------------------------------------------------------
 # Test password provider — minimal, in-memory, signed tokens.
@@ -407,7 +408,6 @@ class TestRateLimit:
 @pytest.mark.parametrize("peer", [("203.0.113.7", 12345), None])
 def test_client_ip_uses_asgi_peer_not_forwarded_header(peer: tuple[str, int] | None) -> None:
     from fastapi import Request
-
     from hermes_cli.dashboard_auth.request_utils import client_ip
 
     # Preserve the ASGI address, including one normalized by trusted upstream

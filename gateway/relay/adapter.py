@@ -18,17 +18,20 @@ import re
 import secrets
 import time
 from collections import OrderedDict
-from typing import Any, Callable, Dict, Optional, Tuple, Union
+from collections.abc import Callable
+from typing import Any
+
+from agent.i18n import t
 
 from gateway.config import Platform, PlatformConfig
 from gateway.platforms.base import (
-    BasePlatformAdapter, ExecApprovalPrompt, SendResult,
+    BasePlatformAdapter,
+    ExecApprovalPrompt,
+    SendResult,
 )
 from gateway.platforms.event import MessageEvent, MessageType, ProcessingOutcome
-from agent.i18n import t
 from gateway.relay.descriptor import CapabilityDescriptor
 from gateway.relay.egress import (
-    EGRESS_DECLINE_CODE,
     decline_error,
     is_egress_decline,
     log_decline,
@@ -78,10 +81,10 @@ def _utf16_len(text: str) -> int:
     return len(text.encode("utf-16-le")) // 2
 
 
-_LEN_FNS: Dict[str, Callable[[str], int]] = {"chars": len, "utf16": _utf16_len}
+_LEN_FNS: dict[str, Callable[[str], int]] = {"chars": len, "utf16": _utf16_len}
 
 
-def _send_result(result: Dict[str, Any], **extra: Any) -> SendResult:
+def _send_result(result: dict[str, Any], **extra: Any) -> SendResult:
     """Project a connector ``outbound_result`` dict onto a SendResult."""
     return SendResult(
         success=bool(result.get("success")), message_id=result.get("message_id"),
@@ -89,13 +92,13 @@ def _send_result(result: Dict[str, Any], **extra: Any) -> SendResult:
     )
 
 
-def _event_ids(event) -> Tuple[Optional[str], Optional[str]]:
+def _event_ids(event) -> tuple[str | None, str | None]:
     """(message_id, chat_id) of an inbound event; message_id lives on the event, falls back to source."""
     message_id = getattr(event, "message_id", None) or getattr(event.source, "message_id", None)
     return message_id, getattr(event.source, "chat_id", None)
 
 
-def _profile_from_session_key(session_key: str) -> Optional[str]:
+def _profile_from_session_key(session_key: str) -> str | None:
     """Named profile encoded in an ``agent:<ns>:...`` session key; None for the legacy ``agent:main``
     namespace (single-profile gateway) so the wire frame stays byte-identical there."""
     parts = (session_key or "").split(":")
@@ -117,7 +120,7 @@ class RelayAdapter(BasePlatformAdapter):
         self,
         config: PlatformConfig,
         descriptor: CapabilityDescriptor,
-        transport: Optional[RelayTransport] = None,
+        transport: RelayTransport | None = None,
     ) -> None:
         # Fronts many platforms but presents to the runner as Platform.RELAY.
         super().__init__(config, Platform.RELAY)
@@ -127,43 +130,43 @@ class RelayAdapter(BasePlatformAdapter):
         # receives a chat_id). The connector's egress guard resolves the owning tenant
         # from OUTBOUND metadata.scope_id / user_id, so we re-attach what we saw
         # inbound (_capture_scope).
-        self._scope_by_chat: Dict[str, str] = {}
-        self._dm_user_by_chat: Dict[str, str] = {}
+        self._scope_by_chat: dict[str, str] = {}
+        self._dm_user_by_chat: dict[str, str] = {}
         # chat_id -> chat_type: reproduces native Slack's synthetic DM-thread
         # suppression (a raw reply_to becomes a thread_ts connector-side, so a plain
         # DM reply would thread under the user).
-        self._chat_type_by_chat: Dict[str, str] = {}
+        self._chat_type_by_chat: dict[str, str] = {}
         # chat_id -> last triggering Slack message ts (typing/status lane's
         # synthetic thread anchor in thread-per-message mode).
-        self._last_inbound_ts_by_chat: Dict[str, str] = {}
+        self._last_inbound_ts_by_chat: dict[str, str] = {}
         # chat_id -> UNDERLYING platform ("discord", ...): one adapter fronts N
         # platforms on one WS and a reply must egress through the platform the
         # inbound came from. Empty for a single-platform gateway (connector default).
-        self._platform_by_chat: Dict[str, str] = {}
+        self._platform_by_chat: dict[str, str] = {}
         # chat_id -> Hermes profile the connector routed the inbound to (multiplex mode). Echoed
         # on every outbound frame's metadata so the connector can stamp the SAME profile on the
         # next passthrough_forward for that chat; empty on a single-profile gateway.
-        self._profile_by_chat: Dict[str, str] = {}
+        self._profile_by_chat: dict[str, str] = {}
         # Chats the connector has refused (see the terminal-decline latch).
         # chat_id -> (thread_id, initial_name) of the auto-thread the CONNECTOR
         # created for our latest send; read by the semantic thread-rename lane.
-        self._auto_thread_by_chat: Dict[str, Tuple[str, str]] = {}
+        self._auto_thread_by_chat: dict[str, tuple[str, str]] = {}
         # chat_id -> event fired when the entry above lands (wait_for_auto_thread_info).
-        self._auto_thread_waiters: Dict[str, asyncio.Event] = {}
+        self._auto_thread_waiters: dict[str, asyncio.Event] = {}
         # Bounded FIFO seen-set for inbound replay dedupe (insertion-ordered dict).
-        self._seen_inbound: Dict[str, None] = {}
+        self._seen_inbound: dict[str, None] = {}
         # Live cards: draft_key -> draft_id of the OPEN native stream. Armed by
         # send_draft; consumed by send() to convert the turn-final into
         # draft(final=true) instead of a duplicate post. Keyed by _draft_key (chat +
         # per-turn identity), NOT bare chat: parallel turns in one DM are distinct
         # streams (per-chat keying merged three concurrent turns).
-        self._open_draft_by_chat: Dict[str, int] = {}
+        self._open_draft_by_chat: dict[str, int] = {}
         # draft_key -> draft_id of the most recently SEALED stream (mirror of the
         # connector's sealed-key tombstone): post-seal stragglers must neither
         # re-arm interception nor re-open a stream.
-        self._sealed_draft_by_chat: Dict[str, int] = {}
+        self._sealed_draft_by_chat: dict[str, int] = {}
         # Draft keys whose post-seal swallow has been logged once (bounded FIFO).
-        self._tombstone_swallow_logged: Dict[str, int] = {}
+        self._tombstone_swallow_logged: dict[str, int] = {}
         # Strong refs for fire-and-forget lifecycle acks (asyncio holds tasks weakly).
         self._lifecycle_ack_tasks: set = set()
         # Stream-is-the-message marker read by the stream consumer to keep ONE draft
@@ -176,14 +179,14 @@ class RelayAdapter(BasePlatformAdapter):
         # Watches the transport for a terminal auth revocation (4401 after a
         # successful handshake = operator opted this instance out) and surfaces a
         # clean non-retryable "relay disabled" fatal instead of a retry spin.
-        self._revocation_monitor: Optional[asyncio.Task[None]] = None
+        self._revocation_monitor: asyncio.Task[None] | None = None
         # Lazily built client for the connector's /relay/media routes; None when
         # dial URL or creds are absent (media lanes degrade to text fallbacks).
-        self._media_client: Optional["RelayMediaClient"] = None
+        self._media_client: RelayMediaClient | None = None
         # prompt_id -> pending-prompt state for the interactive `prompt` op; the
         # user's pick comes back as a prompt_response naming this id and resolves the
         # waiting primitive like native button callbacks. Expire lazily (_pop_prompt).
-        self._pending_prompts: Dict[str, Dict[str, Any]] = {}
+        self._pending_prompts: dict[str, dict[str, Any]] = {}
         # Per-process marker prefixed onto every prompt id we mint. WHY: button
         # presses ride the passthrough plane, which the connector fans out to EVERY
         # live gateway session of the tenant, while _pending_prompts is process-local.
@@ -193,7 +196,7 @@ class RelayAdapter(BasePlatformAdapter):
         self._prompt_owner_nonce: str = secrets.token_hex(3)
         # Prompt ids this process already resolved, newest last (repeat answers are
         # consumed silently instead of treated as stale).
-        self._resolved_prompts: "OrderedDict[str, float]" = OrderedDict()
+        self._resolved_prompts: OrderedDict[str, float] = OrderedDict()
 
     # ── capability surface (from descriptor) ─────────────────────────────
     @property
@@ -216,7 +219,7 @@ class RelayAdapter(BasePlatformAdapter):
         return self.descriptor.platform == _SLACK
 
     # ── per-chat capability resolution (multi-platform) ──────────────────
-    def _negotiated_descriptor(self, platform: Optional[str]) -> Optional[CapabilityDescriptor]:
+    def _negotiated_descriptor(self, platform: str | None) -> CapabilityDescriptor | None:
         """The transport's negotiated descriptor for ``platform``, or None (unknown
         platform, no transport, or a transport predating ``descriptor_for_platform``).
         Never raises — capability lookup must never break a send."""
@@ -228,11 +231,11 @@ class RelayAdapter(BasePlatformAdapter):
         except Exception:  # noqa: BLE001
             return None
 
-    def _chat_platform(self, chat_id: str) -> Optional[str]:
+    def _chat_platform(self, chat_id: str) -> str | None:
         """The chat's underlying platform as seen inbound, else the primary's."""
         return self._platform_by_chat.get(str(chat_id)) or self.descriptor.platform
 
-    def _metrics_platform(self, chat_id: str) -> Optional[str]:
+    def _metrics_platform(self, chat_id: str) -> str | None:
         """The platform a chat's shared metrics carry: the inbound's, else the primary's only when this
         socket fronts one platform (a multi-platform connector's unknown chat stays unlabelled)."""
         fronted = {p for p, _ in (getattr(self._transport, "_identities", None) or ())}
@@ -259,9 +262,9 @@ class RelayAdapter(BasePlatformAdapter):
 
     def supports_draft_streaming(
         self,
-        chat_type: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-        chat_id: Optional[str] = None,
+        chat_type: str | None = None,
+        metadata: dict[str, Any] | None = None,
+        chat_id: str | None = None,
     ) -> bool:
         # Needs BOTH the descriptor flag and an explicit "draft" op: supported_ops is
         # fail-open for legacy connectors, but "draft" did not exist pre-contract, so
@@ -279,8 +282,8 @@ class RelayAdapter(BasePlatformAdapter):
     def prefers_fresh_final_streaming(
         self,
         content: str,
-        metadata: Optional[Dict[str, Any]] = None,
-        chat_id: Optional[str] = None,
+        metadata: dict[str, Any] | None = None,
+        chat_id: str | None = None,
     ) -> bool:
         """Deliver streamed finals as a FRESH send when Slack unfurl is forced on.
 
@@ -327,7 +330,7 @@ class RelayAdapter(BasePlatformAdapter):
         return self.supports_native_task_cards()
 
     @staticmethod
-    def _draft_key(chat_id: str, metadata: Optional[Dict[str, Any]]) -> str:
+    def _draft_key(chat_id: str, metadata: dict[str, Any] | None) -> str:
         """Coordination key for one turn's stream. Prefers a PER-TURN identity (the
         triggering inbound ``message_id`` / ``reply_to_message_id``) over the thread
         anchor: two parallel turns inside ONE thread share thread_ts (turn A's final
@@ -345,13 +348,13 @@ class RelayAdapter(BasePlatformAdapter):
     _DRAFT_STATE_CAP = 512
 
     @classmethod
-    def _evict_oldest(cls, d: Dict[str, Any], cap: Optional[int] = None) -> None:
+    def _evict_oldest(cls, d: dict[str, Any], cap: int | None = None) -> None:
         """FIFO-bound an insertion-ordered dict in place (default cap: draft state)."""
         while len(d) > (cls._DRAFT_STATE_CAP if cap is None else cap):
             d.pop(next(iter(d)), None)
 
     @staticmethod
-    def _card_key(reply_to: Optional[str], metadata: Optional[Dict[str, Any]]) -> str:
+    def _card_key(reply_to: str | None, metadata: dict[str, Any] | None) -> str:
         """Per-turn task-card identity — same precedence as ``_draft_key``; one
         derivation for send AND stop so the stop always hits the stream the send opened."""
         md = metadata or {}
@@ -365,7 +368,7 @@ class RelayAdapter(BasePlatformAdapter):
         )
         return f"turn:{anchor}"
 
-    def _match_open_draft(self, chat_id: str, metadata: Optional[Dict[str, Any]]) -> Optional[str]:
+    def _match_open_draft(self, chat_id: str, metadata: dict[str, Any] | None) -> str | None:
         """Resolve which open stream (if any) a turn-final send belongs to. Exact key
         match first. Callers carrying a per-turn MESSAGE id never fall back — their
         identity is authoritative. Callers without one may absorb into the chat's
@@ -390,7 +393,7 @@ class RelayAdapter(BasePlatformAdapter):
             return candidates[0]
         return None
 
-    async def _outbound(self, chat_id: str, action: Dict[str, Any]) -> Dict[str, Any]:
+    async def _outbound(self, chat_id: str, action: dict[str, Any]) -> dict[str, Any]:
         """Send one outbound frame tagged with the chat's underlying platform.
 
         P5(b): the second frame path (the first is ``_gated_op``). Lanes that
@@ -411,13 +414,13 @@ class RelayAdapter(BasePlatformAdapter):
     async def _gated_op(
         self,
         chat_id: str,
-        action: Dict[str, Any],
+        action: dict[str, Any],
         *,
-        decline_level: Optional[int] = logging.WARNING,
+        decline_level: int | None = logging.WARNING,
         subject: Any = None,
-        platform: Optional[str] = None,
+        platform: str | None = None,
         surface_declines: bool = False,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Emit one best-effort, op-gated frame; None when the caller must fall back.
 
         None covers every unavailability: op not advertised (probe the descriptor
@@ -431,7 +434,7 @@ class RelayAdapter(BasePlatformAdapter):
             result = await self._transport.send_outbound(
                 action, platform=platform or self._platform_by_chat.get(str(chat_id))
             )
-        except Exception:  # noqa: BLE001 - transport failure degrades to the caller's fallback
+        except Exception:
             logger.debug("relay %s transport failure", op, exc_info=True)
             return None
         if not result.get("success"):
@@ -461,7 +464,7 @@ class RelayAdapter(BasePlatformAdapter):
             return None
         return result
 
-    def _text_metadata(self, chat_id: str, metadata: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    def _text_metadata(self, chat_id: str, metadata: dict[str, Any] | None) -> dict[str, Any]:
         """Metadata for a text egress frame: format hints + tenant discriminators.
         Draft, seal, send and edit are all text lanes — a streamed final can only
         render blocks if every frame carries the hint (a hintless seal is the
@@ -469,8 +472,8 @@ class RelayAdapter(BasePlatformAdapter):
         return self._with_scope(chat_id, self._with_format_hints_for_chat(chat_id, metadata))
 
     def _draft_frame(
-        self, chat_id: str, draft_id: int, content: str, final: bool, metadata: Optional[Dict[str, Any]]
-    ) -> Dict[str, Any]:
+        self, chat_id: str, draft_id: int, content: str, final: bool, metadata: dict[str, Any] | None
+    ) -> dict[str, Any]:
         """One ``draft`` op frame (``final=True`` seals the stream)."""
         return {
             "op": "draft",
@@ -482,7 +485,7 @@ class RelayAdapter(BasePlatformAdapter):
         }
 
     async def send_draft(
-        self, chat_id: str, draft_id: int, content: str, metadata: Optional[Dict[str, Any]] = None,
+        self, chat_id: str, draft_id: int, content: str, metadata: dict[str, Any] | None = None,
     ) -> SendResult:
         if not self.supports_draft_streaming(chat_id=str(chat_id)):
             raise NotImplementedError("connector does not advertise the 'draft' relay op")
@@ -560,9 +563,9 @@ class RelayAdapter(BasePlatformAdapter):
         self,
         chat_id: str,
         content: str,
-        metadata: Optional[Dict[str, Any]],
+        metadata: dict[str, Any] | None,
         *,
-        draft_key: Optional[str] = None,
+        draft_key: str | None = None,
     ) -> SendResult:
         """Convert the turn-final send into the sealing draft frame."""
         if draft_key is None:
@@ -579,7 +582,7 @@ class RelayAdapter(BasePlatformAdapter):
         _seal_platform = self._platform_by_chat.get(str(chat_id))
         _transport = self._transport  # narrowed by the None-guard above
 
-        async def _attempt() -> Optional[Dict[str, Any]]:
+        async def _attempt() -> dict[str, Any] | None:
             """One seal attempt; None means ambiguous (exception or lost ack)."""
             try:
                 r = await _transport.send_outbound(seal_frame, platform=_seal_platform)
@@ -631,8 +634,8 @@ class RelayAdapter(BasePlatformAdapter):
         )
 
     async def _absorb_into_open_draft(
-        self, chat_id: str, content: str, metadata: Dict[str, Any], interim: bool
-    ) -> Optional[SendResult]:
+        self, chat_id: str, content: str, metadata: dict[str, Any], interim: bool
+    ) -> SendResult | None:
         """Seal an open native stream with this turn-final; None = do a plain send.
 
         An open stream absorbs the turn-final whichever egress door it arrives
@@ -665,8 +668,8 @@ class RelayAdapter(BasePlatformAdapter):
         return None
 
     async def _card_frame(
-        self, chat_id: str, op: str, reply_to: Optional[str], metadata: Dict[str, Any], **fields: Any
-    ) -> Union[SendResult, Dict[str, Any]]:
+        self, chat_id: str, op: str, reply_to: str | None, metadata: dict[str, Any], **fields: Any
+    ) -> SendResult | dict[str, Any]:
         """Emit one task-card op: the connector result dict, or a failed SendResult
         when the lane is unavailable / the transport raised.
 
@@ -692,8 +695,8 @@ class RelayAdapter(BasePlatformAdapter):
 
     @staticmethod
     def _task_card_metadata(
-        reply_to: Optional[str], metadata: Optional[Dict[str, Any]],
-    ) -> Dict[str, Any]:
+        reply_to: str | None, metadata: dict[str, Any] | None,
+    ) -> dict[str, Any]:
         merged_meta = dict(metadata or {})
         if reply_to and "thread_ts" not in merged_meta:
             # Slack card streams are thread replies anchored on the trigger.
@@ -701,8 +704,8 @@ class RelayAdapter(BasePlatformAdapter):
         return merged_meta
 
     def native_task_card_destination_supported(
-        self, chat_id: str, *, reply_to: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        self, chat_id: str, *, reply_to: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> bool:
         """Check the actual card-frame placement, not its per-turn card identity."""
         if self._chat_platform(chat_id) != _SLACK:
@@ -720,9 +723,9 @@ class RelayAdapter(BasePlatformAdapter):
         tasks: list,
         *,
         title: str = "Hermes is working",
-        reply_to: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-        fallback_text: Optional[str] = None,
+        reply_to: str | None = None,
+        metadata: dict[str, Any] | None = None,
+        fallback_text: str | None = None,
     ) -> SendResult:
         """Relay leg of the task-card lane: emit one card frame.
 
@@ -757,8 +760,8 @@ class RelayAdapter(BasePlatformAdapter):
         self,
         chat_id: str,
         *,
-        reply_to: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        reply_to: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> SendResult:
         """Seal the card stream at turn end (idempotent connector-side); same key derivation as send."""
         result = await self._card_frame(chat_id, "task_card_stop", reply_to, dict(metadata or {}))
@@ -774,7 +777,7 @@ class RelayAdapter(BasePlatformAdapter):
         )
 
     async def abandon_open_draft(
-        self, chat_id: str, content: str, metadata: Optional[Dict[str, Any]] = None,
+        self, chat_id: str, content: str, metadata: dict[str, Any] | None = None,
     ) -> SendResult:
         """Seal an orphaned stream when its turn dies (/stop, /new, supersede), in
         place with ``content`` (the text already on screen) so the seal adds and
@@ -860,7 +863,7 @@ class RelayAdapter(BasePlatformAdapter):
         )
         try:
             await self._notify_fatal_error()
-        except Exception:  # noqa: BLE001 - notification is best-effort
+        except Exception:
             logger.debug("relay revocation fatal-error notify failed", exc_info=True)
 
     def _apply_descriptor(self, descriptor: CapabilityDescriptor) -> None:
@@ -896,7 +899,7 @@ class RelayAdapter(BasePlatformAdapter):
 
     _SEEN_INBOUND_MAX = 512
 
-    def _inbound_dedupe_key(self, event) -> Optional[str]:
+    def _inbound_dedupe_key(self, event) -> str | None:
         """Stable replay identity: (platform, chat, platform message id). The platform
         joins the key because one relay socket can front several platforms whose
         numeric ids may collide. None when the event carries no platform message id —
@@ -912,7 +915,7 @@ class RelayAdapter(BasePlatformAdapter):
         platform = getattr(raw_platform, "value", raw_platform) or ""
         return f"{platform}:{chat_id}:{message_id}"
 
-    def _relay_platform_extra(self, platform: str) -> Dict[str, Any]:
+    def _relay_platform_extra(self, platform: str) -> dict[str, Any]:
         """``platforms.relay.extra.<platform>.*`` — relay-namespaced mirror of a native
         platform's knobs (``platforms.<platform>`` keeps meaning native settings).
         Legacy fallback: flat keys on the relay extra when no ``<platform>`` object exists."""
@@ -920,7 +923,7 @@ class RelayAdapter(BasePlatformAdapter):
         sub = extra.get(platform)
         return sub if isinstance(sub, dict) else extra
 
-    def _relay_slack_extra(self) -> Dict[str, Any]:
+    def _relay_slack_extra(self) -> dict[str, Any]:
         return self._relay_platform_extra("slack")
 
     @staticmethod
@@ -950,7 +953,7 @@ class RelayAdapter(BasePlatformAdapter):
         posture), decoupled from reply_in_thread."""
         return self._slack_flag("dm_top_level_threads_as_sessions", True)
 
-    def _slack_unfurl_hints(self, platform: Optional[str]) -> Optional[Dict[str, bool]]:
+    def _slack_unfurl_hints(self, platform: str | None) -> dict[str, bool] | None:
         """Slack-only outbound link-preview knobs (``unfurl_links``/``unfurl_media``)
         from the relay namespace. Only explicitly configured booleans are returned
         (omitted keys preserve Slack's default); YAML strings are coerced, junk
@@ -958,7 +961,7 @@ class RelayAdapter(BasePlatformAdapter):
         if str(platform or "").lower() != _SLACK:
             return None
         extra = self._relay_slack_extra()
-        hints: Dict[str, bool] = {}
+        hints: dict[str, bool] = {}
         for knob in ("unfurl_links", "unfurl_media"):
             val = extra.get(knob)
             if isinstance(val, bool):
@@ -967,7 +970,7 @@ class RelayAdapter(BasePlatformAdapter):
                 hints[knob] = val.strip().lower() in _TRUTHY
         return hints or None
 
-    def _stamp_slack_unfurl(self, platform: Optional[str], metadata: Dict[str, Any]) -> None:
+    def _stamp_slack_unfurl(self, platform: str | None, metadata: dict[str, Any]) -> None:
         unfurl = self._slack_unfurl_hints(platform)
         if unfurl:
             metadata.update(unfurl)
@@ -997,7 +1000,7 @@ class RelayAdapter(BasePlatformAdapter):
             if not self._dm_top_level_threads_as_sessions():
                 return  # opt-out: threaded replies, one rolling session
             src.thread_id = str(message_id)
-        except Exception:  # noqa: BLE001 - session stamping must never break inbound
+        except Exception:
             logger.debug("slack session-thread stamp failed", exc_info=True)
 
     async def _localize_inbound_media(self, event) -> None:
@@ -1031,7 +1034,7 @@ class RelayAdapter(BasePlatformAdapter):
                     localized.append((url, mime))
             event.media_urls = [u for u, _ in localized]
             event.media_types = [m for _, m in localized]
-        except Exception:  # noqa: BLE001 - media localization must never break inbound
+        except Exception:
             logger.debug("relay inbound media localization failed", exc_info=True)
 
     def prime_routing_cache(self, event) -> None:
@@ -1079,12 +1082,12 @@ class RelayAdapter(BasePlatformAdapter):
         except Exception:  # noqa: BLE001 - scope tracking must never break inbound
             pass
 
-    def _with_scope(self, chat_id: str, metadata: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    def _with_scope(self, chat_id: str, metadata: dict[str, Any] | None) -> dict[str, Any]:
         """Outbound metadata carrying the tenant discriminators (see _capture_scope).
         Both are attached when known and not already set; the connector tries scope_id
         first and only falls back to user_id on a route miss, so carrying both never
         overrides routing-table resolution."""
-        meta: Dict[str, Any] = dict(metadata or {})
+        meta: dict[str, Any] = dict(metadata or {})
         # ``getattr``: relay tests build bare adapters via ``__new__`` without ``__init__``.
         for key, cache in (
             ("scope_id", self._scope_by_chat), ("user_id", self._dm_user_by_chat),
@@ -1117,7 +1120,7 @@ class RelayAdapter(BasePlatformAdapter):
         """Bridge a connector-delivered /stop into the per-session interrupt path."""
         await self.interrupt_session_activity(session_key, chat_id)
 
-    async def _on_passthrough(self, forward, buffer_id: Optional[str] = None) -> None:
+    async def _on_passthrough(self, forward, buffer_id: str | None = None) -> None:
         """Handle a connector-forwarded passthrough request. The connector answered the
         provider's latency-critical ACK at the edge, verified the signature and vaulted
         any shared-identity credential; the agent later acts via the token-less
@@ -1139,7 +1142,7 @@ class RelayAdapter(BasePlatformAdapter):
                 "relay passthrough_forward dropped (no handler): platform=%s method=%s path=%s",
                 platform, getattr(forward, "method", "?"), getattr(forward, "path", "?"),
             )
-        except Exception:  # noqa: BLE001 - a bad forward must never break the reader
+        except Exception:
             logger.warning("relay passthrough_forward handling failed", exc_info=True)
 
     def _discord_interaction_to_event(self, forward):
@@ -1265,7 +1268,7 @@ class RelayAdapter(BasePlatformAdapter):
                 await asyncio.wait_for(
                     self._revocation_monitor, timeout=_RELAY_REVOCATION_MONITOR_TEARDOWN_TIMEOUT_S
                 )
-            except (asyncio.TimeoutError, asyncio.CancelledError, Exception):  # noqa: BLE001 - best-effort teardown
+            except (TimeoutError, asyncio.CancelledError, Exception):  # noqa: BLE001 - best-effort teardown
                 pass
             self._revocation_monitor = None
         if self._transport is not None:
@@ -1283,7 +1286,7 @@ class RelayAdapter(BasePlatformAdapter):
                         result: Any = go_idle(timeout_s=_RELAY_GO_IDLE_ON_DISCONNECT_TIMEOUT_S)
                         if asyncio.iscoroutine(result):
                             await result
-                    except Exception:  # noqa: BLE001 - going-idle is an optimization, never blocks drain
+                    except Exception:
                         logger.debug("relay going_idle failed during drain", exc_info=True)
             finally:
                 try:
@@ -1294,7 +1297,7 @@ class RelayAdapter(BasePlatformAdapter):
                         # Transports without the budget_s keyword (stubs).
                         _td = self._transport.disconnect()
                     await asyncio.shield(_td)
-                except Exception:  # noqa: BLE001 - teardown must not block outer cancel propagation
+                except Exception:
                     logger.debug("relay transport disconnect failed during drain", exc_info=True)
 
     async def go_dormant(self) -> bool:
@@ -1309,7 +1312,7 @@ class RelayAdapter(BasePlatformAdapter):
         try:
             result: Any = go_dormant()
             return bool(await result) if asyncio.iscoroutine(result) else bool(result)
-        except Exception:  # noqa: BLE001 - dormancy is best-effort, never blocks the idle path
+        except Exception:
             logger.debug("relay go_dormant failed", exc_info=True)
             return False
 
@@ -1333,7 +1336,7 @@ class RelayAdapter(BasePlatformAdapter):
             return False
         try:
             method()
-        except Exception:  # noqa: BLE001 - never blocks the idle path
+        except Exception:
             logger.debug("relay %s failed", method_name, exc_info=True)
             return False
         return True
@@ -1343,8 +1346,8 @@ class RelayAdapter(BasePlatformAdapter):
         logical_platform: Any,
         chat_id: str,
         content: str,
-        reply_to: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        reply_to: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> SendResult:
         """Send to an explicitly advertised logical platform over Relay. Scheduled and
         persisted-home deliveries have no fresh inbound event to populate
@@ -1384,8 +1387,8 @@ class RelayAdapter(BasePlatformAdapter):
         return _send_result(result, raw_response=result)
 
     def _format_hints(
-        self, descriptor: Optional[CapabilityDescriptor], platform: Optional[str]
-    ) -> Optional[Dict[str, bool]]:
+        self, descriptor: CapabilityDescriptor | None, platform: str | None
+    ) -> dict[str, bool] | None:
         """Block-formatting hints for one outbound text frame, or None. The CONNECTOR
         owns the platform API call, so the gateway only signals intent: stamped ONLY
         when (a) the DESTINATION platform's negotiated descriptor advertises
@@ -1406,10 +1409,10 @@ class RelayAdapter(BasePlatformAdapter):
 
     def _stamp_format_hints(
         self,
-        descriptor: Optional[CapabilityDescriptor],
-        platform: Optional[str],
-        metadata: Optional[Dict[str, Any]],
-    ) -> Optional[Dict[str, Any]]:
+        descriptor: CapabilityDescriptor | None,
+        platform: str | None,
+        metadata: dict[str, Any] | None,
+    ) -> dict[str, Any] | None:
         """``metadata`` with ``format_hints`` for the DESTINATION (descriptor, platform) stamped, if any."""
         hints = self._format_hints(descriptor, platform)
         if not hints:
@@ -1419,14 +1422,14 @@ class RelayAdapter(BasePlatformAdapter):
         return merged
 
     def _with_format_hints_for_chat(
-        self, chat_id: str, metadata: Optional[Dict[str, Any]]
-    ) -> Optional[Dict[str, Any]]:
+        self, chat_id: str, metadata: dict[str, Any] | None
+    ) -> dict[str, Any] | None:
         """Hints for a chat-addressed send (chat's platform as seen inbound, else the primary)."""
         return self._stamp_format_hints(self._descriptor_for_chat(chat_id), self._chat_platform(chat_id), metadata)
 
     def _with_format_hints_for_platform(
-        self, platform_value: str, metadata: Optional[Dict[str, Any]]
-    ) -> Optional[Dict[str, Any]]:
+        self, platform_value: str, metadata: dict[str, Any] | None
+    ) -> dict[str, Any] | None:
         """Hints for an explicit-platform send (scheduled/persisted-home lane). Falls
         back to the scalar descriptor only when it IS that platform's — never stamp
         from another platform's capability bit."""
@@ -1439,8 +1442,8 @@ class RelayAdapter(BasePlatformAdapter):
         self,
         chat_id: str,
         content: str,
-        reply_to: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        reply_to: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> SendResult:
         send_metadata = dict(metadata or {})
         explicit_platform = send_metadata.pop("_relay_logical_platform", None)
@@ -1491,12 +1494,12 @@ class RelayAdapter(BasePlatformAdapter):
             waiter.set()
         return _send_result(result)
 
-    def auto_thread_info_for_chat(self, chat_id: str) -> Optional[Tuple[str, str]]:
+    def auto_thread_info_for_chat(self, chat_id: str) -> tuple[str, str] | None:
         """(thread_id, initial_name) of the connector-created auto-thread for the most
         recent send into *chat_id*, if any (semantic thread-rename lane)."""
         return self._auto_thread_by_chat.get(str(chat_id))
 
-    async def wait_for_auto_thread_info(self, chat_id: str, timeout: float) -> Optional[Tuple[str, str]]:
+    async def wait_for_auto_thread_info(self, chat_id: str, timeout: float) -> tuple[str, str] | None:
         """``auto_thread_info_for_chat``, but willing to wait for the send. The rename
         lane asks as soon as the session is titled — a whole turn early. Waits for the
         next send into this chat, so a reply the connector didn't auto-thread reports
@@ -1511,7 +1514,7 @@ class RelayAdapter(BasePlatformAdapter):
             self._auto_thread_waiters[key] = waiter
         try:
             await asyncio.wait_for(waiter.wait(), timeout)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return None
         finally:
             # Only the waiter we installed, and only if no later call replaced it; a
@@ -1521,8 +1524,8 @@ class RelayAdapter(BasePlatformAdapter):
         return self.auto_thread_info_for_chat(chat_id)
 
     def _resolve_reply_to_for_send(
-        self, chat_id: str, reply_to: Optional[str], metadata: Optional[Dict[str, Any]],
-    ) -> Optional[str]:
+        self, chat_id: str, reply_to: str | None, metadata: dict[str, Any] | None,
+    ) -> str | None:
         """Suppress the synthetic-DM thread anchor for a Slack DM reply.
 
         The stream consumer sends a DM reply with ``reply_to`` = the triggering ts
@@ -1555,11 +1558,11 @@ class RelayAdapter(BasePlatformAdapter):
     def _apply_slack_thread_anchor(
         self,
         chat_id: str,
-        reply_to: Optional[str],
-        metadata: Dict[str, Any],
+        reply_to: str | None,
+        metadata: dict[str, Any],
         *,
         mirror_key: str = "reply_to_message_id",
-    ) -> Optional[str]:
+    ) -> str | None:
         """Resolve the outbound Slack thread anchor for ONE egress frame — the single
         choke point for text (``send``) and media (``_send_media``): (1) mode gate via
         ``_resolve_reply_to_for_send``; (2) when the anchor is dropped, strip the
@@ -1579,8 +1582,8 @@ class RelayAdapter(BasePlatformAdapter):
         return effective_reply_to
 
     def _prepare_slack_egress(
-        self, chat_id: str, reply_to: Optional[str], metadata: Dict[str, Any]
-    ) -> Optional[str]:
+        self, chat_id: str, reply_to: str | None, metadata: dict[str, Any]
+    ) -> str | None:
         """Text/media egress prep: Slack thread anchor (DM replies post flat at the DM
         root, native _resolve_thread_ts parity) + unfurl hints; mutates ``metadata``."""
         effective_reply_to = self._apply_slack_thread_anchor(chat_id, reply_to, metadata)
@@ -1588,8 +1591,8 @@ class RelayAdapter(BasePlatformAdapter):
         return effective_reply_to
 
     def _with_status_thread_anchor(
-        self, chat_id: str, metadata: Optional[Dict[str, Any]]
-    ) -> Dict[str, Any]:
+        self, chat_id: str, metadata: dict[str, Any] | None
+    ) -> dict[str, Any]:
         """Copy ``metadata`` with the typing/status thread anchor applied. Slack's
         status line is THREAD-scoped and the typing lane's metadata carries no anchor
         for a top-level DM, so synthesize it from the per-chat inbound-ts cache. Shared
@@ -1613,7 +1616,7 @@ class RelayAdapter(BasePlatformAdapter):
         content: str,
         *,
         finalize: bool = False,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> SendResult:
         """Edit a relayed message through the connector-owned platform API."""
         if self._transport is None:
@@ -1676,7 +1679,7 @@ class RelayAdapter(BasePlatformAdapter):
         phrase = getattr(self, "_status_text", {}).get(str(chat_id))
         await self._typing_frame(chat_id, metadata, str(phrase) if phrase else None, "send_typing")
 
-    async def stop_typing(self, chat_id: str, metadata: Optional[Dict[str, Any]] = None) -> None:
+    async def stop_typing(self, chat_id: str, metadata: dict[str, Any] | None = None) -> None:
         """Forward an explicit typing/status clear (empty ``content``) — Slack only:
         other relay senders have one-shot heartbeats, where an empty heartbeat would
         re-trigger typing at completion. A connector older than gateway-gateway #154
@@ -1687,7 +1690,7 @@ class RelayAdapter(BasePlatformAdapter):
         await self._typing_frame(chat_id, metadata, "", "stop_typing")
 
     async def _typing_frame(
-        self, chat_id: str, metadata: Optional[Dict[str, Any]], content: Optional[str], lane: str
+        self, chat_id: str, metadata: dict[str, Any] | None, content: str | None, lane: str
     ) -> None:
         """One ``typing`` frame (``content`` None = omit; "" = Slack clear). Cosmetic: never raises."""
         # Thread anchor for the status surface. Slack's status line ("is thinking…" in the thread's replies
@@ -1700,15 +1703,15 @@ class RelayAdapter(BasePlatformAdapter):
         # (reply_in_thread=false) keeps the no-anchor no-op: there is no thread and must not be one
         # (#18859).
         md = self._with_status_thread_anchor(chat_id, metadata)
-        frame: Dict[str, Any] = {"op": "typing", "chat_id": chat_id, "metadata": self._with_scope(chat_id, md)}
+        frame: dict[str, Any] = {"op": "typing", "chat_id": chat_id, "metadata": self._with_scope(chat_id, md)}
         if content is not None:
             frame["content"] = content
         try:
             await self._outbound(chat_id, frame)
-        except Exception:  # noqa: BLE001 - typing/status is cosmetic, never breaks a turn
+        except Exception:
             logger.debug("relay %s failed for %s", lane, chat_id, exc_info=True)
 
-    async def get_chat_info(self, chat_id: str) -> Dict[str, Any]:
+    async def get_chat_info(self, chat_id: str) -> dict[str, Any]:
         # Op-gated so a legacy connector (which would only answer "unsupported op")
         # gets the same local fallback without a round trip.
         if self._transport is None or not self.descriptor.supports_op("get_chat_info"):
@@ -1716,7 +1719,7 @@ class RelayAdapter(BasePlatformAdapter):
         return await self._transport.get_chat_info(chat_id)
 
     async def send_follow_up(
-        self, session_key: str, kind: str, content: str, metadata: Optional[Dict[str, Any]] = None,
+        self, session_key: str, kind: str, content: str, metadata: dict[str, Any] | None = None,
     ) -> SendResult:
         """Send via a shared-identity capability bound to a session. The gateway never
         holds the credential: it names the session and the capability ``kind``; the
@@ -1757,7 +1760,7 @@ class RelayAdapter(BasePlatformAdapter):
 
     # ── Phase 2 media ─────────────────────────────────────────────────────
 
-    def _get_media_client(self) -> Optional[RelayMediaClient]:
+    def _get_media_client(self) -> RelayMediaClient | None:
         """Lazily build the authenticated /relay/media client from the SAME dial URL and
         per-gateway creds the WS uses; None when unavailable (media lanes then degrade
         to their pre-media fallbacks)."""
@@ -1776,7 +1779,7 @@ class RelayAdapter(BasePlatformAdapter):
                 return None
             self._media_client = client
             return client
-        except Exception:  # noqa: BLE001 - media plumbing must never break the adapter
+        except Exception:
             logger.debug("relay media client init failed", exc_info=True)
             return None
 
@@ -1787,11 +1790,11 @@ class RelayAdapter(BasePlatformAdapter):
         media_kind: str,
         source: str,
         source_is_path: bool,
-        caption: Optional[str] = None,
-        filename: Optional[str] = None,
-        reply_to: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> Optional[SendResult]:
+        caption: str | None = None,
+        filename: str | None = None,
+        reply_to: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> SendResult | None:
         """Egress one media object via the connector's ``send_media`` op. ``source`` is
         a LOCAL path (uploaded to /relay/media first — the connector cannot reach our
         filesystem) or an already-public URL (passed through). None when the lane is
@@ -1810,9 +1813,9 @@ class RelayAdapter(BasePlatformAdapter):
             source_url = uploaded
         # Same Slack thread-anchor contract as the text lane: media frames go through
         # the connector's Slack sender too (threadTs() reads metadata only).
-        media_metadata: Dict[str, Any] = dict(metadata or {})
+        media_metadata: dict[str, Any] = dict(metadata or {})
         effective_reply_to = self._prepare_slack_egress(chat_id, reply_to, media_metadata)
-        action: Dict[str, Any] = {
+        action: dict[str, Any] = {
             "op": "send_media",
             "chat_id": chat_id,
             "media_kind": media_kind,
@@ -1845,9 +1848,9 @@ class RelayAdapter(BasePlatformAdapter):
         self,
         chat_id: str,
         image_url: str,
-        caption: Optional[str] = None,
-        reply_to: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        caption: str | None = None,
+        reply_to: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> SendResult:
         result = await self._send_media(
             chat_id, media_kind="image", source=image_url, source_is_path=False,
@@ -1861,9 +1864,9 @@ class RelayAdapter(BasePlatformAdapter):
         self,
         chat_id: str,
         image_path: str,
-        caption: Optional[str] = None,
-        reply_to: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        caption: str | None = None,
+        reply_to: str | None = None,
+        metadata: dict[str, Any] | None = None,
         **kwargs,
     ) -> SendResult:
         result = await self._send_media(
@@ -1878,9 +1881,9 @@ class RelayAdapter(BasePlatformAdapter):
         self,
         chat_id: str,
         audio_path: str,
-        caption: Optional[str] = None,
-        reply_to: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        caption: str | None = None,
+        reply_to: str | None = None,
+        metadata: dict[str, Any] | None = None,
         **kwargs,
     ) -> SendResult:
         result = await self._send_media(
@@ -1895,9 +1898,9 @@ class RelayAdapter(BasePlatformAdapter):
         self,
         chat_id: str,
         video_path: str,
-        caption: Optional[str] = None,
-        reply_to: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        caption: str | None = None,
+        reply_to: str | None = None,
+        metadata: dict[str, Any] | None = None,
         **kwargs,
     ) -> SendResult:
         result = await self._send_media(
@@ -1912,10 +1915,10 @@ class RelayAdapter(BasePlatformAdapter):
         self,
         chat_id: str,
         file_path: str,
-        caption: Optional[str] = None,
-        file_name: Optional[str] = None,
-        reply_to: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        caption: str | None = None,
+        file_name: str | None = None,
+        reply_to: str | None = None,
+        metadata: dict[str, Any] | None = None,
         **kwargs,
     ) -> SendResult:
         result = await self._send_media(
@@ -1929,7 +1932,7 @@ class RelayAdapter(BasePlatformAdapter):
     # ── Phase 3 interactive: prompt + react ──────────────────────────────
 
     def _mint_prompt(
-        self, kind: str, state: Dict[str, Any], timeout_s: float = 3600.0
+        self, kind: str, state: dict[str, Any], timeout_s: float = 3600.0
     ) -> str:
         """Register a pending prompt and return its id (``<owner nonce>.<8 hex>``).
         Expiry is enforced gateway-side on consumption (_pop_prompt); the wire's
@@ -1950,7 +1953,7 @@ class RelayAdapter(BasePlatformAdapter):
         head, sep, _ = str(prompt_id).partition(".")
         return head == self._prompt_owner_nonce if sep else True
 
-    def _pop_prompt(self, prompt_id: str) -> Optional[Dict[str, Any]]:
+    def _pop_prompt(self, prompt_id: str) -> dict[str, Any] | None:
         """Consume a pending prompt: one answer wins, expired entries miss."""
         state = self._pending_prompts.pop(str(prompt_id), None)
         if not state or state.get("expires_at", 0) < time.time():
@@ -1972,16 +1975,16 @@ class RelayAdapter(BasePlatformAdapter):
         text: str,
         prompt_id: str,
         options: list,
-        reply_to: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-        timeout_s: Optional[int] = None,
-    ) -> Optional[SendResult]:
+        reply_to: str | None = None,
+        metadata: dict[str, Any] | None = None,
+        timeout_s: int | None = None,
+    ) -> SendResult | None:
         """Egress one `prompt` op; None when the lane is unavailable (the caller falls
         back to its numbered-text base behaviour). Prompt metadata is forwarded
         VERBATIM: the threading mode is decided in exactly one place — run.py's
         _resolve_progress_thread_id (flat mode suppresses the synthetic self-anchor
         there; thread mode stamps the turn's thread)."""
-        action: Dict[str, Any] = {
+        action: dict[str, Any] = {
             "op": "prompt",
             "chat_id": chat_id,
             "content": text,
@@ -2009,14 +2012,14 @@ class RelayAdapter(BasePlatformAdapter):
     async def _mint_and_send_prompt(
         self,
         kind: str,
-        state: Dict[str, Any],
+        state: dict[str, Any],
         chat_id: str,
         *,
         prompt_kind: str,
         text: str,
         options: list,
-        metadata: Optional[Dict[str, Any]],
-    ) -> Optional[SendResult]:
+        metadata: dict[str, Any] | None,
+    ) -> SendResult | None:
         """Register + egress a prompt; unregisters and returns None when the lane is unavailable."""
         prompt_id = self._mint_prompt(kind, {**state, "chat_id": str(chat_id)})
         result = await self._send_prompt(
@@ -2055,7 +2058,7 @@ class RelayAdapter(BasePlatformAdapter):
         message: str,
         session_key: str,
         confirm_id: str,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> SendResult:
         """Three-button slash-command confirmation over the relay (resolves via
         tools.slash_confirm.resolve; success=False falls back to text-intercept)."""
@@ -2075,10 +2078,10 @@ class RelayAdapter(BasePlatformAdapter):
         self,
         chat_id: str,
         question: str,
-        choices: Optional[list],
+        choices: list | None,
         clarify_id: str,
         session_key: str,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> SendResult:
         """Native-button clarify over the relay. A press resolves with the CHOICE TEXT
         (never the option id); "Other" flips to text-capture. Option ids are
@@ -2150,7 +2153,7 @@ class RelayAdapter(BasePlatformAdapter):
                 # Acks are fire-and-forget: we are ON the read loop here (see
                 # _send_lifecycle_ack) and awaiting a send would self-deadlock.
                 await handler(self, state, option_id, chat_id, self._prompt_reply_metadata(event))
-        except Exception:  # noqa: BLE001 - a resolver failure must not kill the reader
+        except Exception:
             logger.warning("relay prompt_response resolution failed", exc_info=True)
         return True
 
@@ -2197,7 +2200,7 @@ class RelayAdapter(BasePlatformAdapter):
             # Unmappable option: flip to text capture (never dead-end a clarify).
             mark_awaiting_text(clarify_id)
 
-    def _send_lifecycle_ack(self, chat_id: str, text: str, metadata: Dict[str, Any]) -> None:
+    def _send_lifecycle_ack(self, chat_id: str, text: str, metadata: dict[str, Any]) -> None:
         """Fire-and-forget a prompt-lifecycle ack from read-loop context.
         _consume_prompt_response executes ON the transport read loop; an ``await
         self.send(...)`` there is a SELF-DEADLOCK (send() blocks on an outbound_result
@@ -2208,7 +2211,7 @@ class RelayAdapter(BasePlatformAdapter):
         async def _ack() -> None:
             try:
                 await self.send(chat_id, text, metadata=metadata)
-            except Exception:  # noqa: BLE001 - ack is best-effort
+            except Exception:
                 logger.debug("relay lifecycle ack failed", exc_info=True)
 
         task = asyncio.create_task(_ack(), name="relay-lifecycle-ack")
@@ -2226,12 +2229,12 @@ class RelayAdapter(BasePlatformAdapter):
             self._prompt_reply_metadata(event),
         )
 
-    def _prompt_reply_metadata(self, event) -> Dict[str, Any]:
+    def _prompt_reply_metadata(self, event) -> dict[str, Any]:
         """Thread metadata so prompt acks land where the prompt lives. Marked INTERIM:
         acks fire while the approval turn's OWN draft stream is open and carry only
         placement metadata, so send()'s single-open-stream fallback sealed the live
         draft with the ack text (frozen stream + duplicate final on every approval turn)."""
-        meta: Dict[str, Any] = {"_interim_send": True}
+        meta: dict[str, Any] = {"_interim_send": True}
         thread_id = getattr(event.source, "thread_id", None)
         if thread_id:
             meta["thread_id"] = str(thread_id)
@@ -2340,7 +2343,7 @@ class RelayAdapter(BasePlatformAdapter):
         self,
         parent_chat_id: str,
         name: str,
-    ) -> Optional[str]:
+    ) -> str | None:
         """Create a thread/topic under ``parent_chat_id`` via the connector. One
         `thread_create` op covers Discord (channel thread), Telegram (forum topic) and
         Slack (named seed root message). None on any failure/unavailability so the
@@ -2366,9 +2369,9 @@ class RelayAdapter(BasePlatformAdapter):
         thread_id: str,
         name: str,
         *,
-        only_if_current_name: Optional[str] = None,
+        only_if_current_name: str | None = None,
         prefer_connector_created: bool = False,
-        parent_chat_id: Optional[str] = None,
+        parent_chat_id: str | None = None,
     ) -> bool:
         """Best-effort thread rename via the connector's `thread_rename` op. Prefer
         ``prefer_connector_created=True``: the CONNECTOR enforces the no-clobber guard
@@ -2381,7 +2384,7 @@ class RelayAdapter(BasePlatformAdapter):
         if not cleaned or not thread_id:
             return False
         chat_id = str(parent_chat_id or thread_id)
-        action: Dict[str, Any] = {
+        action: dict[str, Any] = {
             "op": "thread_rename",
             "chat_id": chat_id,
             "message_id": str(thread_id),

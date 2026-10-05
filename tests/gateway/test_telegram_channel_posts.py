@@ -11,10 +11,8 @@ import importlib.util
 import sys
 import types
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from gateway.config import PlatformConfig
 from gateway.platforms.event import MessageType
 

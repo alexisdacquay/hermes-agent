@@ -12,14 +12,12 @@ code under test.
 """
 
 import json
-import os
 import subprocess
 import sys
 import time
 from pathlib import Path
 
 import pytest
-
 from gateway.status import recorded_gateway_home_conflicts
 
 

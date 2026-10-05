@@ -12,14 +12,14 @@ from __future__ import annotations
 import subprocess
 from unittest.mock import MagicMock, patch
 
-import pytest
 import hermes_cli.web_server_gateway as _web_server_gateway
+import pytest
 
 
 @pytest.fixture(autouse=True)
 def reset_restart_cooldown():
     """Keep the module-level cooldown state out of neighbouring tests."""
-    import hermes_cli.web_server as web_server
+    from hermes_cli import web_server
 
     web_server._LAST_GATEWAY_RESTART = None
     yield
@@ -106,7 +106,6 @@ class TestRepeatRestartWithinCooldown:
         Completed action children get reaped out of that table, and a guard
         that disappears when the child is reaped is the bug this fixes.
         """
-        import hermes_cli.web_server as web_server
         from hermes_cli.web_server import _spawn_gateway_restart
 
         mock_spawn.return_value = _exited_proc()
@@ -222,8 +221,7 @@ class TestExistingBehaviourIsPreserved:
             {"gateway-restart": ("-p", "coder", "gateway", "restart")},
         ), patch(
             "hermes_cli.gateway._reap_unsupervised_gateway_orphans"
-        ):
-            with pytest.raises(RuntimeError, match="another profile"):
-                _spawn_gateway_restart()
+        ), pytest.raises(RuntimeError, match="another profile"):
+            _spawn_gateway_restart()
 
         mock_spawn.assert_not_called()

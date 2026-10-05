@@ -8,7 +8,6 @@ dedicated alias expansion. Left unconditional, it makes a bare allowlist entry
 """
 
 import pytest
-
 from gateway.authz_mixin import _principal_matches_allowlist
 from gateway.config import Platform
 from gateway.session import SessionSource

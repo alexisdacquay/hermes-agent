@@ -30,7 +30,6 @@ import subprocess
 from pathlib import Path
 
 import pytest
-
 from tests.installation_launcher_fixture import publish_fixture_launcher
 
 pytestmark = pytest.mark.platforms("windows")

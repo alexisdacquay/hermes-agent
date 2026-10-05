@@ -18,7 +18,8 @@ right after ``PROVIDER_REGISTRY`` exists, and by ``agent.credential_pool``.
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +38,7 @@ PLUGIN_MIRRORED_PROVIDERS: set[str] = set()
 
 def _api_key_env_fields(pp: Any) -> tuple[tuple, str]:
     """Split a profile's ``env_vars`` into (api-key vars, base-URL var); the URL var may be ""."""
-    is_url = lambda v: v.endswith("_BASE_URL") or v.endswith("_URL")  # noqa: E731
+    is_url = lambda v: v.endswith("_BASE_URL") or v.endswith("_URL")
     return (tuple(v for v in pp.env_vars if not is_url(v)) or pp.env_vars,
             next((v for v in pp.env_vars if is_url(v)), None) or "")
 
@@ -137,7 +138,7 @@ def sync_plugin_provider_registry() -> int:
     return added
 
 
-def registry_lookup(provider_id: str) -> Optional[Any]:
+def registry_lookup(provider_id: str) -> Any | None:
     """``PROVIDER_REGISTRY.get`` that re-syncs plugin profiles on a miss."""
     from hermes_cli.auth import PROVIDER_REGISTRY
 
@@ -147,7 +148,7 @@ def registry_lookup(provider_id: str) -> Optional[Any]:
     return pconfig
 
 
-def plugin_profile(provider: str) -> Optional[Any]:
+def plugin_profile(provider: str) -> Any | None:
     """The registered ``ProviderProfile`` for *provider*, or None (also when the layer is unavailable)."""
     try:
         from providers import get_provider_profile
@@ -156,16 +157,16 @@ def plugin_profile(provider: str) -> Optional[Any]:
     return get_provider_profile(provider)
 
 
-def _profile_hook(provider: str, name: str) -> Optional[Callable[..., Any]]:
+def _profile_hook(provider: str, name: str) -> Callable[..., Any] | None:
     hook = getattr(plugin_profile(provider), name, None)
     return hook if callable(hook) else None
 
 
-def plugin_auth_handler(provider: str) -> Optional[Callable[[str, Any], Any]]:
+def plugin_auth_handler(provider: str) -> Callable[[str, Any], Any] | None:
     return _profile_hook(provider, "auth_handler")
 
 
-def plugin_refresh_hook(provider: str) -> Optional[Callable[[Any], Any]]:
+def plugin_refresh_hook(provider: str) -> Callable[[Any], Any] | None:
     """The profile's ``refresh_credential`` hook, i.e. whether its pooled OAuth rows are refreshable."""
     return _profile_hook(provider, "refresh_credential")
 
@@ -194,7 +195,7 @@ def dispatch_plugin_auth(action: str, args: Any, provider: str) -> bool:
         raise SystemExit(f"{provider} auth handler failed for `{action}`: {type(exc).__name__}: {exc}") from exc
 
 
-def plugin_missing_auth_handler_error(provider: str, action: str) -> Optional[SystemExit]:
+def plugin_missing_auth_handler_error(provider: str, action: str) -> SystemExit | None:
     """Fail loud for a registered non-api-key plugin that ships no ``auth_handler``.
 
     Its login is not something core can perform (there is no token endpoint to call), and silently
@@ -214,6 +215,7 @@ def plugin_missing_auth_handler_error(provider: str, action: str) -> Optional[Sy
 def _pool_entry_expired(entry: Any) -> bool:
     """A pooled OAuth row is expired when its ``expires_at_ms`` / ISO ``expires_at`` is in the past."""
     import time
+
     from hermes_cli.auth import _parse_iso_timestamp
 
     if entry.expires_at_ms is not None:

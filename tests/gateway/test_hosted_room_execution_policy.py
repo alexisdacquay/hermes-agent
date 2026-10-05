@@ -6,7 +6,6 @@ import hashlib
 import json
 
 import pytest
-
 from gateway.hosted_room_execution_policy import (
     MAX_POLICY_ITERATIONS,
     RoomExecutionPolicy,
@@ -166,7 +165,7 @@ def test_room_agent_uses_target_policy_toolsets_and_turn_limit(monkeypatch):
         lambda: {"provider": "openai-codex", "base_url": "https://example.test/v1"},
     )
     monkeypatch.setattr("gateway.run._resolve_gateway_model", lambda: "gpt-test")
-    monkeypatch.setattr("gateway.run._load_gateway_config", lambda: {})
+    monkeypatch.setattr("gateway.run._load_gateway_config", dict)
     monkeypatch.setattr(
         "gateway.run.GatewayRunner._load_reasoning_config",
         staticmethod(lambda model="": {"enabled": True, "effort": "high"}),
@@ -243,8 +242,8 @@ def _two_profile_homes(tmp_path, monkeypatch) -> None:
             f"agent:\n  max_turns: {turns}\napprovals:\n  mode: manual\n"
             "platform_toolsets:\n  api_server: [hermes-api-server, web]\n")
         (home / ".env").write_text("")
-    from hermes_cli import profiles
     import gateway.run as gateway_run
+    from hermes_cli import profiles
     alpha = root / "profiles" / "alpha"
     monkeypatch.setattr(profiles, "_get_default_hermes_home", lambda: root)
     monkeypatch.setattr(gateway_run, "_hermes_home", alpha)

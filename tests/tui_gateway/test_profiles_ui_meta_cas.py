@@ -12,7 +12,6 @@ import json
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
-
 import tui_gateway.server as srv
 
 

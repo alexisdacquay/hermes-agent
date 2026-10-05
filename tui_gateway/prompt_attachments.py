@@ -194,7 +194,11 @@ def _stage_session_file_attachment(
     resolved = None
     if raw_path:
         try:
-            from cli import _detect_file_drop, _resolve_attachment_path, _split_path_input
+            from cli import (
+                _detect_file_drop,
+                _resolve_attachment_path,
+                _split_path_input,
+            )
         except Exception:
             _detect_file_drop = None
         if _detect_file_drop is not None:
@@ -220,7 +224,7 @@ def _stage_session_file_attachment(
         import re as _re
         try:
             payload = _b64_payload(
-                data_url, r"^data:[^;,]*(?:;[^;,=]+=[^;,]+)*;base64,(.*)$", _re.DOTALL | _re.I)
+                data_url, r"^data:[^;,]*(?:;[^;,=]+=[^;,]+)*;base64,(.*)$", _re.DOTALL | _re.IGNORECASE)
         except (ValueError, _binascii.Error) as exc:
             raise ValueError("invalid data_url payload") from exc
         filename = _sanitize_attachment_name(name or Path(str(raw_path or "")).name)

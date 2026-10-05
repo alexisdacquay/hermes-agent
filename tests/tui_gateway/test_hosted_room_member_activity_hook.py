@@ -7,7 +7,6 @@ import threading
 import time
 
 import pytest
-
 from tui_gateway import server
 from tui_gateway.hosted_room_member_activity import HOOK_NAME
 

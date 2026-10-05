@@ -14,11 +14,10 @@ tool routes to a provider's edit endpoint when ``image_url`` /
 from __future__ import annotations
 
 import json
-from typing import Any, Dict
+from typing import Any
 
-import pytest
 import hermes_yaml as yaml
-
+import pytest
 from agent import image_gen_registry
 from agent.image_gen_provider import ImageGenProvider
 
@@ -174,13 +173,13 @@ class TestFalRouting:
 
 class _EditCapableProvider(ImageGenProvider):
     def __init__(self):
-        self.received: Dict[str, Any] = {}
+        self.received: dict[str, Any] = {}
 
     @property
     def name(self) -> str:
         return "editcap"
 
-    def capabilities(self) -> Dict[str, Any]:
+    def capabilities(self) -> dict[str, Any]:
         return {"modalities": ["text", "image"], "max_reference_images": 4}
 
     def generate(self, prompt, aspect_ratio="landscape", *, image_url=None,
@@ -212,8 +211,8 @@ class _LegacyProvider(ImageGenProvider):
 class TestPluginDispatchImageToImage:
     def test_dispatch_forwards_image_url(self, cfg_home, monkeypatch):
         import tools.image_generation_tool as image_tool
-        from hermes_cli import plugins as plugins_module
         from agent import image_gen_registry as reg
+        from hermes_cli import plugins as plugins_module
 
         provider = _EditCapableProvider()
         reg.register_provider(provider)
@@ -235,8 +234,8 @@ class TestPluginDispatchImageToImage:
 
     def test_legacy_provider_edit_request_surfaces_clear_error(self, cfg_home, monkeypatch):
         import tools.image_generation_tool as image_tool
-        from hermes_cli import plugins as plugins_module
         from agent import image_gen_registry as reg
+        from hermes_cli import plugins as plugins_module
 
         provider = _LegacyProvider()
         reg.register_provider(provider)

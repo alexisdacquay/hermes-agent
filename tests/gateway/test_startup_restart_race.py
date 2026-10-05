@@ -1,9 +1,8 @@
 import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
-
 import gateway.run as gateway_run
+import pytest
 from gateway.config import GatewayConfig, Platform, PlatformConfig
 from gateway.platforms.base import BasePlatformAdapter, SendResult
 from gateway.restart import (

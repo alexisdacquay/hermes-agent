@@ -16,10 +16,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-
 pytest.importorskip("mcp.client.auth.oauth2")
-from tools import mcp_tool_loop as _mcp_loop  # noqa: E402
-
+from tools import mcp_tool_loop as _mcp_loop
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -336,11 +334,11 @@ def test_circuit_breaker_cleared_on_reconnect(monkeypatch, tmp_path):
     """
     monkeypatch.setenv("HERMES_HOME", str(tmp_path))
 
+    from mcp.client.auth import OAuthFlowError
     from tools import mcp_tool
     from tools import mcp_tool_handlers as _mcp_handlers
     from tools import mcp_tool_loop as _mcp_loop
     from tools.mcp_oauth_manager import get_manager, reset_manager_for_tests
-    from mcp.client.auth import OAuthFlowError
 
     reset_manager_for_tests()
 
@@ -487,7 +485,7 @@ def test_run_loop_parks_instead_of_exiting_then_revives(monkeypatch, tmp_path):
         task._reconnect_event.set()
         try:
             await asyncio.wait_for(run_task, timeout=15)
-        except (asyncio.TimeoutError, asyncio.CancelledError, Exception):
+        except (TimeoutError, asyncio.CancelledError, Exception):
             run_task.cancel()
 
     asyncio.run(_scenario())
@@ -535,7 +533,6 @@ def test_initial_connect_budget_parks_instead_of_exiting_then_revives(monkeypatc
                 self.session = object()
                 self._ready.set()
                 await self._wait_for_lifecycle_event()
-                return
 
         task = _Task("srv")
         run_task = asyncio.ensure_future(task.run({"command": "x"}))
@@ -568,7 +565,7 @@ def test_initial_connect_budget_parks_instead_of_exiting_then_revives(monkeypatc
         task._reconnect_event.set()
         try:
             await asyncio.wait_for(run_task, timeout=15)
-        except (asyncio.TimeoutError, asyncio.CancelledError, Exception):
+        except (TimeoutError, asyncio.CancelledError, Exception):
             run_task.cancel()
 
     asyncio.run(_scenario())

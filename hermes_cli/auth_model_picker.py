@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 import subprocess
-from typing import Dict, List, Optional
+
 from hermes_cli.auth_constants import DEFAULT_NOUS_PORTAL_URL
 
 logger = logging.getLogger("hermes_cli.auth")
@@ -20,14 +20,17 @@ _CURRENT_SUFFIX = "  ← currently in use"
 
 def _confirm_selection_guards(
     model_id: str, *, provider: str = "", base_url: str = "", api_key: str = "",
-    include_kinds: Optional[List[str]] = None,
+    include_kinds: list[str] | None = None,
 ) -> bool:
     """Prompt before saving a model that trips any selection guard (cost, data-policy, ...).
 
     Shows one [y/N] confirm listing every warning that fired. Returns True to proceed.
     """
     try:
-        from hermes_cli.model_selection_guards import combined_message, selection_warnings
+        from hermes_cli.model_selection_guards import (
+            combined_message,
+            selection_warnings,
+        )
         warnings = selection_warnings(
             model_id, provider=provider, base_url=base_url, api_key=api_key, include_kinds=include_kinds,
         )
@@ -56,10 +59,13 @@ class _ModelPickerRows:
     """
 
     def __init__(
-        self, all_models: List[str], pricing: Optional[Dict[str, Dict[str, str]]], *,
-        current_model: str, sale_chrome: bool, notes: Optional[Dict[str, str]] = None,
+        self, all_models: list[str], pricing: dict[str, dict[str, str]] | None, *,
+        current_model: str, sale_chrome: bool, notes: dict[str, str] | None = None,
     ) -> None:
-        from hermes_cli.models_pricing import _format_price_per_mtok, compute_sale_discount
+        from hermes_cli.models_pricing import (
+            _format_price_per_mtok,
+            compute_sale_discount,
+        )
         self.current_model = current_model
         # Per-model dim annotation (e.g. "usage credits"); the row stays selectable.
         self.notes = notes or {}
@@ -151,12 +157,12 @@ class _ModelPickerRows:
 
 
 def _prompt_model_selection(
-    model_ids: List[str], current_model: str = "",
-    pricing: Optional[Dict[str, Dict[str, str]]] = None,
-    unavailable_models: Optional[List[str]] = None, portal_url: str = "",
+    model_ids: list[str], current_model: str = "",
+    pricing: dict[str, dict[str, str]] | None = None,
+    unavailable_models: list[str] | None = None, portal_url: str = "",
     unavailable_message: str = "", confirm_provider: str = "", confirm_base_url: str = "",
-    confirm_api_key: str = "", notes: Optional[Dict[str, str]] = None,
-) -> Optional[str]:
+    confirm_api_key: str = "", notes: dict[str, str] | None = None,
+) -> str | None:
     """Interactive model picker; current_model listed first. Returns the chosen model ID or None.
 
     With *pricing* (``{model_id: {prompt, completion}}``) a compact price column is shown; models in
@@ -167,7 +173,7 @@ def _prompt_model_selection(
     # Sale chrome is Nous Portal-only, even if pricing.original is present for another provider.
     sale_chrome = (confirm_provider or "").strip().lower() == "nous"
 
-    def _confirmed_selection(mid: str) -> Optional[str]:
+    def _confirmed_selection(mid: str) -> str | None:
         if not mid:
             return None
         # Cost guard needs a known provider; id-keyed guards (data policy) always run.
@@ -177,7 +183,7 @@ def _prompt_model_selection(
         )
         return mid if ok else None
 
-    def _custom_selection() -> Optional[str]:
+    def _custom_selection() -> str | None:
         try:
             custom = line_input("Enter model name: ").strip()
         except (EOFError, KeyboardInterrupt):
@@ -243,8 +249,8 @@ def _prompt_model_selection(
         pass
 
     # Fallback: numbered list (ANSI colors for sale chrome)
-    from hermes_cli.curses_ui import format_radio_item_ansi
     from hermes_cli.colors import Colors, color
+    from hermes_cli.curses_ui import format_radio_item_ansi
     for line in menu_title.splitlines():
         print(line.replace("★", color("★", Colors.YELLOW), 1) if "★" in line else line)
     num_width = len(str(n + 2))
@@ -284,7 +290,7 @@ def _prompt_model_selection(
 
 def _save_model_choice(model_id: str) -> None:
     """Save the selected model to config.yaml only — NOT .env, which would stomp in multi-agent setups."""
-    from hermes_cli.config import save_config, load_config
+    from hermes_cli.config import load_config, save_config
     config = load_config()
     # Always use dict format so provider/base_url can be stored alongside
     if isinstance(config.get("model"), dict):

@@ -12,7 +12,6 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-
 from hermes_cli import update_cmd_fleet as fleet
 from hermes_cli import update_receipt
 from hermes_cli.update_inventory import (
@@ -68,7 +67,7 @@ def external_profile_host(tmp_path, monkeypatch):
     return SimpleNamespace(other_checkout=other_checkout)
 
 
-def _restart_outcome() -> "fleet._GatewayRestartOutcome":
+def _restart_outcome() -> fleet._GatewayRestartOutcome:
     # The root's own LaunchAgent was restarted; the other install's gateway was left alone.
     return fleet._GatewayRestartOutcome(
         False, [], [1111, 4242], ["ai.hermes.gateway"], [], [], [], set(),

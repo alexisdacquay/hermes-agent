@@ -4,9 +4,8 @@ import secrets
 
 import pytest
 from aiohttp import ClientSession
-
 from gateway.config import PlatformConfig
-from gateway.platforms.api_server import APIServerAdapter, _STATIC_FEATURE_FLAGS
+from gateway.platforms.api_server import _STATIC_FEATURE_FLAGS, APIServerAdapter
 
 
 @pytest.mark.asyncio

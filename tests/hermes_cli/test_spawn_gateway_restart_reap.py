@@ -12,13 +12,12 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from hermes_cli import gateway as gw
 
 
 @pytest.fixture(autouse=True)
 def reset_restart_cooldown():
-    import hermes_cli.web_server as web_server
+    from hermes_cli import web_server
 
     web_server._LAST_GATEWAY_RESTART = None
     yield

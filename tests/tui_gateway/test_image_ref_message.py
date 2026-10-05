@@ -12,7 +12,6 @@ analyzes them in-loop with ``vision_analyze`` (the same shape as the
 from unittest.mock import patch
 
 import pytest
-
 from tui_gateway.server import _build_image_ref_message
 
 

@@ -5,22 +5,22 @@ not the exact naturally arriving queue race. No lifecycle predicate is patched.
 """
 import json
 import os
-from pathlib import Path
 import socket
 import sys
 import tempfile
 import threading
 import time
+from pathlib import Path
 
 repo = Path(sys.argv[1]).resolve()
 home = tempfile.mkdtemp(prefix="hermes-orphan-wire-")
 os.environ.clear()
 os.environ.update(HOME=home, HERMES_HOME=home + "/.hermes", PATH="/usr/bin:/bin")
 sys.path.insert(0, str(repo))
+import uvicorn
+from fastapi import FastAPI, WebSocket
 from tui_gateway import server as s
 from tui_gateway.ws import handle_ws
-from fastapi import FastAPI, WebSocket
-import uvicorn
 from websockets.sync.client import connect
 
 

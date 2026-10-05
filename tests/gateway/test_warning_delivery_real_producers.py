@@ -1,7 +1,7 @@
 """Actual adapter producers; only vendor transport and pacing clocks replaced."""
+import json
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
-import json
 
 import pytest
 from gateway.config import PlatformConfig
@@ -23,7 +23,7 @@ def policy(request, monkeypatch, tmp_path):
 async def test_signal_pacing_producer_keeps_actual_image_delivery(policy, monkeypatch, tmp_path):
     import gateway.platforms.signal as module
     adapter = module.SignalAdapter(PlatformConfig())
-    scheduler = SimpleNamespace(state=lambda: {}, estimate_wait=lambda n: 120,
+    scheduler = SimpleNamespace(state=dict, estimate_wait=lambda n: 120,
         acquire=AsyncMock(), report_rpc_duration=AsyncMock())
     monkeypatch.setattr(module, "get_scheduler", lambda: scheduler)
     adapter._stop_typing_indicator = AsyncMock()
@@ -74,9 +74,10 @@ async def test_slack_actual_upload_failure_keeps_caption_and_source_log(policy, 
 @pytest.mark.parametrize("setting", [None, False, True])
 async def test_discord_admin_alert_uses_owner_and_logical_destination(tmp_path, monkeypatch, setting):
     from pathlib import Path
+
     from gateway.config import Platform
-    from plugins.platforms.discord.adapter import DiscordAdapter
     from hermes_constants import get_hermes_home
+    from plugins.platforms.discord.adapter import DiscordAdapter
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
     root = tmp_path / ".hermes"
     root.mkdir()

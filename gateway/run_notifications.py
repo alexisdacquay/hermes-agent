@@ -16,14 +16,21 @@ import time
 from contextlib import suppress
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional, cast
+from typing import Any, cast
 
 from agent.i18n import t
-from gateway.config import Platform, _BUILTIN_PLATFORM_VALUES
+
+from gateway.config import _BUILTIN_PLATFORM_VALUES, Platform
 from gateway.platforms.base import BasePlatformAdapter, _mark_notify_metadata
 from gateway.platforms.event import MessageEvent, MessageType
+from gateway.run_shutdown import (
+    _delivery_target_key,
+    _log_suppressed,
+    _notice_target_key,
+    _send_error,
+    _send_failed,
+)
 from gateway.session import SessionEntry, SessionSource
-from gateway.run_shutdown import _delivery_target_key, _log_suppressed, _notice_target_key, _send_error, _send_failed
 
 # Log-record parity with the origin module.
 logger = logging.getLogger("gateway.run")
@@ -40,7 +47,7 @@ def _update_failed_notice() -> str:
 _UPDATE_NOTIFY_MAX_ADAPTER_WAIT_SECONDS = 3600.0
 
 
-def _served_notice_target_key(profile: Optional[str], platform_value: str, chat_id, thread_id) -> tuple:
+def _served_notice_target_key(profile: str | None, platform_value: str, chat_id, thread_id) -> tuple:
     """Notice-dedupe key for one SERVED profile's home channel.
 
     A secondary uses the ``<profile>:<platform>`` key convention the runtime status already
@@ -51,7 +58,7 @@ def _served_notice_target_key(profile: Optional[str], platform_value: str, chat_
         platform_value if profile is None else f"{profile}:{platform_value}", chat_id, thread_id)
 
 
-def _safe_delivery_transport(platform, config, adapters, *, profile: Optional[str] = None):
+def _safe_delivery_transport(platform, config, adapters, *, profile: str | None = None):
     """``resolve_delivery_transport`` isolated to one target: ``None`` (logged) on failure.
 
     The fan-out spans every served profile, so one profile's broken adapter must not abort the
@@ -153,7 +160,7 @@ class GatewayNotificationsMixin:
 
         adapter: Any
         chat_id: Any
-        session_key: Optional[str]
+        session_key: str | None
         metadata: Any
         platform: Any
 
@@ -171,7 +178,7 @@ class GatewayNotificationsMixin:
         delegation_id: str = ""
         claim_id: str = ""
         proceed: bool = True
-        early_result: Optional[bool] = None
+        early_result: bool | None = None
 
     async def _deliver_platform_notice(self, source, content: str) -> None:
         """Deliver a setup/operational notice using platform-specific privacy rules."""
@@ -209,7 +216,7 @@ class GatewayNotificationsMixin:
 
     async def _resolve_compression_lineage_target(
         self, session_db: Any, session_entry: SessionEntry, pinned_session_id: str,
-    ) -> Optional[str]:
+    ) -> str | None:
         """Return the live compression tip of ``pinned_session_id`` if the route owns that lineage, else None."""
         try:
             target_session_id = await session_db.get_compression_tip(pinned_session_id)
@@ -258,7 +265,7 @@ class GatewayNotificationsMixin:
 
     async def _resolve_async_delegation_session(
         self, session_entry: SessionEntry, pinned_session_id: str,
-    ) -> Optional[SessionEntry]:
+    ) -> SessionEntry | None:
         """Resolve an async completion to its verified owning gateway session.
 
         Follow compression-rotation lineage (parent row ended, child continues), but never let a
@@ -347,7 +354,7 @@ class GatewayNotificationsMixin:
         return switched
 
     async def _deliver_media_from_response(
-        self, response: str, event: MessageEvent, adapter, thread_metadata: Optional[Dict[str, Any]] = None
+        self, response: str, event: MessageEvent, adapter, thread_metadata: dict[str, Any] | None = None
     ) -> None:
         """Deliver explicit MEDIA: tags from an already-streamed response (text already delivered).
         EXPLICIT-ONLY, unlike the non-streaming path in ``gateway/platforms/base.py``: a bare local
@@ -362,7 +369,10 @@ class GatewayNotificationsMixin:
         with _log_suppressed(logging.WARNING, "Post-stream media extraction failed: %s"):
             # Capture [[as_document]] before extract_media strips it: images then go via send_document.
             force_document_attachments = "[[as_document]]" in response
-            from gateway.platforms.base import BasePlatformAdapter, should_send_media_as_audio
+            from gateway.platforms.base import (
+                BasePlatformAdapter,
+                should_send_media_as_audio,
+            )
             media_files, cleaned = adapter.extract_media(response)
             media_files = BasePlatformAdapter.filter_media_delivery_paths(media_files)
             # Strip image URLs (parity with the non-streaming chain); no extract_local_files here.
@@ -410,9 +420,9 @@ class GatewayNotificationsMixin:
 
     async def _deliver_queued_first_response(
         self, response: str, source: SessionSource, adapter,
-        metadata: Optional[Dict[str, Any]] = None, event_message_id: Optional[str] = None,
+        metadata: dict[str, Any] | None = None, event_message_id: str | None = None,
         text_already_delivered: bool = False, deliver_media: bool = True, stream_consumer=None,
-        session_key: Optional[str] = None, inbound_message_id: Optional[str] = None,
+        session_key: str | None = None, inbound_message_id: str | None = None,
     ) -> bool:
         """Deliver a queued response using the normal text+attachment split.
 
@@ -484,9 +494,9 @@ class GatewayNotificationsMixin:
         return True
 
     async def _send_queued_final_text(
-        self, adapter, source: SessionSource, text_content: str, metadata: Optional[Dict[str, Any]],
-        event_message_id: Optional[str], session_key: Optional[str],
-        inbound_message_id: Optional[str] = None,
+        self, adapter, source: SessionSource, text_content: str, metadata: dict[str, Any] | None,
+        event_message_id: str | None, session_key: str | None,
+        inbound_message_id: str | None = None,
     ):
         """Send a queued-lane final through the same ledger bracket as the normal final
         (``send_final_ledgered``). This lane used to call ``adapter.send`` bare and discard the
@@ -519,7 +529,7 @@ class GatewayNotificationsMixin:
             logger.debug("Skipping update notification watcher: no running event loop")
 
     @classmethod
-    def _update_paths(cls) -> "GatewayNotificationsMixin._UpdatePaths":
+    def _update_paths(cls) -> GatewayNotificationsMixin._UpdatePaths:
         from gateway.run import _hermes_home
         return cls._UpdatePaths(
             pending=_hermes_home / ".update_pending.json",
@@ -529,7 +539,7 @@ class GatewayNotificationsMixin:
         )
 
     @staticmethod
-    def _marker_profile(data: dict) -> Optional[str]:
+    def _marker_profile(data: dict) -> str | None:
         """Owning profile of a persisted restart/update marker: explicit ``profile``, else the
         ``agent:<profile>:`` lane of its ``session_key`` (markers written before ``profile`` was
         persisted); ``None`` = default profile."""
@@ -543,7 +553,7 @@ class GatewayNotificationsMixin:
         return None
 
     @staticmethod
-    def _marker_age_seconds(data: dict) -> Optional[float]:
+    def _marker_age_seconds(data: dict) -> float | None:
         """Age of a persisted update marker, from the ``timestamp`` stamped by its writer.
 
         ``None`` when the marker carries no parseable stamp — the field is absent on markers
@@ -560,7 +570,7 @@ class GatewayNotificationsMixin:
         now = datetime.now(stamped.tzinfo) if stamped.tzinfo else datetime.now()
         return (now - stamped).total_seconds()
 
-    def _resolve_update_target(self, paths: "_UpdatePaths") -> Optional["_UpdateTarget"]:
+    def _resolve_update_target(self, paths: _UpdatePaths) -> _UpdateTarget | None:
         """Resolve adapter/chat/session for update watcher messages from the pending marker."""
         for path in (paths.claimed, paths.pending):
             if not path.exists():
@@ -592,7 +602,7 @@ class GatewayNotificationsMixin:
             reply_to_message_id=data.get("message_id"), adapter=adapter,
         )
 
-    async def _watch_update_completion_only(self, paths: "_UpdatePaths", deadline: float, poll_interval: float) -> None:
+    async def _watch_update_completion_only(self, paths: _UpdatePaths, deadline: float, poll_interval: float) -> None:
         """Fallback when no adapter/chat can be resolved: wait for the exit code, then notify."""
         logger.warning("Update watcher: cannot resolve adapter/chat_id, falling back to completion-only")
         # Poll until _send_update_notification delivers (it returns False while the platform reconnects).
@@ -606,7 +616,7 @@ class GatewayNotificationsMixin:
             await self._send_update_notification()
 
     @staticmethod
-    def _update_exit_code(paths: "_UpdatePaths") -> int:
+    def _update_exit_code(paths: _UpdatePaths) -> int:
         return int(paths.exit_code.read_text(encoding="utf-8-sig").strip() or "1")
 
     @staticmethod
@@ -620,7 +630,7 @@ class GatewayNotificationsMixin:
             return "", len(data)
         return data[offset:].decode("utf-8", errors="replace"), len(data)
 
-    async def _send_update_output(self, target: "_UpdateTarget", text: str) -> None:
+    async def _send_update_output(self, target: _UpdateTarget, text: str) -> None:
         """Send buffered update output as fenced chunks that fit message limits (Telegram: 4096)."""
         from tools.ansi_strip import strip_ansi
         clean = strip_ansi(text).strip()
@@ -631,7 +641,7 @@ class GatewayNotificationsMixin:
             with _log_suppressed(logging.DEBUG, "Update stream send failed: %s"):
                 await target.send(f"```\n{clean[i:i + max_chunk]}\n```")
 
-    async def _forward_update_prompt(self, target: "_UpdateTarget", prompt_text: str, default: str) -> None:
+    async def _forward_update_prompt(self, target: _UpdateTarget, prompt_text: str, default: str) -> None:
         """Forward an update prompt: platform-native buttons first (Discord, Telegram), else text."""
         sent_buttons = False
         adapter = target.adapter
@@ -650,7 +660,7 @@ class GatewayNotificationsMixin:
         self._session_state(target.session_key).persistent.update_prompt_pending = True
         logger.info("Forwarded update prompt to %s: %s", target.session_key, prompt_text[:80])
 
-    def _clear_update_markers(self, paths: "_UpdatePaths", session_key: Optional[str]) -> None:
+    def _clear_update_markers(self, paths: _UpdatePaths, session_key: str | None) -> None:
         paths.unlink_all()
         state = self._peek_session_state(session_key)
         if state is not None:
@@ -803,7 +813,7 @@ class GatewayNotificationsMixin:
                     p.unlink(missing_ok=True)
         return True
 
-    async def _send_restart_notification(self) -> Optional[tuple[str, str, Optional[str]]]:
+    async def _send_restart_notification(self) -> tuple[str, str, str | None] | None:
         """Notify the chat that initiated /restart that the gateway is back."""
         from gateway.delivery import resolve_delivery_transport
         from gateway.run import _hermes_home, _non_conversational_metadata
@@ -921,7 +931,7 @@ class GatewayNotificationsMixin:
             logger.warning(failure_fmt, platform.value, home.chat_id, exc)
             return False
 
-    def _free_tier_startup_line(self) -> Optional[str]:
+    def _free_tier_startup_line(self) -> str | None:
         """Extra startup line when the gateway's inference is carried by the Nous free tier; None otherwise.
 
         Best-effort: a resolution failure (no provider, auth error) must not block the online notice."""
@@ -938,7 +948,7 @@ class GatewayNotificationsMixin:
             return None
         return t("gateway.startup.free_tier_line")
 
-    _planned_restart_notice_lock: Optional[asyncio.Lock] = None
+    _planned_restart_notice_lock: asyncio.Lock | None = None
 
     async def _replay_pending_planned_restart_notification(self) -> None:
         """Send the planned-restart online notice to every home channel still owed one; clear
@@ -950,8 +960,9 @@ class GatewayNotificationsMixin:
         one restarts first) notifies a home twice. The lock serializes a boot pass that outlived the
         restore gate against a concurrent reconnect replay.
         """
-        from gateway.run import _planned_restart_notification_path
         from utils import atomic_json_write
+
+        from gateway.run import _planned_restart_notification_path
 
         if self._planned_restart_notice_lock is None:
             self._planned_restart_notice_lock = asyncio.Lock()
@@ -980,8 +991,8 @@ class GatewayNotificationsMixin:
                 logger.warning("Planned-restart notification remains pending", exc_info=True)
 
     async def _send_home_channel_startup_notifications(
-        self, *, skip_targets: Optional[set[tuple[str, str, Optional[str]]]] = None
-    ) -> set[tuple[str, str, Optional[str]]]:
+        self, *, skip_targets: set[tuple[str, str, str | None]] | None = None
+    ) -> set[tuple[str, str, str | None]]:
         """Notify EVERY served profile's configured home channels that the gateway is back online.
 
         Best-effort, once per home CHAT — several served profiles can share one chat (a single
@@ -990,7 +1001,7 @@ class GatewayNotificationsMixin:
         ``skip_targets`` lets startup avoid duplicate messages when a more specific restart
         notification is queued for the same chat.
         """
-        delivered: set[tuple[str, str, Optional[str]]] = set()
+        delivered: set[tuple[str, str, str | None]] = set()
         skipped = skip_targets or set()
         message = t("gateway.startup.online")
         free_tier_line = self._free_tier_startup_line()
@@ -1129,7 +1140,7 @@ class GatewayNotificationsMixin:
             logger.warning("Synthetic process event has invalid platform metadata: %r", platform_name)
             return None
 
-        def _opt(field: str) -> Optional[str]:
+        def _opt(field: str) -> str | None:
             return str(evt.get(field) or "").strip() or None
 
         scope_id = _opt("scope_id")
@@ -1156,7 +1167,10 @@ class GatewayNotificationsMixin:
 
         See #9290.
         """
-        from gateway.run import _drain_gateway_watch_events, _format_gateway_process_notification
+        from gateway.run import (
+            _drain_gateway_watch_events,
+            _format_gateway_process_notification,
+        )
         watch_events = _drain_gateway_watch_events(completion_queue)
         for evt in watch_events:
             async with self._completion_event_scope(evt):
@@ -1192,7 +1206,7 @@ class GatewayNotificationsMixin:
         if evt.get("type") == "async_delegation":
             info = "Async delegation completion — persisting delivery row for api_server session %s (no wake turn)"
             fail = "Async delegation delivery persist failed for session %s: %s"
-            deliver = lambda: persist_delegation_delivery(adapter, text=synth_text, session_id=raw_sid, evt=evt)  # noqa: E731
+            deliver = lambda: persist_delegation_delivery(adapter, text=synth_text, session_id=raw_sid, evt=evt)
         else:
             info = "Watch pattern notification — waking api_server session %s via self-post"
             fail = "Watch notification self-post wake failed for session %s: %s"
@@ -1209,7 +1223,7 @@ class GatewayNotificationsMixin:
                 source = SessionSource(platform=Platform.API_SERVER, chat_id=raw_sid, profile=served)
                 scope = _async_profile_runtime_scope(self._resolve_profile_home_for_source(source))
             deliver = lambda: deliver_wake(adapter, text=_mark_internal_notification(synth_text), session_id=raw_sid, profile=served,
-                notification_category="diagnostic" if diagnostic_process_event(evt) else "result")  # noqa: E731
+                notification_category="diagnostic" if diagnostic_process_event(evt) else "result")
         try:
             logger.info(info, raw_sid)
             async with scope:
@@ -1219,7 +1233,7 @@ class GatewayNotificationsMixin:
             logger.warning(fail, raw_sid, e)
             return False
 
-    def _served_api_server_wake_profile(self, evt: dict, raw_sid: str) -> Optional[str]:
+    def _served_api_server_wake_profile(self, evt: dict, raw_sid: str) -> str | None:
         """The served (non-primary) profile whose own session store holds *raw_sid*, else ``None``
         (the default profile's HTTP self-post). Blocking: reads served ``state.db`` files.
 
@@ -1266,14 +1280,18 @@ class GatewayNotificationsMixin:
 
     async def _inject_watch_notification(
         self, synth_text: str, evt: dict, *, raise_not_accepted: bool = False,
-    ) -> Optional[bool]:
+    ) -> bool | None:
         """Inject a watch/completion notification as a synthetic message event.
 
         Routing comes from the queued event, never the active foreground message. Returns
         ``True`` on adapter acceptance, ``False`` on retryable adapter failure, ``None`` with no
         gateway route. Not transactional: a crash after acceptance can replay (at-least-once).
         """
-        from gateway.wake import WakeNotAccepted, adapter_supports_push, admit_internal_event
+        from gateway.wake import (
+            WakeNotAccepted,
+            adapter_supports_push,
+            admit_internal_event,
+        )
         source = await asyncio.to_thread(self._build_process_event_source, evt)
         if not source:
             # API-server sessions bind the RAW X-Hermes-Session-Id key, not a structured ``agent:...`` key.
@@ -1356,7 +1374,7 @@ class GatewayNotificationsMixin:
             return False
 
     @staticmethod
-    def _completion_delivery_identity(evt: dict) -> Optional[tuple[str, str, object]]:
+    def _completion_delivery_identity(evt: dict) -> tuple[str, str, object] | None:
         """Return a producer-stable identity when one is available.
 
         Delegation UUIDs identify one producer completion. Process session IDs include the
@@ -1480,7 +1498,7 @@ class GatewayNotificationsMixin:
                 return False
         return True
 
-    async def _preflight_completion_delivery(self, evt: dict) -> "_CompletionClaim":
+    async def _preflight_completion_delivery(self, evt: dict) -> _CompletionClaim:
         """Claim the durable row (async delegations) and verify the target before adapter acceptance.
 
         Adapter acceptance is not proof of delivery: the inner resolver can still fail closed inside
@@ -1552,14 +1570,17 @@ class GatewayNotificationsMixin:
         The supervised ``_async_delegation_watcher`` and startup-recovered process watchers run under
         the ROOT scope, so a secondary profile's completion was looked up in the DEFAULT profile's
         state.db — classified ``terminal`` and dropped, its ledger row stranded ``pending`` forever."""
-        from gateway.run import _async_profile_runtime_scope
         from hermes_constants import get_hermes_home_override
+
+        from gateway.run import _async_profile_runtime_scope
         source = self._build_process_event_source(evt)
         if source is None or not getattr(source, "profile", None):
             # No routed profile: the launch profile's own completion. Bind ITS scope once the
             # process multiplexes — unscoped, a fail-closed ledger read raises on a legitimate
             # launch-profile event (no-op while single-profile).
-            from tui_gateway.launch_profile_policy import async_launch_profile_scope_if_multiplexed
+            from tui_gateway.launch_profile_policy import (
+                async_launch_profile_scope_if_multiplexed,
+            )
             return async_launch_profile_scope_if_multiplexed()
         profile_home = self._resolve_profile_home_for_source(source)
         if get_hermes_home_override() == str(profile_home):
@@ -1568,7 +1589,7 @@ class GatewayNotificationsMixin:
 
     async def _deliver_completion_notification(
         self, synth_text: str, evt: dict, *, sibling_claims=(),
-    ) -> Optional[bool]:
+    ) -> bool | None:
         """Acknowledge one admitted batch, refund refusals, or release failed deliveries.
 
         True means adapter admission, not model execution; None means deduplicated or
@@ -1580,7 +1601,7 @@ class GatewayNotificationsMixin:
 
     async def _deliver_completion_notification_scoped(
         self, synth_text: str, evt: dict, *, sibling_claims=(),
-    ) -> Optional[bool]:
+    ) -> bool | None:
         from gateway.wake import WakeNotAccepted
         identity = self._completion_delivery_identity(evt)
         claim = self._CompletionClaim()
@@ -1662,7 +1683,7 @@ class GatewayNotificationsMixin:
         """Deliver one short-window completion batch and resolve its waiters."""
         current_task = asyncio.current_task()
         entries: list[tuple[str, dict, asyncio.Future]] = []
-        delivered: Optional[bool] = False
+        delivered: bool | None = False
         try:
             await asyncio.sleep(self._completion_notification_batch_window)
             entries = self._completion_notification_batches.pop(key, [])
@@ -1723,7 +1744,7 @@ class GatewayNotificationsMixin:
         getattr(self, "_completion_notification_batch_tasks", {}).clear()
         getattr(self, "_completion_notification_batch_flush_tasks", set()).clear()
 
-    async def _enqueue_process_completion_notification(self, synth_text: str, evt: dict) -> Optional[bool]:
+    async def _enqueue_process_completion_notification(self, synth_text: str, evt: dict) -> bool | None:
         """Fan in concurrent process completions that share one conversation."""
         # Lazy defaults: lifecycle tests build GatewayRunner via object.__new__.
         for attr, default in (
@@ -1765,7 +1786,7 @@ class GatewayNotificationsMixin:
         if parsed.get("thread_id"):
             evt["thread_id"] = parsed["thread_id"]
 
-    async def _deliver_async_delegation_group(self, group: list[dict]) -> Optional[bool]:
+    async def _deliver_async_delegation_group(self, group: list[dict]) -> bool | None:
         """Deliver a same-session batch of async completions as ONE turn: the primary carries the
         consolidated text of every sibling THIS runner claimed (siblings owned elsewhere are excluded;
         their claims are acked only after adapter acceptance). True after acceptance, False to requeue
@@ -1774,9 +1795,10 @@ class GatewayNotificationsMixin:
         async with self._completion_event_scope(group[0]):
             return await self._deliver_async_delegation_group_scoped(group)
 
-    async def _deliver_async_delegation_group_scoped(self, group: list[dict]) -> Optional[bool]:
-        from gateway.run import _format_gateway_process_notification
+    async def _deliver_async_delegation_group_scoped(self, group: list[dict]) -> bool | None:
         from tools.process_registry import process_registry as _pr
+
+        from gateway.run import _format_gateway_process_notification
         # API delivery does not start a model turn, so there is nothing to coalesce.
         # Keep each unit's stable identity with its row across partial delivery/retry.
         if group and group[0].get("origin_session_id"):
@@ -1849,7 +1871,7 @@ class GatewayNotificationsMixin:
         owners that were already gone when the gateway started."""
         from tools.async_delegation import sweep_orphaned_completions
         from tools.process_registry import process_registry as _pr
-        sweep = lambda: sweep_orphaned_completions(_pr.completion_queue)  # noqa: E731
+        sweep = lambda: sweep_orphaned_completions(_pr.completion_queue)
         with _log_suppressed(logging.DEBUG, "Orphaned async completion sweep failed: %s"):
             if count := sweep():
                 logger.info("Re-offered %d orphaned async completion(s)", count)
@@ -1925,9 +1947,10 @@ class GatewayNotificationsMixin:
     @staticmethod
     def _redacted_output_tail(session, limit: int) -> str:
         """Last ``limit`` chars of process output through the secret redactors (unconditional floor)."""
-        from gateway.run import _redact_gateway_user_facing_secrets
         from tools.ansi_strip import strip_ansi
         from tools.process_registry import transform_process_output
+
+        from gateway.run import _redact_gateway_user_facing_secrets
         new_output = strip_ansi(session.output_buffer[-limit:]) if session.output_buffer else ""
         if new_output:
             from agent.redact import redact_terminal_output
@@ -1964,10 +1987,11 @@ class GatewayNotificationsMixin:
     @staticmethod
     def _build_process_completion_event(watcher: dict, session, session_id: str) -> dict:
         """Build the synthetic ``completion`` event for an agent-notify watcher."""
-        from gateway.run import _redact_gateway_user_facing_secrets
         from agent.redact import redact_terminal_output
         from tools.ansi_strip import strip_ansi
         from tools.process_registry import transform_process_output
+
+        from gateway.run import _redact_gateway_user_facing_secrets
         _command = getattr(session, "command", "") or ""
         _raw = strip_ansi(session.output_buffer) if session.output_buffer else ""
         _raw = transform_process_output(_raw, command=_command, returncode=session.exit_code,
@@ -2006,7 +2030,10 @@ class GatewayNotificationsMixin:
         """Human-facing completion message. Every mode shares the one-line status header; the
         raw-output modes (all/result/error) append the bounded output tail under it instead of the
         old bracketed ``[Background process proc_… finished~ …]`` debug wrapper (#54266)."""
-        from gateway.run import _format_concise_process_notification, _redact_gateway_user_facing_secrets
+        from gateway.run import (
+            _format_concise_process_notification,
+            _redact_gateway_user_facing_secrets,
+        )
         new_output = self._redacted_output_tail(session, 1000)
         _started = getattr(session, "started_at", None)
         _dur = max(0.0, time.time() - _started) if isinstance(_started, (int, float)) else None
@@ -2018,7 +2045,10 @@ class GatewayNotificationsMixin:
         return t("gateway.background.final_output", header=header, output=new_output.strip()) if new_output.strip() else header
 
     def _format_process_running_message(self, session) -> str:
-        from gateway.run import _redact_gateway_user_facing_secrets, _shorten_command_for_display
+        from gateway.run import (
+            _redact_gateway_user_facing_secrets,
+            _shorten_command_for_display,
+        )
         new_output = self._redacted_output_tail(session, 500)
         short_cmd = _shorten_command_for_display(_redact_gateway_user_facing_secrets(getattr(session, "command", "") or ""))
         header = t("gateway.background.still_running") + (f" — `{short_cmd}`" if short_cmd else "")

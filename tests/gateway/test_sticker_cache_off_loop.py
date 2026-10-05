@@ -15,7 +15,6 @@ import json
 import threading
 
 import pytest
-
 from gateway import sticker_cache
 
 

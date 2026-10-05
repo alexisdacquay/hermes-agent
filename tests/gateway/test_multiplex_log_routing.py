@@ -11,9 +11,8 @@ import logging
 import types
 from pathlib import Path
 
-import pytest
-
 import hermes_logging
+import pytest
 from gateway import run
 
 

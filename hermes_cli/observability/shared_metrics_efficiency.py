@@ -11,8 +11,9 @@ from __future__ import annotations
 import logging
 import re
 from collections import deque
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Any, Iterable
+from typing import Any
 
 from . import shared_metrics_contract as contract
 from .shared_metrics_contract import _bucket, _non_negative_number

@@ -22,10 +22,8 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
-
 from agent import auxiliary_client as aux
 from agent.anthropic_adapter import create_anthropic_message
-
 
 # ── Codex Responses wire ─────────────────────────────────────────────────
 

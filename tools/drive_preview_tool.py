@@ -8,7 +8,7 @@ re-sending the inventory. Round-trips through the gateway's blocking-prompt brid
 the platform-injected callback. ``desktop_ui`` toolset: desktop-sourced sessions only.
 """
 
-from typing import Callable, Optional
+from collections.abc import Callable
 
 from tools.desktop_ui import passthrough_json
 from tools.registry import registry, tool_error
@@ -22,11 +22,11 @@ NEEDS_TARGET = ("click", "hover", "type", "press")
 
 
 def drive_preview_tool(
-    action: str = "", ref: Optional[str] = None, selector: Optional[str] = None, text: Optional[str] = None,
-    key: Optional[str] = None, submit: Optional[bool] = None, amount: Optional[int] = None,
-    to: Optional[str] = None, limit: Optional[int] = None, full: Optional[bool] = None,
-    allow_shortcut: Optional[bool] = None,
-    callback: Optional[Callable] = None) -> str:
+    action: str = "", ref: str | None = None, selector: str | None = None, text: str | None = None,
+    key: str | None = None, submit: bool | None = None, amount: int | None = None,
+    to: str | None = None, limit: int | None = None, full: bool | None = None,
+    allow_shortcut: bool | None = None,
+    callback: Callable | None = None) -> str:
     """Dispatch one interaction to the desktop renderer and return its outcome."""
     if callback is None:
         return tool_error("drive_preview is only available in the Hermes desktop app.")

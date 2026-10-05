@@ -19,8 +19,8 @@ import sys
 from pathlib import Path
 from unittest.mock import MagicMock
 
-import pytest
 import hermes_yaml as yaml
+import pytest
 
 # Ensure the repo root is importable when running via `pytest tests/...`.
 _REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -31,10 +31,8 @@ from utils import (
     atomic_json_write,
     atomic_replace,
     atomic_roundtrip_yaml_save,
-    atomic_roundtrip_yaml_update,
     atomic_yaml_write,
 )
-
 
 # ─── Direct helper ────────────────────────────────────────────────────────────
 
@@ -602,9 +600,8 @@ def test_windows_real_held_handle_reports_access_denied(tmp_path: Path) -> None:
     target.write_text("old", encoding="utf-8")
     tmp = _write_tmp(tmp_path, "new")
 
-    with open(target, "r", encoding="utf-8"):
-        with pytest.raises(OSError) as caught:
-            os.replace(str(tmp), str(target))
+    with open(target, "r", encoding="utf-8"), pytest.raises(OSError) as caught:
+        os.replace(str(tmp), str(target))
 
     assert caught.value.winerror in (5, 32, 33)
     import utils as utils_mod

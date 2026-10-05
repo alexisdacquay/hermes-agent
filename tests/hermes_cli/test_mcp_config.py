@@ -259,8 +259,8 @@ class TestMcpAdd:
         )
         monkeypatch.setattr("builtins.input", lambda _: "")
 
-        from hermes_cli.mcp_config import cmd_mcp_add
         from hermes_cli.config import read_raw_config
+        from hermes_cli.mcp_config import cmd_mcp_add
 
         cmd_mcp_add(_make_args(name="myserver", preset="testmcp"))
         out = capsys.readouterr().out
@@ -312,6 +312,7 @@ class TestMcpTest:
     def test_probe_uses_configured_connect_timeout(self, monkeypatch):
         """OAuth-capable probes must not hard-code a short 30s timeout."""
         import asyncio
+
         from hermes_cli import mcp_config
         from tools import mcp_tool_discovery as _mcp_discovery
         from tools import mcp_tool_lifecycle as _mcp_lifecycle
@@ -407,7 +408,7 @@ class TestContextVarInterpolation:
     def test_workspace_folder_falls_back_to_cwd(self, monkeypatch):
         import os
 
-        import tools.file_tools_paths as file_tools_paths
+        from tools import file_tools_paths
         from tools.mcp_tool_config import _workspace_folder
 
         monkeypatch.setattr(
@@ -682,7 +683,7 @@ class TestBearerAuthPersistence:
 
 class TestConfigHelpers:
     def test_save_and_load_mcp_server(self, tmp_path):
-        from hermes_cli.mcp_config import _save_mcp_server, _get_mcp_servers
+        from hermes_cli.mcp_config import _get_mcp_servers, _save_mcp_server
 
         _save_mcp_server("mysvr", {"url": "https://example.com/mcp"})
         servers = _get_mcp_servers()

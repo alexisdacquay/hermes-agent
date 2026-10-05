@@ -9,11 +9,12 @@ import asyncio
 import inspect
 import logging
 import time
-from typing import Any, Optional
+from typing import Any
+
+from hermes_cli.observability.shared_metrics_gateway import stops_reply_clock
 
 from gateway.platforms.base import BasePlatformAdapter as _BasePlatformAdapter
 from gateway.stream_consumer_fences import ensure_closed_code_fences
-from hermes_cli.observability.shared_metrics_gateway import stops_reply_clock
 
 logger = logging.getLogger("gateway.stream_consumer")
 
@@ -228,7 +229,7 @@ class StreamTransportMixin:
             return False
         return time.monotonic() - self._message_created_ts >= threshold
 
-    def _track_preview_id(self, message_id: Optional[str]) -> None:
+    def _track_preview_id(self, message_id: str | None) -> None:
         """Record a real preview message id for finalization cleanup."""
         if message_id and message_id != "__no_edit__":
             message_id = str(message_id)
@@ -371,7 +372,7 @@ class StreamTransportMixin:
             return False
 
     async def _native_push(self, text: str, *, finalize: bool, is_turn_final: bool,
-                           ) -> Optional[bool]:
+                           ) -> bool | None:
         """Native streaming: every frame goes through send_stream_frame(); lazy re-seed after
         a boundary.  None when native was disabled (seed/frame failure) → caller falls through."""
         if not self._native_stream_opened and text:
@@ -426,7 +427,7 @@ class StreamTransportMixin:
         return None
 
     async def _draft_push(self, text: str, pre_fence_text: str, *, finalize: bool,
-                          is_turn_final: bool) -> Optional[bool]:
+                          is_turn_final: bool) -> bool | None:
         """Draft frame while no message_id exists; None = not applicable / drafts just failed.
         Skipped when finalizing (the real send clears the draft), EXCEPT stream-is-the-message
         adapters keep ONE stream per turn: a segment-break finalize must not become a real

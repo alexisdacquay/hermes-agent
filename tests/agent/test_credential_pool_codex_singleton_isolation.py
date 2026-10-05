@@ -11,9 +11,8 @@ import base64
 import json
 import time
 
-import pytest
-
 import hermes_cli.auth as auth_mod
+import pytest
 from agent.credential_pool import load_pool
 
 

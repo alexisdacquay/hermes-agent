@@ -19,7 +19,7 @@ import subprocess
 import sys
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from xml.etree import ElementTree
 from xml.sax.saxutils import escape
@@ -285,7 +285,9 @@ def _launch_elevated_install(force: bool = False, *, start_now: bool | None = No
 def get_task_name() -> str:
     """Scheduled Task name, scoped per profile."""
     _assert_windows()
-    from hermes_cli.gateway import _profile_suffix  # local: avoids circular init during boot
+    from hermes_cli.gateway import (
+        _profile_suffix,  # local: avoids circular init during boot
+    )
 
     suffix = _profile_suffix()
     return f"{_TASK_NAME_DEFAULT}_{suffix}" if suffix else _TASK_NAME_DEFAULT
@@ -358,7 +360,11 @@ def _gateway_run_argv(python_exe: str, profile_arg: str) -> list[str]:
 def _launcher_settings(home: Path | None = None) -> tuple[str, str, str, str]:
     """Return (python_path, working_dir, hermes_home, profile_arg) for generated launchers.
     ``home`` targets another profile's HERMES_HOME (per-profile cold-start, #110959)."""
-    from hermes_cli.gateway import PROJECT_ROOT, _profile_arg, get_python_path  # avoid circular init
+    from hermes_cli.gateway import (  # avoid circular init
+        PROJECT_ROOT,
+        _profile_arg,
+        get_python_path,
+    )
 
     hermes_home = str(home if home is not None else _hermes_home())
     return (
@@ -1083,7 +1089,7 @@ def _write_start_attestation(pids: list[int], via: str, home: Path | None = None
         from hermes_cli.process_identity import _process_create_time
 
         payload = {
-            "pids": [int(p) for p in pids], "via": via, "ts": datetime.now(timezone.utc).isoformat(),
+            "pids": [int(p) for p in pids], "via": via, "ts": datetime.now(UTC).isoformat(),
             "generation": uuid.uuid4().hex,
         }
         # Bind each PID to its incarnation (#110020 review): the ledger sentinel is matched by PID
@@ -1121,7 +1127,7 @@ def _attestation_within_horizon(data: object) -> bool:
         if ts is None:
             return False
         if ts.tzinfo is None:
-            ts = ts.replace(tzinfo=timezone.utc)
+            ts = ts.replace(tzinfo=UTC)
         age = time.time() - ts.timestamp()
         return -_ATTESTATION_CLOCK_SLACK_S <= age <= START_ATTESTATION_MAX_AGE_S
     except Exception:
@@ -1569,7 +1575,7 @@ def _probe_state_file(state_path: Path) -> None:
         if updated_at:
             try:
                 updated_dt = datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
-                age_seconds = int((datetime.now(timezone.utc) - updated_dt).total_seconds())
+                age_seconds = int((datetime.now(UTC) - updated_dt).total_seconds())
                 age_str = f" (updated {age_seconds}s ago)"
             except Exception:
                 pass
@@ -1666,7 +1672,11 @@ def start() -> None:
         # non-TTY default (#113977). Declining still starts the gateway; the command is ``start``.
         start_on_login = _install_choice_from_env("HERMES_GATEWAY_INSTALL_START_ON_LOGIN")
         if start_on_login is None:
-            from hermes_cli.setup import is_interactive_stdin, is_noninteractive, prompt_yes_no
+            from hermes_cli.setup import (
+                is_interactive_stdin,
+                is_noninteractive,
+                prompt_yes_no,
+            )
 
             print("✗ Gateway service is not installed")
             if is_noninteractive() or not _stdout_isatty() or not _stdin_is_interactive(
@@ -1696,7 +1706,7 @@ def _drain_gateway_pid(pid: int, drain_timeout: float) -> bool:
     if pid <= 0:
         return False
     try:
-        from gateway.status import write_planned_stop_marker, _pid_exists
+        from gateway.status import _pid_exists, write_planned_stop_marker
     except ImportError:
         return False
 

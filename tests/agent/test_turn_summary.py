@@ -8,7 +8,6 @@ against a re-implementation.
 """
 
 import pytest
-
 from agent.turn_summary import (
     TurnSummaryCollector,
     TurnTally,
@@ -16,7 +15,6 @@ from agent.turn_summary import (
     format_token_flow,
     format_turn_summary,
 )
-
 
 # ── format_elapsed ──────────────────────────────────────────────────────────
 

@@ -13,7 +13,6 @@ import time
 import types
 
 import pytest
-
 from tui_gateway import server
 from tui_gateway.host_supervisor import HostSupervisor
 

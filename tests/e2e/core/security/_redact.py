@@ -13,14 +13,25 @@ import secrets
 import string
 import subprocess
 import sys
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Mapping
+from typing import Any
 
 import pytest
 
-from tests.e2e.core.delivery._fake_platform import GatewayProcess, read_jsonl, wait_until
-from tests.e2e.core.security._helpers import REPO_ROOT, BoundaryBreach, db_blob, files_containing, run_hermes
+from tests.e2e.core.delivery._fake_platform import (
+    GatewayProcess,
+    read_jsonl,
+    wait_until,
+)
+from tests.e2e.core.security._helpers import (
+    REPO_ROOT,
+    BoundaryBreach,
+    db_blob,
+    files_containing,
+    run_hermes,
+)
 from tests.fakes.fake_llm_provider import Error, Response, Text, ToolCall
 
 
@@ -73,7 +84,7 @@ SINK_IDS = {LOGS: "logs", STORE: "store", EXPORT: "export", EXPORT_REDACTED: "ex
 class Scenario:
     name: str
     secrets: Callable[[Secrets], list[str]]
-    script: Callable[["Ctx"], list[Response]]
+    script: Callable[[Ctx], list[Response]]
     sinks: tuple[str, ...]
     prompt: str = "please run the task"
     followup: bool = False  # a second user turn, so the NEXT request after the answer exists
@@ -89,7 +100,7 @@ class Ctx:
     port: int = 0
 
 
-def _tee(c: Ctx, name: str, src: "str | Path") -> str:
+def _tee(c: Ctx, name: str, src: str | Path) -> str:
     return f"cat {src} | tee {c.ws / name}"
 
 
@@ -292,7 +303,7 @@ class LoggingGateway(GatewayProcess):
     """The delivery suite's real GatewayRunner child, with the gateway's file logging installed the way
     ``start_gateway`` does (agent.log / errors.log / gateway.log under the child's HERMES_HOME)."""
 
-    def start(self) -> "LoggingGateway":
+    def start(self) -> LoggingGateway:
         assert self.proc is None
         self.boots += 1
         ready_before = len(read_jsonl(self.spool / "ready.jsonl"))

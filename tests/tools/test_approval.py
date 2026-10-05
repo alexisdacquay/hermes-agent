@@ -8,13 +8,17 @@ from types import SimpleNamespace
 from unittest.mock import patch as mock_patch
 
 import pytest
-
 import tools.approval as approval_module
-from tools import approval_context, approval_detection
-from tools import approval_smart
-from tools.approval import approve_session, detect_dangerous_command, detect_hardline_command, is_approved, load_permanent, prompt_dangerous_approval
-from tools.approval_context import _get_approval_mode
-from tools.approval_context import _normalize_approval_mode
+from tools import approval_context, approval_detection, approval_smart
+from tools.approval import (
+    approve_session,
+    detect_dangerous_command,
+    detect_hardline_command,
+    is_approved,
+    load_permanent,
+    prompt_dangerous_approval,
+)
+from tools.approval_context import _get_approval_mode, _normalize_approval_mode
 from tools.approval_smart import _smart_approve
 
 
@@ -1933,6 +1937,7 @@ class TestTirithImportErrorFailOpenPolicy:
         """Default fail-open (and tirith disabled) swallow the ImportError."""
         import builtins
         from unittest.mock import patch as _patch
+
         from tools.approval import check_all_command_guards
 
         cfg = {
@@ -1952,6 +1957,7 @@ class TestTirithImportErrorFailOpenPolicy:
         """Fail-closed: ImportError must NOT silently allow when tirith_fail_open=false."""
         import builtins
         from unittest.mock import patch as _patch
+
         from tools.approval import check_all_command_guards
 
         cfg = {
@@ -2098,6 +2104,7 @@ class TestCliApprovalTimeoutClassifiedSeparately:
         yields outcome='timeout' and a no-response message, not 'denied by
         user'."""
         from unittest.mock import patch as _patch
+
         from tools import approval as mod
 
         mod._session_approved.clear()
@@ -2122,6 +2129,7 @@ class TestCliApprovalTimeoutClassifiedSeparately:
     def test_guard_still_classifies_explicit_deny_as_denied(self):
         """Explicit CLI deny keeps outcome='denied' and the denial wording."""
         from unittest.mock import patch as _patch
+
         from tools import approval as mod
 
         mod._session_approved.clear()
@@ -2145,6 +2153,7 @@ class TestCliApprovalTimeoutClassifiedSeparately:
         distinguishes a prompt timeout from an explicit deny on the CLI
         path."""
         from unittest.mock import patch as _patch
+
         from tools import approval as mod
 
         mod._session_approved.clear()

@@ -7,14 +7,13 @@ from __future__ import annotations
 
 import html
 import os
-from typing import Any, Optional
+from typing import Any
 from urllib.parse import quote
 
-from gateway.config import PlatformConfig
-from agent.i18n import t
-from gateway.platforms._shared import get_scoped_secret as _get_scoped_secret
-
 import httpx
+from agent.i18n import t
+from gateway.config import PlatformConfig
+from gateway.platforms._shared import get_scoped_secret as _get_scoped_secret
 
 
 def _parse_bool(value: Any, *, default: bool = False) -> bool:
@@ -62,7 +61,7 @@ class TeamsSummaryWriter:
     ) -> None:
         self._platform_config, self._graph_client, self._transport = platform_config, graph_client, transport
 
-    async def write_summary(self, payload: Any, config: dict[str, Any] | None, existing_record: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+    async def write_summary(self, payload: Any, config: dict[str, Any] | None, existing_record: dict[str, Any] | None = None) -> dict[str, Any]:
         merged = self._resolve_delivery_config(config)
         if existing_record and not _parse_bool(merged.get("force_resend"), default=False):
             return dict(existing_record)

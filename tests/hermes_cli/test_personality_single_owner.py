@@ -11,13 +11,12 @@ had already turned off ("kawaii defaults on after updating").
 import os
 from unittest.mock import patch
 
-import pytest
 import hermes_yaml as yaml
-
+import pytest
 from hermes_cli.personality import (
     BUILTIN_PERSONALITIES,
-    available_personalities,
     active_personality_name,
+    available_personalities,
     normalize_personality_name,
     persist_personality,
     prompt_text,

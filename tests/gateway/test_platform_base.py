@@ -7,22 +7,21 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
-
 from gateway.platforms.base import (
     BasePlatformAdapter,
     SendResult,
+    _prefix_within_utf16_limit,
+    cache_audio_from_bytes,
     cache_image_from_bytes,
     safe_url_for_log,
     utf16_len,
-    _prefix_within_utf16_limit,
-    cache_audio_from_bytes,
 )
 from gateway.platforms.event import MessageEvent
 
 
 def test_media_delivery_denies_encrypted_bitwarden_cache(tmp_path, monkeypatch):
     """Encrypted Bitwarden cache is covered by the media credential guard."""
-    import gateway.platforms.base as base
+    from gateway.platforms import base
 
     hermes_home = tmp_path / ".hermes"
     hermes_home.mkdir()
@@ -43,7 +42,7 @@ class TestInboundMediaSizeCap:
 
 
     def test_image_bytes_rejected_when_oversized(self, monkeypatch):
-        import gateway.platforms.base as base
+        from gateway.platforms import base
         monkeypatch.setattr(base, "get_inbound_media_max_bytes", lambda: 16)
         with pytest.raises(ValueError, match="Inbound image payload is too large"):
             cache_image_from_bytes(self._PNG, ext=".png")
@@ -736,7 +735,10 @@ class TestMediaDeliveryDefaultMode:
         cover each profile's ``.env`` / ``auth.json`` / ``state.db`` / transcripts whether the emitting
         turn is the launch (default) profile's or the secondary's own (HERMES_HOME override), while
         the profile's cache artifacts and plain agent-written files stay deliverable."""
-        from hermes_constants import reset_hermes_home_override, set_hermes_home_override
+        from hermes_constants import (
+            reset_hermes_home_override,
+            set_hermes_home_override,
+        )
 
         self._patch_roots(monkeypatch)
         fake_home = tmp_path / "home"
@@ -1299,6 +1301,7 @@ class TestProxyKwargsForAiohttp:
     def test_http_proxy_uses_connector_when_aiohttp_socks_available(self):
         pytest.importorskip("aiohttp_socks")
         from unittest.mock import MagicMock
+
         from gateway.platforms.base import proxy_kwargs_for_aiohttp
 
         sentinel = MagicMock(name="ProxyConnector")

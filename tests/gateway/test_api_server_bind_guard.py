@@ -8,11 +8,9 @@ import socket
 from unittest.mock import patch
 
 import pytest
-
 from gateway.config import PlatformConfig
 from gateway.platforms.api_server import APIServerAdapter
 from gateway.platforms.base import is_network_accessible
-
 
 # ---------------------------------------------------------------------------
 # Unit tests: is_network_accessible()

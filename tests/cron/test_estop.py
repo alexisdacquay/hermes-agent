@@ -16,7 +16,6 @@ import argparse
 import json
 
 import pytest
-
 from agent import estop
 
 

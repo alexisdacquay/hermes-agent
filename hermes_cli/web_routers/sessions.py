@@ -11,25 +11,43 @@ import json
 import re
 import sqlite3
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, List, Optional
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import StreamingResponse
+from hermes_state import is_malformed_db_error
+from hermes_state_errors import (
+    SessionActiveWriteGuardError,
+    StateDbReplacedError,
+    is_transient_sqlite_error,
+)
+from hermes_state_health import STORAGE_CORRUPT, note_storage_error, storage_state
 
 from hermes_cli.session_listing import subagent_listing_scope
 from hermes_cli.web_deps import late
-from hermes_cli.web_server_gateway import _strip_session_list_rows
-from hermes_cli.web_server_sessions import _maybe_auto_archive_for_profile, _session_latest_descendant
 from hermes_cli.web_models import (
-    BulkDeleteSessions, SessionImport, SessionOwnerBackfill, SessionPrune, SessionRename)
-from hermes_cli.web_routers._common import (
-    CORRUPT_STORE_DETAIL, corrupt_store_as_status, log as _log, destructive_profile, http_failure,
+    BulkDeleteSessions,
+    SessionImport,
+    SessionOwnerBackfill,
+    SessionPrune,
+    SessionRename,
 )
-from hermes_state import is_malformed_db_error
-from hermes_state_errors import SessionActiveWriteGuardError, StateDbReplacedError, is_transient_sqlite_error
-from hermes_state_health import STORAGE_CORRUPT, note_storage_error, storage_state
+from hermes_cli.web_routers._common import (
+    CORRUPT_STORE_DETAIL,
+    corrupt_store_as_status,
+    destructive_profile,
+    http_failure,
+)
+from hermes_cli.web_routers._common import (
+    log as _log,
+)
+from hermes_cli.web_server_gateway import _strip_session_list_rows
+from hermes_cli.web_server_sessions import (
+    _maybe_auto_archive_for_profile,
+    _session_latest_descendant,
+)
 
 list_router = APIRouter()
 search_router = APIRouter()
@@ -124,7 +142,7 @@ def _prune_sessions(body: SessionPrune):
 _ACTIVE_WINDOW_S = 300
 
 
-def _csv(value: Optional[str]) -> List[str]:
+def _csv(value: str | None) -> list[str]:
     """Split a comma-separated query param into stripped, non-empty items."""
     return [s.strip() for s in (value or "").split(",") if s.strip()]
 
@@ -135,7 +153,7 @@ def _is_active(row: dict, now: float) -> bool:
         and (now - row.get("last_active", row.get("started_at", 0))) < _ACTIVE_WINDOW_S)
 
 
-def _with_db(profile: Optional[str], fn: Callable, *, read_only: bool):
+def _with_db(profile: str | None, fn: Callable, *, read_only: bool):
     """Open the profile's session DB, run ``fn(db)``, always close."""
     db = _open_session_db_for_profile(profile, read_only=read_only)
     try:
@@ -144,13 +162,13 @@ def _with_db(profile: Optional[str], fn: Callable, *, read_only: bool):
         db.close()
 
 
-def _serving_profile(profile: Optional[str]) -> str:
+def _serving_profile(profile: str | None) -> str:
     """The profile name rows are stamped with: the requested one, else the
     serving process's own — so default-profile rows never circulate unowned."""
     return _cron_profile_home(profile)[0] if profile else _cron_default_profile()
 
 
-def _resolve_session_id(db, session_id: str) -> Optional[str]:
+def _resolve_session_id(db, session_id: str) -> str | None:
     """Resolve *session_id*; a corrupt store (prefix scan raises "malformed") is
     reported as 503 with the actual problem instead of a misleading 404."""
     try:
@@ -179,7 +197,7 @@ def get_sessions(
     limit: int = Query(20, ge=0, le=100), offset: int = Query(0, ge=0), min_messages: int = 0,
     archived: str = "exclude", order: str = "created", source: str = None, sources: str = None,
     exclude_sources: str = None, cwd_prefix: str = None, full: bool = False,
-    profile: Optional[str] = None):
+    profile: str | None = None):
     """List sessions.
 
     ``order=recent`` sorts by latest activity across the compression chain, so
@@ -283,7 +301,7 @@ def _is_compression_edge(child: dict, parent: dict) -> bool:
 
 @search_router.get("/api/sessions/search")
 async def search_sessions(
-    q: str = "", limit: int = 20, profile: Optional[str] = None, source: str = None,
+    q: str = "", limit: int = 20, profile: str | None = None, source: str = None,
     sources: str = None, exclude_sources: str = None):
     """Search sessions by ID (first) plus FTS5 message content.
 
@@ -476,7 +494,7 @@ async def import_sessions_endpoint(request: Request):
 
 
 @manage_router.get("/api/sessions/empty/count")
-async def count_empty_sessions_endpoint(profile: Optional[str] = None):
+async def count_empty_sessions_endpoint(profile: str | None = None):
     """Count of empty, ended, non-archived sessions (the "Delete empty (N)" button)."""
     count = await asyncio.to_thread(
         _with_db, profile, lambda db: db.count_empty_sessions(), read_only=True)
@@ -484,7 +502,7 @@ async def count_empty_sessions_endpoint(profile: Optional[str] = None):
 
 
 @manage_router.delete("/api/sessions/empty")
-async def delete_empty_sessions_endpoint(profile: Optional[str] = None):
+async def delete_empty_sessions_endpoint(profile: str | None = None):
     """Delete every empty, ended, non-archived session in one transaction.
 
     "Empty" means NO ``messages`` rows at all — a rewound/compacted chat reads
@@ -503,7 +521,7 @@ async def delete_empty_sessions_endpoint(profile: Optional[str] = None):
 
 
 @manage_router.get("/api/sessions/stats")
-async def get_session_stats(profile: Optional[str] = None):
+async def get_session_stats(profile: str | None = None):
     """Session-store statistics (mirrors `hermes sessions stats`)."""
     def _stats(db):
         out = {
@@ -522,7 +540,7 @@ async def get_session_stats(profile: Optional[str] = None):
 
 
 @manage_router.get("/api/sessions/{session_id}")
-async def get_session_detail(session_id: str, profile: Optional[str] = None):
+async def get_session_detail(session_id: str, profile: str | None = None):
     def _detail(db):
         sid = _resolve_session_id(db, session_id)
         session = db.get_session(sid) if sid else None
@@ -545,7 +563,7 @@ async def get_session_detail(session_id: str, profile: Optional[str] = None):
 
 
 @manage_router.get("/api/sessions/{session_id}/latest-descendant")
-async def get_session_latest_descendant(session_id: str, profile: Optional[str] = None):
+async def get_session_latest_descendant(session_id: str, profile: str | None = None):
     latest, path = await asyncio.to_thread(
         _with_db, profile, lambda db: _session_latest_descendant(session_id, db), read_only=True)
     if not latest:
@@ -684,8 +702,8 @@ def _project_for_display(messages: list, *, home=None, inline_images: bool = Tru
 
 @manage_router.get("/api/sessions/{session_id}/messages")
 async def get_session_messages(
-    session_id: str, profile: Optional[str] = None, limit: Optional[int] = Query(None, ge=0),
-    offset: int = Query(0, ge=0), order: Optional[str] = Query(None),
+    session_id: str, profile: str | None = None, limit: int | None = Query(None, ge=0),
+    offset: int = Query(0, ge=0), order: str | None = Query(None),
     include_compacted: bool = Query(False), inline_images: bool = Query(True)):
     if order not in (None, "oldest", "latest"):
         raise HTTPException(status_code=400, detail="order must be one of: oldest, latest")
@@ -746,7 +764,7 @@ def _timeline_session_id(db, session_id: str, owner: str) -> str:
 
 @manage_router.get("/api/sessions/{session_id}/timeline")
 async def get_session_timeline(
-    session_id: str, profile: Optional[str] = None,
+    session_id: str, profile: str | None = None,
     limit: int = Query(500, ge=1, le=500), after_row_id: int = Query(0, ge=0),
 ):
     """Prompt metadata only, including compacted display history (never rewind rows).
@@ -768,7 +786,7 @@ async def get_session_timeline(
 
 @manage_router.get("/api/sessions/{session_id}/messages/around")
 async def get_session_messages_around(
-    session_id: str, row_id: int = Query(..., ge=1), profile: Optional[str] = None,
+    session_id: str, row_id: int = Query(..., ge=1), profile: str | None = None,
     limit: int = Query(120, ge=1, le=120),
 ):
     """Bounded display page starting at a timeline prompt; no intervening payloads."""
@@ -790,7 +808,7 @@ async def get_session_messages_around(
 
 
 @manage_router.delete("/api/sessions/{session_id}")
-async def delete_session_endpoint(session_id: str, profile: Optional[str] = None):
+async def delete_session_endpoint(session_id: str, profile: str | None = None):
     def _delete(db):
         # Already-absent is an idempotent success: the desktop optimistically
         # removes the row and RESTORES it on any error, so a 404 resurrected
@@ -884,7 +902,7 @@ def _compact_json(obj) -> str:
 
 
 @manage_router.get("/api/sessions/{session_id}/export")
-async def export_session_endpoint(session_id: str, profile: Optional[str] = None):
+async def export_session_endpoint(session_id: str, profile: str | None = None):
     """Stream a single session (metadata + messages) as JSON."""
     def _prepare_export(db):
         sid = _resolve_session_id(db, session_id)

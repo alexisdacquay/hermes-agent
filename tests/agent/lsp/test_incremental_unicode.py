@@ -7,7 +7,6 @@ import sys
 from pathlib import Path
 
 import pytest
-
 from agent.lsp.client import LSPClient, file_uri
 
 
